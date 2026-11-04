@@ -765,15 +765,28 @@
       const rawVias = options.vias || [];
       const unitScale = this.unit === 'mm' ? MIL_PER_MM : 1.0;
 
-      this.vias = rawVias.map((v, idx) => ({
-        id: v.id != null ? v.id : idx + 1,
-        x: (v.x || 0) * unitScale,
-        y: (v.y || 0) * unitScale,
-        padstack: (v.padstack || 'STANDARD_VIA').trim(),
-        net: (v.net || '').trim(),
-        role: (v.role || '').trim(),
-        drill: v.drill || 0
-      }));
+      this.vias = rawVias.map((v, idx) => {
+        const via = {
+          id: v.id != null ? v.id : idx + 1,
+          x: (v.x || 0) * unitScale,
+          y: (v.y || 0) * unitScale,
+          padstack: (v.padstack || 'STANDARD_VIA').trim(),
+          net: (v.net || '').trim(),
+          role: (v.role || '').trim(),
+          drill: v.drill || 0
+        };
+        // 盲埋孔层跨度（分层俯视分解用）：有就带上，没有则运行时回退到 Padstack 名称
+        if (v.layerStart != null) via.layerStart = Number(v.layerStart);
+        if (v.layerEnd != null) via.layerEnd = Number(v.layerEnd);
+        if (Array.isArray(v.layers) && v.layers.length) via.layers = v.layers.slice();
+        if (v.type) via.type = v.type;
+        return via;
+      });
+
+      // 用户手填的分层俯视分界层（空数组 = 用自动建议）
+      this.layerCuts = Array.isArray(options.layerCuts)
+        ? options.layerCuts.map(n => Number(n)).filter(n => isFinite(n))
+        : [];
 
       this.viaCount = this.vias.length;
       this._computeGeometry();
@@ -846,15 +859,22 @@
         category: this.category,
         description: this.description,
         unit: 'mil',
-        vias: this.vias.map(v => ({
-          id: v.id,
-          x: roundN(v.x, 4),
-          y: roundN(v.y, 4),
-          padstack: v.padstack,
-          net: v.net,
-          role: v.role,
-          drill: v.drill
-        }))
+        layerCuts: Array.isArray(this.layerCuts) ? this.layerCuts.slice() : [],
+        vias: this.vias.map(v => {
+          const out = {
+            id: v.id,
+            x: roundN(v.x, 4),
+            y: roundN(v.y, 4),
+            padstack: v.padstack,
+            net: v.net,
+            role: v.role,
+            drill: v.drill
+          };
+          if (v.layerStart != null) out.layerStart = v.layerStart;
+          if (v.layerEnd != null) out.layerEnd = v.layerEnd;
+          if (Array.isArray(v.layers) && v.layers.length) out.layers = v.layers.slice();
+          return out;
+        })
       };
     }
 
@@ -2506,6 +2526,8 @@
             const isGnd = net.toUpperCase().includes('GND') || padstack.toUpperCase().includes('GND');
             const role = isGnd ? '伴随地孔' : '信号孔';
             const type = isGnd ? 'gnd' : 'signal';
+            // 层跨度：Padstack Defined from … / Connections Shape 层列表 / 名称后缀 _L5_L10
+            const layerSpan = parseViaTextLayerSpan(ib);
 
             vias.push({
               id: vIdx + 1,
@@ -2517,7 +2539,11 @@
               net: net || (isGnd ? 'GND' : 'SIGNAL'),
               role,
               type,
-              drill
+              drill,
+              layerStart: layerSpan.layerStart,
+              layerEnd: layerSpan.layerEnd,
+              layers: layerSpan.layers,
+              layerSource: layerSpan.layerSource
             });
           }
         });
@@ -2533,6 +2559,7 @@
               const padstack = parts[2] || 'VIA_PADSTACK';
               const net = parts[3] || 'GND';
               const isGnd = net.toUpperCase().includes('GND') || padstack.toUpperCase().includes('GND');
+              const nameSpan = parseLayerSpanFromPadstackName(padstack);
               vias.push({
                 id: vIdx + 1,
                 rawX: x,
@@ -2543,7 +2570,11 @@
                 net,
                 role: isGnd ? '伴随地孔' : '信号孔',
                 type: isGnd ? 'gnd' : 'signal',
-                drill: 0
+                drill: 0,
+                layerStart: nameSpan ? nameSpan.start : null,
+                layerEnd: nameSpan ? nameSpan.end : null,
+                layers: [],
+                layerSource: nameSpan ? 'padstack-name' : ''
               });
             }
           }
@@ -2876,6 +2907,551 @@
       absDyMm: Math.abs(dy) * MM_PER_MIL,
       angleDeg
     };
+  }
+
+  /* ==========================================================================
+   * 盲埋孔分层俯视分解（Layer Segment Decomposition）
+   * --------------------------------------------------------------------------
+   * 痛点：同一 XY 附近的盲孔/埋孔/通孔在「整体俯视图」里会互相压盖，看上去像
+   *       孔叠孔、甚至像短路。把孔按层带拆开，每带单独出一张俯视图，图上就
+   *       不再互相遮挡（同网同点的物理叠孔仍会重叠，单独做虚线标注）。
+   *
+   * 分界语义（与用户约定一致，以 cuts = [5, 10] 为例）：
+   *   ① L1–L4   —— L5 以上，不含 L5
+   *   ② L5–L10  —— 含 L5、含 L10
+   *   ③ L11–L13 —— L10 以下，不含 L10
+   *
+   * 归属规则：统计每个孔「占用层」与各层带的重合层数，归到重合最多的层带；
+   *           平票归靠前的层带 —— 保证每个孔不多不少只出现一次。
+   *
+   * 占用层来源优先级：报告里的 Padstack Defined from A to B →
+   *                   Connections: Shape: N (...) 的层列表 → Padstack 名称尾部
+   *                   的 _L5_L10 写法。
+   * ======================================================================== */
+
+  const BOTTOM_LAYER_INDEX_FANOUT = 9999;
+  const MAX_LAYER_CUTS = 3;
+  const SEGMENT_MARKERS = ['①', '②', '③', '④'];
+
+  /**
+   * 叠层名 -> 单调递增的物理层序号（Top=1，Bottom=9999）
+   * 兼容 Top / 表层 / 10G07P / 13G09P / L12 / Layer_12 / Inner12 / "12"
+   */
+  function parseLayerIndexFromName(layerName) {
+    if (layerName == null) return null;
+    if (typeof layerName === 'number') return isFinite(layerName) ? layerName : null;
+    const s = String(layerName).trim();
+    if (!s) return null;
+
+    if (/^(?:top|表层|top_layer)$/i.test(s)) return 1;
+    if (/^(?:bottom|bot|底层|bottom_layer)$/i.test(s)) return BOTTOM_LAYER_INDEX_FANOUT;
+
+    const mLead = s.match(/^0*(\d{1,3})(?:$|[^0-9])/);
+    if (mLead) {
+      const n = parseInt(mLead[1], 10);
+      if (n > 0) return n;
+    }
+
+    const mPref = s.match(/^(?:L|LAYER|INNER|SIGNAL|SIG|GND|PLN|S)[_\-\s]*0*(\d{1,3})(?:$|[^0-9])/i);
+    if (mPref) {
+      const n = parseInt(mPref[1], 10);
+      if (n > 0) return n;
+    }
+
+    const mAny = s.match(/(?:^|[_\-\s])L0*(\d{1,3})(?:$|[^0-9])/i);
+    if (mAny) {
+      const n = parseInt(mAny[1], 10);
+      if (n > 0) return n;
+    }
+    return null;
+  }
+
+  function formatLayerNum(num) {
+    if (num == null || !isFinite(num)) return '?';
+    if (num >= BOTTOM_LAYER_INDEX_FANOUT) return 'Bot';
+    return `L${num}`;
+  }
+
+  /**
+   * 从 Padstack 名称尾部解析层跨度，如 ..._L1_L5 / ..._L5_L10 / ..._L10_11
+   */
+  function parseLayerSpanFromPadstackName(padstackName) {
+    const s = String(padstackName == null ? '' : padstackName).trim();
+    if (!s) return null;
+    const m = s.match(/_L?(\d{1,3})[_-]L?(\d{1,3})$/i);
+    if (!m) return null;
+    const a = parseInt(m[1], 10);
+    const b = parseInt(m[2], 10);
+    if (!(a > 0) || !(b > 0) || a === b) return null;
+    return { start: Math.min(a, b), end: Math.max(a, b) };
+  }
+
+  /**
+   * 从单个过孔文本块解析层信息（Padstack Defined from / Connections Shape / 名称后缀）
+   * @returns {{layerStart:number|null, layerEnd:number|null, layers:number[], layerSource:string}}
+   */
+  function parseViaTextLayerSpan(text) {
+    const src = String(text == null ? '' : text);
+    const res = { layerStart: null, layerEnd: null, layers: [], layerSource: '' };
+
+    const mDef = src.match(/Padstack\s+Defined\s*(?:from|:)?\s*([^\s\r\n]+?)\s+(?:to|~|-)\s+([^\s\r\n]+)/i);
+    if (mDef) {
+      const a = parseLayerIndexFromName(mDef[1]);
+      const b = parseLayerIndexFromName(mDef[2]);
+      if (a != null && b != null) {
+        res.layerStart = Math.min(a, b);
+        res.layerEnd = Math.max(a, b);
+        res.layerSource = 'defined';
+      }
+    }
+
+    // 第一个 Shape 行是焊盘层列表（信号孔后面还会有一个 Trace 行，取第一个即可）
+    const mShape = src.match(/Shape:\s*\d+\s*\(([^)]*)\)/i);
+    if (mShape) {
+      const nums = mShape[1].split(/[,\s]+/).map(n => parseLayerIndexFromName(n)).filter(n => n != null);
+      if (nums.length) {
+        res.layers = nums;
+        if (res.layerStart == null) {
+          res.layerStart = Math.min.apply(null, nums);
+          res.layerEnd = Math.max.apply(null, nums);
+          res.layerSource = 'connections';
+        }
+      }
+    }
+
+    if (res.layerStart == null) {
+      const mPad = src.match(/Padstack\s+Name:\s*([^\r\n]+)/i);
+      const span = mPad ? parseLayerSpanFromPadstackName(mPad[1]) : null;
+      if (span) {
+        res.layerStart = span.start;
+        res.layerEnd = span.end;
+        res.layerSource = 'padstack-name';
+      }
+    }
+
+    return res;
+  }
+
+  /**
+   * 取单个孔的层跨度 {start, end, source}，无层信息返回 null
+   */
+  function parseViaLayerRange(via) {
+    if (!via) return null;
+
+    const n1 = via.layerStart != null ? parseLayerIndexFromName(via.layerStart) : null;
+    const n2 = via.layerEnd != null ? parseLayerIndexFromName(via.layerEnd) : null;
+    if (n1 != null && n2 != null && n1 !== n2) {
+      return { start: Math.min(n1, n2), end: Math.max(n1, n2), source: 'field' };
+    }
+
+    const list = Array.isArray(via.layers)
+      ? via.layers.map(n => parseLayerIndexFromName(n)).filter(n => n != null)
+      : [];
+    if (list.length > 1) {
+      const a = Math.min.apply(null, list);
+      const b = Math.max.apply(null, list);
+      if (a !== b) return { start: a, end: b, source: 'layers' };
+    }
+
+    const span = parseLayerSpanFromPadstackName(via.padstack);
+    if (span) return { start: span.start, end: span.end, source: 'padstack-name' };
+
+    if (list.length === 1) return { start: list[0], end: list[0], source: 'layers-single' };
+    if (n1 != null && n2 != null) return { start: Math.min(n1, n2), end: Math.max(n1, n2), source: 'field-single' };
+    return null;
+  }
+
+  function clampLayerRange(range, minLayer, maxLayer) {
+    if (!range) return null;
+    let start = range.start;
+    let end = range.end >= BOTTOM_LAYER_INDEX_FANOUT ? (maxLayer != null ? maxLayer : range.start) : range.end;
+    if (maxLayer != null) end = Math.min(end, maxLayer);
+    if (minLayer != null) start = Math.max(start, minLayer);
+    if (end < start) end = start;
+    return { start, end };
+  }
+
+  function expandLayerSpan(range) {
+    if (!range) return [];
+    const out = [];
+    const end = Math.min(range.end, range.start + 128);
+    for (let n = range.start; n <= end; n++) out.push(n);
+    return out;
+  }
+
+  /**
+   * 分界层自动建议：统计各孔层跨度的「内部端点」，出现次数最多的 1~3 个层号
+   * 样例（43 孔盲埋孔组合）→ [5, 10]
+   */
+  function suggestLayerCuts(vias, options = {}) {
+    const list = Array.isArray(vias) ? vias : [];
+    const maxCuts = Math.max(1, Math.min(MAX_LAYER_CUTS, Number(options.maxCuts) || 2));
+
+    const ranges = [];
+    list.forEach(v => {
+      const r = parseViaLayerRange(v);
+      if (r) ranges.push(r);
+    });
+    if (!ranges.length) return [];
+
+    let minLayer = Infinity;
+    let maxLayer = -Infinity;
+    ranges.forEach(r => {
+      if (r.start < minLayer) minLayer = r.start;
+      if (r.end < BOTTOM_LAYER_INDEX_FANOUT && r.end > maxLayer) maxLayer = r.end;
+    });
+    if (!isFinite(minLayer) || !isFinite(maxLayer) || maxLayer - minLayer < 2) return [];
+
+    const weights = new Map();
+    ranges.forEach(r => {
+      const end = Math.min(r.end, maxLayer);
+      [r.start, end].forEach(b => {
+        if (b > minLayer && b < maxLayer) weights.set(b, (weights.get(b) || 0) + 1);
+      });
+    });
+
+    return Array.from(weights.entries())
+      .sort((a, b) => (b[1] - a[1]) || (a[0] - b[0]))
+      .slice(0, maxCuts)
+      .map(e => e[0])
+      .sort((a, b) => a - b);
+  }
+
+  /**
+   * 规范化用户手填的分界层（去重、排序、剔除越界层、最多 3 个）
+   */
+  function normalizeLayerCuts(cuts, minLayer, maxLayer) {
+    if (!Array.isArray(cuts)) return [];
+    const seen = new Set();
+    const out = [];
+    cuts.forEach(c => {
+      const n = Math.round(Number(c));
+      if (!isFinite(n)) return;
+      if (minLayer != null && n <= minLayer) return;
+      if (maxLayer != null && n >= maxLayer) return;
+      if (seen.has(n)) return;
+      seen.add(n);
+      out.push(n);
+    });
+    out.sort((a, b) => a - b);
+    return out.slice(0, MAX_LAYER_CUTS);
+  }
+
+  /**
+   * 「5,10」/「L5 / L10」-> [5, 10]
+   */
+  function parseLayerCutsInput(text) {
+    const nums = String(text == null ? '' : text).match(/\d{1,3}/g);
+    if (!nums) return [];
+    return nums.map(n => parseInt(n, 10)).filter(n => isFinite(n) && n > 0);
+  }
+
+  /**
+   * 按分界层生成层带定义（含「含 / 不含」边界语义文字）
+   */
+  function buildLayerSegments(cuts, minLayer, maxLayer) {
+    const list = Array.isArray(cuts) ? cuts : [];
+    if (!list.length) return [];
+
+    const segs = [];
+    for (let i = 0; i <= list.length; i++) {
+      let from, to, boundary;
+      if (i === 0) {
+        from = minLayer;
+        to = list[0] - 1;
+        boundary = `不含 ${formatLayerNum(list[0])}`;
+      } else if (i === list.length) {
+        // 只有一个分界层时，该层归下一段（否则这一层会没有归属）；
+        // 两个及以上分界层时，末段不含最后一个分界层（与「L10 以下不含 L10」一致）
+        const lastCut = list[list.length - 1];
+        from = list.length === 1 ? lastCut : lastCut + 1;
+        to = maxLayer;
+        boundary = list.length === 1 ? `含 ${formatLayerNum(lastCut)}` : `不含 ${formatLayerNum(lastCut)}`;
+      } else {
+        from = list[i - 1];
+        to = list[i];
+        boundary = `含 ${formatLayerNum(list[i - 1])} / ${formatLayerNum(list[i])}`;
+      }
+      if (to < from) return [];
+
+      segs.push({
+        index: i,
+        marker: SEGMENT_MARKERS[i] || String(i + 1),
+        fromLayer: from,
+        toLayer: to,
+        rangeText: from === to
+          ? formatLayerNum(from)
+          : `${formatLayerNum(from)}–${formatLayerNum(to)}`,
+        boundaryText: boundary
+      });
+    }
+    return segs;
+  }
+
+  /**
+   * 孔的占位尺寸（用于判断两孔是否压盖）：优先 Circle Drill，其次 Padstack 名称里的数字
+   */
+  function viaFootprintSize(v) {
+    const d = Number(v && v.drill);
+    if (isFinite(d) && d > 0) return d;
+    const m = String((v && v.padstack) || '').match(/(\d+(?:\.\d+)?)\s*drill/i);
+    if (m) {
+      const n = parseFloat(m[1]);
+      if (n > 0) return n;
+    }
+    return 3;
+  }
+
+  function normalizeNetKey(v) {
+    const net = String((v && v.net) || '').trim().toUpperCase();
+    if (net) return `NET:${net}`;
+    const pad = String((v && v.padstack) || '').trim().toUpperCase();
+    return pad ? `PAD:${pad}` : 'NET:UNKNOWN';
+  }
+
+  /**
+   * 俯视压盖判定：两孔圆心距 < (尺寸A + 尺寸B) / 2 即视为压盖，并区分同网/异网
+   */
+  function detectViaOverlapPairs(vias) {
+    const list = Array.isArray(vias) ? vias : [];
+    const pairs = [];
+    for (let i = 0; i < list.length; i++) {
+      for (let j = i + 1; j < list.length; j++) {
+        const a = list[i], b = list[j];
+        const d = Math.hypot((Number(a.x) || 0) - (Number(b.x) || 0), (Number(a.y) || 0) - (Number(b.y) || 0));
+        const need = (viaFootprintSize(a) + viaFootprintSize(b)) / 2;
+        if (d < need) {
+          pairs.push({ i, j, dist: d, need, sameNet: normalizeNetKey(a) === normalizeNetKey(b) });
+        }
+      }
+    }
+    return pairs;
+  }
+
+  /**
+   * 盲埋孔分层俯视分解：把方案里的孔拆成 N 张俯视图（默认 3 张）
+   *
+   * @param {Object|Array} scheme 扇出方案（或孔数组）
+   * @param {Object} options
+   *   width/height/padRadius/drillRadius 画布几何；cuts 用户手填分界层；
+   *   maxCuts 自动建议上限（默认 2）
+   * @returns {Object} {
+   *   available, reason, cutLayers, autoCutLayers, isAutoCuts, layerMin, layerMax,
+   *   transform:{cx,cy,scale}, segments:[{marker,rangeText,boundaryText,caption,vias,overlapPairs,…}],
+   *   totalVias, assignedCount, unassignedCount, residualOverlapPairs, …
+   * }
+   */
+  function computeLayerSegmentViews(scheme, options = {}) {
+    const vias = (scheme && Array.isArray(scheme.vias))
+      ? scheme.vias
+      : (Array.isArray(scheme) ? scheme : []);
+
+    const W = Math.max(48, Math.round(Number(options.width) || 74));
+    const H = Math.max(48, Math.round(Number(options.height) || W));
+    const padRadius = Math.max(2.4, Math.min(9.5, Number(options.padRadius) || W * 0.055));
+    const drillRadius = Math.max(1.1, padRadius * 0.42);
+    const maxCuts = Math.max(1, Math.min(MAX_LAYER_CUTS, Number(options.maxCuts) || 2));
+
+    const base = {
+      available: false,
+      reason: 'no-layer-info',
+      width: W,
+      height: H,
+      padRadius,
+      drillRadius,
+      cutLayers: [],
+      autoCutLayers: [],
+      isAutoCuts: true,
+      layerMin: null,
+      layerMax: null,
+      transform: null,
+      segments: [],
+      totalVias: vias.length,
+      assignedCount: 0,
+      unassignedCount: vias.length,
+      overlapPairs: 0,
+      sameNetOverlapPairs: 0,
+      crossNetOverlapPairs: 0,
+      residualOverlapPairs: 0,
+      residualSameNetPairs: 0,
+      residualCrossNetPairs: 0
+    };
+    if (!vias.length) return Object.assign({}, base, { reason: 'empty' });
+
+    const ranges = vias.map(v => parseViaLayerRange(v));
+    if (!ranges.some(Boolean)) return base;
+
+    let minLayer = Infinity;
+    let maxLayer = -Infinity;
+    ranges.forEach(r => {
+      if (!r) return;
+      if (r.start < minLayer) minLayer = r.start;
+      if (r.end >= BOTTOM_LAYER_INDEX_FANOUT) return;
+      if (r.end > maxLayer) maxLayer = r.end;
+    });
+    if (!isFinite(minLayer) || !isFinite(maxLayer)) {
+      return Object.assign({}, base, { reason: 'single-layer' });
+    }
+    if (maxLayer - minLayer < 2) {
+      return Object.assign({}, base, { reason: 'single-layer', layerMin: minLayer, layerMax: maxLayer });
+    }
+
+    const autoCutLayers = suggestLayerCuts(vias, { maxCuts });
+    // 未显式传 cuts 时使用方案上记住的手改分界层（scheme.layerCuts），否则自动建议
+    const requestedCuts = options.cuts != null
+      ? options.cuts
+      : ((scheme && Array.isArray(scheme.layerCuts)) ? scheme.layerCuts : []);
+    let cutLayers = normalizeLayerCuts(requestedCuts, minLayer, maxLayer);
+    let isAutoCuts = false;
+    if (!cutLayers.length) {
+      cutLayers = autoCutLayers.slice(0, maxCuts);
+      isAutoCuts = true;
+    }
+    if (!cutLayers.length) {
+      return Object.assign({}, base, { reason: 'no-boundary', layerMin: minLayer, layerMax: maxLayer, autoCutLayers });
+    }
+
+    const segDefs = buildLayerSegments(cutLayers, minLayer, maxLayer);
+    if (!segDefs.length) {
+      return Object.assign({}, base, { reason: 'no-boundary', layerMin: minLayer, layerMax: layerMax, autoCutLayers });
+    }
+
+    // 共享变换：与方案缩略图 (drawSchemeThumbnail) 同一套归一化 —— 四张图可直接对比
+    let centroid = (scheme && scheme.centroid) ? scheme.centroid : null;
+    if (!centroid || !isFinite(centroid.x) || !isFinite(centroid.y)) {
+      let sx = 0, sy = 0;
+      vias.forEach(v => { sx += Number(v.x) || 0; sy += Number(v.y) || 0; });
+      centroid = { x: sx / vias.length, y: sy / vias.length };
+    }
+
+    let maxSpan = 10;
+    vias.forEach(v => {
+      maxSpan = Math.max(maxSpan, Math.abs((Number(v.x) || 0) - centroid.x), Math.abs((Number(v.y) || 0) - centroid.y));
+    });
+    const scale = (W * 0.38) / Math.max(maxSpan, 10);
+    const cx = W / 2;
+    const cy = H / 2;
+
+    const segLayerSets = segDefs.map(def => {
+      const set = new Set();
+      for (let n = def.fromLayer; n <= def.toLayer; n++) set.add(n);
+      return set;
+    });
+
+    const segments = segDefs.map(def => ({
+      key: `seg${def.index}`,
+      index: def.index,
+      marker: def.marker,
+      fromLayer: def.fromLayer,
+      toLayer: def.toLayer,
+      rangeText: def.rangeText,
+      boundaryText: def.boundaryText,
+      caption: `${def.marker} ${def.rangeText}`,
+      rangeLabel: `${def.rangeText}（${def.boundaryText}）`,
+      isEmpty: false,
+      vias: [],
+      overlapPairs: [],
+      sameNetOverlapCount: 0,
+      crossNetOverlapCount: 0
+    }));
+
+    let assignedCount = 0;
+    vias.forEach((v, viaIndex) => {
+      const range = ranges[viaIndex];
+      if (!range) return;
+      const layers = expandLayerSpan(clampLayerRange(range, minLayer, maxLayer));
+
+      let bestIdx = -1;
+      let bestScore = 0;
+      segLayerSets.forEach((set, si) => {
+        let score = 0;
+        layers.forEach(n => { if (set.has(n)) score++; });
+        if (score > bestScore) { bestScore = score; bestIdx = si; }
+      });
+      if (bestIdx < 0) return;
+
+      const x = Number(v.x) || 0;
+      const y = Number(v.y) || 0;
+      const nx = x - centroid.x;
+      const ny = y - centroid.y;
+
+      segments[bestIdx].vias.push({
+        viaIndex,
+        id: v.id != null ? v.id : viaIndex + 1,
+        labelNum: viaIndex + 1,
+        padstack: String(v.padstack || 'VIA_PAD'),
+        net: String(v.net || ''),
+        isSig: isSignalVia(v),
+        x,
+        y,
+        px: cx + nx * scale,
+        py: cy - ny * scale,
+        drill: viaFootprintSize(v),
+        layerStart: range.start,
+        layerEnd: range.end,
+        layerRangeText: `${formatLayerNum(range.start)}–${formatLayerNum(range.end)}`
+      });
+      assignedCount++;
+    });
+
+    let residualSameNetPairs = 0;
+    let residualCrossNetPairs = 0;
+    segments.forEach(seg => {
+      const pairs = detectViaOverlapPairs(seg.vias).map(p => Object.assign({}, p, {
+        v1: seg.vias[p.i],
+        v2: seg.vias[p.j]
+      }));
+      seg.isEmpty = seg.vias.length === 0;
+      seg.overlapPairs = pairs;
+      seg.sameNetOverlapCount = pairs.filter(p => p.sameNet).length;
+      seg.crossNetOverlapCount = pairs.filter(p => !p.sameNet).length;
+      residualSameNetPairs += seg.sameNetOverlapCount;
+      residualCrossNetPairs += seg.crossNetOverlapCount;
+    });
+
+    const allPairs = detectViaOverlapPairs(vias);
+
+    return {
+      available: true,
+      reason: '',
+      width: W,
+      height: H,
+      padRadius,
+      drillRadius,
+      cutLayers,
+      autoCutLayers,
+      isAutoCuts,
+      layerMin: minLayer,
+      layerMax: maxLayer,
+      cutText: cutLayers.map(n => formatLayerNum(n)).join(' / '),
+      transform: { cx, cy, scale, maxSpan },
+      segments,
+      totalVias: vias.length,
+      assignedCount,
+      unassignedCount: vias.length - assignedCount,
+      overlapPairs: allPairs.length,
+      sameNetOverlapPairs: allPairs.filter(p => p.sameNet).length,
+      crossNetOverlapPairs: allPairs.filter(p => !p.sameNet).length,
+      residualOverlapPairs: residualSameNetPairs + residualCrossNetPairs,
+      residualSameNetPairs,
+      residualCrossNetPairs
+    };
+  }
+
+  /**
+   * 一句话摘要（卡片 / 弹窗角标共用）：整体 30 处压盖 → 分解后 0 处
+   */
+  function summarizeLayerSegments(result) {
+    if (!result || !result.available) return '';
+    const segs = result.segments || [];
+    const parts = segs.map(s => `${s.marker}${s.rangeText} ${s.vias.length}孔`);
+    const emptyBands = segs.filter(s => s.vias.length === 0).length;
+    const residual = result.residualOverlapPairs || 0;
+    const residualText = residual === 0
+      ? '分解后无孔重叠'
+      : `分解后仍有 ${residual} 处同网叠孔${result.residualCrossNetPairs ? ` / ${result.residualCrossNetPairs} 处异网重叠` : ''}`;
+    const emptyText = emptyBands ? `（${emptyBands} 个层带无孔）` : '';
+    return `分界 ${result.cutText}：${parts.join(' · ')}${emptyText}；整体俯视 ${result.overlapPairs} 处压盖 → ${residualText}`;
   }
 
   /**
@@ -3767,6 +4343,18 @@
     buildPadstackColorMap,
     calcSchemeViaPairDistance,
     parseMultiSchemeTxt,
+    parseLayerIndexFromName,
+    formatLayerNum,
+    parseLayerSpanFromPadstackName,
+    parseViaTextLayerSpan,
+    parseViaLayerRange,
+    suggestLayerCuts,
+    normalizeLayerCuts,
+    parseLayerCutsInput,
+    buildLayerSegments,
+    detectViaOverlapPairs,
+    computeLayerSegmentViews,
+    summarizeLayerSegments,
     parseAndRepairFanoutJson,
     isSignalVia,
     computeSchemeViewLayout,

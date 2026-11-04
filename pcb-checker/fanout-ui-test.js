@@ -587,5 +587,127 @@ test('顶栏全局显示控制：铺满宽屏可用，全屏工作台与独立�
   assert.strictEqual(document.documentElement.classList.contains('pcb-global-wide'), false, '再次点击应关闭全宽模式');
 });
 
+// 18. 盲埋孔分层俯视分解：方案卡片里整体俯视图旁边并排三张分带俯视图
+function importSegmentSampleScheme() {
+  const txt = fs.readFileSync(path.join(__dirname, 'sample/盲埋孔分层扇出示例.txt'), 'utf8');
+  const parsed = window.FanoutChecker.parseMultiSchemeTxt(txt, 0);
+  assert.strictEqual(parsed.length, 1, '样例文件应解析出 1 套方案');
+  const scheme = window.State.library.addScheme(new window.FanoutChecker.FanoutScheme(parsed[0]));
+  window.renderSchemeCards();
+  return scheme;
+}
+
+function segCaptionTexts(root) {
+  return Array.from(root.querySelectorAll('.slv-cap')).map(el => el.textContent.replace(/\s+/g, ' ').trim());
+}
+
+test('分层俯视分解：卡片里三张分带图按 L5/L10 分界，孔数 15/16/12 合计 43', () => {
+  window.State.library.clear();
+  const scheme = importSegmentSampleScheme();
+  assert.strictEqual(scheme.viaCount, 43, '样例方案应包含 43 个过孔');
+
+  const card = document.getElementById('card_' + scheme.id);
+  assert.ok(card, '方案卡片应渲染');
+
+  const strip = card.querySelector('.scheme-layer-views');
+  assert.ok(strip, '盲埋孔组合方案卡片必须出现「分层俯视分解」区块');
+  assert.ok(strip.textContent.includes('分层俯视分解'), '区块标题应为「分层俯视分解」');
+
+  const items = strip.querySelectorAll('.slv-item');
+  assert.strictEqual(items.length, 3, '应并排展示 3 张分带俯视图');
+  assert.strictEqual(strip.querySelectorAll('canvas').length, 3, '三张分带图各有一个画布');
+
+  const caps = segCaptionTexts(strip);
+  assert.ok(caps[0].includes('① L1–L4'), caps[0]);
+  assert.ok(caps[1].includes('② L5–L10'), caps[1]);
+  assert.ok(caps[2].includes('③ L11–L13'), caps[2]);
+  assert.ok(caps[0].includes('15 孔'), caps[0]);
+  assert.ok(caps[1].includes('16 孔'), caps[1]);
+  assert.ok(caps[2].includes('12 孔'), caps[2]);
+
+  // 三张分解图就贴在整体俯视图所在卡片里
+  const thumb = card.querySelector('.scheme-canvas-wrap canvas');
+  assert.ok(thumb && thumb.id === 'thumb_' + scheme.id, '整体俯视图仍保留在卡片里');
+  assert.ok(card.contains(strip), '分层分解图与整体俯视图位于同一张卡片');
+
+  const note = strip.querySelector('.slv-note');
+  assert.ok(note.textContent.includes('整体俯视 30 处压盖'), note.textContent);
+  assert.ok(note.textContent.includes('分解后无孔重叠'), note.textContent);
+
+  const cutInp = strip.querySelector('input.slv-cut-inp');
+  assert.strictEqual(cutInp.value, '5,10', '分界层输入框默认显示自动建议值');
+});
+
+test('分层俯视分解：查看弹窗里放大展示三张图，分界层可手改并可恢复自动建议', () => {
+  window.State.library.clear();
+  const scheme = importSegmentSampleScheme();
+
+  window.viewScheme(scheme.id);
+  const modal = document.getElementById('modalViewScheme');
+  assert.ok(modal.classList.contains('open'), '查看弹窗应打开');
+
+  const panel = document.getElementById('viewSchemeSegPanel');
+  assert.strictEqual(panel.style.display, 'flex', '查看弹窗里应展开分层俯视分解面板');
+
+  const modalCaps = segCaptionTexts(document.getElementById('viewSegViews'));
+  assert.strictEqual(modalCaps.length, 3, '弹窗里应放大展示 3 张分带图');
+  assert.strictEqual(document.querySelectorAll('#viewSegViews canvas').length, 3);
+
+  const modalCanvas = document.querySelector('#viewSegViews canvas');
+  const cardCanvas = document.querySelector('#card_' + scheme.id + ' .scheme-layer-views canvas');
+  assert.ok(Number(modalCanvas.getAttribute('width')) > Number(cardCanvas.getAttribute('width')),
+    '弹窗里的分带图应比卡片里更大（放大展示）');
+
+  const inp = document.getElementById('inpViewSegCuts');
+  assert.strictEqual(inp.value, '5,10', '弹窗分界层输入框应回填当前分界层');
+
+  // 手改分界层 5,12 -> 中段变成 L5–L12，孔数仍守恒
+  inp.value = '5,12';
+  window.applyViewedSchemeLayerCuts();
+  assert.strictEqual(JSON.stringify(scheme.layerCuts), '[5,12]', '手改分界层应写回方案');
+
+  const edited = segCaptionTexts(document.getElementById('viewSegViews'));
+  assert.ok(edited[1].includes('② L5–L12'), edited[1]);
+
+  const editedView = window.FanoutChecker.computeLayerSegmentViews(scheme, {
+    width: Number(modalCanvas.getAttribute('width')),
+    height: Number(modalCanvas.getAttribute('height'))
+  });
+  assert.strictEqual(editedView.isAutoCuts, false, '手改后不应再标记为自动建议');
+  assert.strictEqual(editedView.segments.reduce((sum, seg) => sum + seg.vias.length, 0), 43, '三个分带孔数之和仍应为 43');
+
+  // 卡片里的分界层输入框同步更新
+  const cardInp = document.querySelector('#card_' + scheme.id + ' input.slv-cut-inp');
+  assert.strictEqual(cardInp.value, '5,12', '卡片上的分界层应与弹窗同步');
+
+  // 恢复自动建议
+  window.resetViewedSchemeLayerCuts();
+  assert.strictEqual(JSON.stringify(scheme.layerCuts), '[]', '恢复自动建议后应清空手改值');
+  assert.strictEqual(document.getElementById('inpViewSegCuts').value, '5,10', '恢复后回到自动建议的 5,10');
+  assert.strictEqual(
+    document.querySelector('#card_' + scheme.id + ' input.slv-cut-inp').value, '5,10',
+    '卡片分界层同样回到 5,10'
+  );
+
+  window.closeViewSchemeModal();
+  assert.ok(!modal.classList.contains('open'), '关闭后弹窗应隐藏');
+});
+
+test('分层俯视分解：无层信息的方案不显示该区块（不误报）', () => {
+  window.State.library.clear();
+  window.loadPresets();
+  window.renderSchemeCards();
+  assert.strictEqual(document.querySelectorAll('.scheme-layer-views').length, 0,
+    '预设方案没有盲埋孔层信息，不应渲染分层分解区块');
+
+  window.viewScheme(window.State.library.schemes[0].id);
+  assert.strictEqual(document.getElementById('viewSchemeSegPanel').style.display, 'none',
+    '无层信息时查看弹窗里的分解面板应隐藏');
+  window.closeViewSchemeModal();
+
+  window.State.library.clear();
+  window.renderSchemeCards();
+});
+
 console.log(`\n结果: ${pass} 通过, ${fail} 失败`);
 assert.strictEqual(fail, 0);
