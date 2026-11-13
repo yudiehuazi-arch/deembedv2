@@ -30,6 +30,7 @@
     activeFilter: 'bad',
     searchQuery: '',
     reviewedKeys: {},
+    padstackRules: {},
     currentPage: 1,
     pageSize: 50,
     measureMode: false,
@@ -39,6 +40,8 @@
     expandedNetKeys: {},
     highlightNetRoute: null,
     activeLocatedPair: null,
+    activeLocatedViaPair: null,
+    resultReturnPosition: null,
     viewport: {
       zoom: 1.0,
       panX: 0,
@@ -236,10 +239,12 @@
       gndPadDiameter: gndPadDiam,
       signalPadDiameter: sigPadDiam,
       gndFirstDrill: gndFirstDrill,
-      signalFirstDrill: sigFirstDrill
+      signalFirstDrill: sigFirstDrill,
+      padstackRules: State.padstackRules
     }, readPadShapes()));
     State.vias = parsed.vias;
     State.traces = parsed.traces;
+    if (root.renderPadstackRuleTable) root.renderPadstackRuleTable();
 
     var layerSet = new Set();
     State.traces.forEach(function (t) { layerSet.add(t.subset); });
@@ -304,12 +309,14 @@
       var diffNetOnly = $('selNetFilter').value === 'diff_only';
       var layerFilter = $('selLayerFilter') ? $('selLayerFilter').value : '';
 
+      if (root.readPadstackRulesFromTable) State.padstackRules = root.readPadstackRulesFromTable();
       if (State.rawText) {
         var parsed = root.DfmCheck.parseDfmItems(State.rawText, Object.assign({
           gndPadDiameter: gndPadDiam,
           signalPadDiameter: sigPadDiam,
           gndFirstDrill: gndFirstDrill,
-          signalFirstDrill: sigFirstDrill
+          signalFirstDrill: sigFirstDrill,
+          padstackRules: State.padstackRules
         }, readPadShapes()));
         State.vias = parsed.vias;
         State.traces = parsed.traces;

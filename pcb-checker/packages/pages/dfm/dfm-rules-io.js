@@ -124,16 +124,11 @@
     snapshot: function () {
       var fields = {};
       this.fieldIds.forEach(function (id) { var el = $(id); if (el) fields[id] = el.value; });
-      return { kind: this.kind, version: this.version, savedAt: new Date().toISOString(), fields: fields, layerRules: LayerRules.read() };
+      return { kind: this.kind, version: this.version, savedAt: new Date().toISOString(), fields: fields, layerRules: LayerRules.read(), padstackRules: App.PadstackRules ? App.PadstackRules.read() : {} };
     },
     saveToFile: function () {
-      var blob = new Blob([JSON.stringify(this.snapshot(), null, 2)], { type: 'application/json;charset=utf-8' });
-      var url = URL.createObjectURL(blob);
-      var a = document.createElement('a');
-      a.href = url;
-      a.download = 'PCB_加工能力规则_' + new Date().toISOString().slice(0, 10) + '.json';
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+      // 先弹出可复制的 JSON 窗口，由用户选择复制或下载（受限 iframe 会拦截自动下载）
+      App.RuleExport.open(JSON.stringify(this.snapshot(), null, 2));
     },
     loadFromObject: function (data) {
       if (!data || data.kind !== this.kind || data.version !== this.version || !data.fields || typeof data.fields !== 'object') {
@@ -157,6 +152,7 @@
       }) : [];
       LayerRules.render(rows);
       LayerRules.save();
+      if (App.PadstackRules) App.PadstackRules.load(data.padstackRules);
       HistoryManager.renderAll();
       if (State.checkResult && State.vias.length && State.traces.length) runCheck(true);
     }

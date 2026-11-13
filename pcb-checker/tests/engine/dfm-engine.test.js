@@ -660,5 +660,81 @@ test('分层规则：表达式写错的行直接忽略，不影响默认阈值',
   if (r.defectPairs.length || r.pairs.some(p => p.threshold !== 4)) throw new Error('阈值应仍是默认 4');
 });
 
+test('Padstack 尺寸覆盖：同一 Padstack 可独立覆盖焊盘与一钻尺寸', () => {
+  const txt = fs.readFileSync(path.join(__dirname, '../../sample/via_trace_airgap_sample.txt'), 'utf8');
+  const base = DfmCheck.parseDfmItems(txt, { gndPadDiameter: 7.906, signalPadDiameter: 12, gndFirstDrill: 6, signalFirstDrill: 6 });
+  const via = base.vias[0];
+  const mapped = DfmCheck.parseDfmItems(txt, {
+    gndPadDiameter: 7.906, signalPadDiameter: 12, gndFirstDrill: 6, signalFirstDrill: 6,
+    padstackRules: { [via.padstack]: { padDiameter: 10.5, firstDrill: 4.5 } }
+  });
+  const overridden = mapped.vias.find(v => v.padstack === via.padstack);
+  if (overridden.padDiameter !== 10.5 || overridden.firstDrill !== 4.5) throw new Error('Padstack 独立尺寸未应用');
+  const untouched = mapped.vias.find(v => v.padstack !== via.padstack);
+  if (untouched && untouched.padDiameter === 10.5 && untouched.firstDrill === 4.5) throw new Error('覆盖不应影响其他 Padstack');
+});
+
+test('Padstack 尺寸覆盖：只覆盖一项时另一项沿用默认，非法值被忽略', () => {
+  const txt = fs.readFileSync(path.join(__dirname, '../../sample/via_trace_airgap_sample.txt'), 'utf8');
+  const opts = { gndPadDiameter: 7.906, signalPadDiameter: 12, gndFirstDrill: 6, signalFirstDrill: 6 };
+  const base = DfmCheck.parseDfmItems(txt, opts);
+  const via = base.vias[0];
+  const only = DfmCheck.parseDfmItems(txt, Object.assign({}, opts, { padstackRules: { [via.padstack]: { padDiameter: 9 } } }));
+  const a = only.vias.find(v => v.padstack === via.padstack);
+  if (a.padDiameter !== 9) throw new Error('焊盘直径应为 9，实际 ' + a.padDiameter);
+  if (a.firstDrill !== via.firstDrill) throw new Error('未覆盖的一钻应沿用默认');
+  const bad = DfmCheck.parseDfmItems(txt, Object.assign({}, opts, { padstackRules: { [via.padstack]: { padDiameter: -3, firstDrill: 'x' } } }));
+  const b = bad.vias.find(v => v.padstack === via.padstack);
+  if (b.padDiameter !== via.padDiameter || b.firstDrill !== via.firstDrill) throw new Error('非法覆盖值应被忽略');
+});
+
+test('Padstack 尺寸覆盖：非圆形焊盘按外接尺寸等比缩放', () => {
+  const r = DfmCheck.resolvePadstackSizing({ padDiameter: 10 }, { shape: { kind: 'oblong', w: 8, h: 4 }, padDiameter: 8, firstDrill: 5 });
+  if (r.shape.w !== 10 || r.shape.h !== 5 || r.shape.kind !== 'oblong') throw new Error('形状缩放错误 ' + JSON.stringify(r.shape));
+  if (r.padDiameter !== 10 || r.firstDrill !== 5) throw new Error('尺寸错误');
+});
+
+test('缺陷模式归并：线到孔与孔到孔分别把尺寸 / 规则 / 实测相同的缺陷合成一组', () => {
+  const v = (id, extra) => Object.assign({ id, net: 'SIG' + id, isGnd: false, padstack: 'SIG_D4_R3', padDiameter: 10.5, firstDrill: 4.5 }, extra || {});
+  const t = id => ({ id, net: 'NET' + id, subset: 'L2', width: 4.5 });
+  const result = {
+    defectPairs: [
+      { via: v(1), trace: t(1), mode: 'pad_to_trace', threshold: 3, evalDist: 2.05 },
+      { via: v(2), trace: t(2), mode: 'pad_to_trace', threshold: 3, evalDist: 2.05 },
+      { via: v(3), trace: t(3), mode: 'pad_to_trace', threshold: 3, evalDist: 1.2 }
+    ],
+    padPairDefects: [
+      { gndVia: v(4, { isGnd: true, padstack: 'GND_D4_R3' }), sigVia: v(5), gndPadDiameter: 10.5, sigPadDiameter: 10.5, threshold: 3, padAirgap: 1.5, ruleLayers: 'L2-L5' },
+      { gndVia: v(6, { isGnd: true, padstack: 'GND_D4_R3' }), sigVia: v(7), gndPadDiameter: 10.5, sigPadDiameter: 10.5, threshold: 3, padAirgap: 1.5, ruleLayers: 'L2-L5' }
+    ]
+  };
+  const a = DfmCheck.buildDfmDefectPatternAnalysis(result);
+  if (a.lineDefectCount !== 3 || a.lineGroupCount !== 2) throw new Error('线到孔应 3 处合成 2 组，实际 ' + a.lineDefectCount + '/' + a.lineGroupCount);
+  if (a.padDefectCount !== 2 || a.padGroupCount !== 1) throw new Error('孔到孔应 2 对合成 1 组');
+  if (a.lineRows[0].count !== 2 || a.lineRows[0].vias.size !== 2 || a.lineRows[0].traces.size !== 2) throw new Error('首组应含 2 个过孔 2 条走线');
+  if (Math.abs(a.lineRows[1].maxDeficit - 1.8) > 1e-9) throw new Error('第二组最大亏欠应为 1.8，实际 ' + a.lineRows[1].maxDeficit);
+  if (a.padRows[0].pairs.size !== 2 || !a.padRows[0].layers.has('L2-L5')) throw new Error('孔到孔代表对象或规则层不对');
+});
+
+test('缺陷模式归并：按出现次数降序，次数相同按最大亏欠降序；尺寸不同不合并', () => {
+  const mk = (id, pad, dist) => ({ via: { id, net: 'S', isGnd: false, padstack: 'P', padDiameter: pad, firstDrill: 4 }, trace: { id, net: 'N', subset: 'L3', width: 4 }, mode: 'pad_to_trace', threshold: 4, evalDist: dist });
+  const a = DfmCheck.buildDfmDefectPatternAnalysis({ defectPairs: [mk(1, 10, 3), mk(2, 12, 1), mk(3, 12, 1), mk(4, 8, 3.5), mk(5, 9, 0.5)], padPairDefects: [] });
+  if (a.lineGroupCount !== 4) throw new Error('焊盘尺寸不同应分组，实际 ' + a.lineGroupCount);
+  if (a.lineRows[0].count !== 2) throw new Error('出现次数最多的组应排首位');
+  const rest = a.lineRows.slice(1).map(r => r.maxDeficit);
+  if (rest[0] < rest[1] || rest[1] < rest[2]) throw new Error('同次数应按最大亏欠降序：' + rest.join(','));
+});
+
+test('缺陷模式归并：空结果、缺字段与非法记录不抛错', () => {
+  [null, undefined, {}, { defectPairs: 'x', padPairDefects: 5 }].forEach(r => {
+    const a = DfmCheck.buildDfmDefectPatternAnalysis(r);
+    if (a.lineDefectCount !== 0 || a.padDefectCount !== 0 || a.lineRows.length || a.padRows.length) throw new Error('空输入应得空结果');
+  });
+  const a = DfmCheck.buildDfmDefectPatternAnalysis({ defectPairs: [null, { via: {} }, { trace: {} }], padPairDefects: [{ gndVia: {} }, null] });
+  if (a.lineDefectCount !== 0 || a.padDefectCount !== 0) throw new Error('缺 via/trace 或 gndVia/sigVia 的记录应被丢弃');
+  const b = DfmCheck.buildDfmDefectPatternAnalysis({ defectPairs: [{ via: { id: 1 }, trace: { id: 2 }, threshold: 3, evalDist: 1 }], padPairDefects: [] });
+  if (b.lineRows[0].padstack !== '未知 Padstack' || b.lineRows[0].layer !== '未知层') throw new Error('缺字段应落到「未知」占位');
+});
+
 console.log(`\n结果: ${pass} 通过, ${fail} 失败\n`);
 if (fail > 0) process.exit(1);

@@ -4,11 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PCB 加工能力与空间间距检查工具</title>
-<link rel="stylesheet" href="assets/styles/tokens.css?v=11">
-<link rel="stylesheet" href="assets/styles/eda-shell.css?v=11">
-<link rel="stylesheet" href="assets/styles/eda-dock.css?v=11">
-<link rel="stylesheet" href="assets/styles/components.css?v=11">
-<link rel="stylesheet" href="assets/styles/pages/dfm.css?v=11">
+<link rel="stylesheet" href="assets/styles/tokens.css?v=12">
+<link rel="stylesheet" href="assets/styles/eda-shell.css?v=12">
+<link rel="stylesheet" href="assets/styles/eda-dock.css?v=12">
+<link rel="stylesheet" href="assets/styles/components.css?v=12">
+<link rel="stylesheet" href="assets/styles/pages/dfm.css?v=12">
+<link rel="stylesheet" href="assets/styles/pages/dfm-panels.css?v=12">
 </head>
 <body class="eda-workbench">
 
@@ -103,28 +104,11 @@
             </select>
           </div>
 
-          <div class="form-item">
-            <label for="inpGndPadDiam" data-tip="GND 过孔焊盘直径，单位 mil">GND 焊盘直径 mil</label>
-            <input type="number" id="inpGndPadDiam" value="7.906" step="0.001" min="0.1">
-            <div class="hist-bar" id="hist_pad_gnd"></div>
-          </div>
-
-          <div class="form-item">
-            <label for="inpSignalPadDiam" data-tip="非 GND 信号过孔焊盘直径，单位 mil">信号焊盘直径 mil</label>
-            <input type="number" id="inpSignalPadDiam" value="12.0" step="0.001" min="0.1">
-            <div class="hist-bar" id="hist_pad_sig"></div>
-          </div>
-
-          <div class="form-item">
-            <label for="inpGndFirstDrill" data-tip="GND 过孔一钻机械孔径，单位 mil">GND 一钻直径 mil</label>
-            <input type="number" id="inpGndFirstDrill" value="6.0" step="0.01" min="0.1">
-            <div class="hist-bar" id="hist_drill_gnd"></div>
-          </div>
-
-          <div class="form-item">
-            <label for="inpSignalFirstDrill" data-tip="非 GND 信号过孔一钻机械孔径，单位 mil">信号一钻直径 mil</label>
-            <input type="number" id="inpSignalFirstDrill" value="6.0" step="0.01" min="0.1">
-            <div class="hist-bar" id="hist_drill_sig"></div>
+          <div class="dfm-default-sizes" hidden aria-hidden="true">
+            <input type="number" id="inpGndPadDiam" value="7.906" step="0.001" min="0.1" tabindex="-1">
+            <input type="number" id="inpSignalPadDiam" value="12.0" step="0.001" min="0.1" tabindex="-1">
+            <input type="number" id="inpGndFirstDrill" value="6.0" step="0.01" min="0.1" tabindex="-1">
+            <input type="number" id="inpSignalFirstDrill" value="6.0" step="0.01" min="0.1" tabindex="-1">
           </div>
 
           <div class="form-item">
@@ -177,6 +161,37 @@
                 <label for="inpPadRot" data-tip="相对 X 轴逆时针旋转角度">旋转角 °</label>
                 <input type="number" id="inpPadRot" value="0" step="0.5">
               </div>
+            </div>
+          </div>
+        </details>
+
+        <details class="eda-fold" id="padstackRuleBox">
+          <summary>Padstack 尺寸覆盖 <span class="eda-tip" tabindex="0" data-tip="按导入文件中的 Padstack Name 单独设置焊盘直径与一钻直径；未启用单独尺寸的 Padstack 使用 GND、信号默认尺寸；勾选多行后可批量应用同一组尺寸">?</span></summary>
+          <div class="eda-fold-body">
+            <div class="row dfm-padstack-bulk">
+              <label class="form-item" for="inpBulkPadDiameter">批量焊盘直径 mil
+                <input id="inpBulkPadDiameter" type="number" step="0.001" min="0.1" value="10.5" data-no-persist>
+              </label>
+              <label class="form-item" for="inpBulkFirstDrill">批量一钻直径 mil
+                <input id="inpBulkFirstDrill" type="number" step="0.001" min="0.1" value="4.5" data-no-persist>
+              </label>
+              <button type="button" class="btn sec small" id="btnApplyPadstackBulk" data-tip="把批量尺寸写入已勾选的 Padstack 行并启用单独尺寸">应用到勾选行</button>
+            </div>
+            <div class="hint" id="padstackBulkHint" role="status"></div>
+            <div class="dfm-padstack-scroll">
+              <table id="padstackRuleTable">
+                <thead>
+                  <tr>
+                    <th class="dfm-ps-col-sel"><label data-tip="全选或取消本表所有 Padstack 选择框，不改其他列"><input id="padstackSelectAll" type="checkbox" data-no-persist aria-label="全选 Padstack"></label></th>
+                    <th>Padstack Name</th>
+                    <th class="dfm-ps-col-kind">网络类型</th>
+                    <th class="dfm-ps-col-en">单独尺寸</th>
+                    <th class="dfm-ps-col-num">焊盘直径 mil</th>
+                    <th class="dfm-ps-col-num">一钻直径 mil</th>
+                  </tr>
+                </thead>
+                <tbody id="padstackRuleBody"><tr><td colspan="6" class="hint dfm-ps-empty">导入数据后列出 Padstack</td></tr></tbody>
+              </table>
             </div>
           </div>
         </details>
@@ -241,6 +256,7 @@
               <button type="button" id="btnZoomIn">放大</button>
               <button type="button" id="btnZoomOut">缩小</button>
               <button type="button" id="btnResetView">复位</button>
+              <button type="button" id="btnReturnDfmResults" class="btn sec small" onclick="returnToDfmResults()" style="display:none" data-tip="切回检查结果明细并恢复到点击定位前的行">返回检查结果明细</button>
             </div>
             <div class="tb-group">
               <button type="button" id="btnMeasureMode" data-tip="激活后依次点击两个过孔或一条走线与一个过孔测量精确间距">测量标尺</button>
@@ -321,28 +337,6 @@
         </div>
       </div>
 
-      <div class="card" id="padPairCard" style="display:none">
-        <h2>GND 孔盘到信号孔盘间距不满足明细</h2>
-        <div class="hint" id="padPairHint" style="margin-bottom:8px"></div>
-        <div class="tbl-wrap">
-          <table id="padPairTable">
-            <thead>
-              <tr>
-                <th style="width:52px">序号</th>
-                <th>GND 孔</th>
-                <th>信号孔</th>
-                <th style="width:110px">中心距 mil</th>
-                <th style="width:130px">孔盘实测 mil</th>
-                <th style="width:110px">规则阈值 mil</th>
-                <th style="width:110px">亏欠 mil</th>
-                <th style="width:150px">焊盘直径 GND / 信号</th>
-              </tr>
-            </thead>
-            <tbody id="padPairBody"></tbody>
-          </table>
-        </div>
-      </div>
-
       <div class="card">
         <div class="row" style="justify-content:space-between;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--line)">
           <div class="row" style="gap:8px">
@@ -359,6 +353,7 @@
           <div class="row" style="gap:6px">
             <button type="button" class="btn sec small" id="btnFilterAll">全部</button>
             <button type="button" class="btn bad small" id="btnFilterBad">只看不满足</button>
+            <button type="button" class="btn sec small" id="btnFilterBadUnreviewed" data-tip="只列不满足且尚未勾选复核的记录，含线到孔对偶与孔到孔对">未复核不满足</button>
             <button type="button" class="btn sec small" id="btnFilterGnd">GND 孔超标</button>
             <button type="button" class="btn sec small" id="btnFilterSig">信号孔超标</button>
             <button type="button" class="btn sec small" id="btnFilterOk">只看满足</button>
@@ -388,30 +383,7 @@
         </div>
 
         <div id="pairListViewContainer" style="display:none">
-          <div class="tbl-wrap">
-            <table id="resTable">
-              <thead>
-                <tr>
-                  <th style="width:45px">序号</th>
-                  <th style="width:45px">复核</th>
-                  <th style="width:65px">状态</th>
-                  <th style="width:110px">判定类型</th>
-                  <th>过孔</th>
-                  <th>走线</th>
-                  <th>最近点坐标</th>
-                  <th>实测间距</th>
-                  <th>规则阈值</th>
-                  <th>偏差值</th>
-                  <th>一钻 / 焊盘</th>
-                  <th>整改建议</th>
-                  <th style="width:65px">操作</th>
-                </tr>
-              </thead>
-              <tbody id="resTableBody"></tbody>
-            </table>
-          </div>
-
-          <div id="paginationBar" class="row" style="justify-content:space-between;margin-top:12px;padding-top:8px;border-top:1px solid var(--line);font-size:12px;color:var(--sub)">
+          <div id="paginationBar" class="row dfm-pager">
             <div id="pageInfo">显示 0 / 0 条记录</div>
             <div class="row" style="gap:6px">
               <label class="fld" style="font-size:12px">每页显示
@@ -420,7 +392,7 @@
                   <option value="100">100 条</option>
                   <option value="200">200 条</option>
                   <option value="500">500 条</option>
-                  <option value="all">全部显示</option>
+                  <option value="all" data-tip="孔盘对超过 1000 条时自动退回每页 200 条">全部显示</option>
                 </select>
               </label>
               <button type="button" class="btn sec small" id="btnFirstPage">« 首页</button>
@@ -429,6 +401,24 @@
               <button type="button" class="btn sec small" id="btnNextPage">下一页 ›</button>
               <button type="button" class="btn sec small" id="btnLastPage">末页 »</button>
             </div>
+          </div>
+          <div class="tbl-wrap">
+            <table id="resTable">
+              <thead>
+                <tr>
+                  <th style="width:52px">序号</th>
+                  <th style="width:76px" data-tip="已复核的记录在「未复核不满足」筛选下隐藏">复核状态<br><label class="dfm-review-all"><input type="checkbox" id="ckReviewVisible" data-no-persist aria-label="总复核当前显示项目">总复核</label></th>
+                  <th style="width:105px">判定类型</th>
+                  <th data-tip="Padstack、网络与孔号">过孔</th>
+                  <th data-tip="线到孔显示走线所在层与网络；孔到孔显示配对的信号过孔">走线或配对过孔</th>
+                  <th style="width:145px" data-tip="按间距判定口径显示的实测值">实测间距</th>
+                  <th style="width:105px">规则阈值</th>
+                  <th style="width:100px">偏差值</th>
+                  <th style="width:85px">操作</th>
+                </tr>
+              </thead>
+              <tbody id="resTableBody"></tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -445,53 +435,47 @@
           </div>
         </div>
 
-        <div class="row" style="gap:14px;align-items:flex-end">
+        <div class="row" style="gap:14px;align-items:center">
           <div>
             <div class="hint" style="margin-bottom:4px">分析对象</div>
             <div class="row" style="gap:6px">
-              <button type="button" class="btn sec small pat-obj-btn active" id="btnPatObjVia" data-obj="via">按信号孔</button>
-              <button type="button" class="btn sec small pat-obj-btn" id="btnPatObjTrace" data-obj="trace">按走线</button>
+              <button type="button" class="btn pri small pat-obj-btn active" id="btnPatObjVia" data-obj="via" data-defect-mode="line" data-tip="归并过孔与走线之间的间距缺陷">线到孔</button>
+              <button type="button" class="btn sec small pat-obj-btn" id="btnPatObjTrace" data-obj="trace" data-defect-mode="pad" data-tip="归并 GND 孔盘与信号孔盘之间的间距缺陷">孔到孔</button>
             </div>
           </div>
-          <div>
-            <label for="selPatViaKind" class="hint" style="display:block;margin-bottom:4px">过孔范围</label>
-            <select id="selPatViaKind">
-              <option value="all">全部过孔</option>
-              <option value="signal">仅信号孔</option>
-              <option value="gnd">仅 GND 孔</option>
-            </select>
-          </div>
-          <div>
-            <label for="selPatDim" class="hint" style="display:block;margin-bottom:4px">归纳维度</label>
-            <select id="selPatDim">
-              <option value="layer">出线层</option>
-              <option value="net">网络</option>
-              <option value="kind">孔型</option>
-              <option value="padstack">Padstack</option>
-              <option value="width">走线线宽</option>
-            </select>
-          </div>
-          <div>
-            <label for="selPatSort" class="hint" style="display:block;margin-bottom:4px">排序指标</label>
-            <select id="selPatSort">
-              <option value="failCount">缺陷处数降序</option>
-              <option value="maxDeficit">最大亏欠量降序</option>
-              <option value="minDist">最小间距升序</option>
-            </select>
-          </div>
-          <div>
-            <label for="selPatTopN" class="hint" style="display:block;margin-bottom:4px">显示数量</label>
-            <select id="selPatTopN">
-              <option value="5">Top 5</option>
-              <option value="10" selected>Top 10</option>
-              <option value="20">Top 20</option>
-              <option value="50">Top 50</option>
-              <option value="0">全部</option>
-            </select>
+          <div hidden aria-hidden="true">
+            <select id="selPatViaKind"><option value="all">全部过孔</option><option value="signal">仅信号孔</option><option value="gnd">仅 GND 孔</option></select>
+            <select id="selPatDim"><option value="layer">出线层</option><option value="net">网络</option><option value="kind">孔型</option><option value="padstack">Padstack</option><option value="width">走线线宽</option></select>
+            <select id="selPatSort"><option value="failCount">缺陷处数降序</option><option value="maxDeficit">最大亏欠量降序</option><option value="minDist">最小间距升序</option></select>
+            <select id="selPatTopN"><option value="5">Top 5</option><option value="10" selected>Top 10</option><option value="20">Top 20</option><option value="50">Top 50</option><option value="0">全部</option></select>
           </div>
         </div>
       </div>
 
+      <div class="card" id="patDefectModesCard">
+        <h3 style="margin:0 0 6px">缺陷类型与重复模式归纳</h3>
+        <div class="hint" id="patDefectModesHint">运行检查后归并线到孔、孔到孔缺陷。</div>
+        <div id="patLineModeSection">
+          <h4 class="pat-mode-title">线到孔 <span class="eda-tip" tabindex="0" data-tip="过孔 × 走线；按孔类别、Padstack、焊盘与一钻尺寸、出线层、线宽、判定口径、阈值、实测间距归并">?</span></h4>
+          <div class="tbl-wrap">
+            <table id="tblPatViaTraceModes">
+              <thead><tr><th>重复模式 / 几何特征 <button type="button" class="pat-filter-btn" data-pat-table="line" data-pat-col="0" data-tip="筛选此列">筛选</button></th><th>规则阈值 <button type="button" class="pat-filter-btn" data-pat-table="line" data-pat-col="1" data-tip="筛选此列">筛选</button></th><th>实测间距 <button type="button" class="pat-filter-btn" data-pat-table="line" data-pat-col="2" data-tip="筛选此列">筛选</button></th><th>最大亏欠 <button type="button" class="pat-filter-btn" data-pat-table="line" data-pat-col="3" data-tip="筛选此列">筛选</button></th><th>不满足数 <button type="button" class="pat-filter-btn" data-pat-table="line" data-pat-col="4" data-tip="筛选此列">筛选</button></th><th>代表对象 过孔 / 走线 <button type="button" class="pat-filter-btn" data-pat-table="line" data-pat-col="5" data-tip="筛选此列">筛选</button></th></tr></thead>
+              <tbody id="patViaTraceModes"><tr><td colspan="6" class="hint empty-cell">导入数据并运行检查后生成</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div id="patPadModeSection" hidden>
+          <h4 class="pat-mode-title">孔到孔 <span class="eda-tip" tabindex="0" data-tip="GND 孔盘 × 信号孔盘；按两侧 Padstack、焊盘尺寸、阈值、孔盘间距归并">?</span></h4>
+          <div class="tbl-wrap">
+            <table id="tblPatViaViaModes">
+              <thead><tr><th>重复模式 / 几何特征 <button type="button" class="pat-filter-btn" data-pat-table="pad" data-pat-col="0" data-tip="筛选此列">筛选</button></th><th>规则阈值 <button type="button" class="pat-filter-btn" data-pat-table="pad" data-pat-col="1" data-tip="筛选此列">筛选</button></th><th>实测间距 <button type="button" class="pat-filter-btn" data-pat-table="pad" data-pat-col="2" data-tip="筛选此列">筛选</button></th><th>最大亏欠 <button type="button" class="pat-filter-btn" data-pat-table="pad" data-pat-col="3" data-tip="筛选此列">筛选</button></th><th>不满足数 <button type="button" class="pat-filter-btn" data-pat-table="pad" data-pat-col="4" data-tip="筛选此列">筛选</button></th><th>代表过孔对 <button type="button" class="pat-filter-btn" data-pat-table="pad" data-pat-col="5" data-tip="筛选此列">筛选</button></th></tr></thead>
+              <tbody id="patViaViaModes"><tr><td colspan="6" class="hint empty-cell">导入数据并运行检查后生成</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="pat-legacy" hidden aria-hidden="true">
       <div class="stats-grid" id="patStatsGrid">
         <div class="stat-box">
           <div class="num" id="patKpiObjects">0</div>
@@ -552,6 +536,7 @@
             <tbody id="tblPatObjectsBody"></tbody>
           </table>
         </div>
+      </div>
       </div>
     </section>
 
@@ -617,20 +602,27 @@
 
 <div class="tooltip" id="canvasTooltip"></div>
 
-<script src="packages/shared/dom-utils.js?v=11"></script>
-<script src="packages/geometry/pad-primitives.js?v=11"></script>
-<script src="packages/geometry/pad-region.js?v=11"></script>
-<script src="packages/engines/dfm/dfm-layers.js?v=11"></script>
-<script src="packages/engines/dfm/dfm-parser.js?v=11"></script>
-<script src="packages/engines/dfm/dfm-engine.js?v=11"></script>
-<script src="packages/engines/dfm/dfm-pattern.js?v=11"></script>
-<script src="packages/pages/dfm/dfm-config.js?v=11"></script>
-<script src="packages/pages/dfm/dfm-rules-io.js?v=11"></script>
-<script src="packages/pages/dfm/dfm-results-ui.js?v=11"></script>
-<script src="packages/pages/dfm/dfm-pattern-ui.js?v=11"></script>
-<script src="packages/pages/dfm/dfm-canvas-viewer.js?v=11"></script>
-<script src="packages/shared/eda-tooltip.js?v=11"></script>
-<script src="packages/shared/eda-shell.js?v=11"></script>
-<script src="packages/shared/ui-prefs.js?v=11"></script>
+<script src="packages/shared/dom-utils.js?v=12"></script>
+<script src="packages/geometry/pad-primitives.js?v=12"></script>
+<script src="packages/geometry/pad-region.js?v=12"></script>
+<script src="packages/engines/dfm/dfm-layers.js?v=12"></script>
+<script src="packages/engines/dfm/dfm-parser.js?v=12"></script>
+<script src="packages/engines/dfm/dfm-engine.js?v=12"></script>
+<script src="packages/engines/dfm/dfm-pattern.js?v=12"></script>
+<script src="packages/pages/dfm/dfm-config.js?v=12"></script>
+<script src="packages/pages/dfm/dfm-padstack-rules.js?v=12"></script>
+<script src="packages/pages/dfm/dfm-rule-export.js?v=12"></script>
+<script src="packages/pages/dfm/dfm-rules-io.js?v=12"></script>
+<script src="packages/pages/dfm/dfm-result-nav.js?v=12"></script>
+<script src="packages/pages/dfm/dfm-results-pairs.js?v=12"></script>
+<script src="packages/pages/dfm/dfm-results-ui.js?v=12"></script>
+<script src="packages/pages/dfm/dfm-pattern-ui.js?v=12"></script>
+<script src="packages/pages/dfm/dfm-pattern-filter-popover.js?v=12"></script>
+<script src="packages/pages/dfm/dfm-pattern-modes.js?v=12"></script>
+<script src="packages/pages/dfm/dfm-canvas-vias.js?v=12"></script>
+<script src="packages/pages/dfm/dfm-canvas-viewer.js?v=12"></script>
+<script src="packages/shared/eda-tooltip.js?v=12"></script>
+<script src="packages/shared/eda-shell.js?v=12"></script>
+<script src="packages/shared/ui-prefs.js?v=12"></script>
 </body>
 </html>
