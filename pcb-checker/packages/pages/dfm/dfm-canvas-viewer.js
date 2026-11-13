@@ -281,7 +281,7 @@
     State.activeLocatedPair = { viaId: viaId, traceId: traceId };
     var pKey = viaId + '_' + traceId;
     var isRev = !!State.reviewedKeys[pKey];
-    var pairs = (State.checkResult && State.checkResult.allPairs) ? State.checkResult.allPairs : [];
+    var pairs = (State.checkResult && (State.checkResult.pairs || State.checkResult.allPairs || State.checkResult.defectPairs)) || [];
     var p = pairs.find(function (item) { return item.via.id === viaId && item.trace.id === traceId; });
 
     if (titleEl) titleEl.textContent = 'Via ' + viaId + ' ↔ Trace ' + traceId + ' 复核';

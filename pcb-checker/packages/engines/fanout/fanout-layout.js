@@ -14,6 +14,7 @@
   var dist2D = parser.dist2D;
   var isSignalVia = parser.isSignalVia || schemeMod.isSignalVia;
   var buildPadstackColorMap = paletteMod.buildPadstackColorMap;
+  var PADSTACK_PALETTE = paletteMod.PADSTACK_PALETTE || [{ fill: '#38bdf8', stroke: '#0284c7', badgeBg: '#e0f2fe', badgeText: '#0369a1' }];
   function estimateTextPx(str, fontPx, isMono) {
     const s = String(str || '');
     let w = 0;

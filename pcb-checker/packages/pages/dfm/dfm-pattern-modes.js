@@ -20,10 +20,17 @@
   function PS() { return root.PatternState; }
   function fmt(n) { return Number.isFinite(Number(n)) ? Number(n).toFixed(2) : '未知'; }
   function ids(set, n) { return Array.from(set).slice(0, n || 5).map(escHtml).join(', '); }
+  var MODE_LABELS = {
+    pad_to_trace: '孔盘-线边',
+    drill_to_trace: '钻孔-线边',
+    center_to_trace: '孔心-线边',
+    center_to_center: '孔心-线心'
+  };
 
   function lineRowHtml(g) {
+    var modeText = MODE_LABELS[g.mode] || g.mode;
     var desc = g.viaKind + ' · ' + g.padstack + ' · 焊盘 ' + fmt(g.padDiameter) + ' / 一钻 ' + fmt(g.firstDrill) +
-      ' mil · ' + g.layer + ' · 线宽 ' + fmt(g.width) + ' mil · ' + g.mode;
+      ' mil · ' + g.layer + ' · 线宽 ' + fmt(g.width) + ' mil · ' + modeText;
     return '<tr><td>' + escHtml(desc) + '</td><td>≥ ' + fmt(g.threshold) + ' mil</td><td>' + fmt(g.measured) + ' mil</td><td>' +
       fmt(g.maxDeficit) + ' mil</td><td><b>' + g.count.toLocaleString() + '</b></td><td>Via ' + ids(g.vias) + ' / Trace ' + ids(g.traces) + '</td></tr>';
   }

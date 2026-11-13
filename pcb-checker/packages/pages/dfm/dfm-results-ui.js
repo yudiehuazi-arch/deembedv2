@@ -11,16 +11,6 @@
   var State = App.State;
   var NET_COLORS = App.NET_COLORS;
 
-  var PAD_SHAPE_LABEL = { circle: '圆形', oblong: '长圆', roundrect: '圆角矩形', rect: '矩形' };
-  function padShapeNote(p) {
-    var sh = p && p.via && p.via.padShape;
-    if (!sh || !sh.kind || sh.kind === 'circle') return '';
-    var w = Number(sh.w || 0).toFixed(2), h = Number(sh.h || 0).toFixed(2);
-    var corner = sh.corner ? (' R' + Number(sh.corner).toFixed(2)) : '';
-    var rot = sh.rot ? (' ' + Number(sh.rot).toFixed(1) + '°') : '';
-    return '<br><span style="color:#2563eb">' + (PAD_SHAPE_LABEL[sh.kind] || sh.kind) + ' ' + w + '×' + h + corner + rot + '</span>';
-  }
-
   /** 统计卡：孔到孔超标数 / 检查数。缺陷行统一显示在视图二明细表，这里不再有独立卡片。 */
   function renderPadPairResults() {
     var r = State.checkResult;

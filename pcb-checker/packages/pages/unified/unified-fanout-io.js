@@ -2,6 +2,7 @@
  * unified-fanout-io.js —— 扇出方案库预设加载、清空、JSON 导入导出与容错修复
  * ========================================================================== */
 function loadFanoutPresets() {
+  State.fanoutExplicitlyCleared = false;
   State.rules.fanoutSchemes = getDefaultFanoutPresets();
   renderFanoutSchemesGrid();
   showToast("已恢复 6 套标准扇出方案预设");
@@ -16,6 +17,7 @@ function clearFanoutLibrary() {
     ? confirm("确定要清空当前所有 " + State.rules.fanoutSchemes.length + " 套扇出方案吗？")
     : true;
   if (ok) {
+    State.fanoutExplicitlyCleared = true;
     State.rules.fanoutSchemes = [];
     renderFanoutSchemesGrid();
     showToast("已清空扇出方案库");
@@ -40,8 +42,10 @@ function importFanoutLibraryJSON(event) {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = function (e) {
-    const list = parseAndRepairFanoutJson(e.target.result);
-    if (list && list.length > 0) {
+    const res = parseAndRepairFanoutJson(e.target.result);
+    const list = Array.isArray(res) ? res : (res && Array.isArray(res.schemes) ? res.schemes : []);
+    if (list.length > 0) {
+      State.fanoutExplicitlyCleared = false;
       State.rules.fanoutSchemes = list.map((s, idx) => ({
         id: s.id || ("sc_" + idx),
         name: s.name || ("方案_" + (idx + 1)),

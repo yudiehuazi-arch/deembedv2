@@ -90,7 +90,10 @@
   function open(button, cfg) {
     close();
     var values = cfg.values;
-    var selected = cfg.current instanceof Set ? new Set(cfg.current) : new Set(values);
+    var valueSet = new Set(values);
+    var selected = cfg.current instanceof Set
+      ? new Set(Array.from(cfg.current).filter(function (v) { return valueSet.has(v); }))
+      : new Set(values);
     var pop = el('div', 'pat-filter-pop');
     pop.id = POP_ID; pop.dataset.table = button.dataset.patTable; pop.dataset.col = button.dataset.patCol;
     var search = document.createElement('input');

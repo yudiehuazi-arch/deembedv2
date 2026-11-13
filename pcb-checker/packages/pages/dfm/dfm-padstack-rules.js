@@ -18,14 +18,21 @@
 
   function isPositive(n) { return Number.isFinite(n) && n > 0; }
 
-  /** 只保留合法条目：名称非空，焊盘直径与一钻直径均为正数。 */
+  /** 只保留合法条目：名称非空，显式提供的焊盘直径或一钻直径须为正数，且至少有一项有效正数。 */
   function sanitize(raw) {
     var out = {};
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
     Object.keys(raw).forEach(function (name) {
       var r = raw[name] || {};
+      var hasPad = r.padDiameter != null && r.padDiameter !== '';
+      var hasDrill = r.firstDrill != null && r.firstDrill !== '';
       var padDiameter = Number(r.padDiameter), firstDrill = Number(r.firstDrill);
-      if (name && isPositive(padDiameter) && isPositive(firstDrill)) out[name] = { padDiameter: padDiameter, firstDrill: firstDrill };
+      if (!name || (hasPad && !isPositive(padDiameter)) || (hasDrill && !isPositive(firstDrill))) return;
+      if (!isPositive(padDiameter) && !isPositive(firstDrill)) return;
+      var entry = {};
+      if (isPositive(padDiameter)) entry.padDiameter = padDiameter;
+      if (isPositive(firstDrill)) entry.firstDrill = firstDrill;
+      out[name] = entry;
     });
     return out;
   }
@@ -40,9 +47,14 @@
       var name = row.dataset.padstack || '';
       var enable = row.querySelector('.ps-enable');
       if (!enable || !enable.checked) return;
-      var padDiameter = Number(row.querySelector('.ps-pad-diameter').value);
-      var firstDrill = Number(row.querySelector('.ps-first-drill').value);
-      if (name && isPositive(padDiameter) && isPositive(firstDrill)) rules[name] = { padDiameter: padDiameter, firstDrill: firstDrill };
+      var padRaw = row.querySelector('.ps-pad-diameter').value;
+      var drillRaw = row.querySelector('.ps-first-drill').value;
+      var padDiameter = Number(padRaw), firstDrill = Number(drillRaw);
+      if (!name || (!isPositive(padDiameter) && !isPositive(firstDrill))) return;
+      var entry = {};
+      if (isPositive(padDiameter)) entry.padDiameter = padDiameter;
+      if (isPositive(firstDrill)) entry.firstDrill = firstDrill;
+      rules[name] = entry;
     });
     return rules;
   }
@@ -80,6 +92,26 @@
     body.innerHTML = entries.length
       ? entries.map(function (e) { return rowHtml(e[0], e[1], State.padstackRules[e[0]]); }).join('')
       : EMPTY_ROW;
+  }
+
+  function syncDefaults() {
+    var body = $('padstackRuleBody');
+    if (!body) return;
+    var byName = new Map();
+    State.vias.forEach(function (v) {
+      var name = (v.padstack || '').trim();
+      if (name && !byName.has(name)) byName.set(name, v);
+    });
+    body.querySelectorAll('tr[data-padstack]').forEach(function (row) {
+      var enable = row.querySelector('.ps-enable');
+      if (enable && enable.checked) return;
+      var via = byName.get(row.dataset.padstack || '');
+      if (!via) return;
+      var padInp = row.querySelector('.ps-pad-diameter');
+      var drillInp = row.querySelector('.ps-first-drill');
+      if (padInp && Number.isFinite(Number(via.padDiameter))) padInp.value = Number(via.padDiameter);
+      if (drillInp && Number.isFinite(Number(via.firstDrill))) drillInp.value = Number(via.firstDrill);
+    });
   }
 
   /** 取表格当前值写入 State 并重新检查；尚无检查结果时只保存不触发。 */
@@ -147,7 +179,7 @@
   }
 
   var PadstackRules = {
-    read: readFromTable, render: render, commit: commit, load: loadRules,
+    read: readFromTable, render: render, syncDefaults: syncDefaults, commit: commit, load: loadRules,
     sanitize: sanitize, applyBulk: applyBulk
   };
 

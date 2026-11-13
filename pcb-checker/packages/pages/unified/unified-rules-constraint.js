@@ -44,8 +44,8 @@ function renderJump() {
       const dk = it.d2m ? (`D2M${it.d2m}mil`) : '未标 D2M';
       if (multi && dk !== lastD2M) { h += `<div class="chipsub">${dk}</div>`; lastD2M = dk; }
       const name = it.title || (`约束 ${it.si + 1}`);
-      h += `<a class="${it.kind}" href="#set-${it.si}" title="${name}" onclick="scrollToSet(${it.si});return false;">` +
-        `<span class="k">${it.kind}</span><span class="jname">${name}</span></a>`;
+      h += `<a class="${escHtml(it.kind)}" href="#set-${it.si}" data-tip="${escHtml(name)}" onclick="scrollToSet(${it.si});return false;">` +
+        `<span class="k">${escHtml(it.kind)}</span><span class="jname">${escHtml(name)}</span></a>`;
     });
     h += '</div>';
   });
@@ -85,17 +85,17 @@ function renderConstraintSets() {
     let maxL = Math.max(n, fan || 0);
 
     html += `
-      <div class="set ${kind}" id="set-${si}" data-si="${si}">
+      <div class="set ${escHtml(kind)}" id="set-${si}" data-si="${si}">
         <div class="hd">
-          <span class="badge" style="background:rgba(255,255,255,0.25);font-weight:700;padding:2px 8px;border-radius:10px">${kind}</span>
-          <input class="setTitle" data-si="${si}" value="${set.title || ''}" onchange="updateSetTitle(${si}, this.value)" style="width:320px;font-weight:700;background:#ffffff;color:#111827;border:none;padding:4px 8px;border-radius:4px" title="约束名称">
-          ${set.txtHead ? `<span class="txthead" style="font-size:12px;color:#e3e8ef">TXT: ${set.txtHead}</span>` : ''}
+          <span class="badge" style="background:rgba(255,255,255,0.25);font-weight:700;padding:2px 8px;border-radius:10px">${escHtml(kind)}</span>
+          <input class="setTitle" data-si="${si}" value="${escHtml(set.title || '')}" onchange="updateSetTitle(${si}, this.value)" style="width:320px;font-weight:700;background:#ffffff;color:#111827;border:none;padding:4px 8px;border-radius:4px" data-tip="约束名称">
+          ${set.txtHead ? `<span class="txthead" style="font-size:12px;color:#e3e8ef">TXT: ${escHtml(set.txtHead)}</span>` : ''}
           <select class="setKind" data-si="${si}" onchange="updateSetKind(${si}, this.value)" style="margin-left:auto;background:#ffffff;color:#111827;padding:3px 6px;border-radius:4px">
             <option value="SMA" ${kind==='SMA'?'selected':''}>SMA</option>
             <option value="BGA" ${kind==='BGA'?'selected':''}>BGA</option>
             <option value="其他" ${kind==='其他'?'selected':''}>其他</option>
           </select>
-          <span style="font-size:12px;color:#e3e8ef;margin-left:6px">来源 ${set.source || '03Antipad_via_routekeepout_rule.txt'}</span>
+          <span style="font-size:12px;color:#e3e8ef;margin-left:6px">来源 ${escHtml(set.source || '03Antipad_via_routekeepout_rule.txt')}</span>
           <button type="button" class="btn danger small" style="background:#fee2e2;color:#dc2626;font-weight:600" onclick="deleteConstraintSet(${si})">删除此类</button>
         </div>
         <div class="body">
@@ -114,10 +114,10 @@ function renderConstraintSets() {
       cons.forEach((c, ci) => {
         html += `
           <th>
-            <span class="subh">${c.cat || '反焊盘尺寸'}</span>
-            <input class="cName" data-si="${si}" data-ci="${ci}" value="${c.name || ''}" onchange="updateColName(${si}, ${ci}, this.value)" title="约束名称">
+            <span class="subh">${escHtml(c.cat || '反焊盘尺寸')}</span>
+            <input class="cName" data-si="${si}" data-ci="${ci}" value="${escHtml(c.name || '')}" onchange="updateColName(${si}, ${ci}, this.value)" data-tip="约束名称">
             <div class="subh" style="margin-top:2px">
-              <input class="cUnit" data-si="${si}" data-ci="${ci}" value="${c.unit || 'mil'}" style="width:48px;text-align:center">
+              <input class="cUnit" data-si="${si}" data-ci="${ci}" value="${escHtml(c.unit || 'mil')}" style="width:48px;text-align:center">
               <button type="button" class="btn danger small" style="padding:1px 5px;font-size:11px" onclick="deleteConstraintCol(${si}, ${ci})">删除</button>
             </div>
           </th>
@@ -137,7 +137,7 @@ function renderConstraintSets() {
           if (!v || v === '无') {
             html += `<td class="nosrc" style="background:#f8fafc"><input class="cCell none" data-si="${si}" data-ci="${ci}" data-key="${key}" value="无" onchange="updateCellVal(${si}, ${ci}, '${key}', this.value)"></td>`;
           } else {
-            html += `<td><input class="cCell" data-si="${si}" data-ci="${ci}" data-key="${key}" value="${v}" onchange="updateCellVal(${si}, ${ci}, '${key}', this.value)"><div class="srcnote">来源: ${src || '手工填写'}</div></td>`;
+            html += `<td><input class="cCell" data-si="${si}" data-ci="${ci}" data-key="${key}" value="${escHtml(v)}" onchange="updateCellVal(${si}, ${ci}, '${key}', this.value)"><div class="srcnote">来源: ${escHtml(src || '手工填写')}</div></td>`;
           }
         });
         html += '</tr>';

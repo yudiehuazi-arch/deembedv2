@@ -579,5 +579,27 @@ t('总线长缺失不再把合规数据判成「不符合」：Trace Seg 文件�
   assert.strictEqual(viol.size, 0, '不应有违规定，实际 ' + JSON.stringify([...viol.entries()]));
 });
 
+t('generateUnifiedReportData：列表型特定线宽线长、圆弧半径违规与 UI 复验键名均正常输出', () => {
+  const recs = L.parseBlockText(L.SAMPLE_TEXT);
+  const rules = [{
+    enabled: true, layer: '02G01P', widths: [5.6], widthsText: '5.6',
+    lenMode: 'range', lenMin: 100, lenMax: 5000,
+    widthLensText: '5.6=10或者20', widthLenRules: L.parseWidthLengthRules('5.6=10或者20'),
+    radMode: 'list', radii: [60, 70], radText: '60,70',
+    checkWidth: true, checkLen: true, checkWidthLen: true, checkRad: true
+  }];
+  const opts = { checkWidth: true, checkLen: true, checkWidthLen: true, checkRad: true, tol: 0.001 };
+  const checkRes = L.runChecks(recs, rules, null, opts);
+  const r0 = recs[0];
+  const traceRev = new Set([(r0.item || r0.line || '') + '__' + r0.net + '__' + r0.layer]);
+  const diffRev = new Set(['301__301_P__301_N__02G01P', '301__301_P__301_N__total']);
+  const agg = L.aggregateRecords(recs);
+  const det = L.detectPairs(Array.from(agg.netLens.keys()), [{ pos: '_P', neg: '_N' }]);
+  const rep = L.generateUnifiedReportData(recs, checkRes, rules, null, opts, traceRev, det.pairs, agg.netLens, { layerTol: 0.5, totalTol: 0.5, checkLayer: true, checkTotal: true }, diffRev);
+  assert.ok(rep.rows.some(row => row[4] === '已复验'), '应包含已复验行');
+  assert.ok(rep.rows.some(row => String(row[2]).includes('指定线宽线长超标')), '应包含指定线宽线长超标原因');
+  assert.ok(rep.rows.some(row => String(row[2]).includes('弧半径异常')), '应包含弧半径异常原因');
+});
+
 console.log('\n结果: ' + passed + ' 通过, ' + failed + ' 失败');
 process.exit(failed ? 1 : 0);

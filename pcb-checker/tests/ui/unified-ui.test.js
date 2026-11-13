@@ -139,6 +139,12 @@ async function test(name, fn) {
     w.eval('UnifiedDfmLayerRules.add()');
     const rows1 = w.eval('UnifiedDfmLayerRules.rows.length');
     if (rows1 !== rows0 + 1) throw new Error('分层规则新增失败');
+    w.confirm = () => true;
+    w.clearFanoutLibrary();
+    if (w.State.rules.fanoutSchemes.length !== 0) throw new Error('清空扇出方案库后仍残留方案：' + w.State.rules.fanoutSchemes.length);
+    w.loadFanoutPresets();
+    if (w.State.rules.fanoutSchemes.length !== n0) throw new Error('恢复预设扇出方案库数量异常：' + w.State.rules.fanoutSchemes.length);
+    w.zoomCanvas(1.2);
   });
 
   await test('页面运行期零脚本错误', () => {

@@ -479,6 +479,8 @@ function toCSV(headers,rows){
     parseFloatNum: parseFloatNum,
     parseNumList: parseNumList,
     calcSegLen: calcSegLen,
+    inList: inList,
+    recordRadii: recordRadii,
     parseWidthCombos: parseWidthCombos,
     extractWidthSeq: extractWidthSeq,
     matchWidthCombo: matchWidthCombo,

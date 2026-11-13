@@ -2,7 +2,10 @@
  * unified-fanout-batch.js —— 综合一体化工作台：批量 EDA TXT 扇出方案识别与导入弹窗
  * ========================================================================== */
 function parseMultiSchemeTxt(text, existingCount = 0) {
-  return FanoutChecker.parseMultiSchemeTxt(text, existingCount);
+  if (typeof FanoutChecker !== 'undefined' && FanoutChecker.parseMultiSchemeTxt) {
+    return FanoutChecker.parseMultiSchemeTxt(text, existingCount);
+  }
+  return [];
 }
 
 function openBatchFanoutModal() {
@@ -160,14 +163,14 @@ function renderBatchFanoutPreview() {
     return `
       <div style="background:#ffffff;border:1px solid #cbd5e1;border-radius:6px;padding:8px 10px;box-shadow:0 1px 2px rgba(0,0,0,0.05)">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:4px">
-          <input type="text" value="${s.name}" oninput="g_parsedBatchSchemes[${idx}].name=this.value" style="font-size:12px;font-weight:700;color:#111827;width:100%;border:1px solid #e3e8ef;padding:2px 4px;border-radius:4px" placeholder="方案名称">
+          <input type="text" value="${escHtml(s.name)}" oninput="g_parsedBatchSchemes[${idx}].name=this.value" style="font-size:12px;font-weight:700;color:#111827;width:100%;border:1px solid #e3e8ef;padding:2px 4px;border-radius:4px" placeholder="方案名称">
           <span style="font-size:11px;color:#7c3aed;background:#f3e8ff;padding:1px 5px;border-radius:3px;white-space:nowrap">${s.vias.length} 孔</span>
         </div>
         <div style="font-size:11px;color:#6b7280;margin-bottom:3px">
           <span style="color:#2563eb;font-weight:600">${sigCount} 信号孔</span> + <span style="color:#6b7280">${gndCount} 伴随地孔</span>
         </div>
-        <div style="font-size:11px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${padstacks.join(', ')}">
-          Padstack: ${padstacks.slice(0, 2).join(', ')}${padstacks.length > 2 ? ' 等' : ''}
+        <div style="font-size:11px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" data-tip="${escHtml(padstacks.join(', '))}">
+          Padstack: ${escHtml(padstacks.slice(0, 2).join(', '))}${padstacks.length > 2 ? ' 等' : ''}
         </div>
       </div>
     `;
@@ -176,6 +179,7 @@ function renderBatchFanoutPreview() {
 
 function confirmBatchFanoutImport() {
   if (g_parsedBatchSchemes.length === 0) return;
+  State.fanoutExplicitlyCleared = false;
 
   const isOverwrite = $('radBatchOverwrite') && $('radBatchOverwrite').checked;
   if (isOverwrite) {

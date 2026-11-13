@@ -409,8 +409,8 @@
 
   function initApp() {
     loadStoredHistory();
-    loadSavedRules();
-    renderAllRuleTables();
+    if (typeof root.loadSavedRules === 'function') root.loadSavedRules();
+    if (typeof root.renderAllRuleTables === 'function') root.renderAllRuleTables();
     renderHistoryChips();
     bindShellEvents();
     if (typeof root.initCanvas === 'function') root.initCanvas();

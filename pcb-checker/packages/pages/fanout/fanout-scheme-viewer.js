@@ -10,7 +10,7 @@
   var safeRAF = root.safeRAF || function (fn) { setTimeout(fn, 0); };
   var SchemeNameBuilder = root.SchemeNameBuilder;
   var ViewSchemeState = root.ViewSchemeState;
-  var KW_STORAGE_KEY = "fanout_custom_scheme_keywords_v1";
+  var KW_STORAGE_KEY = "pcb_fanout_name_keywords_v1";
 
   var renderSchemeCards = function () { if (root.renderSchemeCards) root.renderSchemeCards(); };
   var openSchemeModal = function (s) { if (root.openSchemeModal) root.openSchemeModal(s); };
@@ -170,8 +170,8 @@
     }
     if (State.clusters && State.clusters.length > 0) {
       State.clusters.forEach(function (c) {
-        if (c.matchResult && c.matchResult.bestScheme && c.matchResult.bestScheme.id === id) {
-          c.matchResult.bestScheme.name = updated.name;
+        if (c.matchResult && (c.matchResult.schemeId === id || (c.matchResult.bestScheme && c.matchResult.bestScheme.id === id))) {
+          if (c.matchResult.bestScheme) c.matchResult.bestScheme.name = updated.name;
           c.matchResult.schemeName = updated.name;
         }
       });
