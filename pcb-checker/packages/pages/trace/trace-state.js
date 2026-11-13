@@ -38,7 +38,14 @@
     page: 0,
     pageSize: 200,
     sort: { col: null, dir: 1 },
-    ovOpenLayer: null
+    ovOpenLayer: null,
+    canvas: {
+      viewport: { minX: 0, maxX: 1000, minY: 0, maxY: 1000, zoom: 1, panX: 60, panY: 60, isDragging: false, dragStartX: 0, dragStartY: 0 },
+      locatedIdx: null,
+      measureMode: false,
+      measureSelection: [],
+      returnPosition: null
+    }
   };
 
   function $(id) {
@@ -52,6 +59,9 @@
     document.querySelectorAll('section.tab').forEach(function (s) {
       s.classList.toggle('active', s.id === 'tab-' + name);
     });
+    if (name === 'canvas' && root.TraceApp && typeof root.TraceApp.onEnterCanvasTab === 'function') {
+      root.TraceApp.onEnterCanvasTab();
+    }
     if (root.EdaShell && typeof root.EdaShell.syncStageBar === 'function') {
       root.EdaShell.syncStageBar();
       root.EdaShell.syncTelemetry();
@@ -141,6 +151,13 @@
     }
     S.checkRes = null;
     S.diffDone = false;
+    if (S.canvas) {
+      S.canvas.locatedIdx = null;
+      S.canvas.measureSelection = [];
+    }
+    if (root.TraceApp && typeof root.TraceApp.initCanvasData === 'function') {
+      root.TraceApp.initCanvasData();
+    }
     if (root.TraceApp && typeof root.TraceApp.renderOverview === 'function') {
       root.TraceApp.renderOverview();
     }

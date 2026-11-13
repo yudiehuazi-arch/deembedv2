@@ -3,6 +3,8 @@
  * ========================================================================== */
 (function (root) {
   'use strict';
+  var VI = root && root.CopperViaInference;
+  if (!VI && typeof require === 'function') VI = require('./via-constraint-inference.js');
   var FIELD_RE = {};
   function fieldRe(name) {
     if (!FIELD_RE[name]) FIELD_RE[name] = new RegExp('(?:^|\\n)\\s*' + name + '\\s*:\\s*([^\\n]+)', 'i');
@@ -66,6 +68,8 @@
       item.traceLayers = traceLayers;
       var conn = body.match(/Connections:\s*([\s\S]*?)(?:\n\s*Backdrill:|\n\s*BackDrill|$)/i);
       if (conn) item.connections = conn[1].replace(/\s+/g, ' ').trim();
+      var defined = body.match(/Padstack\s+Defined\s*(?:from|:)?\s*<?([^>\s\r\n~-]+)>?\s*(?:to|[-~])\s*<?([^>\s\r\n]+)>?/i);
+      if (defined) { item.padstackStart = defined[1]; item.padstackEnd = defined[2]; }
       items.push(item);
     });
     return items;
@@ -122,7 +126,10 @@
     };
     var re = /(?:^|[^A-Za-z0-9])[Ll](\d{1,2})(?![0-9])/g;
     var m;
-    while ((m = re.exec(s))) push(+m[1]);
+    while ((m = re.exec(s))) {
+      if (isPadWord(s, re.lastIndex)) continue;
+      push(+m[1]);
+    }
     var subRe = /(?:^|[^A-Za-z0-9])(\d{2})[A-Za-z][A-Za-z0-9]*(?![0-9])/g;
     while ((m = subRe.exec(s))) push(+m[1]);
     if (/(?:^|[^A-Za-z])TOP(?![A-Za-z])/i.test(s) || /TOP(?=L\d|SMA|BGA)/i.test(s) || /表层/.test(s)) push(1);
@@ -254,6 +261,8 @@
     var vias = items.filter(function (it) { return it.type === 'via' && it.origin; });
     var circles = items.filter(function (it) { return it.circle; });
     var polygons = items.filter(function (it) { return it.type === 'shape' && !it.circle; });
+    var viaUnits = VI.groupVias(vias, n);
+    VI.attachDifferentialPitch(viaUnits);
 
     var circleGrid = {}, traceGrid = {};
     circles.forEach(function (sh) {
@@ -275,60 +284,53 @@
     });
 
     var used = {};
-    var groups = vias.map(function (via) {
-      var near = [];
-      var b = neighborBounds(via.origin[0], via.origin[1], posTol);
-      for (var cx = b.x0; cx <= b.x1; cx++) {
-        for (var cy = b.y0; cy <= b.y1; cy++) {
-          var list = circleGrid[cx + ',' + cy];
-          if (!list) continue;
-          for (var i = 0; i < list.length; i++) {
-            var sh = list[i];
-            if (dist(via.origin, sh.center) <= posTol) {
-              near.push(sh);
-              used[sh.id] = 1;
-            }
+    var groups = viaUnits.map(function (unit) {
+      var via = unit.via, near = [], nearSeen = {}, traceNums = {};
+      unit.vias.forEach(function (part) {
+        (part.traceLayers || []).forEach(function (name) {
+          var ln = subsetToLayer(name, n);
+          if (ln) traceNums[ln] = name;
+        });
+        var b = neighborBounds(part.origin[0], part.origin[1], posTol);
+        for (var cx = b.x0; cx <= b.x1; cx++) {
+          for (var cy = b.y0; cy <= b.y1; cy++) {
+            var list = circleGrid[cx + ',' + cy];
+            if (list) list.forEach(function (sh) {
+              if (dist(part.origin, sh.center) <= posTol && !nearSeen[sh.id]) {
+                nearSeen[sh.id] = 1; near.push(sh); used[sh.id] = 1;
+              }
+            });
+            var tlist = traceGrid[cx + ',' + cy];
+            if (tlist) tlist.forEach(function (tk) {
+              if (!traceNums[tk.layer]) traceNums[tk.layer] = tk.subset;
+            });
           }
         }
-      }
-
-      var traceNums = {};
-      (via.traceLayers || []).forEach(function (name) {
-        var ln = subsetToLayer(name, n);
-        if (ln) traceNums[ln] = name;
       });
-      for (var cx2 = b.x0; cx2 <= b.x1; cx2++) {
-        for (var cy2 = b.y0; cy2 <= b.y1; cy2++) {
-          var tlist = traceGrid[cx2 + ',' + cy2];
-          if (!tlist) continue;
-          for (var ti = 0; ti < tlist.length; ti++) {
-            var tk = tlist[ti];
-            if (!traceNums[tk.layer]) traceNums[tk.layer] = tk.subset;
-          }
-        }
-      }
 
       var keys = padKeys(via.padstack);
-      var sel = selectRule(sets, keys);
-      if (sel.fan) keys.fan = sel.fan;
+      keys.signal = unit.signal;
+      keys.kind = unit.kind || keys.kind;
+      keys.startLayer = unit.startLayer;
+      keys.endLayer = unit.endLayer;
+      keys.fan = unit.endLayer;
+      keys.fans = unit.segmentLayers.slice();
+      keys.pitchMm = unit.pitchMm;
+      keys.mateNet = unit.mateNet;
+      var sel = unit.signal ? VI.selectConstraint(sets, unit, n) : { rule: null, candidates: [] };
       var traceList = Object.keys(traceNums).map(function (k) { return +k; });
-      var note = '';
-      if (keys.fan && traceList.length) {
-        note = traceList.indexOf(keys.fan) >= 0
-          ? ('出线层 L' + keys.fan + ' 与走线一致')
-          : ('Padstack 为 L' + keys.fan + '，走线在 ' + traceList.map(function (x) { return 'L' + x; }).join('、'));
-      } else if (keys.fan) {
-        note = 'Padstack 出线层 L' + keys.fan + '，此过孔没有走线记录';
-      } else if (traceList.length) {
-        note = 'Padstack 名字里没有出线层号，走线在 ' + traceList.map(function (x) { return 'L' + x; }).join('、');
-      }
+      var spanText = unit.startLayer && unit.endLayer ? ('L' + unit.startLayer + '-L' + unit.endLayer) : '层跨未识别';
+      var note = unit.signal
+        ? ('SIG 完整孔组 ' + unit.memberIds.length + ' 段（Via ' + unit.memberIds.join('、') + '），连接 ' + spanText +
+          (unit.pitchMm != null ? ('，差分孔中心距 ' + unit.pitchMm.toFixed(3) + ' mm，匹配最近约束值') : '，未找到差分配对孔'))
+        : 'Padstack 不含 SIG：仅显示，不推算约束，不执行核查';
 
       var rows = near.map(function (sh) {
         var ctype = checkTypeOf(sh);
         var layer = subsetToLayer(sh.subset, n);
-        var on = enabled[ctype] !== false;
+        var on = unit.signal && enabled[ctype] !== false;
         var status = '未检查', expect = '', constraint = '';
-        if (!on) status = '未检查';
+        if (!unit.signal || !on) status = '未检查';
         else if (!sel.rule) status = '未选规则';
         else if (!layer) status = '层未识别';
         else {
@@ -379,6 +381,7 @@
         });
       }
 
+      if (unit.signal) {
       var padOn = enabled['Padstack层名'] !== false;
       var connLayerNums = [];
       var connLayerSeen = {};
@@ -390,6 +393,7 @@
 
       var padLayers = layersOfPadstack(via.padstack, n);
       var missingLayers = connLayerNums.filter(function (l) {
+        if (unit.startLayer && unit.endLayer && l >= unit.startLayer && l <= unit.endLayer) return false;
         if (padLayers.indexOf(l) >= 0) return false;
         if (new RegExp('\\bL0*' + l + '\\b', 'i').test(via.padstack || '')) return false;
         var subsets = (via.traceLayers || []).filter(function (sub) { return subsetToLayer(sub, n) === l; });
@@ -436,6 +440,7 @@
         enabled: padOn,
         isPadstackCheck: true
       });
+      }
 
       rows.sort(function (a, b) {
         if (a.isPadstackCheck) return -1;
@@ -448,7 +453,10 @@
       var failRows = [];
       for (var fi = 0; fi < rows.length; fi++) if (rows[fi].status === '不符合') failRows.push(rows[fi]);
       return {
-        via: via, keys: keys, rule: sel.rule, candidates: sel.candidates, note: note,
+        via: via, vias: unit.vias, signal: unit.signal, keys: keys,
+        rule: sel.rule, candidates: sel.candidates, note: note,
+        startLayer: unit.startLayer, endLayer: unit.endLayer,
+        pitchMm: unit.pitchMm, mateNet: unit.mateNet,
         traceLayers: traceList, rows: rows, failRows: failRows, failCount: failRows.length
       };
     });
@@ -495,6 +503,7 @@
 
     return {
       groups: groups,
+      signalGroupCount: groups.filter(function (g) { return g.signal; }).length,
       unmatchedCircles: unmatchedCircles,
       nearestViaOf: nearestViaOf,
       polygons: polygons,

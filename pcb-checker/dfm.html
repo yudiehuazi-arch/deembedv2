@@ -275,30 +275,29 @@
             </div>
           </div>
 
-          <canvas id="pcbCanvas" width="1200" height="620"></canvas>
-          <div class="canvas-hud" id="canvasHud">缩放: 100%</div>
-
+          <div class="dfm-canvas-stage">
+            <canvas id="pcbCanvas" width="1200" height="620"></canvas>
+            <div class="canvas-hud" id="canvasHud">缩放: 100%</div>
+            <div class="measure-card" id="measureCard">
+              <h4>
+                <span>空间几何测量结果</span>
+                <button type="button" id="btnCloseMeasureCard" style="background:transparent;border:none;color:#9ca3af;cursor:pointer;font-size:14px">×</button>
+              </h4>
+              <div id="measureCardBody"></div>
+            </div>
+            <div id="dfmSpatialReviewCard" style="display:none;position:absolute;top:52px;right:14px;width:305px;background:rgba(15,23,42,0.94);border:1px solid rgba(56,189,248,0.42);border-radius:8px;padding:10px 12px;color:#f1f5f9;z-index:25">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;padding-bottom:5px;border-bottom:1px solid rgba(148,163,184,0.2)">
+                <strong id="dfmSpatialRevTitle" style="font-size:12px;color:#38bdf8">定位异常复核</strong>
+                <button type="button" id="btnCloseSpatialRev" style="background:transparent;border:none;color:#9ca3af;cursor:pointer;font-size:14px">×</button>
+              </div>
+              <div id="dfmSpatialRevBody"></div>
+            </div>
+          </div>
           <div class="canvas-legend" id="canvasLegend">
-            <div style="font-weight:700;margin-bottom:2px;color:#fff">图例</div>
+            <strong>图例</strong>
             <div class="canvas-legend-item"><div class="canvas-legend-color" style="background:#ef4444"></div><span>信号孔 / 超标连线</span></div>
             <div class="canvas-legend-item"><div class="canvas-legend-color" style="background:#64748b"></div><span>GND 过孔</span></div>
             <div class="canvas-legend-item"><div class="canvas-legend-color" style="background:#38bdf8"></div><span>标尺测量 / 高亮路由</span></div>
-          </div>
-
-          <div class="measure-card" id="measureCard">
-            <h4>
-              <span>空间几何测量结果</span>
-              <button type="button" id="btnCloseMeasureCard" style="background:transparent;border:none;color:#9ca3af;cursor:pointer;font-size:14px">×</button>
-            </h4>
-            <div id="measureCardBody"></div>
-          </div>
-
-          <div id="dfmSpatialReviewCard" style="display:none;position:absolute;top:52px;right:14px;width:305px;background:rgba(15,23,42,0.94);border:1px solid rgba(56,189,248,0.42);border-radius:8px;padding:10px 12px;color:#f1f5f9;z-index:25">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;padding-bottom:5px;border-bottom:1px solid rgba(148,163,184,0.2)">
-              <strong id="dfmSpatialRevTitle" style="font-size:12px;color:#38bdf8">定位异常复核</strong>
-              <button type="button" id="btnCloseSpatialRev" style="background:transparent;border:none;color:#9ca3af;cursor:pointer;font-size:14px">×</button>
-            </div>
-            <div id="dfmSpatialRevBody"></div>
           </div>
         </div>
       </div>

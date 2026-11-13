@@ -130,7 +130,7 @@
     <!-- ================= ③ 导入数据 ================= -->
     <section class="tab" id="tab-data">
       <div class="card">
-        <h2>导入板级 Item 数据 <span class="eda-tip" tabindex="0" data-tip="解析 Shape / Via / Trace 数据块：按位置容差配对圆形铜皮与过孔，由 Padstack 关键字推算适用约束并逐层核对半径">?</span></h2>
+        <h2>导入板级 Item 数据 <span class="eda-tip" tabindex="0" data-tip="仅对含 SIG 的信号孔推算约束：先将同网络相邻盲埋孔段合并为完整孔，再按完整层跨和差分孔中心距匹配约束并核对 Route Keepout">?</span></h2>
         <div id="dataDrop" tabindex="0" data-tip="支持包含 Shape、Via、Trace 的 EDA 导出 TXT">
           <div class="t1">点击选择板级数据 TXT，或拖拽至此处</div>
           <div class="t2">含圆形 Route Keepout / 焊盘 Shape 与过孔 Via 记录</div>
@@ -153,7 +153,7 @@
       </div>
 
       <div class="card" id="matchCard">
-        <h2>铜皮 × 过孔空间配对与约束推算 <span class="eda-tip" tabindex="0" data-tip="点击上方统计卡可按类别单独筛选，再次点击恢复全部显示">?</span></h2>
+        <h2>Route Keepout × 完整信号孔配对与约束推算 <span class="eda-tip" tabindex="0" data-tip="非 SIG 过孔仅显示不检查；同网络相邻 SIG 孔段先合并，孔组每个坐标处的全部 Route Keepout 使用同一推算约束">?</span></h2>
         <div id="matchOut"><div class="hint">尚未导入数据。</div></div>
       </div>
     </section>
@@ -233,7 +233,7 @@
 
 <div id="expMask"></div>
 
-<script src="packages/engines/copper/copper-engine.js?v=12"></script>
+<script src="packages/engines/copper/via-constraint-inference.js?v=12"></script><script src="packages/engines/copper/copper-engine.js?v=12"></script>
 <script src="packages/engines/copper/constraint-parser.js?v=12"></script>
 <script src="packages/pages/copper/copper-state.js?v=12"></script>
 <script src="packages/pages/copper/copper-sets-ui.js?v=12"></script>

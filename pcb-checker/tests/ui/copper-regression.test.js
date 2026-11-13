@@ -45,9 +45,9 @@ setTimeout(() => {
   t('切回 ① 规则约束', () => { $('tabs').querySelector('[data-tab="rules"]').click(); if (activeTab() !== 'tab-rules') throw new Error(activeTab()); });
   t('钉住块和约束区都还在', () => { if (!$('pin') || !$('pinB') || !$('rulesBody') || !$('sets')) throw new Error('缺元素'); });
   console.log('== 铜皮 × 过孔 配对与推算 ==');
-  const sampleTxt = fs.readFileSync(path.join(dir, 'sample/铜皮数据示例.txt'), 'utf8');
+  const sampleTxt = fs.readFileSync(path.join(dir, 'sample/铜皮数据示例.txt'), 'utf8').replace('BGA_3510_L19', 'BGA_SIG_L1_L19_3510');
   const rules = [{
-    kind: 'BGA', title: 'BGA-L19', fanLayer: 19,
+    kind: 'BGA', title: 'BGA-L1-L19', fanLayer: 19,
     constraints: [
       { cat: '反焊盘尺寸', name: '反焊盘半径', unit: 'mil', values: { L1: '17', L2: '12', L19: '5' } }
     ]
@@ -62,14 +62,14 @@ setTimeout(() => {
       return {ok:true, groups:UI.result.groups.length, rule:UI.result.groups[0].rule && UI.result.groups[0].rule.title,
               rows:UI.result.groups[0].rows.length};
     })()`);
-    if (r.rule !== 'BGA-L19' || r.rows !== 4) throw new Error(JSON.stringify(r));
+    if (r.rule !== 'BGA-L1-L19' || r.rows !== 4) throw new Error(JSON.stringify(r));
   });
   t('③ 导入数据 页显示 配对 + 推算的约束', () => {
     $('tabs').querySelector('[data-tab="data"]').click();
     const h = $('matchOut').innerHTML;
-    if (h.indexOf('BGA_3510_L19_ring3mil_L2pad_0907') < 0) throw new Error('没有 padstack');
-    if (h.indexOf('BGA-L19') < 0) throw new Error('没有推算出的约束名');
-    if (h.indexOf('BGA / L19 / ring3mil') < 0) throw new Error('没有提取的关键信息');
+    if (h.indexOf('BGA_SIG_L1_L19_3510_ring3mil_L2pad_0907') < 0) throw new Error('没有 padstack');
+    if (h.indexOf('BGA-L1-L19') < 0) throw new Error('没有推算出的约束名');
+    if (h.indexOf('SIG / BGA / L1-L19') < 0) throw new Error('没有提取的关键信息');
     if (h.indexOf('L19') < 0) throw new Error('没有层');
   });
   t('④ 检查结果 页显示 层/实测/规则值/结果，不符合为红', () => {
@@ -124,7 +124,7 @@ setTimeout(() => {
     'Exterior Boundary:','  Arc seg: xy [291.0000, 300.0000]  xy [291.0000, 300.0000] Width (0.0000)',
     '    Center-xy:  [300.0000, 300.0000] Radius (9.0000) CCW','~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~','',
     'Item 4                < Via >','','  Origin-xy:          [100.0000, 100.0000]','  Net:                63_N','',
-    '  Padstack Name:      BGA_3510_L19_ring3mil_L2pad_0907','  Usage:              BBVia','',
+    '  Padstack Name:      BGA_SIG_L1_L19_3510_ring3mil_L2pad_0907','  Usage:              BBVia','',
     '  Connections:        ','    Trace:            2 (Top 02G01P)','~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~','',
     'Item 5                < Via >','','  Origin-xy:          [200.0000, 200.0000]','  Net:                GND','',
     '  Padstack Name:      BGA_3510_L17_ring3mil_0902','  Usage:              BBVia','~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~','',
@@ -138,7 +138,7 @@ setTimeout(() => {
     $('tabs').querySelector('[data-tab="data"]').click();
     w.__mixTxt = mix;
     const r = w.eval("(function(){S.sets=" + JSON.stringify([{
-      kind:'BGA', title:'BGA-L19', fanLayer:19,
+      kind:'BGA', title:'BGA-L1-L19', fanLayer:19,
       constraints:[{cat:'反焊盘尺寸', name:'反焊盘半径', unit:'mil', values:{L1:'17', L2:'12', L7:'9'}}]
     }]) + "; UI.items=CopperCheck.parseBoardItems(window.__mixTxt); UI.matchFilter=''; runCheck(true); return 1;})()");
     if (r !== 1) throw new Error('eval');
@@ -254,7 +254,7 @@ setTimeout(() => {
     if (renderedRows() !== 4) throw new Error('行数 ' + renderedRows());
     if ($('resHint').textContent.indexOf('只看已配对过孔') < 0) throw new Error($('resHint').textContent);
   });
-  t('只看没推算到约束：有 BGA-L19 规则时为空', () => {
+  t('只看没推算到约束：有 BGA-L1-L19 规则时为空', () => {
     $('btnOnlyNoRule').click();
     if (renderedGroups() !== 0) throw new Error('组数 ' + renderedGroups());
     if ($('checkOut').innerHTML.indexOf('筛完没有记录') < 0) throw new Error('没有空提示');
@@ -296,7 +296,7 @@ setTimeout(() => {
     $('tabs').querySelector('[data-tab="legend"]').click();
     const h = $('legendOut').innerHTML;
     if (!h) throw new Error('没有渲染');
-    ['铜皮 × 过孔 怎么配对','怎么推算该用哪条约束','每一层怎么判','各约束下不符合的具体原因展开明细','没推算到约束的分布','未配对铜皮'].forEach(x => {
+    ['铜皮 × 完整信号孔怎么配对','怎么推算该用哪条约束','每一层怎么判','各约束下不符合的具体原因展开明细','没推算到约束的分布','未配对铜皮'].forEach(x => {
       if (h.indexOf(x) < 0) throw new Error('缺小节：' + x);
     });
     if ($('tab-result').querySelector('#legendOut')) throw new Error('结果页还挂着规律卡片');
@@ -316,13 +316,13 @@ setTimeout(() => {
   t('不符合分布按约束 + 检查项汇总', () => {
     w.eval("renderLegend(true)");
     const h = $('legendOut').innerHTML;
-    if (h.indexOf('BGA-L19 · 反焊盘尺寸') < 0) throw new Error('缺汇总行');
+    if (h.indexOf('BGA-L1-L19 · 反焊盘尺寸') < 0) throw new Error('缺汇总行');
     if (h.indexOf('共 1 条') < 0) throw new Error('条数不对');
   });
   t('没推算到约束时列出 Padstack 和候选', () => {
     w.eval("S.sets=" + JSON.stringify([{kind:'SMA',title:'Top-SMA-L19-D2M6mil',fanLayer:19,constraints:[]}]) + "; runCheck(true); renderLegend(true);");
     const h = $('legendOut').innerHTML;
-    if (h.indexOf('BGA_3510_L19_ring3mil_L2pad_0907') < 0) throw new Error('没列出 Padstack');
+    if (h.indexOf('BGA_SIG_L1_L19_3510_ring3mil_L2pad_0907') < 0) throw new Error('没列出 Padstack');
     if (h.indexOf('个过孔') < 0) throw new Error('没写个数');
     if (h.indexOf('没有同封装的约束可选') < 0 && h.indexOf('候选') < 0) throw new Error('没写原因/候选');
   });
@@ -334,7 +334,7 @@ setTimeout(() => {
       '  Arc seg: xy [290.0000, 300.0000]  xy [290.0000, 300.0000] Width (0.0000)',
       '    Center-xy:  [300.0000, 300.0000] Radius (9.0000) CCW','~~~~~~~~~~~~~~~~~~~~~~~~~','',
       'Item 2                < Via >','','  Origin-xy:          [100.0000, 100.0000]','  Net:                63_N','',
-      '  Padstack Name:      SMA_Bot-L19_d2m6mil_via-0902','~~~~~~~~~~~~~~~~~~~~~~~~~','',
+      '  Padstack Name:      SMA_SIG_Bot-L19_d2m6mil_via-0902','~~~~~~~~~~~~~~~~~~~~~~~~~','',
       '~ ~ ~ ~ ~ ~ ~ ~ ~ ~End~ ~ ~ ~ ~ ~ ~ ~ ~ ~'].join('\n');
     w.__mix2 = mix2;
     w.eval("UI.items=CopperCheck.parseBoardItems(window.__mix2); UI.resFilter=''; runCheck(true); renderLegend(true);");
@@ -358,17 +358,17 @@ setTimeout(() => {
     return w.eval('(function(){const g=UI.result.groups[0];return {rule:g.rule&&g.rule.title, cands:g.candidates, keys:g.keys, note:g.note, rows:g.rows.map(r=>"L"+r.layer+":"+r.status+":"+r.actual+"/"+(r.expect||"-"))};})()');
   }
   const bgaRules = JSON.stringify([
-    {kind:'BGA',title:'BGA-L8',fanLayer:8,constraints:[{cat:'反焊盘尺寸',name:'反焊盘半径',unit:'mil',values:{L1:'11.39',L8:'5.2'}}]},
+    {kind:'BGA',title:'BGA-L2-L8',fanLayer:8,constraints:[{cat:'反焊盘尺寸',name:'反焊盘半径',unit:'mil',values:{L1:'11.39',L8:'5.2'}}]},
     {kind:'BGA',title:'BGA-L2',fanLayer:2,constraints:[{cat:'反焊盘尺寸',name:'反焊盘半径',unit:'mil',values:{L1:'7'}}]}
   ]);
 
-  t('BGA_3510_l2-L8_Ring3mil_0902 → 出线层取 L8，映射到 BGA-L8', () => {
-    const g = oneViaCase('BGA_3510_l2-L8_Ring3mil_0902', bgaRules, 'L8');
-    if (g.rule !== 'BGA-L8') throw new Error('选到 ' + g.rule);
+  t('BGA_SIG_3510_l2-L8_Ring3mil_0902 → 出线层取 L8，按完整层跨映射到 BGA-L2-L8', () => {
+    const g = oneViaCase('BGA_SIG_3510_l2-L8_Ring3mil_0902', bgaRules, 'L8');
+    if (g.rule !== 'BGA-L2-L8') throw new Error('选到 ' + g.rule);
     if (JSON.stringify(g.keys.fans) !== '[2,8]') throw new Error('层号候选 ' + JSON.stringify(g.keys.fans));
     if (g.keys.ring !== '3') throw new Error('ring ' + g.keys.ring);
     if (g.rows.indexOf('L1:符合:11.39/11.39') < 0) throw new Error(JSON.stringify(g.rows));
-    if (g.note.indexOf('出线层 L8 与走线一致') < 0) throw new Error('备注 ' + g.note);
+    if (g.note.indexOf('连接 L2-L8') < 0) throw new Error('备注 ' + g.note);
   });
   t('l13-L8 这种也取出线层 L8，不是 13', () => {
     const k = w.eval("(function(){const k=CopperCheck.padKeys('BGA_3510_l13-L8_Ring3mil_0902');const s=CopperCheck.selectRule(" + JSON.stringify([{kind:'BGA',title:'BGA-L8',fanLayer:8,constraints:[]}]) + ", k);return {fan:k.fan, fans:k.fans, rule:s.rule&&s.rule.title};})()");
@@ -376,47 +376,47 @@ setTimeout(() => {
   });
   t('范围写法 L8-L12 → 取出线层 L12（范围末端）', () => {
     const sets = JSON.stringify([{kind:'BGA',title:'BGA-L12',fanLayer:12,constraints:[]}]);
-    const k = w.eval("(function(){const ks=CopperCheck.padKeys('BGA_3510_L8-L12_Ring3mil');const s=CopperCheck.selectRule(" + sets + ", ks);return {fans:ks.fans, rule:s.rule&&s.rule.title, fan:s.fan};})()");
+    const k = w.eval("(function(){const ks=CopperCheck.padKeys('BGA_SIG_3510_L8-L12_Ring3mil');const s=CopperCheck.selectRule(" + sets + ", ks);return {fans:ks.fans, rule:s.rule&&s.rule.title, fan:s.fan};})()");
     if (JSON.stringify(k.fans) !== '[8,12]' || k.rule !== 'BGA-L12') throw new Error(JSON.stringify(k));
   });
   t('并列写法 L8_L12 → 同分取靠后的层号 L12', () => {
     const sets = JSON.stringify([{kind:'BGA',title:'BGA-L8',fanLayer:8,constraints:[]},{kind:'BGA',title:'BGA-L12',fanLayer:12,constraints:[]}]);
-    const k = w.eval("(function(){const ks=CopperCheck.padKeys('BGA_3510_L8_L12_Ring3mil');const s=CopperCheck.selectRule(" + sets + ", ks);return {fans:ks.fans, rule:s.rule&&s.rule.title, fan:s.fan};})()");
+    const k = w.eval("(function(){const ks=CopperCheck.padKeys('BGA_SIG_3510_L8_L12_Ring3mil');const s=CopperCheck.selectRule(" + sets + ", ks);return {fans:ks.fans, rule:s.rule&&s.rule.title, fan:s.fan};})()");
     if (JSON.stringify(k.fans) !== '[8,12]') throw new Error('层号候选 ' + JSON.stringify(k.fans));
     if (k.rule !== 'BGA-L12') throw new Error('同分应取靠后的层号，实际选到 ' + JSON.stringify(k));
   });
-  t('SMA_Bot-L19_d2m6mil_via-0902 → Bot / L19 / D2M6 选到 Bot-SMA-L19-D2M6mil', () => {
-    const g = oneViaCase('SMA_Bot-L19_d2m6mil_via-0902', JSON.stringify([
+  t('SMA_SIG_Bot-L19_d2m6mil_via-0902 → Bot / L19 / D2M6 选到 Bot-SMA-L19-D2M6mil', () => {
+    const g = oneViaCase('SMA_SIG_Bot-L19_d2m6mil_via-0902', JSON.stringify([
       {kind:'SMA',title:'Bot-SMA-L19-D2M6mil',fanLayer:19,constraints:[{cat:'反焊盘尺寸',name:'反焊盘半径',unit:'mil',values:{L1:'11.39'}}]}
     ]), 'L19');
     if (g.rule !== 'Bot-SMA-L19-D2M6mil') throw new Error('选到 ' + g.rule);
     if (g.keys.side !== 'Bot' || g.keys.d2m !== '6') throw new Error(JSON.stringify(g.keys));
     if (g.rows.indexOf('L1:符合:11.39/11.39') < 0) throw new Error(JSON.stringify(g.rows));
   });
-  t('BGA_3510_L19_ring3mil_L2pad_0907 → _L2pad_ 不算层号', () => {
-    const k = w.eval("(function(){const k=CopperCheck.padKeys('BGA_3510_L19_ring3mil_L2pad_0907');return {fan:k.fan, fans:k.fans, ring:k.ring};})()");
-    if (k.fan !== 19 || k.fans.length !== 1 || k.ring !== '3') throw new Error(JSON.stringify(k));
+  t('BGA_SIG_L1_L19_3510_ring3mil_L2pad_0907 → _L2pad_ 不算层号', () => {
+    const k = w.eval("(function(){const k=CopperCheck.padKeys('BGA_SIG_L1_L19_3510_ring3mil_L2pad_0907');return {fan:k.fan, fans:k.fans, ring:k.ring};})()");
+    if (k.fan !== 19 || JSON.stringify(k.fans) !== '[1,19]' || k.ring !== '3') throw new Error(JSON.stringify(k));
   });
-  t('BGA_GND_pad1mil_0902 没有层号，不硬套规则只给候选', () => {
+  t('BGA_GND_pad1mil_0902 不含 SIG，仅显示且不推算、不检查', () => {
     const g = oneViaCase('BGA_GND_pad1mil_0902', bgaRules, 'L8');
     if (g.rule) throw new Error('不该选到 ' + g.rule);
-    if (!g.cands.length || g.cands.indexOf('BGA-L8') < 0) throw new Error('候选 ' + JSON.stringify(g.cands));
-    if (g.rows.some(r => r.indexOf('未选规则') >= 0) === false) throw new Error(JSON.stringify(g.rows));
+    if (g.cands.length) throw new Error('非 SIG 不应列推算候选 ' + JSON.stringify(g.cands));
+    if (g.rows.some(r => r.indexOf('未检查') >= 0) === false) throw new Error(JSON.stringify(g.rows));
   });
   t('匹配表里显示提取到的 Bot / L19 / D2M6', () => {
-    oneViaCase('SMA_Bot-L19_d2m6mil_via-0902', JSON.stringify([
+    oneViaCase('SMA_SIG_Bot-L19_d2m6mil_via-0902', JSON.stringify([
       {kind:'SMA',title:'Bot-SMA-L19-D2M6mil',fanLayer:19,constraints:[{cat:'反焊盘尺寸',name:'反焊盘半径',unit:'mil',values:{L1:'11.39'}}]}
     ]), 'L19');
     $('tabs').querySelector('[data-tab="data"]').click();
     w.eval('renderMatch()');
     const h = $('matchOut').innerHTML;
-    if (h.indexOf('SMA / Bot / L19 / D2M6') < 0) throw new Error('提取列没写全');
+    if (h.indexOf('SIG / SMA /') < 0 || h.indexOf('无差分孔距') < 0) throw new Error('提取列没写全');
     if (h.indexOf('Bot-SMA-L19-D2M6mil') < 0) throw new Error('推算的约束没显示');
   });
-  t('底部规律写明 l2-L8 取 L8、_L2pad_ 不算', () => {
+  t('底部规律写明 SIG 完整孔组、离散孔段距离与完整层跨匹配', () => {
     w.eval('renderLegend(true)');
     const h = $('legendOut').innerHTML;
-    if (h.indexOf('l2-L8') < 0 || h.indexOf('_L2pad_') < 0) throw new Error('规律没写这两种例外');
+    if (h.indexOf('0.025') < 0 || h.indexOf('完整层跨') < 0 || h.indexOf('SIG') < 0) throw new Error('规律未写完整孔推算规则');
   });
 
   console.log('== TXT 里 “/” 与 “，” 都算层号列表分隔符 ==');
@@ -478,7 +478,7 @@ setTimeout(() => {
   console.log('== ④ 按约束筛选（约束名称 chip） ==');
   const twoRules = [
     {kind:'SMA',title:'Top-SMA-L8-D2M6mil',fanLayer:8,constraints:[{cat:'反焊盘尺寸',name:'反焊盘半径',unit:'mil',values:{L1:'13'}}]},
-    {kind:'BGA',title:'BGA-L19',fanLayer:19,constraints:[{cat:'反焊盘尺寸',name:'反焊盘半径',unit:'mil',values:{L1:'17'}}]}
+    {kind:'BGA',title:'BGA-L1-L19',fanLayer:19,constraints:[{cat:'反焊盘尺寸',name:'反焊盘半径',unit:'mil',values:{L1:'17'}}]}
   ];
   const mixTxt = [
     'Total 8 Items','',
@@ -487,31 +487,31 @@ setTimeout(() => {
     '  Arc seg: xy [95.0000, 100.0000]  xy [95.0000, 100.0000] Width (0.0000)',
     '    Center-xy:  [100.0000, 100.0000] Radius (13.0000) CCW','~~~~~~~~~~~~~~~~~~~~~~~~~','',
     'Item 2                < Via >','','  Origin-xy:          [100.0000, 100.0000]','  Net:                11_N','',
-    '  Padstack Name:      SMA_Top-L8_d2m6mil_via-0902','~~~~~~~~~~~~~~~~~~~~~~~~~','',
+    '  Padstack Name:      SMA_SIG_Top-L8_d2m6mil_via-0902','~~~~~~~~~~~~~~~~~~~~~~~~~','',
     'Item 3                < Shape >','','  Set:                Route Keepout','  Subset:             Top','',
     '  Type:               Shape(Static)','','Exterior Boundary:',
     '  Arc seg: xy [195.0000, 200.0000]  xy [195.0000, 200.0000] Width (0.0000)',
     '    Center-xy:  [200.0000, 200.0000] Radius (12.0000) CCW','~~~~~~~~~~~~~~~~~~~~~~~~~','',
     'Item 4                < Via >','','  Origin-xy:          [200.0000, 200.0000]','  Net:                12_N','',
-    '  Padstack Name:      BGA_3510_L19_ring3mil_L2pad_0907','~~~~~~~~~~~~~~~~~~~~~~~~~','',
+    '  Padstack Name:      BGA_SIG_L1_L19_3510_ring3mil_L2pad_0907','~~~~~~~~~~~~~~~~~~~~~~~~~','',
     'Item 5                < Shape >','','  Set:                Route Keepout','  Subset:             07IS03','',
     '  Type:               Shape(Static)','','Exterior Boundary:',
     '  Arc seg: xy [295.0000, 300.0000]  xy [295.0000, 300.0000] Width (0.0000)',
     '    Center-xy:  [300.0000, 300.0000] Radius (10.0000) CCW','~~~~~~~~~~~~~~~~~~~~~~~~~','',
     'Item 6                < Via >','','  Origin-xy:          [300.0000, 300.0000]','  Net:                13_N','',
-    '  Padstack Name:      BGA_GND_pad1mil_0902','  Usage:              BBVia','~~~~~~~~~~~~~~~~~~~~~~~~~','',
+    '  Padstack Name:      BGA_SIG_L3_L7_unmatched','  Usage:              BBVia','~~~~~~~~~~~~~~~~~~~~~~~~~','',
     '~ ~ ~ ~ ~ ~ ~ ~ ~ ~End~ ~ ~ ~ ~ ~ ~ ~ ~ ~'].join('\n');
   function chipTexts(){ return [...d.querySelectorAll('#resChips .chip')].map(c => c.dataset.rule); }
   function chipOf(rule){ return [...d.querySelectorAll('#resChips .chip')].find(c => c.dataset.rule === rule); }
   function groupsShown(){ return d.querySelectorAll('#checkOut .set').length; }
 
-  t('约束 chip 全部列出（含结果为 0 的 BGA-L19 之外的规则）', () => {
+  t('约束 chip 全部列出（含结果为 0 的 BGA-L1-L19 之外的规则）', () => {
     w.__mix3 = mixTxt;
     w.eval("S.sets=" + JSON.stringify(twoRules) + "; UI.items=CopperCheck.parseBoardItems(window.__mix3); UI.resFilter=''; UI.resRule=''; UI.onlyBad=false; UI.resLimit=1000; runCheck(true); renderResults();");
     const t = chipTexts();
     if (!t.length) throw new Error('没有 chip');
     if (t.indexOf('Top-SMA-L8-D2M6mil') < 0) throw new Error('缺 Top-SMA-L8-D2M6mil：' + t.join('|'));
-    if (t.indexOf('BGA-L19') < 0) throw new Error('缺 BGA-L19：' + t.join('|'));
+    if (t.indexOf('BGA-L1-L19') < 0) throw new Error('缺 BGA-L1-L19：' + t.join('|'));
     if (t.indexOf('未推算到约束') < 0) throw new Error('缺未推算到约束：' + t.join('|'));
     console.log('        ' + t.join(' / '));
   });
@@ -519,7 +519,7 @@ setTimeout(() => {
     const chip = chipOf('Top-SMA-L8-D2M6mil');
     chip.click();
     if (groupsShown() !== 1) throw new Error('卡片数 ' + groupsShown());
-    if ($('checkOut').innerHTML.indexOf('SMA_Top-L8_d2m6mil_via-0902') < 0) throw new Error('留错了卡片');
+    if ($('checkOut').innerHTML.indexOf('SMA_SIG_Top-L8_d2m6mil_via-0902') < 0) throw new Error('留错了卡片');
     if ($('checkOut').innerHTML.indexOf('BGA_3510_L19') >= 0) throw new Error('BGA 的卡片没被筛掉');
     if ($('resHint').textContent.indexOf('只看约束 Top-SMA-L8-D2M6mil') < 0) throw new Error('提示没写：' + $('resHint').textContent);
     const on = d.querySelector('#resChips .chip.on');
@@ -545,7 +545,7 @@ setTimeout(() => {
     const chip = chipOf('未推算到约束');
     chip.click();
     if (groupsShown() !== 1) throw new Error('卡片数 ' + groupsShown());
-    if ($('checkOut').innerHTML.indexOf('BGA_GND_pad1mil_0902') < 0) throw new Error('留错了卡片');
+    if ($('checkOut').innerHTML.indexOf('BGA_SIG_L3_L7_unmatched') < 0) throw new Error('留错了卡片');
     chip.click();
   });
   t('CSV 导出跟随约束筛选', () => {
@@ -563,7 +563,7 @@ setTimeout(() => {
 
   console.log('== 约束筛选条的分组与排序 ==');
   t('chipMeta 正确分组', () => {
-    const g = w.eval("['BGA-L19','Top-SMA-L4-D2M6mil','Bot-SMA-L19-D2M6mil','SMA-L19-D2M5mil','','其他约束'].map(function(n){return chipMeta(n).group;})");
+    const g = w.eval("['BGA-L1-L19','Top-SMA-L4-D2M6mil','Bot-SMA-L19-D2M6mil','SMA-L19-D2M5mil','','其他约束'].map(function(n){return chipMeta(n).group;})");
     const want = ['BGA', 'SMA · Top 面', 'SMA · bottom 面', 'SMA · 未标面', '未推算到约束', '其他'];
     if (JSON.stringify(g) !== JSON.stringify(want)) throw new Error(JSON.stringify(g));
   });
@@ -578,7 +578,7 @@ setTimeout(() => {
   });
   t('渲染出来的顺序：BGA → Top → bottom → 未标面 → 未推算到约束（最后）', () => {
     const out = w.eval(`(function(){
-      const names=['Bot-SMA-L19-D2M6mil','Top-SMA-L2-D2M6mil','BGA-L19','BGA-L8','SMA-L19-D2M5mil','Top-SMA-L4-D2M6mil','Bot-SMA-L13-D2M6mil','BGA-L17','Top-SMA-L10-D2M6mil'];
+      const names=['Bot-SMA-L19-D2M6mil','Top-SMA-L2-D2M6mil','BGA-L1-L19','BGA-L8','SMA-L19-D2M5mil','Top-SMA-L4-D2M6mil','Bot-SMA-L13-D2M6mil','BGA-L17','Top-SMA-L10-D2M6mil'];
       S.sets=names.map(n=>({title:n}));
       UI.result={groups:names.map(n=>({rows:[{}], rule:{title:n}, failRows:[], failCount:0})).concat([{rows:[{}], rule:null, failRows:[], failCount:0}]),
         unmatchedCircles:[], polygons:[], viaCount:names.length, circleCount:names.length, maxLayer:21};
@@ -589,7 +589,7 @@ setTimeout(() => {
               subs:[...document.querySelectorAll('#resChips .chipcol')].map(c=>[...c.querySelectorAll('.chipsub')].map(x=>x.textContent)),
               labels:[...document.querySelectorAll('#resChips .chip .cl')].map(c=>c.textContent)};
     })()`);
-    const wantOrder = ['BGA-L19','BGA-L17','BGA-L8','Top-SMA-L10-D2M6mil','Top-SMA-L4-D2M6mil','Top-SMA-L2-D2M6mil','Bot-SMA-L19-D2M6mil','Bot-SMA-L13-D2M6mil','SMA-L19-D2M5mil','未推算到约束'];
+    const wantOrder = ['BGA-L17','BGA-L8','BGA-L1-L19','Top-SMA-L10-D2M6mil','Top-SMA-L4-D2M6mil','Top-SMA-L2-D2M6mil','Bot-SMA-L19-D2M6mil','Bot-SMA-L13-D2M6mil','SMA-L19-D2M5mil','未推算到约束'];
     if (JSON.stringify(out.chips) !== JSON.stringify(wantOrder)) throw new Error(out.chips.join(' | '));
     const wantCols = ['BGA','SMA · Top 面','SMA · bottom 面','SMA · 未标面','未推算到约束'];
     const gotCols = out.cols.map(x => x.replace(/\s*\d+$/, ''));
@@ -599,24 +599,24 @@ setTimeout(() => {
   });
   t('点分组里的任意 chip 仍能筛选（BGA-L8）', () => {
     w.eval("S.sets=" + JSON.stringify(rules) + "; UI.items=CopperCheck.parseBoardItems(window.__sampleTxt); UI.resRule=''; UI.resFilter=''; UI.resLimit=1000; runCheck(true); renderResults();");
-    const chip = chipOf('BGA-L19');
-    if (!chip) throw new Error('没有 BGA-L19 chip');
+    const chip = chipOf('BGA-L1-L19');
+    if (!chip) throw new Error('没有 BGA-L1-L19 chip');
     chip.click();
     if (d.querySelectorAll('#checkOut .set').length !== 1) throw new Error('筛选失败');
-    const back = chipOf('BGA-L19');
+    const back = chipOf('BGA-L1-L19');
     back.click();
     if (d.querySelectorAll('#checkOut .set').length !== 1) throw new Error('取消后应回到样本那 1 组');
   });
 
   console.log('== 约束筛选条 列式布局 ==');
   t('一列一个封装/面，列标题带合计', () => {
-    const cols = w.eval("(function(){const names=['BGA-L19','BGA-L17','Top-SMA-L4-D2M6mil','Top-SMA-L2-D2M6mil','Bot-SMA-L19-D2M6mil','SMA-L19-D2M5mil'];"
+    const cols = w.eval("(function(){const names=['BGA-L1-L19','BGA-L17','Top-SMA-L4-D2M6mil','Top-SMA-L2-D2M6mil','Bot-SMA-L19-D2M6mil','SMA-L19-D2M5mil'];"
       + "S.sets=names.map(n=>({title:n}));"
       + "UI.result={groups:names.map(n=>({rows:[{}],rule:{title:n},failRows:[],failCount:0})).concat([{rows:[{}],rule:null,failRows:[],failCount:0}]),unmatchedCircles:[],polygons:[],viaCount:0,circleCount:0,maxLayer:21};"
       + "UI.resRule=''; renderChips();"
       + "return {cols:[...document.querySelectorAll('#resChips .chipcol-h')].map(x=>x.textContent.trim()), labels:[...document.querySelectorAll('#resChips .chip .cl')].map(x=>x.textContent)};})()");
     if (cols.cols.length !== 5) throw new Error('列数 ' + cols.cols.length + ' ' + cols.cols.join('|'));
-    if (JSON.stringify(cols.labels) !== JSON.stringify(['L19','L17','L4','L2','L19','L19','未推算到约束'])) throw new Error(cols.labels.join(' '));
+    if (JSON.stringify(cols.labels) !== JSON.stringify(['L17','L1-L19','L4','L2','L19','L19','未推算到约束'])) throw new Error(cols.labels.join(' '));
     const wantCols = ['BGA 2','SMA · Top 面 2','SMA · bottom 面 1','SMA · 未标面 1','未推算到约束 1'];
     if (JSON.stringify(cols.cols) !== JSON.stringify(wantCols)) throw new Error('列标题 ' + cols.cols.join('|'));
   });
@@ -637,13 +637,13 @@ setTimeout(() => {
   });
   t('列里的条目仍可点击筛选，且选中态落在正确的条目上', () => {
     w.eval("S.sets=" + JSON.stringify(rules) + "; UI.items=CopperCheck.parseBoardItems(window.__sampleTxt); UI.resRule=''; UI.resLimit=1000; runCheck(true); renderResults();");
-    const chip = [...d.querySelectorAll('#resChips .chip')].find(c => c.dataset.rule === 'BGA-L19');
-    if (!chip) throw new Error('没有 BGA-L19');
+    const chip = [...d.querySelectorAll('#resChips .chip')].find(c => c.dataset.rule === 'BGA-L1-L19');
+    if (!chip) throw new Error('没有 BGA-L1-L19');
     chip.click();
     const on = [...d.querySelectorAll('#resChips .chip.on')].map(c => c.dataset.rule);
-    if (JSON.stringify(on) !== JSON.stringify(['BGA-L19'])) throw new Error('选中态 ' + JSON.stringify(on));
+    if (JSON.stringify(on) !== JSON.stringify(['BGA-L1-L19'])) throw new Error('选中态 ' + JSON.stringify(on));
     if (d.querySelectorAll('#checkOut .set').length !== 1) throw new Error('筛选结果不对');
-    const back = [...d.querySelectorAll('#resChips .chip')].find(c => c.dataset.rule === 'BGA-L19');
+    const back = [...d.querySelectorAll('#resChips .chip')].find(c => c.dataset.rule === 'BGA-L1-L19');
     back.click();
   });
 
@@ -651,7 +651,7 @@ setTimeout(() => {
   t('指引条按封装/面分列，列内按 D2M、层号排序', () => {
     const out = w.eval(`(function(){
       const titles=['Top-SMA-L2-D2M6mil','Top-SMA-L4-D2M5mil','Bot-SMA-L19-D2M6mil','Bot-SMA-L17-D2M6mil','Top-SMA-L8-D2M6mil',
-        'Bot-SMA-L15-D2M6mil','BGA-L17','BGA-L19','BGA-L8','BGA-L15','Top-SMA-L4-D2M6mil','Bot-SMA-L13-D2M6mil',
+        'Bot-SMA-L15-D2M6mil','BGA-L17','BGA-L1-L19','BGA-L8','BGA-L15','Top-SMA-L4-D2M6mil','Bot-SMA-L13-D2M6mil',
         'Top-SMA-L10-D2M6mil','Top-SMA-L6-D2M6mil','SMA-L19-D2M5mil'];
       S.sets=titles.map(t=>({kind:/BGA/.test(t)?'BGA':'SMA', title:t, constraints:[]}));
       reexpandAll(); renderJump();
@@ -670,13 +670,13 @@ setTimeout(() => {
     const wantTop = ['#D2M6mil','Top-SMA-L10-D2M6mil','Top-SMA-L8-D2M6mil','Top-SMA-L6-D2M6mil','Top-SMA-L4-D2M6mil','Top-SMA-L2-D2M6mil','#D2M5mil','Top-SMA-L4-D2M5mil'];
     if (JSON.stringify(top) !== JSON.stringify(wantTop)) throw new Error(top.join(' > '));
     const bga = out.seq[0];
-    if (JSON.stringify(bga) !== JSON.stringify(['BGA-L19','BGA-L17','BGA-L15','BGA-L8'])) throw new Error(bga.join(' > '));
+    if (JSON.stringify(bga) !== JSON.stringify(['BGA-L17','BGA-L15','BGA-L8','BGA-L1-L19'])) throw new Error(bga.join(' > '));
     console.log('        ' + out.cols.join(' | '));
     console.log('        Top 面: ' + top.join(' > '));
   });
   t('指引条目都能跳到对应的约束卡片', () => {
     const bad = w.eval(`(function(){
-      const titles=['Top-SMA-L2-D2M6mil','Bot-SMA-L19-D2M6mil','BGA-L17','BGA-L19','Top-SMA-L4-D2M5mil','SMA-L19-D2M5mil'];
+      const titles=['Top-SMA-L2-D2M6mil','Bot-SMA-L19-D2M6mil','BGA-L17','BGA-L1-L19','Top-SMA-L4-D2M5mil','SMA-L19-D2M5mil'];
       S.sets=titles.map(t=>({kind:/BGA/.test(t)?'BGA':'SMA', title:t, constraints:[]}));
       reexpandAll(); render(); renderJump();
       let miss=0;
@@ -764,7 +764,7 @@ setTimeout(() => {
   });
 
   console.log('== 每个过孔的「总复核」 ==');
-  const allFailRule = [{kind:'BGA',title:'BGA-L19',fanLayer:19,constraints:[{cat:'反焊盘尺寸',name:'反焊盘半径',unit:'mil',values:{L1:'1',L2:'1',L19:'1'}}]}];
+  const allFailRule = [{kind:'BGA',title:'BGA-L1-L19',fanLayer:19,constraints:[{cat:'反焊盘尺寸',name:'反焊盘半径',unit:'mil',values:{L1:'1',L2:'1',L19:'1'}}]}];
   t('有不符合项的过孔卡片上有总复核勾选框（三行都不符合）', () => {
     $('tabs').querySelector('[data-tab="result"]').click();
     w.__sampleTxt = sampleTxt;
@@ -828,12 +828,12 @@ setTimeout(() => {
       shapes.push({id:id++, type:'shape', subset:'Top', set:'Route Keepout', radius:radius, center:[x,y], circle:true, head:'Set: Route Keepout'});
       vias.push({id:id++, type:'via', origin:[x,y], net:'N', padstack:padstack, traceLayers:[], connections:''});
     }
-    add('SMA_Top-L8_d2m6mil_via', 1000, 1000, 9);   // 不符合
-    add('SMA_Top-L8_d2m6mil_via', 1100, 1000, 13);  // 符合
-    add('SMA_Top-L8_d2m6mil_via', 1200, 1000, 13);  // 符合
-    add('SMA_Top-L4_d2m5mil_via', 1300, 1000, 9);   // 不符合
-    add('SMA_Top-L4_d2m5mil_via', 1400, 1000, 9);   // 不符合
-    add('BGA_GND_pad1mil_0902', 1500, 1000, 9);     // 未推算到约束
+    add('SMA_SIG_Top-L8_d2m6mil_via', 1000, 1000, 9);   // 不符合
+    add('SMA_SIG_Top-L8_d2m6mil_via', 1100, 1000, 13);  // 符合
+    add('SMA_SIG_Top-L8_d2m6mil_via', 1200, 1000, 13);  // 符合
+    add('SMA_SIG_Top-L4_d2m5mil_via', 1300, 1000, 9);   // 不符合
+    add('SMA_SIG_Top-L4_d2m5mil_via', 1400, 1000, 9);   // 不符合
+    add('BGA_SIG_L3_L7_unmatched', 1500, 1000, 9); // SIG 但完整层跨无候选，归入未推算到约束
     return shapes.concat(vias);
   })();
   const cntSets = [
@@ -901,7 +901,7 @@ setTimeout(() => {
     }
     addVia(19371, 'GND', 'BGA_GND_pad1mil_0902', 1000, 1000);
     addVia(21425, '69_N', 'SMA_L2_d2m6mil_via_0902', 2000, 2000);
-    addVia(30018, 'VCC_3V3', 'SMA_Bot-L19_d2m5mil_via_0902', 3000, 3000);
+    addVia(30018, 'VCC_3V3', 'SMA_SIG_Bot-L19_d2m5mil_via_0902', 3000, 3000);
     return shapes.concat(vias);
   })();
   const searchSets = [
@@ -944,9 +944,9 @@ setTimeout(() => {
     if (d.querySelectorAll('#checkOut .set').length !== 1) throw new Error('GND 应该只有 1 个孔');
     if (d.querySelector('#checkOut .set b').textContent !== 'GND') throw new Error('网络不匹配');
 
-    inp.value = 'SMA_Bot';
+    inp.value = 'SMA_SIG_Bot';
     d.getElementById('btnSearchGo').click();
-    if (d.querySelectorAll('#checkOut .set').length !== 1) throw new Error('SMA_Bot 应该匹配 30018');
+    if (d.querySelectorAll('#checkOut .set').length !== 1) throw new Error('SMA_SIG_Bot 应该匹配 30018');
     if (d.querySelector('#checkOut .set .badge').textContent.indexOf('30018') < 0) throw new Error('不是 30018');
   });
 
@@ -1018,7 +1018,7 @@ setTimeout(() => {
     'Item 4                < Via >',
     '  Origin-xy:          [100.0000, 100.0000]',
     '  Net:                8_N',
-    '  Padstack Name:      SMA_Bot-L19_d2m5mil_via',
+    '  Padstack Name:      SMA_SIG_Bot-L19_d2m5mil_via',
     '  Usage:              BBVia',
     '  Connections:        ',
     '    Pin:              1 (Bottom)',
@@ -1088,7 +1088,7 @@ setTimeout(() => {
     $('tabs').querySelector('[data-tab="legend"]').click();
     const h = $('legendOut').innerHTML;
     if (h.indexOf('各约束下不符合') < 0) throw new Error('没渲染分布');
-    if (h.indexOf('铜皮 × 过孔 怎么配对') < 0) throw new Error('没渲染规律');
+    if (h.indexOf('铜皮 × 完整信号孔怎么配对') < 0) throw new Error('没渲染规律');
   });
   t('⑤ 页内容有缓存，重复切页签不会重复渲染', () => {
     const v1 = $('legendOut').dataset.ver;
@@ -1111,11 +1111,11 @@ setTimeout(() => {
       { id: 3, type: 'shape', subset: '19IS08', set: 'Route Keepout', radius: 10.5, center: [200, 200], circle: true, head: 'Set: Route Keepout' }
     ];
     const vias = [
-      { id: 101, type: 'via', origin: [100, 100], net: 'N1', padstack: 'BGA_3510_l2-L8_Ring3mil_0902', traceLayers: ['L8'], connections: '' },
-      { id: 102, type: 'via', origin: [200, 200], net: 'N2', padstack: 'BGA_3510_L15_ring3mil_0902', traceLayers: ['L15'], connections: '' }
+      { id: 101, type: 'via', origin: [100, 100], net: 'N1', padstack: 'BGA_SIG_3510_l2-L8_Ring3mil_0902', traceLayers: ['L8'], connections: '' },
+      { id: 102, type: 'via', origin: [200, 200], net: 'N2', padstack: 'BGA_SIG_3510_L15_ring3mil_0902', traceLayers: ['L15'], connections: '' }
     ];
     const testSets = [
-      { kind: 'BGA', title: 'BGA-L8', fanLayer: 8, constraints: [{ cat: '反焊盘尺寸', name: '反焊盘半径', unit: 'mil', values: { L17: '11.39', L19: '11.39' } }] },
+      { kind: 'BGA', title: 'BGA-L2-L8', fanLayer: 8, constraints: [{ cat: '反焊盘尺寸', name: '反焊盘半径', unit: 'mil', values: { L17: '11.39', L19: '11.39' } }] },
       { kind: 'BGA', title: 'BGA-L15', fanLayer: 15, constraints: [{ cat: '反焊盘尺寸', name: '反焊盘半径', unit: 'mil', values: { L19: '11.39' } }] }
     ];
     w.__legendMix = shapes.concat(vias);
@@ -1125,7 +1125,7 @@ setTimeout(() => {
     // 1. 包含各约束下展开明细小节且置于顶部
     if (h.indexOf('各约束下不符合的具体原因展开明细') < 0) throw new Error('缺少各约束展开明细小节');
     const posDetail = h.indexOf('各约束下不符合的具体原因展开明细');
-    const posRules = h.indexOf('铜皮 × 过孔 怎么配对');
+    const posRules = h.indexOf('铜皮 × 完整信号孔怎么配对');
     if (posDetail < 0 || posRules < 0 || posDetail > posRules) throw new Error('各约束下不符合展开明细未置于页面顶部');
 
     // 2. 确认已删掉「不符合原因汇总排行」
@@ -1138,7 +1138,7 @@ setTimeout(() => {
     if (h.indexOf('实测 10.5 mil ≠ 规则 11.39 mil（偏差 -0.89 mil）') < 0) throw new Error('未写明具体实测/规则/偏差：' + h);
 
     // 5. L19 出现（BGA-L8 和 BGA-L15 对应约束明细）
-    if (h.indexOf('L19') < 0 || h.indexOf('BGA-L8') < 0) throw new Error('原因明细未包含对应约束');
+    if (h.indexOf('L19') < 0 || h.indexOf('BGA-L2-L8') < 0) throw new Error('原因明细未包含对应约束');
 
     // 6. 标注了有问题的孔的网络 (N1, N2)
     if (h.indexOf('<code>N1</code>') < 0 || h.indexOf('<code>N2</code>') < 0) throw new Error('未标注有问题的孔的网络：' + h);
@@ -1182,11 +1182,11 @@ setTimeout(() => {
   console.log('== Padstack 层名与 Connections 连接层检查 ==');
   t('layersOfPadstack 提取各种 Padstack 命名中的层号', () => {
     const fn = w.CopperCheck.layersOfPadstack;
-    if (JSON.stringify(fn('test BGA 3510 L8 L2 ring3mil', 24)) !== '[2,8]') throw new Error('test BGA L8 L2: ' + JSON.stringify(fn('test BGA 3510 L8 L2 ring3mil', 24)));
-    if (JSON.stringify(fn('BGA_3510_L19_ring3mil_L2pad_0907', 24)) !== '[2,19]') throw new Error('L19 L2pad: ' + JSON.stringify(fn('BGA_3510_L19_ring3mil_L2pad_0907', 24)));
-    if (JSON.stringify(fn('BGA_3510_l2-L8_Ring3mil_0902', 24)) !== '[2,8]') throw new Error('l2-L8: ' + JSON.stringify(fn('BGA_3510_l2-L8_Ring3mil_0902', 24)));
-    if (JSON.stringify(fn('SMA_Bot-L19_d2m6mil_via-0902', 24)) !== '[19,24]') throw new Error('Bot-L19: ' + JSON.stringify(fn('SMA_Bot-L19_d2m6mil_via-0902', 24)));
-    if (JSON.stringify(fn('SMA_Top-L15', 24)) !== '[1,15]') throw new Error('Top-L15: ' + JSON.stringify(fn('SMA_Top-L15', 24)));
+    if (JSON.stringify(fn('test BGA SIG 3510 L8 L2 ring3mil', 24)) !== '[2,8]') throw new Error('test BGA L8 L2: ' + JSON.stringify(fn('test BGA SIG 3510 L8 L2 ring3mil', 24)));
+    if (JSON.stringify(fn('BGA_SIG_L1_L19_3510_ring3mil_L2pad_0907', 24)) !== '[1,19]') throw new Error('L19 L2pad: ' + JSON.stringify(fn('BGA_SIG_L1_L19_3510_ring3mil_L2pad_0907', 24)));
+    if (JSON.stringify(fn('BGA_SIG_3510_l2-L8_Ring3mil_0902', 24)) !== '[2,8]') throw new Error('l2-L8: ' + JSON.stringify(fn('BGA_SIG_3510_l2-L8_Ring3mil_0902', 24)));
+    if (JSON.stringify(fn('SMA_SIG_Bot-L19_d2m6mil_via-0902', 24)) !== '[19,24]') throw new Error('Bot-L19: ' + JSON.stringify(fn('SMA_SIG_Bot-L19_d2m6mil_via-0902', 24)));
+    if (JSON.stringify(fn('SMA_SIG_Top-L15', 24)) !== '[1,15]') throw new Error('Top-L15: ' + JSON.stringify(fn('SMA_SIG_Top-L15', 24)));
     if (JSON.stringify(fn('VIA_L02_L08', 24)) !== '[2,8]') throw new Error('L02_L08: ' + JSON.stringify(fn('VIA_L02_L08', 24)));
     if (JSON.stringify(fn('VIA_02G01P_08IS03', 24)) !== '[2,8]') throw new Error('02G01P_08IS03: ' + JSON.stringify(fn('VIA_02G01P_08IS03', 24)));
   });
@@ -1196,7 +1196,7 @@ setTimeout(() => {
       'Item 1 < Via >',
       '  Origin-xy: [100.0, 100.0]',
       '  Net: TEST_NET',
-      '  Padstack Name: test BGA 3510 L8 L2 ring3mil',
+      '  Padstack Name: test BGA SIG 3510 L8 L2 ring3mil',
       '  Connections:',
       '    Trace: 2 (02G01P 08IS03)',
       '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~',
@@ -1225,7 +1225,7 @@ setTimeout(() => {
       'Item 1 < Via >',
       '  Origin-xy: [100.0, 100.0]',
       '  Net: TEST_NET_FAIL',
-      '  Padstack Name: test BGA 3510 L2 ring3mil',
+      '  Padstack Name: test BGA SIG 3510 L2 ring3mil',
       '  Connections:',
       '    Trace: 2 (02G01P 08IS03)',
       '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
@@ -1265,7 +1265,7 @@ setTimeout(() => {
       'Item 1 < Via >',
       '  Origin-xy: [200.0, 200.0]',
       '  Net: NET_NO_LAYER',
-      '  Padstack Name: BGA_via_generic',
+      '  Padstack Name: BGA_SIG_via_generic',
       '  Connections:',
       '    Trace: 2 (02G01P 08IS03)',
       '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'

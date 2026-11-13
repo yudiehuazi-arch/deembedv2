@@ -150,19 +150,23 @@
 }
 
 .canvas-legend {
-  position: absolute;
-  top: 52px;
-  right: 12px;
-  background: rgba(15, 23, 42, 0.88);
-  border: 1px solid #334155;
-  padding: 8px 12px;
-  border-radius: 6px;
+  position: static;
+  min-height: 36px;
+  background: #0f172a;
+  border-top: 1px solid #334155;
+  padding: 7px 12px;
   color: #cbd5e1;
   font-size: 11px;
   pointer-events: none;
   display: flex;
-  flex-direction: column;
-  gap: 5px;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.canvas-legend strong {
+  color: #ffffff;
 }
 
 .canvas-legend-item {

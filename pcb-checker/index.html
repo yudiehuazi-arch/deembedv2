@@ -36,13 +36,14 @@
   </div>
 
   <div class="eda-rail-section">
-    <div class="eda-rail-label">工序流程 <span data-tip="支持快捷键 Alt+1..5 快速切换工序">Alt+1..5</span></div>
+    <div class="eda-rail-label">工序流程 <span data-tip="支持快捷键 Alt+1..6 快速切换工序">Alt+1..6</span></div>
     <nav id="tabs">
       <button type="button" data-tab="import" class="active" data-tip="导入或粘贴 EDA 走线报告 TXT 与分隔表格">① 数据导入</button>
       <button type="button" data-tab="overview" data-tip="按出线层汇总网络数、线宽序列与圆弧段分布">② 数据概览</button>
       <button type="button" data-tab="rules" data-tip="配置分层线宽组合、总线长、指定线宽线长与弧半径规则">③ 检查规则</button>
-      <button type="button" data-tab="result" data-tip="按出线层查看核对明细、复验标记与导出整改报表">④ 检查结果</button>
-      <button type="button" data-tab="diff" data-tip="差分对逐层与跨层总长 PN 线长差核对">⑤ 差分分析</button>
+      <button type="button" data-tab="result" data-tip="按出线层查看核对明细、定位不符合走线、复验标记与导出整改报表">④ 检查结果</button>
+      <button type="button" data-tab="canvas" data-tip="交互式 2D 走线几何画布、标尺测量与定位复验">⑤ 空间几何视口与测量</button>
+      <button type="button" data-tab="diff" data-tip="差分对逐层与跨层总长 PN 线长差核对">⑥ 差分分析</button>
     </nav>
   </div>
 
@@ -225,6 +226,7 @@
             <label class="fld">搜索网络 <input type="text" id="fltQ" style="width:145px" placeholder="网络名关键字" data-no-persist></label>
             <label class="fld">出线层 <select id="fltLayer" style="width:140px" data-no-persist><option value="">全部</option></select></label>
             <label class="fld">状态 <select id="fltStatus" style="width:96px" data-no-persist><option value="">全部</option><option value="fail">不符合</option><option value="pass">通过</option><option value="none">未检查</option></select></label>
+            <label class="fld">查看类型 <select id="fltType" style="width:128px" data-no-persist><option value="">全部</option><option value="length">总线长</option><option value="width">线宽组合变化</option><option value="radius">弧半径</option></select></label>
             <span class="hint" id="fltNote">点击红色指标卡可快速筛选不符合项。</span>
             <button type="button" class="btn pri" id="btnExpReport" data-tip="导出合并走线检查与差分分析的 .xlsx 问题整改汇总表">输出检查汇总报告</button>
             <button type="button" class="btn ghost" id="btnExpAll">导出全部 CSV</button>
@@ -238,7 +240,69 @@
       <div id="resLayers"></div>
     </section>
 
-    <!-- ================= ⑤ 差分分析 ================= -->
+    <!-- ================= ⑤ 空间几何视口与测量 ================= -->
+    <section class="tab" id="tab-canvas">
+      <div class="card" style="padding:10px 14px">
+        <div class="viewer-container">
+          <div class="viewer-toolbar">
+            <div class="tb-group">
+              <button type="button" id="btnTraceFitView" data-tip="缩放平移至包络全板走线">适应全屏</button>
+              <button type="button" id="btnTraceZoomDefects" class="active" data-tip="聚焦至全部不符合规则的走线区域">聚焦不满足区域</button>
+              <button type="button" id="btnTraceZoomIn">放大</button>
+              <button type="button" id="btnTraceZoomOut">缩小</button>
+              <button type="button" id="btnTraceResetView">复位</button>
+              <button type="button" id="btnReturnTraceResults" class="btn sec small" onclick="returnToTraceResults()" style="display:none" data-tip="切回检查结果明细并恢复到点击定位前的行">返回检查结果明细</button>
+            </div>
+            <div class="tb-group">
+              <button type="button" id="btnTraceMeasureMode" data-tip="激活后依次点击两条走线段或画布任意两点，测量精确距离、线宽与段长">测量标尺</button>
+              <button type="button" id="btnTraceClearMeasure" style="display:none">清除测量</button>
+            </div>
+            <div class="tb-group">
+              <label data-tip="按出线层筛选 2D 画布中的走线">出线层
+                <select id="selCanvasLayer" data-no-persist><option value="">全部出线层</option></select>
+              </label>
+              <label><input type="checkbox" id="ckTraceShowAll" checked> 常规走线</label>
+              <label><input type="checkbox" id="ckTraceShowDefects" checked> 不满足项高亮</label>
+              <label><input type="checkbox" id="ckTraceShowSegs" checked> 端点与弧心</label>
+              <label><input type="checkbox" id="ckTraceShowLabels" checked> 数值标注</label>
+              <label><input type="checkbox" id="ckTraceShowGrid" checked> 网格</label>
+            </div>
+            <div style="margin-left:auto;display:flex;gap:6px">
+              <button type="button" id="btnTraceExportPng" class="pri">导出 PNG</button>
+              <button type="button" id="btnTraceExportSvg">导出 SVG</button>
+            </div>
+          </div>
+
+          <div id="traceSpatialReviewCard" style="display:none;background:#0f172a;border-bottom:1px solid rgba(56,189,248,0.42);padding:8px 14px;color:#f1f5f9">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+              <strong id="traceSpatialRevTitle" style="font-size:13px;color:#38bdf8">定位异常复核</strong>
+              <div id="traceSpatialRevBody" style="flex:1;min-width:280px"></div>
+              <button type="button" id="btnCloseTraceSpatialRev" style="background:transparent;border:none;color:#9ca3af;cursor:pointer;font-size:14px">×</button>
+            </div>
+          </div>
+
+          <div class="trace-canvas-stage">
+            <canvas id="traceCanvas" width="1200" height="620"></canvas>
+            <div class="canvas-hud" id="traceCanvasHud">缩放: 100%</div>
+            <div class="measure-card" id="traceMeasureCard">
+              <h4>
+                <span>空间几何测量结果</span>
+                <button type="button" id="btnCloseTraceMeasureCard" style="background:transparent;border:none;color:#9ca3af;cursor:pointer;font-size:14px">×</button>
+              </h4>
+              <div id="traceMeasureCardBody"></div>
+            </div>
+          </div>
+          <div class="canvas-legend" id="traceCanvasLegend">
+            <strong>图例</strong>
+            <div class="canvas-legend-item"><div class="canvas-legend-color" style="background:#ef4444"></div><span>不满足走线 / 超标段落</span></div>
+            <div class="canvas-legend-item"><div class="canvas-legend-color" style="background:#38bdf8"></div><span>当前定位走线 / 标尺测量</span></div>
+            <div class="canvas-legend-item"><div class="canvas-legend-color" style="background:#22c55e"></div><span>合规网络走线</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= ⑥ 差分分析 ================= -->
     <section class="tab" id="tab-diff">
       <div class="card">
         <h2>差分对配对与公差参数</h2>
@@ -297,9 +361,12 @@
         <button type="button" class="dock-btn pri" id="dockTraceRun">▶ 运行走线检查</button>
         <div class="dock-btn-row">
           <button type="button" class="dock-btn" id="dockTraceSample">示例数据</button>
-          <button type="button" class="dock-btn" id="dockTraceDiff">分析差分</button>
+          <button type="button" class="dock-btn" id="dockTraceCanvas">2D 视口</button>
         </div>
-        <button type="button" class="dock-btn" id="dockTraceExport">导出 Excel 汇总</button>
+        <div class="dock-btn-row">
+          <button type="button" class="dock-btn" id="dockTraceDiff">分析差分</button>
+          <button type="button" class="dock-btn" id="dockTraceExport">导出汇总</button>
+        </div>
       </div>
     </div>
 
@@ -321,6 +388,8 @@
   </div>
 </aside>
 
+<div class="tooltip" id="traceCanvasTooltip"></div>
+
 <script src="packages/shared/xlsx-export.js?v=12"></script>
 <script src="packages/engines/trace/trace-parser.js?v=12"></script>
 <script src="packages/engines/trace/trace-rules.js?v=12"></script>
@@ -330,6 +399,7 @@
 <script src="packages/pages/trace/trace-rules-ui.js?v=12"></script>
 <script src="packages/pages/trace/trace-results-ui.js?v=12"></script>
 <script src="packages/pages/trace/trace-diff-ui.js?v=12"></script>
+<script src="packages/pages/trace/trace-canvas-viewer.js?v=12"></script>
 <script src="packages/shared/eda-tooltip.js?v=12"></script>
 <script src="packages/shared/eda-shell.js?v=12"></script>
 <script src="packages/shared/ui-prefs.js?v=12"></script>

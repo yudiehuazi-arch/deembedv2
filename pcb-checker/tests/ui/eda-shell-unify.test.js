@@ -7,7 +7,7 @@
 const { openPage, tick, readPageCss } = require('../helpers/open-page');
 
 const PAGES = {
-  'index.html': 5,
+  'index.html': 6,
   'copper.html': 5,
   'dfm.html': 5,
   'fanout.html': 5,
@@ -64,6 +64,8 @@ function assert(cond, msg) { if (!cond) throw new Error(msg); }
       d.getElementById('btnToggleLeftRail').click();
       d.getElementById('btnToggleRightDock').click();
       assert(d.documentElement.classList.contains('eda-dock-collapsed'), '右工具栏未折叠');
+      const dockW = d.defaultView.getComputedStyle(d.body).getPropertyValue('--dock-w').trim();
+      assert(dockW === '0px', '右工具栏折叠后 --dock-w 应为 0px，实际=' + dockW);
       d.getElementById('btnToggleRightDock').click();
 
       /* 逐个点击工序：恰有一个页签与一个面板处于 active */

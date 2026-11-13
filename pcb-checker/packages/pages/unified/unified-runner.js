@@ -269,7 +269,7 @@ function runCopperEngine(ctx) {
 
   // Fallback Padstack check if tConstraint was provided but no groups generated
   if (tConstraint && copperChecks.length === 0) {
-    parsedConstraint.vias.forEach(v => {
+    parsedConstraint.vias.filter(v => /SIG/i.test(v.padstack || '')).forEach(v => {
       const padName = v.padstack || '';
       const connLayers = v.connectedLayers || [];
       const missingLayers = connLayers.filter(l => !padName.toUpperCase().includes(l.toUpperCase().replace(/^0+/, '')));

@@ -54,16 +54,17 @@ setTimeout(() => {
   });
 
   console.log('== 铜皮 × 过孔 配对、推算与筛选复核 ==');
-  const sampleTxt = fs.readFileSync(path.join(CHECKER_DIR, 'sample/铜皮数据示例.txt'), 'utf8');
+  const sampleTxt = fs.readFileSync(path.join(CHECKER_DIR, 'sample/铜皮数据示例.txt'), 'utf8')
+    .replace('BGA_3510_L19', 'BGA_SIG_L1_L19_3510');
   const rules = [
     {
-      kind: 'BGA', title: 'BGA-L19', fanLayer: 19,
+      kind: 'BGA', title: 'BGA-L1-L19', fanLayer: 19,
       constraints: [{ cat: '反焊盘尺寸', name: '反焊盘半径', unit: 'mil', values: { L1: '17', L2: '12', L19: '5' } }]
     },
     { kind: 'BGA', title: 'BGA-L17', fanLayer: 17, constraints: [] }
   ];
 
-  t('注入规则并执行检查：匹配 BGA-L19 并检出 L19 反焊盘 6/5 不符合', () => {
+  t('注入规则并执行检查：匹配 BGA-L1-L19 并检出 L19 反焊盘 6/5 不符合', () => {
     w.__sampleTxt = sampleTxt;
     const r = w.eval(`(function(){
       S.sets = ${JSON.stringify(rules)};
@@ -74,7 +75,7 @@ setTimeout(() => {
         rows: UI.result.groups[0].rows.map(r => 'L' + r.layer + ':' + r.checkType + ':' + r.actual + '/' + r.expect + ':' + r.status).join(' | ')
       };
     })()`);
-    if (r.rule !== 'BGA-L19') throw new Error(r.rule);
+    if (r.rule !== 'BGA-L1-L19') throw new Error(r.rule);
     if (!r.rows.includes('L19:反焊盘尺寸:6/5:不符合')) throw new Error(r.rows);
   });
 
@@ -97,7 +98,7 @@ setTimeout(() => {
     ].join('\n');
     $('tabs').querySelector('[data-tab="data"]').click();
     w.__mixTxt = mix;
-    w.eval("S.sets=" + JSON.stringify([{ kind: 'BGA', title: 'BGA-L19', fanLayer: 19, constraints: [{ cat: '反焊盘尺寸', name: '反焊盘半径', unit: 'mil', values: { L1: '17', L2: '12', L7: '9' } }] }]) + "; UI.items=CopperCheck.parseBoardItems(window.__mixTxt); UI.matchFilter=''; runCheck(true);");
+    w.eval("S.sets=" + JSON.stringify([{ kind: 'BGA', title: 'BGA-L1-L19', fanLayer: 19, constraints: [{ cat: '反焊盘尺寸', name: '反焊盘半径', unit: 'mil', values: { L1: '17', L2: '12', L7: '9' } }] }]) + "; UI.items=CopperCheck.parseBoardItems(window.__mixTxt); UI.matchFilter=''; runCheck(true);");
     const rowCount = () => d.querySelectorAll('#matchOut tbody tr').length;
     if (rowCount() !== 4) throw new Error('全部行数=' + rowCount());
     d.querySelector('#matchOut .stat.click[data-f="matched"]').click();
@@ -110,7 +111,7 @@ setTimeout(() => {
 
   t('④ 检查结果页：复核勾选、总复核半选、约束 chip 筛选、过孔快速搜索定位与 CSV 导出', () => {
     $('tabs').querySelector('[data-tab="result"]').click();
-    const allFailRule = [{ kind: 'BGA', title: 'BGA-L19', fanLayer: 19, constraints: [{ cat: '反焊盘尺寸', name: '反焊盘半径', unit: 'mil', values: { L1: '1', L2: '1', L19: '1' } }] }];
+    const allFailRule = [{ kind: 'BGA', title: 'BGA-L1-L19', fanLayer: 19, constraints: [{ cat: '反焊盘尺寸', name: '反焊盘半径', unit: 'mil', values: { L1: '1', L2: '1', L19: '1' } }] }];
     w.eval("S.sets=" + JSON.stringify(allFailRule) + "; UI.items=CopperCheck.parseBoardItems(window.__sampleTxt); UI.reviewed={}; UI.resFilter=''; UI.resRule=''; UI.resSearch=''; UI.resLimit=1000; runCheck(true); renderResults();");
     const one = d.querySelector('#checkOut .rvwBox');
     one.checked = true;
@@ -131,7 +132,7 @@ setTimeout(() => {
     // CSV 导出
     $('btnCsv').click();
     const csv = d.querySelector('#expMask textarea').value;
-    if (!csv.includes('BGA-L19')) throw new Error('CSV 缺少约束名');
+    if (!csv.includes('BGA-L1-L19')) throw new Error('CSV 缺少约束名');
     $('expMask').style.display = 'none';
   });
 
@@ -140,7 +141,7 @@ setTimeout(() => {
       'Item 1 < Via >',
       '  Origin-xy: [100.0, 100.0]',
       '  Net: TEST_NET_FAIL',
-      '  Padstack Name: test BGA 3510 L2 ring3mil',
+      '  Padstack Name: test BGA SIG 3510 L2 ring3mil',
       '  Connections:',
       '    Trace: 2 (02G01P 08IS03)',
       '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
@@ -174,7 +175,7 @@ setTimeout(() => {
     $('tabs').querySelector('[data-tab="legend"]').click();
     w.eval('renderLegend(true)');
     const h = $('legendOut').innerHTML;
-    if (!h.includes('各约束下不符合的具体原因展开明细') || !h.includes('铜皮 × 过孔 怎么配对')) {
+    if (!h.includes('各约束下不符合的具体原因展开明细') || !h.includes('铜皮 × 完整信号孔怎么配对')) {
       throw new Error('⑤ 规律分析页核心小节缺失');
     }
   });

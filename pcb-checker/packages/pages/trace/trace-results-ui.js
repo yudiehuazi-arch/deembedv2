@@ -44,10 +44,19 @@
     var q = $('fltQ').value.trim().toLowerCase();
     var layer = $('fltLayer').value;
     var st = $('fltStatus').value;
+    var tp = $('fltType') ? $('fltType').value : '';
     var arr = S.records.map(function (r) { return { r: r, v: recStatus(r) }; });
     if (q) arr = arr.filter(function (x) { return x.r.net.toLowerCase().includes(q); });
     if (layer) arr = arr.filter(function (x) { return x.r.layer === layer; });
     if (st) arr = arr.filter(function (x) { return x.v.st === st; });
+    if (tp) {
+      arr = arr.filter(function (x) {
+        if (tp === 'length') return st === 'pass' ? (!x.v.length && x.v.st !== 'none') : !!x.v.length;
+        if (tp === 'width') return st === 'pass' ? (!x.v.width && !x.v.widthLen && x.v.st !== 'none') : !!(x.v.width || x.v.widthLen);
+        if (tp === 'radius') return st === 'pass' ? (!x.v.radius && x.v.st !== 'none') : !!x.v.radius;
+        return true;
+      });
+    }
     if (S.sort.col) {
       var k = S.sort.col;
       var d = S.sort.dir;
@@ -85,11 +94,68 @@
       checkRad: S.checkRad
     });
     renderResults();
+    if (typeof App.renderTraceCanvas === 'function') App.renderTraceCanvas();
     App.switchTab('result');
   }
 
   function reasonOf(reasons, key) {
     return (reasons || []).filter(function (s) { return String(s).indexOf(key) >= 0; }).join('；');
+  }
+
+  function formatExpectedLength(r) {
+    var rule = TE.findRule(r.layer, S.rules, S.defaultRule);
+    if (!rule || !TE.wantLen(rule, checkOpts())) return '-';
+    var u = S.unit || 'mil';
+    if (rule.lenMode === 'list' && rule.lengths && rule.lengths.length) {
+      if (!isNaN(r.length)) {
+        var best = rule.lengths[0], minDiff = Math.abs(r.length - best);
+        for (var i = 1; i < rule.lengths.length; i++) {
+          var d = Math.abs(r.length - rule.lengths[i]);
+          if (d < minDiff) { minDiff = d; best = rule.lengths[i]; }
+        }
+        return fmt(best) + u;
+      }
+      return rule.lengths.map(fmt).join(' / ') + u;
+    }
+    if (rule.lenMode === 'range') {
+      var hasMin = !isNaN(rule.lenMin), hasMax = !isNaN(rule.lenMax);
+      if (hasMin && hasMax) return fmt(rule.lenMin) + '~' + fmt(rule.lenMax) + u;
+      if (hasMin) return '≥' + fmt(rule.lenMin) + u;
+      if (hasMax) return '≤' + fmt(rule.lenMax) + u;
+    }
+    return '-';
+  }
+
+  function formatExpectedWidthCombo(r) {
+    var rule = TE.findRule(r.layer, S.rules, S.defaultRule);
+    if (!rule || !TE.wantWidth(rule, checkOpts())) return '-';
+    var combos = (rule.widthCombos && rule.widthCombos.length)
+      ? rule.widthCombos
+      : TE.parseWidthCombos(rule.widthsText || (rule.widths || []).join(','));
+    if (!combos || !combos.length) return '-';
+    var actual = TE.extractWidthSeq(r) || [];
+    if (!actual.length) {
+      return combos.map(function (c) { return (c.seq || []).map(fmt).join(' → '); }).join(' / ');
+    }
+    var tol = (S.tol != null ? S.tol : 0.001) + 1e-6;
+    var bestSeq = null, bestScore = Infinity;
+    combos.forEach(function (c) {
+      var seq = c.seq || [];
+      if (!seq.length) return;
+      [seq, seq.slice().reverse()].forEach(function (cand) {
+        var lenDiff = Math.abs(cand.length - actual.length);
+        var minLen = Math.min(cand.length, actual.length);
+        var valDiff = 0, unmatchCount = 0;
+        for (var i = 0; i < minLen; i++) {
+          var d = Math.abs(cand[i] - actual[i]);
+          valDiff += d;
+          if (d > tol) unmatchCount++;
+        }
+        var score = lenDiff * 1000 + unmatchCount * 100 + valDiff;
+        if (score < bestScore) { bestScore = score; bestSeq = cand; }
+      });
+    });
+    return bestSeq ? bestSeq.map(fmt).join(' → ') : '-';
   }
 
   function formatWidthSeq(r, v) {
@@ -234,11 +300,13 @@
         '<th>Item</th>' +
         '<th data-k="net" style="cursor:pointer">网络' + arrow('net') + '</th>' +
         '<th data-k="length" style="cursor:pointer">总线长 · ' + esc(S.unit) + arrow('length') + '</th>' +
+        '<th>应满足的线长</th>' +
         '<th data-k="widths" style="cursor:pointer">线宽组合变化顺序' + arrow('widths') + '</th>' +
+        '<th>应满足的线宽组合变化</th>' +
         '<th>指定线宽线长 · ' + esc(S.unit) + '</th>' +
-        '<th>直/弧段</th>' +
         '<th data-k="radius" style="cursor:pointer">弧半径' + arrow('radius') + '</th>' +
         '<th data-k="st" style="cursor:pointer">判定' + arrow('st') + '</th>' +
+        '<th style="width:76px">操作</th>' +
         '</tr></thead><tbody>';
 
       g.rows.forEach(function (x) {
@@ -255,23 +323,30 @@
         var widthReason = reasonOf(v.reasons, '线宽');
         var widthLenReason = reasonOf(v.reasons, '指定线宽');
         var radReason = reasonOf(v.reasons, '弧半径');
+        var expLen = formatExpectedLength(r);
+        var expWidthCombo = formatExpectedWidthCombo(r);
 
         var traceKey = (r.item || r.line || '') + '__' + r.net + '__' + r.layer;
         var isTraceRev = (v.st === 'fail') && S.traceReviewed && S.traceReviewed.has(traceKey);
         var traceChkBoxHtml = (v.st === 'fail')
           ? '<label class="rev-chk-wrap" data-tip="勾选复验后整行置灰"><input type="checkbox" class="chk-trace-rev" data-k="' + esc(traceKey) + '"' + (isTraceRev ? ' checked' : '') + '> 复验</label>'
           : '';
+        var locateBtnHtml = (v.st === 'fail')
+          ? '<button type="button" class="btn pri small btn-locate btn-locate-trace" data-idx="' + r.idx + '" data-tip="在空间几何视口中定位该不符合走线与超标段落">定位</button>'
+          : '<button type="button" class="btn sec small btn-locate btn-locate-trace" data-idx="' + r.idx + '" data-tip="在空间几何视口中查看该走线">定位</button>';
 
         html +=
-          '<tr class="' + (v.st === 'fail' ? 'fail ' : '') + (isTraceRev ? 'reviewed ' : '') + '"' + rowAttrs + '>' +
+          '<tr id="traceRow-' + r.idx + '" data-idx="' + r.idx + '" data-net="' + esc(r.net) + '" data-layer="' + esc(r.layer) + '" class="' + (v.st === 'fail' ? 'fail ' : '') + (isTraceRev ? 'reviewed ' : '') + '"' + rowAttrs + '>' +
           '<td class="kv">' + esc(r.item || r.line || '') + '</td>' +
           '<td><b>' + esc(r.net) + '</b></td>' +
           '<td class="mono' + (v.length ? ' badcell' : '') + '"' + (lenReason ? ' data-tip="' + esc(lenReason) + '"' : '') + '>' + fmt(r.length) + '</td>' +
+          '<td class="mono">' + esc(expLen) + '</td>' +
           '<td class="mono' + (v.width ? ' badcell' : '') + '"' + (widthReason ? ' data-tip="' + esc(widthReason) + '"' : '') + '>' + formatWidthSeq(r, v) + '</td>' +
+          '<td class="mono">' + esc(expWidthCombo) + '</td>' +
           '<td class="mono' + (v.widthLen ? ' badcell' : '') + '"' + (widthLenReason ? ' data-tip="' + esc(widthLenReason) + '"' : '') + '>' + formatWidthLens(r, v) + '</td>' +
-          '<td>' + (r.segCount || 0) + '/' + (r.arcCount || 0) + '</td>' +
           '<td class="mono' + (v.radius ? ' badcell' : '') + '"' + (radReason ? ' data-tip="' + esc(radReason) + '"' : '') + '>' + markNums(rads, v.badRadii) + '</td>' +
           '<td>' + traceChkBoxHtml + badge + '</td>' +
+          '<td>' + locateBtnHtml + '</td>' +
           '</tr>';
       });
       html += '</tbody></table></div></div>';
@@ -289,6 +364,8 @@
     checkOpts: checkOpts,
     recStatus: recStatus,
     currentFiltered: currentFiltered,
+    formatExpectedLength: formatExpectedLength,
+    formatExpectedWidthCombo: formatExpectedWidthCombo,
     runCheck: runCheck,
     updateTraceRevHint: updateTraceRevHint,
     updateDiffRevHint: updateDiffRevHint,

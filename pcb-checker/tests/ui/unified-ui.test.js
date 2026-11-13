@@ -78,13 +78,38 @@ async function test(name, fn) {
     const S = w.State;
     const byCat = {};
     S.allChecks.forEach(c => { byCat[c.category] = (byCat[c.category] || 0) + 1; });
-    const want = { trace: 16, copper: 45, dfm: 11, fanout: 1, pour: 15 };
+    const want = { trace: 16, copper: 40, dfm: 11, fanout: 1, pour: 15 };
     for (const k of Object.keys(want)) {
       if (byCat[k] !== want[k]) throw new Error(`${k} 检查项应为 ${want[k]}，实际 ${byCat[k]}`);
     }
+
+    // 综合样例必须真实经过 SIG 完整孔推算，而不是仅降低旧基线数量：两颗差分
+    // SIG Via 各自形成单段完整孔；五颗 GND 非 SIG Via 保留分组但不产生检查行。
+    const copperItems = w.CopperCheck.parseBoardItems(w.buildInspectionContext().tConstraint);
+    const copperRun = w.CopperCheck.runCopperCheck(copperItems, S.rules.constraintSets, {
+      layerCount: 20,
+      valTol: 0.5,
+      enabled: { '反焊盘尺寸': true, '焊盘尺寸': false, '非功能焊盘尺寸': false, 'Padstack层名': true }
+    });
+    const signalGroups = copperRun.groups.filter(g => g.signal);
+    const nonSignalGroups = copperRun.groups.filter(g => !g.signal);
+    if (copperRun.signalGroupCount !== 2 || signalGroups.length !== 2) throw new Error('SIG 完整孔组应为 2');
+    if (!signalGroups.every(g => g.vias.length === 1 && g.rule && g.rule.title === 'BGA-L19')) {
+      throw new Error('单颗 SIG Via 未按完整孔推算到 BGA-L19');
+    }
+    if (!signalGroups.every(g => g.mateNet && Math.abs(g.pitchMm - 0.254) < 1e-6)) {
+      throw new Error('SIG 差分配对或孔中心距推算异常');
+    }
+    if (nonSignalGroups.length !== 5 || nonSignalGroups.some(g => g.rule || g.rows.length)) {
+      throw new Error('非 SIG Via 不应推算约束或产生检查行');
+    }
+    if (S.allChecks.some(c => c.category === 'copper' && /GND/.test(c.target))) {
+      throw new Error('综合检查结果错误包含非 SIG GND Via');
+    }
+
     const fails = S.allChecks.filter(c => !c.pass).length;
     if (fails !== 69) throw new Error('不符合项应为 69，实际 ' + fails);
-    if ($('kpiTotalChecks').textContent !== '88') throw new Error('遥测总检查项异常：' + $('kpiTotalChecks').textContent);
+    if ($('kpiTotalChecks').textContent !== '83') throw new Error('遥测总检查项异常：' + $('kpiTotalChecks').textContent);
     if ($('kpiDefectCount').textContent !== '69') throw new Error('遥测缺陷数异常：' + $('kpiDefectCount').textContent);
     ['trace', 'copper', 'dfm', 'fanout', 'pour'].forEach(k => {
       if (!S.results[k] || !S.results[k].hasData) throw new Error('引擎无数据：' + k);

@@ -10,7 +10,7 @@ Item 1                < Via >
   Set:                Route Keepout
   Subset:             02G01P
   Net:                105_P
-  Padstack Name:      BGA_3510_L19_ring3mil_L2pad_0907
+  Padstack Name:      BGA_3510_SIG_L19_ring3mil_L2pad_0907
   Usage:              Thru Via
   Origin-xy:          [21220.9400, 35522.4600]
   Connections:        02G01P 19IS08
@@ -19,7 +19,7 @@ Item 2                < Via >
   Set:                Route Keepout
   Subset:             02G01P
   Net:                105_N
-  Padstack Name:      BGA_3510_L19_ring3mil_L2pad_0907
+  Padstack Name:      BGA_3510_SIG_L19_ring3mil_L2pad_0907
   Usage:              Thru Via
   Origin-xy:          [21220.9400, 35532.4600]
   Connections:        02G01P 19IS08

@@ -19,7 +19,7 @@ html.eda-rail-collapsed body.eda-workbench {
 }
 
 html.eda-dock-collapsed body.eda-workbench {
-  --dock-w: 38px;
+  --dock-w: 0px;
 }
 
 /* ---------- 左列：全局模块切换 + 当前模块工序流 ---------- */

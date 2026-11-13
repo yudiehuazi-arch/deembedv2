@@ -51,13 +51,14 @@ const FAMILIES = {
     unionGlobal: 'TraceEngine'
   },
   copper: {
-    files: ['engines/copper/copper-engine.js', 'engines/copper/constraint-parser.js'],
+    files: ['engines/copper/via-constraint-inference.js', 'engines/copper/copper-engine.js', 'engines/copper/constraint-parser.js'],
     globals: {
+      CopperViaInference: ['groupVias', 'attachDifferentialPitch', 'selectConstraint'],
       CopperCheck: ['parseBoardItems', 'runCopperCheck', 'selectRule'],
       ConstraintParser: ['buildConstraints', 'expandConstraintSets', 'orderChips']
     },
     nodeEntry: 'engines/copper',
-    unionGlobals: ['CopperCheck', 'ConstraintParser']
+    unionGlobals: ['CopperViaInference', 'CopperCheck', 'ConstraintParser']
   },
   dfm: {
     // dfm-engine 浏览器模式从全局 PadGeom 取几何内核，几何包必须先加载（与 dfm.html 顺序一致）

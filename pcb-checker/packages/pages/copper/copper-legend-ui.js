@@ -112,7 +112,7 @@
 
     var noRuleMap = {};
     r.groups.forEach(function (g) {
-      if (!g.rows.length || g.rule) return;
+      if (g.signal === false || !g.rows.length || g.rule) return;
       var key = g.via.padstack || '无 Padstack';
       if (!noRuleMap[key]) noRuleMap[key] = { vias: 0, rows: 0, cands: g.candidates || [], note: g.note || '' };
       noRuleMap[key].vias++;
@@ -175,13 +175,15 @@
     }
 
     h += '<div class="hint" style="margin-top:20px;padding-top:12px;border-top:1px solid var(--line)">当前比对参数：位置容差 ' + pos + ' mil，数值容差 ' + val + ' mil。</div>' +
-      '<h3>1. 铜皮 × 过孔 怎么配对</h3><ol class="rules">' +
-      '<li>仅配对 Exterior Boundary 单段 Arc seg 的圆形铜皮，多边形铜皮不参与配对。</li>' +
-      '<li>铜皮圆心到过孔 Origin-xy 欧氏距离 ≤ ' + pos + ' mil 即归属该过孔。</li>' +
+      '<h3>1. 铜皮 × 完整信号孔怎么配对</h3><ol class="rules">' +
+      '<li>仅含 <code>SIG</code> 的 Padstack 参与约束推算；非 SIG 过孔保留显示，但不推算、不核查。</li>' +
+      '<li>同网络孔段中心距命中 0 / 0.025 / 0.075 / 0.125 / 0.175 mm（允许 ±0.005 mm）时组成一个完整孔。</li>' +
+      '<li>完整孔内每个孔段坐标处、圆心距离 ≤ ' + pos + ' mil 的全部圆形 Route Keepout 均归入同一孔组；多边形不参与。</li>' +
       '</ol>' +
       '<h3>2. 怎么推算该用哪条约束</h3><ol class="rules">' +
-      '<li>解析 Padstack Name 中的 SMA/BGA、Top/Bot、出线层号及 <code>D2M6</code> / <code>ring3mil</code>，<code>_L2pad_</code> 为焊盘标记不计入出线层。</li>' +
-      '<li>多段层号如 <code>l2-L8</code> 按范围末端优先匹配 <code>BGA-L8</code>；无层号时不硬套约束，仅列候选。</li>' +
+      '<li>从孔组 Padstack 提取 SIG、SMA/BGA 与各段连接层，Top 按 L1、Bot 按 L14，合并得到完整层跨。</li>' +
+      '<li>按常见 P/N 后缀寻找最近的差分网络完整孔组，计算孔组中心距并换算为 mm。</li>' +
+      '<li>先严格匹配封装类型与完整层跨，再从约束名的 0.5mm / 0.6mm 等标称孔距中选择最接近值。</li>' +
       '</ol>' +
       '<h3>3. 每一层怎么判</h3><ol class="rules">' +
       '<li>Subset 前导数字映射层号，实测半径与规则值差值 ≤ ' + val + ' mil 判为符合，缺失应有层铜皮判为无铜皮不符合。</li>' +

@@ -42,6 +42,16 @@ test('三栏 EDA 壳层完整、悬浮 Tips 正常、静态标题/标签无括�
   w.EdaTooltip.hide();
 });
 
+test('空间几何视图图例位于画布下方，不覆盖工具栏或画布内容', () => {
+  const stage = d.querySelector('.dfm-canvas-stage');
+  const legend = $('canvasLegend');
+  if (!stage || !legend || stage.nextElementSibling !== legend) throw new Error('图例应紧随画布区域并位于视图最下方');
+  if (!stage.contains($('pcbCanvas')) || !stage.contains($('canvasHud')) || !stage.contains($('measureCard'))) {
+    throw new Error('画布浮层应保留在画布定位区域内');
+  }
+  if (w.getComputedStyle(legend).position === 'absolute') throw new Error('图例仍覆盖在画布或工具栏上');
+});
+
 test('加载 97 项坐标样本并验证双阈值计算（5.94 / 9.94 焊盘下 23 处超标）', () => {
   const sampleTxt = fs.readFileSync(path.join(CHECKER_DIR, 'sample/via_trace_airgap_sample.txt'), 'utf8');
   $('inpGndPadDiam').value = '5.94';
