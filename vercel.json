@@ -1,0 +1,14 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "echo 'skip install'",
+  "buildCommand": "echo 'static deploy'",
+  "outputDirectory": "pcb-checker",
+  "redirects": [
+    {
+      "source": "/",
+      "destination": "/portal.html",
+      "permanent": false
+    }
+  ]
+}
