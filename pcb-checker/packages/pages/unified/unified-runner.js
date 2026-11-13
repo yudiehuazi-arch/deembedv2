@@ -210,7 +210,7 @@ function runTraceEngine(ctx) {
 
 /** 约束检查：过孔反焊盘与 Padstack 层名。结果写入 State.results 并返回缺陷条目。 */
 function runCopperEngine(ctx) {
-  const { tConstraint } = ctx;
+  const { tConstraint, parsedConstraint } = ctx;
   // ==========================================
   // ENGINE 2: 约束检查 (仅使用 ② 约束检查数据框 tConstraint)
   // ==========================================

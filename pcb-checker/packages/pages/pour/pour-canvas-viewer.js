@@ -416,7 +416,7 @@
     State.activeReviewKey = itemKey;
     var findMatch = function (arr) {
       return (arr || []).find(function (x, idx) {
-        var k = x.groupKey || (x.checkCategory + '_' + (x.viaId || x.traceId || x.shapeId) + '_' + x.layer + '_' + idx);
+        var k = x.groupKey || x._rawKey || (x.checkCategory + '_' + (x.viaId || x.traceId || x.shapeId) + '_' + x.layer + '_' + idx);
         return k === itemKey;
       });
     };
@@ -458,22 +458,22 @@
       var w = canvas ? (canvas.width || 900) : 900;
       var h = canvas ? (canvas.height || 600) : 600;
       var tx = null, ty = null;
-      var via = (root.State.vias || []).find(function (v) { return String(v.id) === String(targetId); });
+      var findVia = function () { return (root.State.vias || []).find(function (v) { return String(v.id) === String(targetId); }); };
+      var findTrace = function () { return (root.State.traces || []).find(function (t) { return String(t.id) === String(targetId); }); };
+      var findShape = function () { return (root.State.shapes || []).find(function (s) { return String(s.id) === String(targetId); }); };
+      var via = (checkCategory === 'via_coverage' || checkCategory === 'special_shape') ? findVia() : null;
+      var tr = (checkCategory === 'trace_ref_margin') ? findTrace() : null;
+      var sh = (checkCategory === 'isolated_copper' || checkCategory === 'arc_radius') ? findShape() : null;
+      if (!via && !tr && !sh) { via = findVia(); tr = !via ? findTrace() : null; sh = (!via && !tr) ? findShape() : null; }
       if (via) {
         tx = via.x;
         ty = via.y;
-      } else {
-        var tr = (root.State.traces || []).find(function (t) { return String(t.id) === String(targetId); });
-        if (tr && tr.bbox) {
-          tx = (tr.bbox.minX + tr.bbox.maxX) / 2;
-          ty = (tr.bbox.minY + tr.bbox.maxY) / 2;
-        } else {
-          var sh = (root.State.shapes || []).find(function (s) { return String(s.id) === String(targetId); });
-          if (sh && sh.bbox) {
-            tx = (sh.bbox.minX + sh.bbox.maxX) / 2;
-            ty = (sh.bbox.minY + sh.bbox.maxY) / 2;
-          }
-        }
+      } else if (tr && tr.bbox) {
+        tx = (tr.bbox.minX + tr.bbox.maxX) / 2;
+        ty = (tr.bbox.minY + tr.bbox.maxY) / 2;
+      } else if (sh && sh.bbox) {
+        tx = (sh.bbox.minX + sh.bbox.maxX) / 2;
+        ty = (sh.bbox.minY + sh.bbox.maxY) / 2;
       }
       if (tx != null && ty != null) {
         root.State.canvas.zoom = 5.5;

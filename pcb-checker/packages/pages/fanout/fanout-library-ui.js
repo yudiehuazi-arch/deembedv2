@@ -9,7 +9,6 @@
   var State = root.State;
   var escapeHtml = root.escapeHtml;
 
-  var KW_STORAGE_KEY = 'pcb_fanout_name_keywords_v1';
   var SchemeNameBuilder = {
     presetKeywords: (FC.DEFAULT_SCHEME_NAME_KEYWORDS || [
       'BGA', 'SMA', 'TZ', 'top', 'bottom', 'L2', 'L3', 'L4', 'L11', 'L12', 'L13', 'diff', 'single', '05pitch', '06pitch', '07pitch', '08pitch'

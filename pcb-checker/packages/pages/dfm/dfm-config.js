@@ -320,6 +320,7 @@
         }, readPadShapes()));
         State.vias = parsed.vias;
         State.traces = parsed.traces;
+        if (root.PadstackRules && root.PadstackRules.syncDefaults) root.PadstackRules.syncDefaults();
       }
 
       HistoryManager.add('thresh_gnd', threshGnd);

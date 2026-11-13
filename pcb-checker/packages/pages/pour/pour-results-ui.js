@@ -85,6 +85,9 @@
 
   function applyFilters() {
     var State = root.State;
+    (State.rawResults || []).forEach(function (r, rawIdx) {
+      if (!r._rawKey) r._rawKey = r.checkCategory + '_' + (r.viaId || r.traceId || r.shapeId) + '_' + r.layer + '_' + rawIdx;
+    });
     var inp = document.getElementById('inpSearch');
     var query = (inp && inp.value ? inp.value : '').trim().toLowerCase();
     var source = State.viewMode === 'grouped' ? (State.groupedResults || []) : (State.rawResults || []);
@@ -127,7 +130,7 @@
   }
 
   function buildItemKey(r, idx) {
-    return r.groupKey || (r.checkCategory + '_' + (r.viaId || r.traceId || r.shapeId) + '_' + r.layer + '_' + idx);
+    return r.groupKey || r._rawKey || (r.checkCategory + '_' + (r.viaId || r.traceId || r.shapeId) + '_' + r.layer + '_' + idx);
   }
 
   function formatRowMetrics(r) {

@@ -10,6 +10,8 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function (rules, xlsx) {
   "use strict";
   var fmt = rules.fmt;
+  var inList = rules.inList;
+  var recordRadii = rules.recordRadii;
   var findRule = rules.findRule;
   var computePairDiff = rules.computePairDiff;
   var detectPairs = rules.detectPairs;
@@ -95,7 +97,8 @@ function generateUnifiedReportData(records, checkRes, rules, defaultRule, opts, 
       const v = checkRes.recViol ? checkRes.recViol.get(r.idx) : null;
       if(!v) return;
       const rule = findRule(r.layer, rules, defaultRule);
-      const isRev = traceReviewed.has(r.idx);
+      const traceKey = (r.item || r.line || '') + '__' + r.net + '__' + r.layer;
+      const isRev = traceReviewed.has(r.idx) || traceReviewed.has(traceKey);
       const revText = isRev ? '已复验' : '未复验';
       const netWithLayer = r.net + ' (' + r.layer + ')';
       const actualSeq = extractWidthSeq(r);
@@ -251,7 +254,8 @@ function generateUnifiedReportData(records, checkRes, rules, defaultRule, opts, 
 
   diffItems.forEach(x => {
     (x.d.rows || []).forEach(r => {
-      const isRev = diffReviewed.has(x.pair.base + '|' + r.layer);
+      const rowKey = x.pair.base + '__' + x.pair.pos + '__' + x.pair.neg + '__' + r.layer;
+      const isRev = diffReviewed.has(x.pair.base + '|' + r.layer) || diffReviewed.has(rowKey);
       const revText = isRev ? '已复验' : '未复验';
       const pairNetWithLayer = x.pair.pos + ' / ' + x.pair.neg + ' (' + r.layer + ')';
       if(r.exceed){
@@ -278,7 +282,8 @@ function generateUnifiedReportData(records, checkRes, rules, defaultRule, opts, 
 
     if(x.d.total && x.d.total.exceed){
       problemCount++;
-      const isRev = diffReviewed.has(x.pair.base + '|TOTAL');
+      const totalKey = x.pair.base + '__' + x.pair.pos + '__' + x.pair.neg + '__total';
+      const isRev = diffReviewed.has(x.pair.base + '|TOTAL') || diffReviewed.has(totalKey);
       const revText = isRev ? '已复验' : '未复验';
       const shorterNet = x.d.total.lenP < x.d.total.lenN ? x.pair.pos : x.pair.neg;
       rows.push([

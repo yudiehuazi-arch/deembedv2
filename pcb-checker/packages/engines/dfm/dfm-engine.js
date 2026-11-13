@@ -361,7 +361,7 @@ var PG = (typeof module === "object" && module.exports) ? require("../../geometr
     const { totalChecked, gndTotal, sigTotal, skippedNonSpanningPairs, undeterminedSpanPairs, viaTypeCounts } = countCandidatePairs(vias, subsetStatsMap, diffNetOnly);
     const CELL_SIZE = 100.0; // 100 mil grid cell
     const layerGrids = buildTraceGrids(activeTraces, CELL_SIZE);
-    const maxThresh = Math.max(minClearanceGnd, minClearanceSignal);
+    const maxThresh = layerRules.reduce((m, r) => Math.max(m, r.gnd || 0, r.sig || 0), Math.max(minClearanceGnd, minClearanceSignal));
     const maxPadR = Math.max(defaultGndPadDiam, defaultSignalPadDiam) / 2.0 + 10.0;
     const SEARCH_RADIUS = Math.max(80.0, maxThresh + maxPadR + 30.0);
     const defectPairs = [];
@@ -451,11 +451,10 @@ var PG = (typeof module === "object" && module.exports) ? require("../../geometr
   });
     });
     const padPairDefects = [];
-    let padPairTotal = 0;
-    let padPairFail = 0;
-    let padPairMin = Infinity;
-    if (minClearancePadPair > 0 && vias.length > 1) {
-      const cell = Math.max(20.0, minClearancePadPair + maxPadR);
+    let padPairTotal = 0, padPairFail = 0, padPairMin = Infinity;
+    const maxPadPairThresh = layerRules.reduce((m, r) => Math.max(m, r.padPair || 0), minClearancePadPair);
+    if (maxPadPairThresh > 0 && vias.length > 1) {
+      const cell = Math.max(20.0, maxPadPairThresh + maxPadR);
       const grid = new Map();
       const keyOf = (x, y) => `${Math.floor(x / cell)}_${Math.floor(y / cell)}`;
       vias.forEach(v => {
@@ -494,6 +493,7 @@ var PG = (typeof module === "object" && module.exports) ? require("../../geometr
                 if (hit && (!padRule || r.padPair > padRule.padPair)) padRule = r;
               });
               const padThreshold = padRule ? padRule.padPair : minClearancePadPair;
+              if (!(padThreshold > 0)) continue;
               const m = calcViaToViaMetrics(v1, v2);
               const gap = m.padAirgap;
               padPairTotal++;
@@ -507,19 +507,14 @@ var PG = (typeof module === "object" && module.exports) ? require("../../geometr
               const sigVia = v1.isGnd ? v2 : v1;
               padPairDefects.push({
                 type: 'via_pad_to_via_pad', gndVia: gndVia, sigVia: sigVia, v1: v1, v2: v2,
-                centerDist: m.centerDist,
-                padAirgap: gap,
-                evalDist: gap,
+                centerDist: m.centerDist, padAirgap: gap, evalDist: gap,
                 gndPadDiameter: gndVia.padDiameter || (gndVia.padRadius || defaultGndPadDiam / 2) * 2,
                 sigPadDiameter: sigVia.padDiameter || (sigVia.padRadius || defaultSignalPadDiam / 2) * 2,
                 spanGnd: gndVia.spanShort || gndVia.viaTypeLabel || '',
                 spanSig: sigVia.spanShort || sigVia.viaTypeLabel || '',
-                threshold: padThreshold,
-                diff: gap - padThreshold,
-                ruleName: padRule ? padRule.name : '默认',
-                ruleLayers: padRule ? padRule.raw : '全部层',
-                status: '不满足',
-                targetType: 'GND孔盘到信号孔盘'
+                threshold: padThreshold, diff: gap - padThreshold,
+                ruleName: padRule ? padRule.name : '默认', ruleLayers: padRule ? padRule.raw : '全部层',
+                status: '不满足', targetType: 'GND孔盘到信号孔盘'
               }); }
   } }
   });
@@ -541,12 +536,8 @@ var PG = (typeof module === "object" && module.exports) ? require("../../geometr
       gndStats: { total: gndTotal, fail: gndFail, pass: gndPass, minDist: minObservedDist === Infinity ? 0 : minObservedDist, threshold: minClearanceGnd },
       signalStats: { total: sigTotal, fail: sigFail, pass: sigPass, minDist: minObservedDist === Infinity ? 0 : minObservedDist, threshold: minClearanceSignal }, mode: mode, diffNetOnly: diffNetOnly, layerFilter: layerFilter,
       padPairStats: {
-        enabled: minClearancePadPair > 0,
-        total: padPairTotal,
-        fail: padPairFail,
-        pass: padPairTotal - padPairFail,
-        minDist: padPairMin === Infinity ? 0 : padPairMin,
-        threshold: minClearancePadPair
+        enabled: maxPadPairThresh > 0, total: padPairTotal, fail: padPairFail,
+        pass: padPairTotal - padPairFail, minDist: padPairMin === Infinity ? 0 : padPairMin, threshold: minClearancePadPair
       }, padPairDefects: padPairDefects,
       layerRules: layerRules.map(r => ({ name: r.name, layers: r.raw, gnd: r.gnd, sig: r.sig, padPair: r.padPair })),
       layerRuleStats: layerRules.map(r => ({

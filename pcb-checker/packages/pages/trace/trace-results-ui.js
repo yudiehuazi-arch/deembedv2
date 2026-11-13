@@ -266,11 +266,11 @@
           '<tr class="' + (v.st === 'fail' ? 'fail ' : '') + (isTraceRev ? 'reviewed ' : '') + '"' + rowAttrs + '>' +
           '<td class="kv">' + esc(r.item || r.line || '') + '</td>' +
           '<td><b>' + esc(r.net) + '</b></td>' +
-          '<td class="mono' + (v.length ? ' badcell' : '') + '"' + (lenReason ? ' title="' + esc(lenReason) + '" data-tip="' + esc(lenReason) + '"' : '') + '>' + fmt(r.length) + '</td>' +
-          '<td class="mono' + (v.width ? ' badcell' : '') + '"' + (widthReason ? ' title="' + esc(widthReason) + '" data-tip="' + esc(widthReason) + '"' : '') + '>' + formatWidthSeq(r, v) + '</td>' +
-          '<td class="mono' + (v.widthLen ? ' badcell' : '') + '"' + (widthLenReason ? ' title="' + esc(widthLenReason) + '" data-tip="' + esc(widthLenReason) + '"' : '') + '>' + formatWidthLens(r, v) + '</td>' +
+          '<td class="mono' + (v.length ? ' badcell' : '') + '"' + (lenReason ? ' data-tip="' + esc(lenReason) + '"' : '') + '>' + fmt(r.length) + '</td>' +
+          '<td class="mono' + (v.width ? ' badcell' : '') + '"' + (widthReason ? ' data-tip="' + esc(widthReason) + '"' : '') + '>' + formatWidthSeq(r, v) + '</td>' +
+          '<td class="mono' + (v.widthLen ? ' badcell' : '') + '"' + (widthLenReason ? ' data-tip="' + esc(widthLenReason) + '"' : '') + '>' + formatWidthLens(r, v) + '</td>' +
           '<td>' + (r.segCount || 0) + '/' + (r.arcCount || 0) + '</td>' +
-          '<td class="mono' + (v.radius ? ' badcell' : '') + '"' + (radReason ? ' title="' + esc(radReason) + '" data-tip="' + esc(radReason) + '"' : '') + '>' + markNums(rads, v.badRadii) + '</td>' +
+          '<td class="mono' + (v.radius ? ' badcell' : '') + '"' + (radReason ? ' data-tip="' + esc(radReason) + '"' : '') + '>' + markNums(rads, v.badRadii) + '</td>' +
           '<td>' + traceChkBoxHtml + badge + '</td>' +
           '</tr>';
       });

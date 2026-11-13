@@ -308,12 +308,12 @@ function populateUnifiedViewedFanoutDetails(idx) {
 
   if ($('uViewFanoutPadLegend')) {
     $('uViewFanoutPadLegend').innerHTML = padColorList.map(pc =>
-      `<span style="display:inline-flex;align-items:center;gap:4px;font-family:var(--mono)" title="Padstack: ${pc.padstack}"><span style="width:10px;height:10px;border-radius:50%;background:${pc.fill};border:1.5px solid #0f172a;display:inline-block"></span><span style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${pc.padstack}</span></span>`
+      `<span style="display:inline-flex;align-items:center;gap:4px;font-family:var(--mono)" data-tip="Padstack: ${escHtml(pc.padstack)}"><span style="width:10px;height:10px;border-radius:50%;background:${pc.fill};border:1.5px solid #0f172a;display:inline-block"></span><span style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(pc.padstack)}</span></span>`
     ).join('');
   }
 
   const padTags = padColorList.map(pc =>
-    `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 8px;background:#fff;border:1px solid #e3e8ef;border-left:4px solid ${pc.fill};border-radius:5px;margin-top:4px;font-family:var(--mono);font-size:11px"><span style="display:inline-flex;align-items:center;gap:6px;word-break:break-all;color:#111827;font-weight:600"><span style="width:9px;height:9px;border-radius:50%;background:${pc.fill};flex-shrink:0"></span>${pc.padstack}</span><span style="color:${pc.badgeText};background:${pc.badgeBg};padding:0 6px;border-radius:4px;font-weight:700;white-space:nowrap">×${pc.count}</span></div>`
+    `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 8px;background:#fff;border:1px solid #e3e8ef;border-left:4px solid ${pc.fill};border-radius:5px;margin-top:4px;font-family:var(--mono);font-size:11px"><span style="display:inline-flex;align-items:center;gap:6px;word-break:break-all;color:#111827;font-weight:600"><span style="width:9px;height:9px;border-radius:50%;background:${pc.fill};flex-shrink:0"></span>${escHtml(pc.padstack)}</span><span style="color:${pc.badgeText};background:${pc.badgeBg};padding:0 6px;border-radius:4px;font-weight:700;white-space:nowrap">×${pc.count}</span></div>`
   ).join('');
 
   if ($('uViewFanoutSummaryBox')) {
@@ -332,7 +332,7 @@ function populateUnifiedViewedFanoutDetails(idx) {
 
   if ($('uViewFanoutViaTableBody')) {
     $('uViewFanoutViaTableBody').innerHTML = vias.map((v, i) => `
-      <tr onmouseenter="setUnifiedViewFanoutHoveredVia(${i})" onmouseleave="setUnifiedViewFanoutHoveredVia(-1)" onclick="if(!UnifiedViewFanoutState.measureMode) toggleUnifiedViewMeasureMode(true); handleUnifiedViewViaClick(${i});" title="点击可选取该孔测量中心距" style="cursor:pointer;transition:background .12s">
+      <tr onmouseenter="setUnifiedViewFanoutHoveredVia(${i})" onmouseleave="setUnifiedViewFanoutHoveredVia(-1)" onclick="if(!UnifiedViewFanoutState.measureMode) toggleUnifiedViewMeasureMode(true); handleUnifiedViewViaClick(${i});" data-tip="点击可选取该孔测量中心距" style="cursor:pointer;transition:background .12s">
         <td style="padding:6px 8px;font-family:var(--mono);font-weight:700;color:#111827">
           <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:9px;height:9px;border-radius:50%;background:${v.padColor};border:1px solid #0f172a;display:inline-block"></span>#${v.labelNum}</span>
         </td>
@@ -342,8 +342,8 @@ function populateUnifiedViewedFanoutDetails(idx) {
           </span>
         </td>
         <td style="padding:6px 8px">
-          <div style="font-family:var(--mono);font-weight:700;color:#111827;word-break:break-all;font-size:12px">${v.padstack}</div>
-          <div style="font-size:11px;color:#6b7280;font-family:var(--mono)">[${v.x.toFixed(1)}, ${v.y.toFixed(1)}] mil · ${v.role}</div>
+          <div style="font-family:var(--mono);font-weight:700;color:#111827;word-break:break-all;font-size:12px">${escHtml(v.padstack)}</div>
+          <div style="font-size:11px;color:#6b7280;font-family:var(--mono)">[${v.x.toFixed(1)}, ${v.y.toFixed(1)}] mil · ${escHtml(v.role)}</div>
         </td>
       </tr>
     `).join('');

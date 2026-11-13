@@ -14,10 +14,10 @@ function renderRulesUI() {
     tbodyTrace.innerHTML = State.rules.traceLayers.map((r, i) => `
       <tr>
         <td><b>${escHtml(r.layer)}</b></td>
-        <td><input type="text" value="${r.combos || ''}" onchange="State.rules.traceLayers[${i}].combos=this.value" style="width:100%"></td>
-        <td><input type="text" value="${r.lenRange || ''}" onchange="State.rules.traceLayers[${i}].lenRange=this.value" style="width:95px"></td>
+        <td><input type="text" value="${escHtml(r.combos || '')}" onchange="State.rules.traceLayers[${i}].combos=this.value" style="width:100%"></td>
+        <td><input type="text" value="${escHtml(r.lenRange || '')}" onchange="State.rules.traceLayers[${i}].lenRange=this.value" style="width:95px"></td>
         <td><input type="number" value="${r.diffLayerTol != null ? r.diffLayerTol : 0.5}" step="0.1" onchange="State.rules.traceLayers[${i}].diffLayerTol=parseFloat(this.value)" style="width:75px"> mil</td>
-        <td><input type="text" value="${r.specificRule || ''}" onchange="State.rules.traceLayers[${i}].specificRule=this.value" style="width:100px"></td>
+        <td><input type="text" value="${escHtml(r.specificRule || '')}" onchange="State.rules.traceLayers[${i}].specificRule=this.value" style="width:100px"></td>
         <td><input type="number" value="${r.minArc || 18}" step="0.1" onchange="State.rules.traceLayers[${i}].minArc=parseFloat(this.value)" style="width:65px"></td>
         <td style="text-align:center"><button class="btn danger small" style="padding:2px 8px;font-size:12px" onclick="deleteTraceLayerRule(${i})">删除</button></td>
       </tr>
@@ -39,8 +39,8 @@ function renderRulesUI() {
         const viaCnt = (sc.vias && Array.isArray(sc.vias)) ? sc.vias.length : (sc.viaCount || '?');
         return `
           <div style="background:#ffffff;border:1px solid #cbd5e1;padding:4px 10px;border-radius:6px;display:flex;align-items:center;gap:8px">
-            <span style="font-weight:700;color:#2563eb">#${i+1} ${sc.name || `扇出方案_${i+1}`}</span>
-            <span class="tag-badge info">${sc.category || '通用扇出'}</span>
+            <span style="font-weight:700;color:#2563eb">#${i+1} ${escHtml(sc.name || `扇出方案_${i+1}`)}</span>
+            <span class="tag-badge info">${escHtml(sc.category || '通用扇出')}</span>
             <span class="tag-badge ok" style="font-size:11px">${viaCnt} 孔</span>
             <button class="btn danger small" style="padding:2px 8px;font-size:12px" onclick="deleteFanoutScheme(${i})">删除</button>
             <button class="btn primary small" style="padding:2px 8px;font-size:12px" onclick="viewFanoutScheme(${i})">查看</button>
@@ -56,8 +56,8 @@ function renderRulesUI() {
   if (tbodyPour1) {
     tbodyPour1.innerHTML = State.rules.pourRule1.map((r, i) => `
       <tr>
-        <td><input type="text" value="${r.padstack}" onchange="State.rules.pourRule1[${i}].padstack=this.value" style="width:110px"></td>
-        <td><input type="text" value="${r.layers}" onchange="State.rules.pourRule1[${i}].layers=this.value" style="width:100%"></td>
+        <td><input type="text" value="${escHtml(r.padstack)}" onchange="State.rules.pourRule1[${i}].padstack=this.value" style="width:110px"></td>
+        <td><input type="text" value="${escHtml(r.layers)}" onchange="State.rules.pourRule1[${i}].layers=this.value" style="width:100%"></td>
         <td><input type="number" value="${r.radius}" step="1" onchange="State.rules.pourRule1[${i}].radius=parseFloat(this.value)" style="width:70px"> mil</td>
         <td style="text-align:center"><button class="btn danger small" style="padding:2px 8px;font-size:12px" onclick="deletePourRule1(${i})">删除</button></td>
       </tr>
@@ -94,11 +94,11 @@ function renderRulesUI() {
             </div>
           </td>
           <td>
-            <input type="text" value="${r.name || `异型铜皮_${i+1}`}" onchange="State.rules.specialShapeTemplates[${i}].name=this.value" style="width:100%;font-weight:600;font-size:12px">
+            <input type="text" value="${escHtml(r.name || `异型铜皮_${i+1}`)}" onchange="State.rules.specialShapeTemplates[${i}].name=this.value" style="width:100%;font-weight:600;font-size:12px">
           </td>
           <td>
             <span style="background:#fef3c7;color:#92400e;border:1px solid #fde68a;padding:2px 8px;border-radius:4px;font-weight:600;font-family:var(--mono);display:inline-block">
-              <input type="text" value="${r.padstack || 'BGA_3510'}" onchange="State.rules.specialShapeTemplates[${i}].padstack=this.value" style="background:transparent;border:none;color:#92400e;font-weight:700;width:90px;font-family:var(--mono)">
+              <input type="text" value="${escHtml(r.padstack || 'BGA_3510')}" onchange="State.rules.specialShapeTemplates[${i}].padstack=this.value" style="background:transparent;border:none;color:#92400e;font-weight:700;width:90px;font-family:var(--mono)">
             </span>
           </td>
           <td>
@@ -123,9 +123,9 @@ function renderRulesUI() {
   if (tbodyPour3) {
     tbodyPour3.innerHTML = State.rules.pourRule3.map((r, i) => `
       <tr>
-        <td><input type="text" value="${r.traceLayer}" onchange="State.rules.pourRule3[${i}].traceLayer=this.value" style="width:90px"></td>
-        <td><input type="text" value="${r.upperRef}" onchange="State.rules.pourRule3[${i}].upperRef=this.value" style="width:90px"></td>
-        <td><input type="text" value="${r.lowerRef}" onchange="State.rules.pourRule3[${i}].lowerRef=this.value" style="width:90px"></td>
+        <td><input type="text" value="${escHtml(r.traceLayer)}" onchange="State.rules.pourRule3[${i}].traceLayer=this.value" style="width:90px"></td>
+        <td><input type="text" value="${escHtml(r.upperRef)}" onchange="State.rules.pourRule3[${i}].upperRef=this.value" style="width:90px"></td>
+        <td><input type="text" value="${escHtml(r.lowerRef)}" onchange="State.rules.pourRule3[${i}].lowerRef=this.value" style="width:90px"></td>
         <td><input type="number" value="${r.margin}" step="1" onchange="State.rules.pourRule3[${i}].margin=parseFloat(this.value)" style="width:70px"> mil</td>
         <td style="text-align:center"><button class="btn danger small" style="padding:2px 8px;font-size:12px" onclick="deletePourRule3(${i})">删除</button></td>
       </tr>

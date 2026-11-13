@@ -25,6 +25,14 @@ function initCanvas() {
     const factor = e.deltaY < 0 ? 1.15 : 0.85;
     zoomCanvas(factor);
   }, { passive: false });
+  canvas.addEventListener('click', e => {
+    if (!State.canvas.measuring || !canvas.getBoundingClientRect) return;
+    const rect = canvas.getBoundingClientRect();
+    const pt = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    if (State.canvas.measurePoints.length >= 2) State.canvas.measurePoints = [pt];
+    else State.canvas.measurePoints.push(pt);
+    renderCanvas();
+  });
 }
 function resizeCanvas() {
   const canvas = $('mainCanvas');
@@ -133,7 +141,7 @@ function zoomCanvas(factor) {
   State.canvas.panX = cx - (cx - State.canvas.panX) * (newScale / State.canvas.scale);
   State.canvas.panY = cy - (cy - State.canvas.panY) * (newScale / State.canvas.scale);
   State.canvas.scale = newScale;
-  requestCanvasRender();
+  renderCanvas();
 }
 function toggleLayer(layerKey) {
   if (layerKey === 'shapes') {

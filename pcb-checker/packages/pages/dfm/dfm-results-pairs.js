@@ -15,10 +15,22 @@
   var BIG_PADPAIR_LIMIT = 1000;      // 孔盘对超过此数时禁止「全部显示」
   var BIG_PADPAIR_PAGE = '200';
   var COLS = 9;
+  var PAD_SHAPE_LABEL = { circle: '圆形', oblong: '长圆', roundrect: '圆角矩形', rect: '矩形' };
+
+  function padShapeNote(p) {
+    var sh = p && p.via && p.via.padShape;
+    if (!sh || !sh.kind || sh.kind === 'circle') return '';
+    var w = Number(sh.w || sh.width || 0).toFixed(2), h = Number(sh.h || sh.height || 0).toFixed(2);
+    var corner = sh.corner ? (' R' + Number(sh.corner).toFixed(2)) : '';
+    var rot = sh.rot ? (' ' + Number(sh.rot).toFixed(1) + '°') : '';
+    return '<div class="hint" style="color:#2563eb">' + (PAD_SHAPE_LABEL[sh.kind] || sh.kind) + ' ' + w + '×' + h + corner + rot + '</div>';
+  }
 
   function modeLabel(mode) {
     if (mode === 'pad_to_trace') return '焊盘 Airgap';
     if (mode === 'drill_to_trace') return '一钻孔壁';
+    if (mode === 'center_to_trace') return '孔心-线边';
+    if (mode === 'center_to_center') return '孔心-线心';
     return escHtml(mode || '');
   }
 
@@ -95,7 +107,7 @@
       '<td>' + (idx + 1) + '</td>' +
       reviewCell(key, '复核 Via ' + p.via.id + ' × Trace ' + p.trace.id, isRev) +
       '<td>' + typeBadge + '</td>' +
-      '<td><b>' + escHtml(p.via.padstack || p.via.padstackName || '未标注 Padstack') + '</b> / ' + escHtml(p.via.net || '未命名网络') + ' / <b>Via ' + p.via.id + '</b><br>' + spanBadge + '</td>' +
+      '<td><b>' + escHtml(p.via.padstack || p.via.padstackName || '未标注 Padstack') + '</b> / ' + escHtml(p.via.net || '未命名网络') + ' / <b>Via ' + p.via.id + '</b><br>' + spanBadge + padShapeNote(p) + '</td>' +
       '<td><b>Trace ' + p.trace.id + '</b><br>' + escHtml(p.trace.subset) + ' / ' + escHtml(p.trace.net || '未命名网络') + '<div class="hint">线宽 ' + p.trace.width + ' mil</div></td>' +
       '<td><b class="tag-badge ' + (isBad ? 'bad' : 'ok') + '">' + p.evalDist.toFixed(2) + ' mil</b><div class="hint">' + modeLabel(p.mode) + '</div></td>' +
       '<td>≥ ' + p.threshold.toFixed(2) + ' mil</td>' +
@@ -182,6 +194,9 @@
       tbody.innerHTML = emptyRow('未找到符合当前筛选条件的记录');
       if ($('pageInfo')) $('pageInfo').textContent = '显示 0 / 0 条记录';
       if ($('pageCurrent')) $('pageCurrent').textContent = '第 1 / 1 页';
+      ['btnFirstPage', 'btnPrevPage', 'btnNextPage', 'btnLastPage'].forEach(function (id) {
+        if ($(id)) $(id).disabled = true;
+      });
       syncReviewAll(tbody);
       return;
     }

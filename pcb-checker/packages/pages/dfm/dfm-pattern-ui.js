@@ -180,6 +180,22 @@
   }
 
   function exportPatternCsv() {
+    if (PatternState.defectMode === 'pad' && State.checkResult && (State.checkResult.padPairDefects || []).length > 0) {
+      var modeRes = root.DfmCheck.buildDfmDefectPatternAnalysis(State.checkResult);
+      var rows = ['"GND孔Padstack×信号孔Padstack","规则阈值(mil)","实测间距(mil)","最大亏欠(mil)","不满足对数","代表孔对"'].concat(
+        modeRes.padRows.map(function (g) {
+          var desc = g.gndStack + ' ' + Number(g.gndDia).toFixed(2) + ' mil × ' + g.sigStack + ' ' + Number(g.sigDia).toFixed(2) + ' mil';
+          return [desc, Number(g.threshold).toFixed(2), Number(g.measured).toFixed(2), Number(g.maxDeficit).toFixed(2), g.count, Array.from(g.pairs).slice(0, 10).join('; ')]
+            .map(function (v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(',');
+        })
+      );
+      var padBlob = new Blob(['\uFEFF' + rows.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+      var padLink = document.createElement('a');
+      padLink.href = URL.createObjectURL(padBlob);
+      padLink.download = 'DFM规律分析_孔到孔_' + new Date().toISOString().slice(0, 10) + '.csv';
+      padLink.click();
+      return;
+    }
     var analysis = PatternState.last || renderPatternAnalysis();
     if (!analysis.hasData) { alert('暂无可导出的规律分析数据，请先运行检查。'); return; }
     var csv = root.DfmCheck.buildPatternCsv(analysis);

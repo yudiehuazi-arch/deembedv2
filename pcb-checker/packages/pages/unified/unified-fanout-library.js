@@ -107,7 +107,9 @@ function renderFanoutSchemesGrid() {
   const container = $('pnlFanoutSchemeGrid');
   if (!container) return;
 
-  if (!State.rules.fanoutSchemes || !State.rules.fanoutSchemes.length) {
+  if (!State.rules.fanoutSchemes) {
+    State.rules.fanoutSchemes = getDefaultFanoutPresets();
+  } else if (!State.rules.fanoutSchemes.length && !State.fanoutExplicitlyCleared) {
     State.rules.fanoutSchemes = getDefaultFanoutPresets();
   }
 
@@ -127,15 +129,20 @@ function renderFanoutSchemesGrid() {
         <div style="background:#f8fafc;border:1px solid #e3e8ef;border-radius:8px;padding:7px 11px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <span style="font-size:12px;font-weight:700;color:#374151;white-space:nowrap">● Padstack 统一色卡 ${legendItems.length} 种：</span>
           ${legendItems.map(item => `
-            <span style="display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;background:#ffffff;border:1px solid #cbd5e1;font-family:var(--mono);font-size:11px;color:#111827" title="Padstack: ${item.padstack} · 共用于 ${item.schemeCount} 套方案 / ${item.totalVias} 个孔">
+            <span style="display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;background:#ffffff;border:1px solid #cbd5e1;font-family:var(--mono);font-size:11px;color:#111827" data-tip="Padstack: ${escHtml(item.padstack)} · 共用于 ${item.schemeCount} 套方案 / ${item.totalVias} 个孔">
               <span style="width:9px;height:9px;border-radius:50%;background:${item.fill};border:1px solid #0f172a;display:inline-block;flex-shrink:0"></span>
-              <span style="font-weight:600">${item.padstack}</span>
+              <span style="font-weight:600">${escHtml(item.padstack)}</span>
               <span style="font-size:11px;color:#6b7280">${item.schemeCount} 方案 / ${item.totalVias} 孔</span>
             </span>
           `).join('')}
         </div>
       `;
     }
+  }
+
+  if (State.rules.fanoutSchemes.length === 0) {
+    container.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:24px;background:#fff;border:1px dashed #cbd5e1;border-radius:8px;color:#94a3b8">方案库已清空。点击上方「载入标准预设方案库」或「新建扇出方案」添加模板。</div>';
+    return;
   }
 
   container.innerHTML = State.rules.fanoutSchemes.map((sc, idx) => {
@@ -149,15 +156,15 @@ function renderFanoutSchemesGrid() {
         <div>
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:4px">
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-              <div onclick="openUnifiedQuickRenameModal(${idx})" style="font-size:14px;font-weight:700;color:#111827;cursor:pointer" title="点击通过关键词快捷修改方案名称">${sc.name}</div>
-              <span onclick="openUnifiedQuickRenameModal(${idx})" title="点击点选关键词快捷修改方案名称" style="cursor:pointer;display:inline-flex;align-items:center;gap:2px;font-size:11px;font-weight:600;color:#1d4ed8;background:#f8fafc;border:1px solid #e3e8ef;border-radius:4px;padding:1px 6px;white-space:nowrap"> 改名</span>
+              <div onclick="openUnifiedQuickRenameModal(${idx})" style="font-size:14px;font-weight:700;color:#111827;cursor:pointer" data-tip="点击通过关键词快捷修改方案名称">${escHtml(sc.name)}</div>
+              <span onclick="openUnifiedQuickRenameModal(${idx})" data-tip="点击点选关键词快捷修改方案名称" style="cursor:pointer;display:inline-flex;align-items:center;gap:2px;font-size:11px;font-weight:600;color:#1d4ed8;background:#f8fafc;border:1px solid #e3e8ef;border-radius:4px;padding:1px 6px;white-space:nowrap"> 改名</span>
             </div>
-            <span style="background:#f1f5f9;color:#6b7280;font-size:12px;padding:2px 8px;border-radius:4px;font-weight:600;white-space:nowrap">${sc.tag || '扇出方案'}</span>
+            <span style="background:#f1f5f9;color:#6b7280;font-size:12px;padding:2px 8px;border-radius:4px;font-weight:600;white-space:nowrap">${escHtml(sc.tag || '扇出方案')}</span>
           </div>
-          <div style="font-size:13px;color:#6b7280;margin-bottom:10px;line-height:1.4">${sc.desc || ''}</div>
+          <div style="font-size:13px;color:#6b7280;margin-bottom:10px;line-height:1.4">${escHtml(sc.desc || '')}</div>
 
           <div style="display:flex;gap:12px;align-items:center;background:#f8fafc;padding:10px 12px;border-radius:6px;border:1px solid #f1f5f9">
-            <div onclick="viewFanoutScheme(${idx})" style="cursor:zoom-in;flex-shrink:0;display:flex" title="点击放大查看方案效果图与逐孔 Padstack 标注">${svgThumb}</div>
+            <div onclick="viewFanoutScheme(${idx})" style="cursor:zoom-in;flex-shrink:0;display:flex" data-tip="点击放大查看方案效果图与逐孔 Padstack 标注">${svgThumb}</div>
             <div style="flex:1;font-size:13px;color:#6b7280;line-height:1.6">
               <div>过孔总数: <b style="color:#111827">${vCount} 个孔</b></div>
               <div>孔中心距范围: <b style="color:#111827">${pitchStr}</b></div>
@@ -296,7 +303,7 @@ function renderModalFanoutViasTable() {
       </td>
       <td><input type="number" value="${v.x}" step="0.5" onchange="g_modalFanoutVias[${i}].x=parseFloat(this.value)||0;updateModalFanoutPreview()" style="width:100%"></td>
       <td><input type="number" value="${v.y}" step="0.5" onchange="g_modalFanoutVias[${i}].y=parseFloat(this.value)||0;updateModalFanoutPreview()" style="width:100%"></td>
-      <td><input type="text" value="${v.padstack || ''}" onchange="g_modalFanoutVias[${i}].padstack=this.value;updateModalFanoutPreview()" style="width:100%" placeholder="Padstack Name"></td>
+      <td><input type="text" value="${escHtml(v.padstack || '')}" onchange="g_modalFanoutVias[${i}].padstack=this.value;updateModalFanoutPreview()" style="width:100%" placeholder="Padstack Name"></td>
       <td style="text-align:center"><button class="btn danger small" style="padding:2px 8px;font-size:12px" onclick="deleteModalFanoutViaRow(${i})">删除</button></td>
     </tr>
   `).join('');
@@ -410,6 +417,7 @@ function saveFanoutSchemeFromModal() {
     State.rules.fanoutSchemes[g_editingFanoutSchemeIdx] = newScheme;
     showToast(`已更新扇出方案【${name}】`);
   } else {
+    State.fanoutExplicitlyCleared = false;
     State.rules.fanoutSchemes.push(newScheme);
     showToast(`已新增扇出方案【${name}】`);
   }
@@ -429,6 +437,7 @@ function deleteFanoutScheme(idx) {
     : true;
   if (ok) {
     State.rules.fanoutSchemes.splice(idx, 1);
+    if (State.rules.fanoutSchemes.length === 0) State.fanoutExplicitlyCleared = true;
     renderRulesUI();
     showToast('已删除该扇出方案');
   }
