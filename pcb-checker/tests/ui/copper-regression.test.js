@@ -62,7 +62,11 @@ setTimeout(() => {
       return {ok:true, groups:UI.result.groups.length, rule:UI.result.groups[0].rule && UI.result.groups[0].rule.title,
               rows:UI.result.groups[0].rows.length};
     })()`);
-    if (r.rule !== 'BGA-L1-L19' || r.rows !== 4) throw new Error(JSON.stringify(r));
+    if (r.rule !== 'BGA-L1-L19' || r.rows !== 20) throw new Error(JSON.stringify(r));
+    const layers = w.eval("UI.result.groups[0].rows.filter(r=>!r.isPadstackCheck).map(r=>r.layer)");
+    for (let layer = 1; layer <= 19; layer++) {
+      if (!layers.includes(layer)) throw new Error('完整孔结果缺少 L' + layer);
+    }
   });
   t('③ 导入数据 页显示 配对 + 推算的约束', () => {
     $('tabs').querySelector('[data-tab="data"]').click();
@@ -248,10 +252,10 @@ setTimeout(() => {
     if (!$('btnOnlyBad').classList.contains('on')) throw new Error('按钮没高亮');
     if ($('resHint').textContent.indexOf('只显示不符合项') < 0) throw new Error($('resHint').textContent);
   });
-  t('只看已配对过孔：只留已配对的过孔组', () => {
+  t('只看已配对过孔：只留已配对的过孔组并显示完整孔所有层', () => {
     $('btnOnlyMatched').click();
     if (renderedGroups() !== 1) throw new Error('组数 ' + renderedGroups());
-    if (renderedRows() !== 4) throw new Error('行数 ' + renderedRows());
+    if (renderedRows() !== 20) throw new Error('行数 ' + renderedRows());
     if ($('resHint').textContent.indexOf('只看已配对过孔') < 0) throw new Error($('resHint').textContent);
   });
   t('只看没推算到约束：有 BGA-L1-L19 规则时为空', () => {
@@ -262,7 +266,7 @@ setTimeout(() => {
   t('换成不匹配的规则后，只看没推算到约束能筛出这组', () => {
     w.eval("S.sets=" + JSON.stringify([{kind:'SMA',title:'Top-SMA-L19-D2M6mil',fanLayer:19,constraints:[]}]) + "; runCheck(true); UI.resFilter='norule'; UI.onlyBad=false; renderResults();");
     if (renderedGroups() !== 1) throw new Error('组数 ' + renderedGroups());
-    if (renderedRows() !== 4) throw new Error('行数 ' + renderedRows());
+    if (renderedRows() !== 20) throw new Error('行数 ' + renderedRows());
     if ($('checkOut').innerHTML.indexOf('未推算到') < 0) throw new Error('组头没写未推算到');
   });
   t('点「没推算到约束」方块也能筛选', () => {
@@ -284,7 +288,7 @@ setTimeout(() => {
     tile.click();
     if (renderedRows() !== 1) throw new Error('行数 ' + renderedRows());
     $('btnAllRows').click();
-    if (renderedRows() !== 4) throw new Error('全部后行数 ' + renderedRows());
+    if (renderedRows() !== 20) throw new Error('全部后行数 ' + renderedRows());
     if (d.querySelector('#resStats .stat.click.on')) throw new Error('还有方块高亮');
   });
 
@@ -555,8 +559,8 @@ setTimeout(() => {
     const box = d.querySelector('#expMask textarea');
     const text = box ? box.value : '';
     const lines = text.split('\n');
-    if (lines.length !== 3) throw new Error('行数 ' + lines.length);
-    if (lines[1].indexOf('Top-SMA-L8-D2M6mil') < 0 && lines[2].indexOf('Top-SMA-L8-D2M6mil') < 0) throw new Error('导出内容不对');
+    if (lines.length !== 10) throw new Error('行数 ' + lines.length);
+    if (!lines.slice(1).every(line => line.indexOf('Top-SMA-L8-D2M6mil') >= 0)) throw new Error('导出内容不对');
     chip.click();
     const mask = d.getElementById('expMask'); if (mask) mask.style.display = 'none';
   });
@@ -1033,8 +1037,11 @@ setTimeout(() => {
     w.eval("S.sets=" + JSON.stringify(botD2M5Rules) + "; UI.items=CopperCheck.parseBoardItems(window.__vData); UI.resLimit=1000; UI.resFilter=''; UI.resRule=''; UI.resSearch=''; UI.onlyBad=false; runCheck(true); renderResults();");
     const g = w.eval("UI.result.groups[0]");
     if (!g.rule || g.rule.title !== 'Bot-SMA-L19-D2M5mil') throw new Error('规则未匹配：' + (g.rule && g.rule.title));
-    // 规则定义了 L1~L18, L20, L21 共 20 个层，加上 1 个 Padstack 层名检查共 21 行
-    if (g.rows.length !== 21) throw new Error('总检查行数应为 21，实际 ' + g.rows.length);
+    // 规则定义 L1~L18、L20、L21；完整孔 L14-L19 还要补出无规则的 L19，
+    // 因此 20 个规则层 + L19 占位层 + 1 个 Padstack 检查共 22 行。
+    if (g.rows.length !== 22) throw new Error('总检查行数应为 22，实际 ' + g.rows.length);
+    const l19 = g.rows.find(r => r.layer === 19 && r.spanPlaceholder);
+    if (!l19 || l19.status !== '未检查') throw new Error('完整孔结果未补出 L19 占位层');
     // L1, L20, L21 为实测符合项；其余 17 层（L2~L18）为缺失不符合项
     if (g.failCount !== 17) throw new Error('不符合数应为 17，实际 ' + g.failCount);
 

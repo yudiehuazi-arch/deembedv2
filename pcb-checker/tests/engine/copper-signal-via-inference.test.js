@@ -66,6 +66,16 @@ t('完整孔三个孔段坐标处的全部 Route Keepout 都归入同一约束�
   assert(real.every(r => r.status === '符合'), real.map(r => r.status).join(','));
 });
 
+t('检查结果补齐完整孔经过的 L2-L12 所有层，稀疏 Shape 层不再被隐藏', () => {
+  const geometryRows = pGroup.rows.filter(r => !r.isPadstackCheck);
+  for (let layer = 2; layer <= 12; layer++) {
+    assert(geometryRows.some(r => r.layer === layer), '结果缺少 L' + layer);
+  }
+  const sparse = geometryRows.find(r => r.layer === 3);
+  assert(sparse && sparse.spanPlaceholder && sparse.status === '未检查', JSON.stringify(sparse));
+  assert(sparse.actual === '无铜皮' && sparse.expect === '该层无约束', JSON.stringify(sparse));
+});
+
 t('不含 SIG 的过孔保留显示，但不推算约束且配对 Keepout 为未检查', () => {
   assert(gndGroup && !gndGroup.signal && !gndGroup.rule, '非 SIG 状态错误');
   assert(gndGroup.rows.length === 1 && gndGroup.rows[0].status === '未检查', JSON.stringify(gndGroup.rows));

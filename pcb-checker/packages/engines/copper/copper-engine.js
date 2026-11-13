@@ -220,6 +220,14 @@
     return '反焊盘尺寸';
   }
 
+  function constraintCheckType(c) {
+    var blob = ((c && c.cat || '') + ' ' + (c && c.name || '')).toLowerCase();
+    if (/非功能/.test(blob)) return '非功能焊盘尺寸';
+    if (/反焊盘/.test(blob)) return '反焊盘尺寸';
+    if (/焊盘/.test(blob)) return '焊盘尺寸';
+    return '';
+  }
+
   function dist(a, b) {
     var dx = a[0] - b[0], dy = a[1] - b[1];
     return Math.sqrt(dx * dx + dy * dy);
@@ -354,12 +362,8 @@
           if (r.layer && r.checkType) present[r.layer + ':' + r.checkType] = 1;
         });
         sel.rule.constraints.forEach(function (c) {
-          var blob = ((c.cat || '') + ' ' + (c.name || '')).toLowerCase();
-          var ctype = '反焊盘尺寸';
-          if (/非功能/.test(blob)) ctype = '非功能焊盘尺寸';
-          else if (/反焊盘/.test(blob)) ctype = '反焊盘尺寸';
-          else if (/焊盘/.test(blob)) ctype = '焊盘尺寸';
-          if (enabled[ctype] === false) return;
+          var ctype = constraintCheckType(c);
+          if (!ctype || enabled[ctype] === false) return;
           var vals = c.values || {};
           Object.keys(vals).forEach(function (k) {
             var lm = k.match(/^L(\d+)$/i);
@@ -379,6 +383,47 @@
             }
           });
         });
+      }
+
+      // 结果表始终覆盖完整孔经过的每一层。规则有数值但没有铜皮数据时
+      // 仍按缺失判定；该层没有规则值时保留一条“未检查”占位行，避免
+      // 稀疏 Shape 数据让 L2-L12 完整孔只显示 L5/L10 等少数层。
+      if (unit.signal && unit.startLayer && unit.endLayer) {
+        var spanTypes = {}, spanPresent = {};
+        rows.forEach(function (r) {
+          if (r.isPadstackCheck || !r.checkType || typeof r.layer !== 'number' || r.layer <= 0) return;
+          spanPresent[r.layer + ':' + r.checkType] = 1;
+          if (enabled[r.checkType] !== false) spanTypes[r.checkType] = 1;
+        });
+        if (sel.rule && sel.rule.constraints) {
+          sel.rule.constraints.forEach(function (c) {
+            var ctype = constraintCheckType(c);
+            if (ctype && enabled[ctype] !== false) spanTypes[ctype] = 1;
+          });
+        }
+        for (var spanLayer = unit.startLayer; spanLayer <= unit.endLayer; spanLayer++) {
+          Object.keys(spanTypes).forEach(function (ctype) {
+            var spanKey = spanLayer + ':' + ctype;
+            if (spanPresent[spanKey]) return;
+            var rv = sel.rule ? ruleValue(sel.rule, ctype, spanLayer) : { missing: '未推算到约束' };
+            var checked = !rv.missing;
+            rows.push({
+              shapeId: 'span-' + spanLayer + '-' + ctype,
+              subset: '—',
+              layer: spanLayer,
+              checkType: ctype,
+              actual: '无铜皮',
+              expect: checked ? rv.text : rv.missing,
+              status: checked ? '不符合' : '未检查',
+              constraint: rv.constraint || '',
+              reason: checked ? '完整孔经过该层，但没有匹配到铜皮数据' : rv.missing,
+              missing: true,
+              spanPlaceholder: true,
+              enabled: true
+            });
+            spanPresent[spanKey] = 1;
+          });
+        }
       }
 
       if (unit.signal) {
