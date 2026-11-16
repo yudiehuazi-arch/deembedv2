@@ -77,13 +77,29 @@
   width: 33%;
 }
 
-.bad-summary-reason {
-  line-height: 1.6;
-  margin-bottom: 5px;
+.bad-summary-networks,
+.bad-summary-reasons {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
 }
 
-.bad-summary-reason:last-child {
-  margin-bottom: 0;
+.bad-summary-network,
+.bad-summary-reason {
+  display: block;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.bad-summary-network {
+  font-weight: 700;
+}
+
+.bad-summary-reason + .bad-summary-reason {
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
 }
 
 .bad-summary-board {

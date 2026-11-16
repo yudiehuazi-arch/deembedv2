@@ -435,11 +435,19 @@ setTimeout(() => {
     if (!summary.querySelector('#btnCopyBadSummary')) throw new Error('缺复制表格按钮');
     const plain = w.CopperBadSummary.plainTable(w.CopperBadSummary.buildRows(w.eval('UI.result')));
     if (plain.indexOf('约束方案\t网络\t异常原因\t板上位置') !== 0 || plain.indexOf('Via ') < 0) throw new Error('复制文本格式异常');
-    const duplicate = w.CopperBadSummary.buildRows({groups: [
+    const duplicateResult = {groups: [
       {rule:{title:'BGA-L2-L12'}, via:{id:'10',net:'21_N'}, vias:[{id:'10'}], failRows:[{status:'不符合',checkType:'Padstack信号命名',reason:'网络 21_N 不是 GND，Padstack Name 未包含 SIG；包含 GND',sourceViaIds:['10']}]},
-      {rule:{title:'BGA-L2-L12'}, via:{id:'11',net:'21_P'}, vias:[{id:'11'}], failRows:[{status:'不符合',checkType:'Padstack信号命名',reason:'网络 21_P 不是 GND，Padstack Name 未包含 SIG；包含 GND',sourceViaIds:['11']}]}
-    ]})[0];
-    if (duplicate.reasonList.length !== 1 || duplicate.reasonList[0] !== 'Padstack命名不符合：非 GND 网络的 Padstack Name 未包含 SIG；包含 GND') throw new Error(JSON.stringify(duplicate.reasonList));
+      {rule:{title:'BGA-L2-L12'}, via:{id:'11',net:'21_P'}, vias:[{id:'11'}], failRows:[{status:'不符合',checkType:'Padstack信号命名',reason:'网络 21_P 不是 GND，Padstack Name 未包含 SIG；包含 GND',sourceViaIds:['11']}]},
+      {rule:{title:'BGA-L2-L12'}, via:{id:'12',net:'22_N'}, vias:[{id:'12'}], failRows:[{status:'不符合',checkType:'Padstack信号命名',reason:'网络 22_N 不是 GND，Padstack Name 未包含 SIG',sourceViaIds:['12']}]}
+    ]};
+    const duplicate = w.CopperBadSummary.buildRows(duplicateResult)[0];
+    if (duplicate.reasonList.length !== 2 || duplicate.reasonList[0] !== 'Padstack命名不符合：非 GND 网络的 Padstack Name 未包含 SIG；包含 GND' || duplicate.reasonList[1] !== 'Padstack命名不符合：非 GND 网络的 Padstack Name 未包含 SIG') throw new Error(JSON.stringify(duplicate.reasonList));
+    w.__summaryOriginal = w.eval('UI.result'); w.__summaryDuplicate = duplicateResult;
+    w.eval('UI.result=window.__summaryDuplicate');
+    const preview = d.createElement('div'); w.CopperBadSummary.render(preview);
+    w.eval('UI.result=window.__summaryOriginal'); delete w.__summaryDuplicate; delete w.__summaryOriginal;
+    const networkLines = [...preview.querySelectorAll('.bad-summary-network')].map(x => x.textContent);
+    if (networkLines.join('/') !== '21_N/21_P/22_N' || preview.querySelectorAll('.bad-summary-reason').length !== 2) throw new Error(preview.textContent);
     ['铜皮 × 完整信号孔怎么配对','怎么推算该用哪条约束','每一层怎么判','各约束下不符合的具体原因展开明细','没推算到约束的分布','未配对铜皮'].forEach(x => {
       if (h.indexOf(x) < 0) throw new Error('缺小节：' + x);
     });

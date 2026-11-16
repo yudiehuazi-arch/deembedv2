@@ -61,7 +61,12 @@
         out.push(where + cause.checkType + '不符合：实际 ' + String(cause.actual) + '，规则值 ' + String(cause.expect || '无'));
       }
     });
-    return out;
+    var seen = {};
+    return out.filter(function (text) {
+      if (seen[text]) return false;
+      seen[text] = 1;
+      return true;
+    });
   }
 
   function buildRows(result) {
@@ -188,9 +193,11 @@
       h += '<div class="bad-summary-wrap"><table class="bad-summary-table"><thead><tr><th>约束方案</th><th>网络</th><th>异常原因</th><th>板上位置</th></tr></thead><tbody>';
       rows.forEach(function (row) {
         var image = boardImage(row, geometry);
-        h += '<tr><td><b>' + esc(row.title) + '</b></td><td><b>' + esc(row.networkList.join('/')) + '</b></td><td>' +
+        h += '<tr><td><b>' + esc(row.title) + '</b></td><td><div class="bad-summary-networks">' +
+          row.networkList.map(function (network) { return '<div class="bad-summary-network">' + esc(network) + '</div>'; }).join('') +
+          '</div></td><td><div class="bad-summary-reasons">' +
           row.reasonList.map(function (reason) { return '<div class="bad-summary-reason">' + esc(reason) + '</div>'; }).join('') +
-          '</td><td><img class="bad-summary-board" src="' + image + '" alt="' + esc(row.title + ' 板上异常位置，Via ' + row.viaList.join('/')) + '"></td></tr>';
+          '</div></td><td><img class="bad-summary-board" src="' + image + '" alt="' + esc(row.title + ' 板上异常位置，Via ' + row.viaList.join('/')) + '"></td></tr>';
       });
       h += '</tbody></table></div>';
     }
