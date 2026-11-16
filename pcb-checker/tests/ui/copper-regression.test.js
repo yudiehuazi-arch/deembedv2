@@ -1340,25 +1340,25 @@ setTimeout(() => {
     if (padRow.reason !== '吻合') throw new Error('原因应为吻合，实际：' + padRow.reason);
   });
 
-  t('非 GND 网络使用无 SIG 或含 GND 的 Padstack 时单独报命名不符合', () => {
+  t('相邻 GND 命名孔段并入差分完整孔后仍醒目报告 Padstack 命名不符合', () => {
     const namingVias = [
       {id:198,type:'via',origin:[0,6.889],net:'21_P',padstack:'PTH-SIG-150drill-ring0_L5_L10',traceLayers:[],connections:''},
       {id:199,type:'via',origin:[0,0],net:'21_P',padstack:'BGA-HDI-SIG-045drill-ring3_L2_L5',traceLayers:[],connections:''},
-      {id:200,type:'via',origin:[0,0],net:'21_P',padstack:'BGA-HDI-GND-045drill-ring3_L10_L12',traceLayers:[],connections:''}
+      {id:200,type:'via',origin:[0,0],net:'21_P',padstack:'BGA-HDI-GND-045drill-ring3_L10_L12',traceLayers:[],connections:''},
+      {id:195,type:'via',origin:[31.496,0],net:'21_N',padstack:'BGA-HDI-SIG-045drill-ring3_L2_L5',traceLayers:[],connections:''},
+      {id:196,type:'via',origin:[24.607,0],net:'21_N',padstack:'PTH-SIG-150drill-ring0_L5_L10',traceLayers:[],connections:''},
+      {id:197,type:'via',origin:[31.496,0],net:'21_N',padstack:'BGA-HDI-SIG-045drill-ring3_L10_L12',traceLayers:[],connections:''}
     ];
     w.__namingVias = namingVias;
     w.eval("S.sets=[{kind:'BGA',title:'BGA-L2-L12-0.8mm',constraints:[]}]; UI.items=window.__namingVias; UI.resLimit=1000; UI.resRule=''; UI.resSearch=''; UI.resFilter=''; runCheck(true); renderResults();");
     const groups = w.eval("UI.result.groups");
-    const signal = groups.find(g => g.via.id === '198/199');
-    const wrong = groups.find(g => String(g.via.id) === '200');
-    if (!signal || signal.endLayer !== 10 || signal.rule) throw new Error('原未推算孔组被改变');
-    if (!wrong || wrong.signal || wrong.failCount !== 1 || wrong.failRows[0].checkType !== 'Padstack信号命名') throw new Error(JSON.stringify(wrong));
-    if (wrong.failRows[0].reason.indexOf('未包含 SIG；包含 GND') < 0) throw new Error(wrong.failRows[0].reason);
-    w.eval("UI.resFilter='norule'; renderResults();");
-    if (d.querySelectorAll('#checkOut .set').length !== 1 || d.querySelector('#checkOut .set .badge').textContent.indexOf('198/199') < 0) throw new Error('没保留原推算不到约束结果');
+    const signal = groups.find(g => g.via.net === '21_P');
+    if (!signal || signal.via.id !== '198/199/200' || signal.endLayer !== 12 || !signal.rule) throw new Error('GND 命名孔段未参与完整孔推算');
+    if (signal.failCount !== 1 || signal.failRows[0].checkType !== 'Padstack信号命名') throw new Error(JSON.stringify(signal));
+    if (signal.failRows[0].reason.indexOf('未包含 SIG；包含 GND') < 0 || signal.failRows[0].sourceViaIds.join('/') !== '200') throw new Error(JSON.stringify(signal.failRows[0]));
     w.eval("UI.resFilter='bad'; renderResults();");
     const badCard = d.querySelector('#checkOut .set');
-    if (!badCard || badCard.textContent.indexOf('Via 200') < 0 || badCard.textContent.indexOf('命名不符合') < 0 || badCard.textContent.indexOf('Padstack信号命名') < 0) throw new Error('命名错误未显示');
+    if (!badCard || badCard.textContent.indexOf('Via 198/199/200') < 0 || badCard.textContent.indexOf('Padstack命名不符合') < 0 || badCard.textContent.indexOf('Via 200') < 0) throw new Error('合并后未显示命名错误提醒');
   });
 
   t('Padstack Name 缺少 Connections 连接层（如缺少 L8）时判定为「不符合」并报错', () => {

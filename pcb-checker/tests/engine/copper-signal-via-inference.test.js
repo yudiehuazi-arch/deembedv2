@@ -58,27 +58,35 @@ t('孔段中心距仅命中 0/0.025/0.075/0.125/0.175mm ±0.005mm 才合并', ()
   assert(!C.isSegmentDistance([0, 0], [mil(0.181), 0]), '超过 0.175+0.005mm 不应命中');
 });
 
-t('GND 命名孔段不并入 SIG 完整孔，非 GND 网络的错误 Padstack 命名报不符合', () => {
+t('差分完整孔吸收相邻 GND 命名孔段，同时逐 Via 报 Padstack 命名不符合', () => {
   const namingItems = [
     { id: 50, type: 'via', origin: [0, 0], net: '21_P', padstack: 'BGA-HDI-SIG_L2_L5', traceLayers: [] },
     { id: 51, type: 'via', origin: [mil(0.175), 0], net: '21_P', padstack: 'PTH-SIG_L5_L10', traceLayers: [] },
     { id: 52, type: 'via', origin: [0, 0], net: '21_P', padstack: 'BGA-HDI-GND_L10_L12', traceLayers: [] },
-    { id: 53, type: 'via', origin: [100, 0], net: 'GND', padstack: 'BGA-HDI-GND_L10_L12', traceLayers: [] },
-    { id: 54, type: 'via', origin: [200, 0], net: 'AUX', padstack: 'BGA-HDI-PWR_L10_L12', traceLayers: [] },
-    { id: 55, type: 'via', origin: [300, 0], net: 'AUX2', padstack: 'BGA-HDI-SIG-GND_L10_L12', traceLayers: [] }
+    { id: 59, type: 'via', origin: [0, 0], net: '21_P', padstack: 'BGA-HDI-PWR_L12_L14', traceLayers: [] },
+    { id: 53, type: 'via', origin: [mil(0.8), 0], net: '21_N', padstack: 'BGA-HDI-SIG_L2_L5', traceLayers: [] },
+    { id: 54, type: 'via', origin: [mil(0.625), 0], net: '21_N', padstack: 'PTH-SIG_L5_L10', traceLayers: [] },
+    { id: 55, type: 'via', origin: [mil(0.8), 0], net: '21_N', padstack: 'BGA-HDI-SIG_L10_L12', traceLayers: [] },
+    { id: 56, type: 'via', origin: [100, 0], net: 'GND', padstack: 'BGA-HDI-GND_L10_L12', traceLayers: [] },
+    { id: 57, type: 'via', origin: [200, 0], net: 'AUX', padstack: 'BGA-HDI-PWR_L10_L12', traceLayers: [] },
+    { id: 58, type: 'via', origin: [300, 0], net: 'AUX2', padstack: 'BGA-HDI-SIG-GND_L10_L12', traceLayers: [] }
   ];
-  const out = C.runCopperCheck(namingItems, [], { layerCount: 14 });
-  const signal = out.groups.find(g => g.via.id === '50/51');
-  const wrongGnd = out.groups.find(g => String(g.via.id) === '52');
-  const ground = out.groups.find(g => String(g.via.id) === '53');
-  const missingSig = out.groups.find(g => String(g.via.id) === '54');
-  const containsGnd = out.groups.find(g => String(g.via.id) === '55');
-  assert(signal && signal.startLayer === 2 && signal.endLayer === 10 && !signal.rule, JSON.stringify(signal && signal.via));
-  assert(wrongGnd && !wrongGnd.signal && /未包含 SIG；包含 GND/.test(wrongGnd.namingError), wrongGnd && wrongGnd.namingError);
-  assert(wrongGnd.failRows.length === 1 && wrongGnd.failRows[0].checkType === 'Padstack信号命名', JSON.stringify(wrongGnd.failRows));
+  const rule = { kind: 'BGA', title: 'BGA-L2-L12-0.8mm', constraints: [] };
+  const out = C.runCopperCheck(namingItems, [rule], { layerCount: 14 });
+  const signal = out.groups.find(g => g.via.net === '21_P');
+  const adjacentPower = out.groups.find(g => String(g.via.id) === '59');
+  const ground = out.groups.find(g => String(g.via.id) === '56');
+  const missingSig = out.groups.find(g => String(g.via.id) === '57');
+  const containsGnd = out.groups.find(g => String(g.via.id) === '58');
+  assert(signal && signal.via.id === '50/51/52' && signal.startLayer === 2 && signal.endLayer === 12, JSON.stringify(signal && signal.via));
+  assert(signal.rule && signal.rule.title === rule.title, signal.rule && signal.rule.title);
+  assert(signal.namingError === 'Via 52：未包含 SIG；包含 GND', signal.namingError);
+  assert(signal.failRows.length === 1 && signal.failRows[0].sourceViaIds.join('/') === '52', JSON.stringify(signal.failRows));
+  assert(signal.failRows[0].sourcePadstack === 'BGA-HDI-GND_L10_L12', signal.failRows[0].sourcePadstack);
+  assert(adjacentPower && !adjacentPower.signal && String(adjacentPower.via.id) === '59', JSON.stringify(adjacentPower && adjacentPower.via));
   assert(ground && !ground.namingError && ground.failCount === 0, JSON.stringify(ground));
-  assert(missingSig.namingError === '未包含 SIG' && missingSig.failCount === 1, missingSig.namingError);
-  assert(containsGnd.namingError === '包含 GND' && containsGnd.failCount === 1, containsGnd.namingError);
+  assert(missingSig.namingError === 'Via 57：未包含 SIG' && missingSig.failCount === 1, missingSig.namingError);
+  assert(containsGnd.namingError === 'Via 58：包含 GND' && containsGnd.failCount === 1, containsGnd.namingError);
 });
 
 t('按 _P/_N 配对后只用 HDI 激光孔中心计算 0.600mm，排除偏移 PTH', () => {

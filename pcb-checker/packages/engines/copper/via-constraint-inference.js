@@ -26,6 +26,19 @@
     return /SIG/i.test(String(name || ''));
   }
 
+  function padstackNamingIssues(vias) {
+    var out = [];
+    (vias || []).forEach(function (via) {
+      var net = String(via.net || '').trim(), pad = String(via.padstack || '').trim();
+      if (!net || net.toUpperCase() === 'GND') return;
+      var missingSig = !isSignalPadstack(pad), containsGnd = /GND/i.test(pad);
+      if (missingSig || containsGnd) out.push({
+        via: via, reason: [missingSig ? '未包含 SIG' : '', containsGnd ? '包含 GND' : ''].filter(Boolean).join('；')
+      });
+    });
+    return out;
+  }
+
   function layerNum(token, n) {
     var s = String(token || '').replace(/[<>]/g, '').trim();
     if (/^(top|表层|顶层)$/i.test(s)) return 1;
@@ -178,23 +191,35 @@
       var r = find(idx);
       (comps[r] || (comps[r] = [])).push(v);
     });
-    return Object.keys(comps).map(function (k) {
+    var out = [];
+    Object.keys(comps).forEach(function (k) {
       var members = comps[k];
-      var order = Math.min.apply(null, members.map(function (v) { return firstOrder[v.id]; }));
-      return buildUnit(members, n, true, order);
+      if (members.some(function (v) { return isSignalPadstack(v.padstack); })) {
+        var order = Math.min.apply(null, members.map(function (v) { return firstOrder[v.id]; }));
+        out.push(buildUnit(members, n, true, order));
+      } else members.forEach(function (v) { out.push(buildUnit([v], n, false, firstOrder[v.id])); });
     });
+    return out;
   }
 
   function groupVias(vias, n) {
     var byNet = {}, out = [], order = {};
     (vias || []).forEach(function (v, i) {
       order[v.id] = i;
-      if (!isSignalPadstack(v.padstack)) { out.push(buildUnit([v], n, false, i)); return; }
       var key = String(v.net || '');
       (byNet[key] || (byNet[key] = [])).push(v);
     });
     Object.keys(byNet).forEach(function (net) {
-      out = out.concat(connectedUnits(byNet[net], n, order));
+      var members = byNet[net], signal = members.filter(function (v) { return isSignalPadstack(v.padstack); });
+      var absorbable = members.filter(function (v) { return !isSignalPadstack(v.padstack) && /GND/i.test(v.padstack || ''); });
+      var other = members.filter(function (v) { return signal.indexOf(v) < 0 && absorbable.indexOf(v) < 0; });
+      if (mateName(net)) {
+        out = out.concat(connectedUnits(signal.concat(absorbable), n, order));
+        other.forEach(function (v) { out.push(buildUnit([v], n, false, order[v.id])); });
+      } else {
+        if (signal.length) out = out.concat(connectedUnits(signal, n, order));
+        absorbable.concat(other).forEach(function (v) { out.push(buildUnit([v], n, false, order[v.id])); });
+      }
     });
     return out.sort(function (a, b) { return a.order - b.order; });
   }
@@ -285,6 +310,7 @@
     SEGMENT_DISTANCES_MM: SEGMENT_DISTANCES_MM,
     SEGMENT_DISTANCE_TOL_MM: SEGMENT_DISTANCE_TOL_MM,
     isSignalPadstack: isSignalPadstack,
+    padstackNamingIssues: padstackNamingIssues,
     layerTokens: layerTokens,
     spanOfVia: spanOfVia,
     sourceOwnersForLayer: sourceOwnersForLayer,

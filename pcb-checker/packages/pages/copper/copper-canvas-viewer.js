@@ -125,7 +125,7 @@
         if (via && via.id != null) out.vias[String(via.id)] = 1;
       });
       rows.forEach(function (row) {
-        if (row.shapeId != null && row.shapeId !== 'none' && row.shapeId !== 'via' && !String(row.shapeId).startsWith('span-')) {
+        if (!row.isPadstackCheck && row.shapeId != null && row.shapeId !== 'none' && !String(row.shapeId).startsWith('span-')) {
           out.shapes[String(row.shapeId)] = 1;
         }
       });
