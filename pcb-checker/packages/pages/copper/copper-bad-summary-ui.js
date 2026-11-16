@@ -28,12 +28,16 @@
     }[checkType] || '';
   }
 
-  function addCause(entry, group, row) {
-    var viaText = (row.sourceViaIds || []).length ? row.sourceViaIds.join('/') : group.via.id;
+  function addCause(entry, row) {
     if (row.checkType === 'Padstack信号命名' || row.checkType === 'Padstack层名') {
-      var prefix = row.checkType === 'Padstack信号命名' ? 'Padstack命名不符合' : 'Padstack层名不符合';
-      var named = 'Via ' + viaText + ' ' + prefix + '：' + (row.reason || row.actual || '命名与规则不一致');
-      entry.namedCauses[named] = 1;
+      var signalName = row.checkType === 'Padstack信号命名';
+      var prefix = signalName ? 'Padstack命名不符合' : 'Padstack层名不符合';
+      var reason = String(row.reason || row.actual || '命名与规则不一致');
+      var marker = 'Padstack Name ';
+      if (signalName && reason.indexOf(marker) >= 0) {
+        reason = '非 GND 网络的 Padstack Name ' + reason.slice(reason.indexOf(marker) + marker.length);
+      }
+      entry.namedCauses[prefix + '：' + reason] = 1;
       return;
     }
     var dim = dimensionName(row.checkType), missing = row.actual === '无铜皮' || row.statusNote === '缺失层';
@@ -74,7 +78,7 @@
       entry.networks[group.via.net || '无网络'] = 1;
       entry.groups.push(group);
       (group.vias && group.vias.length ? group.vias : [group.via]).forEach(function (via) { entry.viaIds[via.id] = 1; });
-      fails.forEach(function (row) { addCause(entry, group, row); });
+      fails.forEach(function (row) { addCause(entry, row); });
     });
     return order.map(function (title) {
       var entry = map[title];
