@@ -455,10 +455,13 @@ setTimeout(() => {
     if (h.indexOf('SIG / SMA /') < 0 || h.indexOf('无差分孔距') < 0) throw new Error('提取列没写全');
     if (h.indexOf('Bot-SMA-L19-D2M6mil') < 0) throw new Error('推算的约束没显示');
   });
-  t('底部规律写明 SIG 完整孔组、离散孔段距离与完整层跨匹配', () => {
+  t('底部规律写明完整孔分组及仅用 HDI 激光孔计算差分中心距', () => {
     w.eval('renderLegend(true)');
-    const h = $('legendOut').innerHTML;
-    if (h.indexOf('0.025') < 0 || h.indexOf('完整层跨') < 0 || h.indexOf('SIG') < 0) throw new Error('规律未写完整孔推算规则');
+    const h = $('legendOut').textContent;
+    if (!h.includes('0.025') || !h.includes('完整层跨') || !h.includes('SIG')) throw new Error('规律未写完整孔推算规则');
+    if (!h.includes('Padstack 名含 HDI') || !h.includes('PTH 孔段不参与') || !h.includes('√(ΔX² + ΔY²)')) {
+      throw new Error('规律未详细说明 HDI 激光孔中心距');
+    }
   });
 
   console.log('== TXT 里 “/” 与 “，” 都算层号列表分隔符 ==');

@@ -93,6 +93,28 @@
     return Math.sqrt(dx * dx + dy * dy);
   }
 
+  function meanCenter(vias, fallback) {
+    if (!vias || !vias.length) return fallback;
+    var sum = vias.reduce(function (acc, via) {
+      acc[0] += via.origin[0]; acc[1] += via.origin[1]; return acc;
+    }, [0, 0]);
+    return [sum[0] / vias.length, sum[1] / vias.length];
+  }
+
+  function pitchMetric(a, b) {
+    var aHdi = a.vias.filter(function (via) { return /HDI/i.test(via.padstack || ''); });
+    var bHdi = b.vias.filter(function (via) { return /HDI/i.test(via.padstack || ''); });
+    var useHdi = aHdi.length > 0 && bHdi.length > 0;
+    var aVias = useHdi ? aHdi : a.vias, bVias = useHdi ? bHdi : b.vias;
+    var aCenter = meanCenter(aVias, a.center), bCenter = meanCenter(bVias, b.center);
+    return {
+      distanceMil: distMil(aCenter, bCenter),
+      mode: useHdi ? 'HDI' : 'group',
+      ownIds: aVias.map(function (via) { return via.id; }),
+      mateIds: bVias.map(function (via) { return via.id; })
+    };
+  }
+
   function isSegmentDistance(a, b) {
     var mm = distMil(a, b) * MM_PER_MIL;
     return SEGMENT_DISTANCES_MM.some(function (target) {
@@ -135,7 +157,10 @@
       segmentLayers: layers,
       mateNet: '',
       mateGroupId: '',
-      pitchMm: null
+      pitchMm: null,
+      pitchMode: '',
+      pitchViaIds: [],
+      matePitchViaIds: []
     };
   }
 
@@ -197,15 +222,18 @@
       var cands = byNet[mate.toLowerCase()] || [];
       var sameSpan = cands.filter(function (x) { return x.startLayer === u.startLayer && x.endLayer === u.endLayer; });
       if (sameSpan.length) cands = sameSpan;
-      var best = null, bestD = Infinity;
+      var best = null, bestMetric = null, bestD = Infinity;
       cands.forEach(function (x) {
-        var d = distMil(u.center, x.center);
-        if (d < bestD) { best = x; bestD = d; }
+        var metric = pitchMetric(u, x);
+        if (metric.distanceMil < bestD) { best = x; bestMetric = metric; bestD = metric.distanceMil; }
       });
       if (!best) return;
       u.mateNet = best.via.net || mate;
       u.mateGroupId = best.via.id;
       u.pitchMm = bestD * MM_PER_MIL;
+      u.pitchMode = bestMetric.mode;
+      u.pitchViaIds = bestMetric.ownIds;
+      u.matePitchViaIds = bestMetric.mateIds;
     });
     return units;
   }

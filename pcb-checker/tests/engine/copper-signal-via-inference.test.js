@@ -20,7 +20,7 @@ const pParts = [
 ];
 const nParts = [
   { id: 4, type: 'via', origin: [mil(0.600), 0], net: 'DP_N', padstack: 'BGA-HDI-SIG_L2_L5', traceLayers: ['L2', 'L5'] },
-  { id: 5, type: 'via', origin: [mil(0.675), 0], net: 'DP_N', padstack: 'PTH-SIG_L5_L10', traceLayers: ['L5', 'L10'] },
+  { id: 5, type: 'via', origin: [mil(0.525), 0], net: 'DP_N', padstack: 'PTH-SIG_L5_L10', traceLayers: ['L5', 'L10'] },
   { id: 6, type: 'via', origin: [mil(0.600), 0], net: 'DP_N', padstack: 'BGA-HDI-SIG_L10_L12', traceLayers: ['L10', 'L12'] }
 ];
 const nonSig = { id: 7, type: 'via', origin: [100, 100], net: 'GND', padstack: 'BGA_GND_L2_L12', traceLayers: [] };
@@ -58,9 +58,12 @@ t('孔段中心距仅命中 0/0.025/0.075/0.125/0.175mm ±0.005mm 才合并', ()
   assert(!C.isSegmentDistance([0, 0], [mil(0.181), 0]), '超过 0.175+0.005mm 不应命中');
 });
 
-t('按常见 _P/_N 后缀配对完整孔组并以孔组中心计算 0.600mm 中心距', () => {
+t('按 _P/_N 配对后只用 HDI 激光孔中心计算 0.600mm，排除偏移 PTH', () => {
   assert(pGroup.mateNet === 'DP_N' && nGroup.mateNet === 'DP_P', pGroup.mateNet + '/' + nGroup.mateNet);
-  near(pGroup.pitchMm, 0.6, 1e-9, 'P/N 中心距');
+  near(pGroup.pitchMm, 0.6, 1e-9, 'P/N HDI 中心距');
+  assert(pGroup.pitchMode === 'HDI', '孔距模式=' + pGroup.pitchMode);
+  assert(pGroup.pitchViaIds.join('/') === '1/3' && pGroup.matePitchViaIds.join('/') === '4/6', JSON.stringify(pGroup.pitchViaIds));
+  assert(pGroup.note.includes('HDI 激光孔中心距 0.600 mm') && pGroup.note.includes('Via 1、3 ↔ Via 4、6'), pGroup.note);
 });
 
 t('同封装与完整层跨下选择中心距最近的 BGA-L2-L12-0.6mm 约束', () => {
@@ -119,6 +122,7 @@ t('单个 SIG 孔也可按 Top=L1、Bot=L14 与层跨推算约束', () => {
   assert(out.groups[0].vias.length === 1, '单孔被错误合并');
   assert(out.groups[0].startLayer === 1 && out.groups[0].endLayer === 4, 'Top 层跨错误');
   assert(out.groups[0].rule && out.groups[0].rule.title === oneSet.title, '单孔未推算约束');
+  assert(out.groups[0].pitchMode === 'group', '无 HDI 时未回退完整孔中心');
   const botSpan = C.spanOfVia({ padstack: 'SMA_SIG_BOT_L11' }, 14);
   assert(botSpan.start === 11 && botSpan.end === 14, 'Bot 未映射 L14');
 });

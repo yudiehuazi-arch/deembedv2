@@ -26,7 +26,8 @@
     var k = g.keys || {};
     if (g.signal === false) return '非 SIG / 不推算约束';
     var span = (g.startLayer && g.endLayer) ? ('L' + g.startLayer + '-L' + g.endLayer) : '';
-    var pitch = g.pitchMm != null ? ('差分中心距 ' + g.pitchMm.toFixed(3) + 'mm') : '无差分孔距';
+    var pitchLabel = g.pitchMode === 'HDI' ? 'HDI 激光孔中心距 ' : '差分中心距 ';
+    var pitch = g.pitchMm != null ? (pitchLabel + g.pitchMm.toFixed(3) + 'mm') : '无差分孔距';
     var t = ['SIG', k.kind, span, pitch, k.ring ? ('ring' + k.ring + 'mil') : ''].filter(Boolean).join(' / ');
     return t || 'SIG / 关键信息不足';
   }

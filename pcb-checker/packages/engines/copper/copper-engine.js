@@ -325,13 +325,15 @@
       keys.fan = unit.endLayer;
       keys.fans = unit.segmentLayers.slice();
       keys.pitchMm = unit.pitchMm;
+      keys.pitchMode = unit.pitchMode;
       keys.mateNet = unit.mateNet;
       var sel = unit.signal ? VI.selectConstraint(sets, unit, n) : { rule: null, candidates: [] };
       var traceList = Object.keys(traceNums).map(function (k) { return +k; });
       var spanText = unit.startLayer && unit.endLayer ? ('L' + unit.startLayer + '-L' + unit.endLayer) : '层跨未识别';
+      var pitchMembers = unit.pitchMode === 'HDI' ? ('，参与 Via ' + unit.pitchViaIds.join('、') + ' ↔ Via ' + unit.matePitchViaIds.join('、')) : '';
       var note = unit.signal
         ? ('SIG 完整孔组 ' + unit.memberIds.length + ' 段（Via ' + unit.memberIds.join('、') + '），连接 ' + spanText +
-          (unit.pitchMm != null ? ('，差分孔中心距 ' + unit.pitchMm.toFixed(3) + ' mm，匹配最近约束值') : '，未找到差分配对孔'))
+          (unit.pitchMm != null ? ('，' + (unit.pitchMode === 'HDI' ? 'HDI 激光孔中心距 ' : '差分孔中心距 ') + unit.pitchMm.toFixed(3) + ' mm' + pitchMembers + '，匹配最近约束值') : '，未找到差分配对孔'))
         : 'Padstack 不含 SIG：仅显示，不推算约束，不执行核查';
 
       var rows = near.map(function (sh) {
@@ -509,7 +511,8 @@
         via: via, vias: unit.vias, signal: unit.signal, keys: keys,
         rule: sel.rule, candidates: sel.candidates, note: note,
         startLayer: unit.startLayer, endLayer: unit.endLayer,
-        pitchMm: unit.pitchMm, mateNet: unit.mateNet,
+        pitchMm: unit.pitchMm, pitchMode: unit.pitchMode, pitchViaIds: unit.pitchViaIds,
+        matePitchViaIds: unit.matePitchViaIds, mateNet: unit.mateNet,
         traceLayers: traceList, rows: rows, failRows: failRows, failCount: failRows.length
       };
     });
