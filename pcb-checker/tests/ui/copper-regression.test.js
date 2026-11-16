@@ -392,9 +392,11 @@ setTimeout(() => {
   t('空间视图只保留不符合与未推算两类，并分别按扇出方案和网络名选择', () => {
     $('tabs').querySelector('[data-tab="canvas"]').click();
     const mode = $('selCopperCanvasIssueMode'), detail = $('selCopperCanvasIssueDetail');
-    if (!mode || !detail || [...mode.options].map(o => o.textContent).join('/') !== '只看不符合/只看没推算到约束') throw new Error('空间类别选项异常');
+    if (!mode || !detail || [...mode.options].map(o => o.textContent).join('/') !== '不显示/只看不符合/只看没推算到约束') throw new Error('空间类别选项异常');
+    if (mode.value !== 'none' || !detail.disabled || w.CopperCanvas.collectFailureHighlights().groupCount !== 0) throw new Error('不显示未关闭类别标注');
     if ($('copperCanvasLegend').textContent.indexOf('类别筛选标注') < 0) throw new Error('空间图例未更新');
-    if ($('copperCanvasIssueDetailTitle').textContent !== '扇出方案' || ![...detail.options].some(o => o.value === 'BGA-L1-L19')) throw new Error('不符合未按扇出方案列出');
+    mode.value = 'bad'; mode.dispatchEvent(new w.Event('change', {bubbles:true}));
+    if (detail.disabled || $('copperCanvasIssueDetailTitle').textContent !== '扇出方案' || ![...detail.options].some(o => o.value === 'BGA-L1-L19')) throw new Error('不符合未按扇出方案列出');
     detail.value = 'BGA-L1-L19'; detail.dispatchEvent(new w.Event('change', {bubbles:true}));
     let highlights = w.CopperCanvas.collectFailureHighlights();
     if (highlights.groupCount !== 1 || highlights.rowCount !== 1 || highlights.viaCount !== 1 || highlights.shapeCount !== 1) throw new Error(JSON.stringify(highlights));

@@ -111,7 +111,7 @@
 
   function issueMode() {
     var el = $('selCopperCanvasIssueMode');
-    return el ? el.value : 'bad';
+    return el ? el.value : 'none';
   }
 
   function issueDetail() {
@@ -127,6 +127,7 @@
     var out = { vias: {}, shapes: {}, groupCount: 0, rowCount: 0, viaCount: 0, shapeCount: 0 };
     if (!UI.result || !UI.result.groups) return out;
     var mode = issueMode(), detail = issueDetail();
+    if (mode === 'none') return out;
     UI.result.groups.forEach(function (g) {
       var rows;
       if (mode === 'norule') {
@@ -186,21 +187,22 @@
   function initIssueFilters(resetDetail) {
     var modeEl = $('selCopperCanvasIssueMode'), detailEl = $('selCopperCanvasIssueDetail');
     if (!modeEl || !detailEl) return;
-    var mode = modeEl.value || 'bad', old = resetDetail ? '' : detailEl.value, values = {};
+    var mode = modeEl.value || 'none', old = resetDetail ? '' : detailEl.value, values = {};
     (UI.result && UI.result.groups || []).forEach(function (g) {
       if (mode === 'bad') {
         if (g.failCount && g.rule) values[g.rule.title] = 1;
       } else if (g.signal !== false && g.rows.length && !g.rule) values[groupNetName(g)] = 1;
     });
-    var allLabel = mode === 'bad' ? '全部扇出方案' : '全部网络名';
+    var allLabel = mode === 'bad' ? '全部扇出方案' : (mode === 'norule' ? '全部网络名' : '无筛选条件');
     detailEl.innerHTML = '';
+    detailEl.disabled = mode === 'none';
     var all = document.createElement('option'); all.value = ''; all.textContent = allLabel; detailEl.appendChild(all);
     Object.keys(values).sort(function (a, b) { return a.localeCompare(b); }).forEach(function (value) {
       var opt = document.createElement('option'); opt.value = value; opt.textContent = value; detailEl.appendChild(opt);
     });
     detailEl.value = old && values[old] ? old : '';
     var title = $('copperCanvasIssueDetailTitle');
-    if (title) title.textContent = mode === 'bad' ? '扇出方案' : '网络名';
+    if (title) title.textContent = mode === 'bad' ? '扇出方案' : (mode === 'norule' ? '网络名' : '筛选条件');
   }
 
   function initLayerSelect() {
@@ -320,8 +322,9 @@
     if (!text) return;
     if (!g) {
       failures = failures || collectFailureHighlights();
-      var modeText = issueMode() === 'bad' ? '只看不符合' : '只看没推算到约束';
-      text.textContent = failures.groupCount
+      var mode = issueMode(), modeText = mode === 'bad' ? '只看不符合' : '只看没推算到约束';
+      if (mode === 'none') text.textContent = UI.items.length ? '类别标注已关闭，可查看全板、筛层或使用测量标尺。' : '请先导入板级 Item 数据。';
+      else text.textContent = failures.groupCount
         ? (modeText + ' · ' + failures.groupCount + ' 个完整孔 · ' + failures.rowCount + ' 条记录 · ' + failures.viaCount + ' 个孔段 · ' + failures.shapeCount + ' 处铜皮')
         : (modeText + ' · 当前没有匹配记录。');
       return;
@@ -360,7 +363,7 @@
     if (hud) {
       hud.textContent = '缩放 ' + Math.round(view.zoom * 100) + '% · ' + (selectedLayer() ? ('L' + selectedLayer()) : '全部层') +
         ' · Via ' + stats.shown.via + '/' + stats.totals.via + ' · Shape ' + stats.shown.shape + '/' + stats.totals.shape +
-        ' · ' + (issueMode() === 'bad' ? '不符合孔 ' : '未推算孔 ') + failures.groupCount + ' · 标注铜皮 ' + failures.shapeCount;
+        (issueMode() === 'none' ? '' : (' · ' + (issueMode() === 'bad' ? '不符合孔 ' : '未推算孔 ') + failures.groupCount + ' · 标注铜皮 ' + failures.shapeCount));
       hud.dataset.issueMode = issueMode();
       hud.dataset.failGroups = String(failures.groupCount);
       hud.dataset.failRows = String(failures.rowCount);
