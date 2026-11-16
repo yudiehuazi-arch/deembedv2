@@ -35,6 +35,7 @@
     UI.legendRenderedVer = UI.dataVer;
 
     var r = UI.result;
+    if (root.CopperBadSummary) root.CopperBadSummary.render($('copperBadSummary'));
     if (!r) {
       box.innerHTML = '<div class="card"><div class="hint">还没有检查结果，请在 ③ 导入数据 页载入并运行检查。</div></div>';
       box.dataset.ver = UI.runSeq + '|' + UI.viewVer;

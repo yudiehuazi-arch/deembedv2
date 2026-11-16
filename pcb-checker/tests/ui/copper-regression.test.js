@@ -424,6 +424,17 @@ setTimeout(() => {
     $('tabs').querySelector('[data-tab="legend"]').click();
     const h = $('legendOut').innerHTML;
     if (!h) throw new Error('没有渲染');
+    const summary = $('copperBadSummary'), summaryTable = summary && summary.querySelector('.bad-summary-table');
+    if (!summary || !summaryTable || !($('tab-legend').compareDocumentPosition(summary) & w.Node.DOCUMENT_POSITION_CONTAINED_BY)) throw new Error('⑥ 页顶部缺不符合归纳表');
+    if (!($('legendOut').compareDocumentPosition(summary) & w.Node.DOCUMENT_POSITION_PRECEDING)) throw new Error('归纳表未放在原规律分析之前');
+    const heads = [...summaryTable.querySelectorAll('th')].map(x => x.textContent);
+    if (heads.join('/') !== '约束方案/网络/异常原因/板上位置') throw new Error(heads.join('/'));
+    const sumRow = summaryTable.querySelector('tbody tr'), board = summaryTable.querySelector('.bad-summary-board');
+    if (!sumRow || sumRow.textContent.indexOf('BGA-L1-L19') < 0 || sumRow.textContent.indexOf('L19') < 0) throw new Error('归纳内容不完整');
+    if (!board || !board.src.startsWith('data:image/svg+xml')) throw new Error('缺板上位置缩略图');
+    if (!summary.querySelector('#btnCopyBadSummary')) throw new Error('缺复制表格按钮');
+    const plain = w.CopperBadSummary.plainTable(w.CopperBadSummary.buildRows(w.eval('UI.result')));
+    if (plain.indexOf('约束方案\t网络\t异常原因\t板上位置') !== 0 || plain.indexOf('Via ') < 0) throw new Error('复制文本格式异常');
     ['铜皮 × 完整信号孔怎么配对','怎么推算该用哪条约束','每一层怎么判','各约束下不符合的具体原因展开明细','没推算到约束的分布','未配对铜皮'].forEach(x => {
       if (h.indexOf(x) < 0) throw new Error('缺小节：' + x);
     });
