@@ -16,6 +16,7 @@
     resFilter: '',
     resRule: '',
     resSearch: '',
+    resNet: '',
     matchFilter: '',
     reviewed: {},
     runSeq: 0,

@@ -285,6 +285,42 @@ setTimeout(() => {
     if (renderedRows() !== 20) throw new Error('行数 ' + renderedRows());
     if ($('checkOut').innerHTML.indexOf('未推算到') < 0) throw new Error('组头没写未推算到');
   });
+  const noRuleNetItems = (function(){
+    const out=[];
+    function add(id, net, x){
+      out.push({id:id * 10, type:'shape', subset:'Top', set:'Route Keepout', radius:9, center:[x,1000], circle:true, head:'Set: Route Keepout'});
+      out.push({id:id, type:'via', origin:[x,1000], net:net, padstack:'BGA_SIG_L3_L7_unmatched', traceLayers:[], connections:''});
+    }
+    add(401, 'GND', 1000);
+    add(402, 'SIG_A', 2000);
+    add(403, 'VCC_3V3', 3000);
+    add(404, '', 4000);
+    return out;
+  })();
+  t('没推算到约束时显示全部网络、GND、非 GND 与无网络计数', () => {
+    w.__noRuleNetItems = noRuleNetItems;
+    w.eval("S.sets=[]; UI.items=window.__noRuleNetItems; UI.resFilter='norule'; UI.resNet=''; UI.resRule=''; UI.resSearch=''; UI.onlyBad=false; runCheck(true); renderResults();");
+    const bar = $('noRuleNetFilters');
+    if (bar.hidden) throw new Error('网络类别选项未显示');
+    const counts = {};
+    bar.querySelectorAll('.no-rule-net-chip').forEach(btn => { counts[btn.dataset.netKind || 'all'] = +btn.querySelector('.cn').textContent; });
+    if (JSON.stringify(counts) !== JSON.stringify({all:4,gnd:1,other:2,none:1})) throw new Error(JSON.stringify(counts));
+  });
+  t('没推算到约束可按 GND、非 GND、无网络切换显示', () => {
+    const clickKind = kind => d.querySelector('#noRuleNetFilters [data-net-kind="' + kind + '"]').click();
+    clickKind('gnd');
+    if (renderedGroups() !== 1 || d.querySelector('#checkOut .set b').textContent !== 'GND') throw new Error('GND 筛选异常');
+    if ($('resHint').textContent.indexOf('网络类别 GND') < 0) throw new Error($('resHint').textContent);
+    clickKind('other');
+    if (renderedGroups() !== 2) throw new Error('非 GND 组数 ' + renderedGroups());
+    clickKind('none');
+    if (renderedGroups() !== 1 || d.querySelector('#checkOut .set b').textContent !== '无网络') throw new Error('无网络筛选异常');
+    clickKind('none');
+    if (renderedGroups() !== 4 || w.eval('UI.resNet') !== '') throw new Error('重复点击未恢复全部网络');
+    $('btnOnlyMatched').click();
+    if (!$('noRuleNetFilters').hidden || w.eval('UI.resNet') !== '') throw new Error('离开未推算筛选后网络类别未清理');
+    w.eval("UI.items=CopperCheck.parseBoardItems(window.__sampleTxt)");
+  });
   t('点「没推算到约束」方块也能筛选', () => {
     w.eval("S.sets=" + JSON.stringify(rules) + "; runCheck(true); UI.resFilter=''; UI.onlyBad=false; renderResults();");
     $('btnOnlyBad').click(); $('btnOnlyBad').click(); // 确保全部

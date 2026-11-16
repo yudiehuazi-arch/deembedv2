@@ -284,6 +284,7 @@
   function setResFilter(f) {
     UI.resFilter = (UI.resFilter === f) ? '' : f;
     UI.onlyBad = (UI.resFilter === 'bad');
+    if (UI.resFilter !== 'norule') UI.resNet = '';
     UI.viewVer++;
     renderResults();
   }
@@ -435,6 +436,7 @@
         UI.resFilter = '';
         UI.resRule = '';
         UI.resSearch = '';
+        UI.resNet = '';
         if ($('inpResSearch')) $('inpResSearch').value = '';
         if ($('btnClearSearch')) $('btnClearSearch').style.display = 'none';
         if ($('searchStat')) $('searchStat').textContent = '';
@@ -479,6 +481,14 @@
       var revBadge = e.target.closest ? e.target.closest('.badge.rev') : null;
       if (revBadge && revBadge.id && /^grv-\d+$/.test(revBadge.id)) {
         toggleGroup(+revBadge.id.slice(4));
+        return;
+      }
+      var netChip = e.target.closest ? e.target.closest('#noRuleNetFilters .no-rule-net-chip') : null;
+      if (netChip) {
+        var netKind = netChip.dataset.netKind || '';
+        UI.resNet = (UI.resNet === netKind) ? '' : netKind;
+        UI.viewVer++;
+        renderResults();
         return;
       }
       var chip = e.target.closest ? e.target.closest('#resChips .chip') : null;
