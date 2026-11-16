@@ -26,11 +26,15 @@
     return /SIG/i.test(String(name || ''));
   }
 
+  function isGroundNet(net) {
+    return String(net || '').trim().toUpperCase() === 'GND';
+  }
+
   function padstackNamingIssues(vias) {
     var out = [];
     (vias || []).forEach(function (via) {
       var net = String(via.net || '').trim(), pad = String(via.padstack || '').trim();
-      if (!net || net.toUpperCase() === 'GND') return;
+      if (!net || isGroundNet(net)) return;
       var missingSig = !isSignalPadstack(pad), containsGnd = /GND/i.test(pad);
       if (missingSig || containsGnd) out.push({
         via: via, reason: [missingSig ? '未包含 SIG' : '', containsGnd ? '包含 GND' : ''].filter(Boolean).join('；')
@@ -210,7 +214,8 @@
       (byNet[key] || (byNet[key] = [])).push(v);
     });
     Object.keys(byNet).forEach(function (net) {
-      var members = byNet[net], signal = members.filter(function (v) { return isSignalPadstack(v.padstack); });
+      var members = byNet[net];
+      var signal = isGroundNet(net) ? [] : members.filter(function (v) { return isSignalPadstack(v.padstack); });
       var absorbable = members.filter(function (v) { return !isSignalPadstack(v.padstack) && /GND/i.test(v.padstack || ''); });
       var other = members.filter(function (v) { return signal.indexOf(v) < 0 && absorbable.indexOf(v) < 0; });
       if (mateName(net)) {

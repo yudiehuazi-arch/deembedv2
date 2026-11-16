@@ -89,6 +89,14 @@ t('差分完整孔吸收相邻 GND 命名孔段，同时逐 Via 报 Padstack 命
   assert(containsGnd.namingError === 'Via 58：包含 GND' && containsGnd.failCount === 1, containsGnd.namingError);
 });
 
+t('GND 网络即使 Padstack 含 SIG 也不进入信号约束推算', () => {
+  const via = { id: 60, type: 'via', origin: [150, 0], net: 'GND', padstack: 'BGA-HDI-SIG_L2_L5', traceLayers: [] };
+  const out = C.runCopperCheck([via], sets, { layerCount: 14 });
+  const group = out.groups.find(g => String(g.via.id) === '60');
+  assert(group && !group.signal && !group.rule && group.failCount === 0, JSON.stringify(group));
+  assert(group.note === 'GND 网络：仅显示，不推算信号约束，不执行核查', group.note);
+});
+
 t('按 _P/_N 配对后只用 HDI 激光孔中心计算 0.600mm，排除偏移 PTH', () => {
   assert(pGroup.mateNet === 'DP_N' && nGroup.mateNet === 'DP_P', pGroup.mateNet + '/' + nGroup.mateNet);
   near(pGroup.pitchMm, 0.6, 1e-9, 'P/N HDI 中心距');

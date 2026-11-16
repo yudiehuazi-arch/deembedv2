@@ -333,10 +333,11 @@
       var pitchMembers = unit.pitchMode === 'HDI' ? ('，参与 Via ' + unit.pitchViaIds.join('、') + ' ↔ Via ' + unit.matePitchViaIds.join('、')) : '';
       var namingIssues = VI.padstackNamingIssues(unit.vias);
       var namingReason = namingIssues.map(function (x) { return 'Via ' + x.via.id + '：' + x.reason; }).join('；');
+      var groundNet = String(unit.via.net || '').trim().toUpperCase() === 'GND';
       var note = unit.signal
         ? ('SIG 完整孔组 ' + unit.memberIds.length + ' 段（Via ' + unit.memberIds.join('、') + '），连接 ' + spanText +
           (unit.pitchMm != null ? ('，' + (unit.pitchMode === 'HDI' ? 'HDI 激光孔中心距 ' : '差分孔中心距 ') + unit.pitchMm.toFixed(3) + ' mm' + pitchMembers + '，匹配最近约束值') : '，未找到差分配对孔'))
-        : 'Padstack 不含 SIG：仅显示，不推算约束，不执行核查';
+        : (groundNet ? 'GND 网络：仅显示，不推算信号约束，不执行核查' : 'Padstack 不含 SIG：仅显示，不推算约束，不执行核查');
       if (namingReason) note += '；Padstack 信号命名不符合：' + namingReason;
 
       var rows = near.map(function (sh) {

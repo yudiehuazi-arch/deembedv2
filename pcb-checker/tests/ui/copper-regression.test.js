@@ -309,26 +309,27 @@ setTimeout(() => {
     add(404, '', 4000);
     return out;
   })();
-  t('没推算到约束时显示全部网络、GND、非 GND 与无网络计数', () => {
+  t('没推算到约束排除 GND，并统计非 GND 与无网络', () => {
     w.__noRuleNetItems = noRuleNetItems;
     w.eval("S.sets=[]; UI.items=window.__noRuleNetItems; UI.resFilter='norule'; UI.resNet=''; UI.resRule=''; UI.resSearch=''; UI.onlyBad=false; runCheck(true); renderResults();");
     const bar = $('noRuleNetFilters');
     if (bar.hidden) throw new Error('网络类别选项未显示');
     const counts = {};
     bar.querySelectorAll('.no-rule-net-chip').forEach(btn => { counts[btn.dataset.netKind || 'all'] = +btn.querySelector('.cn').textContent; });
-    if (JSON.stringify(counts) !== JSON.stringify({all:4,gnd:1,other:2,none:1})) throw new Error(JSON.stringify(counts));
+    if (JSON.stringify(counts) !== JSON.stringify({all:3,gnd:0,other:2,none:1})) throw new Error(JSON.stringify(counts));
   });
-  t('没推算到约束可按 GND、非 GND、无网络切换显示', () => {
+  t('GND 不进入没推算到约束，非 GND 与无网络仍可切换', () => {
     const clickKind = kind => d.querySelector('#noRuleNetFilters [data-net-kind="' + kind + '"]').click();
     clickKind('gnd');
-    if (renderedGroups() !== 1 || d.querySelector('#checkOut .set b').textContent !== 'GND') throw new Error('GND 筛选异常');
-    if ($('resHint').textContent.indexOf('网络类别 GND') < 0) throw new Error($('resHint').textContent);
+    if (renderedGroups() !== 0) throw new Error('GND 不应进入未推算到约束');
+    clickKind('gnd');
+    if (renderedGroups() !== 3 || w.eval('UI.resNet') !== '') throw new Error('GND 筛选未恢复全部');
     clickKind('other');
     if (renderedGroups() !== 2) throw new Error('非 GND 组数 ' + renderedGroups());
     clickKind('none');
     if (renderedGroups() !== 1 || d.querySelector('#checkOut .set b').textContent !== '无网络') throw new Error('无网络筛选异常');
     clickKind('none');
-    if (renderedGroups() !== 4 || w.eval('UI.resNet') !== '') throw new Error('重复点击未恢复全部网络');
+    if (renderedGroups() !== 3 || w.eval('UI.resNet') !== '') throw new Error('重复点击未恢复全部网络');
     $('btnOnlyMatched').click();
     if (!$('noRuleNetFilters').hidden || w.eval('UI.resNet') !== '') throw new Error('离开未推算筛选后网络类别未清理');
     w.eval("UI.items=CopperCheck.parseBoardItems(window.__sampleTxt)");
@@ -407,7 +408,9 @@ setTimeout(() => {
     w.eval("S.sets=[]; UI.items=window.__noRuleNetItems; runCheck(true); CopperCanvas.state.groupIndex=-1; renderCopperCanvas();");
     if ($('copperCanvasIssueDetailTitle').textContent !== '网络名') throw new Error('未推算类别未切换到网络名');
     const nets = [...detail.options].map(o => o.textContent);
-    if (!['全部网络名','GND','SIG_A','VCC_3V3','无网络'].every(x => nets.includes(x))) throw new Error(JSON.stringify(nets));
+    if (!['全部网络名','SIG_A','VCC_3V3','无网络'].every(x => nets.includes(x)) || nets.includes('GND')) throw new Error(JSON.stringify(nets));
+    highlights = w.CopperCanvas.collectFailureHighlights();
+    if (highlights.groupCount !== 3 || highlights.viaCount !== 3 || highlights.vias['401']) throw new Error('GND 被标为未推算 ' + JSON.stringify(highlights));
     detail.value = 'SIG_A'; detail.dispatchEvent(new w.Event('change', {bubbles:true}));
     highlights = w.CopperCanvas.collectFailureHighlights();
     if (highlights.groupCount !== 1 || highlights.viaCount !== 1 || highlights.shapeCount !== 1) throw new Error('网络名筛选异常 ' + JSON.stringify(highlights));
