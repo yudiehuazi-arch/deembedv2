@@ -4,12 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PCB 综合一体化检查</title>
-<link rel="stylesheet" href="assets/styles/tokens.css?v=34">
-<link rel="stylesheet" href="assets/styles/eda-shell.css?v=34">
-<link rel="stylesheet" href="assets/styles/eda-dock.css?v=34">
-<link rel="stylesheet" href="assets/styles/components.css?v=34">
-<link rel="stylesheet" href="assets/styles/pages/unified.css?v=34">
-<link rel="stylesheet" href="assets/styles/pages/unified-config.css?v=34">
+<link rel="stylesheet" href="assets/styles/tokens.css?v=35">
+<link rel="stylesheet" href="assets/styles/eda-shell.css?v=35">
+<link rel="stylesheet" href="assets/styles/eda-dock.css?v=35">
+<link rel="stylesheet" href="assets/styles/components.css?v=35">
+<link rel="stylesheet" href="assets/styles/pages/unified.css?v=35">
+<link rel="stylesheet" href="assets/styles/pages/unified-config.css?v=35">
 </head>
 <body class="eda-workbench">
 
@@ -479,7 +479,8 @@
                       <th style="width:90px">模板缩略图</th>
                       <th style="width:180px">模板名称</th>
                       <th style="width:140px">过孔类型</th>
-                      <th style="width:120px" data-tip="检查时计算该过孔与同一差分网络另一过孔的中心距，匹配容差为 0.01 mil">差分孔中心距 mil</th>
+                      <th style="width:120px" data-tip="查找默认 0.175 mm（可修改）内最近的同网络 HDI 孔，以目标 Via 到该 HDI Via 的中心距匹配模板；模板值单位 mil，匹配容差 0.01 mil">差分孔中心距</th>
+                      <th style="width:105px" data-tip="每个目标过孔仅关联该距离内同网络且 Padstack 含 HDI 的孔">HDI 搜索距离 mm</th>
                       <th style="width:100px" data-tip="支持同时填写多个目标层，使用逗号、分号或斜杠分隔">目标层别</th>
                       <th style="width:160px">期望面积与容差</th>
                       <th style="width:110px;text-align:right">操作</th>
@@ -1105,7 +1106,7 @@
         </div>
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:12px">
         <div>
           <label style="font-weight:600;color:#374151;display:block;margin-bottom:4px" data-tip="支持同时填写多个目标层，使用逗号、分号或斜杠分隔">目标层别 *</label>
           <input type="text" id="modalPourShapeInpLayer" style="width:100%" placeholder="例如: L5, L10" data-no-persist>
@@ -1116,10 +1117,11 @@
           </div>
         </div>
         <div>
-          <label style="font-weight:600;color:#374151;display:block;margin-bottom:4px" data-tip="先匹配过孔类型，再计算该过孔与同一差分网络另一过孔的中心距，匹配容差为 0.01 mil">差分孔中心距 mil *</label>
+          <label style="font-weight:600;color:#374151;display:block;margin-bottom:4px" data-tip="查找默认 0.175 mm（可修改）内最近的同网络 HDI 孔，以目标 Via 到该 HDI Via 的中心距匹配模板；模板值单位 mil，匹配容差 0.01 mil">差分孔中心距 *</label>
           <input type="number" id="modalPourShapeInpDiffDist" value="10.0" min="0.01" step="0.01" style="width:100%" data-no-persist>
           <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px"><span class="hist-chip" onclick="fillInput('modalPourShapeInpDiffDist','10.0')">10.0 mil</span><span class="hist-chip" onclick="fillInput('modalPourShapeInpDiffDist','19.68')">19.68 mil</span><span class="hist-chip" onclick="fillInput('modalPourShapeInpDiffDist','23.62')">23.62 mil</span></div>
         </div>
+        <div><label style="font-weight:600;color:#374151;display:block;margin-bottom:4px" data-tip="目标过孔仅关联该距离内同网络且 Padstack 名称含 HDI 的激光孔">HDI 搜索距离 mm *</label><input type="number" id="modalPourShapeInpHdiRadius" value="0.175" min="0.001" step="0.001" style="width:100%" data-no-persist><div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px"><span class="hist-chip" onclick="fillInput('modalPourShapeInpHdiRadius','0.175')">0.175 mm</span><span class="hist-chip" onclick="fillInput('modalPourShapeInpHdiRadius','0.150')">0.150 mm</span></div></div>
         <div>
           <label style="font-weight:600;color:#374151;display:block;margin-bottom:4px">面积允许容差 ± sq mil</label>
           <input type="number" id="modalPourShapeInpTol" value="30.0" step="5.0" style="width:100%" data-no-persist>
@@ -1288,49 +1290,49 @@
 </div>
 
 
-<script src="packages/shared/xlsx-export.js?v=34"></script>
-<script src="packages/shared/shape-preview-canvas.js?v=34"></script>
-<script src="packages/geometry/pad-primitives.js?v=34"></script>
-<script src="packages/geometry/pad-region.js?v=34"></script>
-<script src="packages/engines/copper/via-constraint-inference.js?v=34"></script><script src="packages/engines/copper/copper-engine.js?v=34"></script>
-<script src="packages/engines/copper/constraint-parser.js?v=34"></script>
-<script src="packages/engines/dfm/dfm-layers.js?v=34"></script>
-<script src="packages/engines/dfm/dfm-parser.js?v=34"></script>
-<script src="packages/engines/dfm/dfm-engine.js?v=34"></script>
-<script src="packages/engines/dfm/dfm-pattern.js?v=34"></script>
-<script src="packages/engines/fanout/fanout-parser.js?v=34"></script>
-<script src="packages/engines/fanout/fanout-palette.js?v=34"></script>
-<script src="packages/engines/fanout/fanout-scheme.js?v=34"></script>
-<script src="packages/engines/fanout/fanout-clustering.js?v=34"></script>
-<script src="packages/engines/fanout/fanout-inspector.js?v=34"></script>
-<script src="packages/engines/fanout/fanout-layout.js?v=34"></script>
-<script src="packages/engines/fanout/fanout-canvas.js?v=34"></script>
-<script src="packages/engines/pour/pour-geom.js?v=34"></script>
-<script src="packages/engines/pour/pour-parser.js?v=34"></script>
-<script src="packages/engines/pour/pour-engine.js?v=34"></script>
-<script src="packages/pages/unified/unified-constraint-parse.js?v=34"></script>
-<script src="packages/pages/unified/unified-defaults.js?v=34"></script>
-<script src="packages/pages/unified/unified-state.js?v=34"></script>
-<script src="packages/pages/unified/unified-data-ingest.js?v=34"></script>
-<script src="packages/pages/unified/unified-sample-data.js?v=34"></script>
-<script src="packages/pages/unified/unified-rules-constraint.js?v=34"></script>
-<script src="packages/pages/unified/unified-rules-dfm.js?v=34"></script>
-<script src="packages/pages/unified/unified-fanout-library.js?v=34"></script>
-<script src="packages/pages/unified/unified-fanout-batch.js?v=34"></script>
-<script src="packages/pages/unified/unified-fanout-naming.js?v=34"></script>
-<script src="packages/pages/unified/unified-fanout-viewer.js?v=34"></script>
-<script src="packages/pages/unified/unified-fanout-io.js?v=34"></script>
-<script src="packages/pages/unified/unified-rules-pour.js?v=34"></script>
-<script src="packages/pages/unified/unified-rules-render.js?v=34"></script>
-<script src="packages/pages/unified/unified-trace-analysis.js?v=34"></script>
-<script src="packages/pages/unified/unified-runner.js?v=34"></script>
-<script src="packages/pages/unified/unified-dashboard.js?v=34"></script>
-<script src="packages/pages/unified/unified-canvas-viewer.js?v=34"></script>
-<script src="packages/pages/unified/unified-rules-io.js?v=34"></script>
-<script src="packages/pages/unified/unified-report-export.js?v=34"></script>
-<script src="packages/pages/unified/unified-bootstrap.js?v=34"></script>
-<script src="packages/shared/eda-tooltip.js?v=34"></script>
-<script src="packages/shared/eda-shell.js?v=34"></script>
-<script src="packages/shared/ui-prefs.js?v=34"></script>
+<script src="packages/shared/xlsx-export.js?v=35"></script>
+<script src="packages/shared/shape-preview-canvas.js?v=35"></script>
+<script src="packages/geometry/pad-primitives.js?v=35"></script>
+<script src="packages/geometry/pad-region.js?v=35"></script>
+<script src="packages/engines/copper/via-constraint-inference.js?v=35"></script><script src="packages/engines/copper/copper-engine.js?v=35"></script>
+<script src="packages/engines/copper/constraint-parser.js?v=35"></script>
+<script src="packages/engines/dfm/dfm-layers.js?v=35"></script>
+<script src="packages/engines/dfm/dfm-parser.js?v=35"></script>
+<script src="packages/engines/dfm/dfm-engine.js?v=35"></script>
+<script src="packages/engines/dfm/dfm-pattern.js?v=35"></script>
+<script src="packages/engines/fanout/fanout-parser.js?v=35"></script>
+<script src="packages/engines/fanout/fanout-palette.js?v=35"></script>
+<script src="packages/engines/fanout/fanout-scheme.js?v=35"></script>
+<script src="packages/engines/fanout/fanout-clustering.js?v=35"></script>
+<script src="packages/engines/fanout/fanout-inspector.js?v=35"></script>
+<script src="packages/engines/fanout/fanout-layout.js?v=35"></script>
+<script src="packages/engines/fanout/fanout-canvas.js?v=35"></script>
+<script src="packages/engines/pour/pour-geom.js?v=35"></script>
+<script src="packages/engines/pour/pour-parser.js?v=35"></script>
+<script src="packages/engines/pour/pour-engine.js?v=35"></script>
+<script src="packages/pages/unified/unified-constraint-parse.js?v=35"></script>
+<script src="packages/pages/unified/unified-defaults.js?v=35"></script>
+<script src="packages/pages/unified/unified-state.js?v=35"></script>
+<script src="packages/pages/unified/unified-data-ingest.js?v=35"></script>
+<script src="packages/pages/unified/unified-sample-data.js?v=35"></script>
+<script src="packages/pages/unified/unified-rules-constraint.js?v=35"></script>
+<script src="packages/pages/unified/unified-rules-dfm.js?v=35"></script>
+<script src="packages/pages/unified/unified-fanout-library.js?v=35"></script>
+<script src="packages/pages/unified/unified-fanout-batch.js?v=35"></script>
+<script src="packages/pages/unified/unified-fanout-naming.js?v=35"></script>
+<script src="packages/pages/unified/unified-fanout-viewer.js?v=35"></script>
+<script src="packages/pages/unified/unified-fanout-io.js?v=35"></script>
+<script src="packages/pages/unified/unified-rules-pour.js?v=35"></script>
+<script src="packages/pages/unified/unified-rules-render.js?v=35"></script>
+<script src="packages/pages/unified/unified-trace-analysis.js?v=35"></script>
+<script src="packages/pages/unified/unified-runner.js?v=35"></script>
+<script src="packages/pages/unified/unified-dashboard.js?v=35"></script>
+<script src="packages/pages/unified/unified-canvas-viewer.js?v=35"></script>
+<script src="packages/pages/unified/unified-rules-io.js?v=35"></script>
+<script src="packages/pages/unified/unified-report-export.js?v=35"></script>
+<script src="packages/pages/unified/unified-bootstrap.js?v=35"></script>
+<script src="packages/shared/eda-tooltip.js?v=35"></script>
+<script src="packages/shared/eda-shell.js?v=35"></script>
+<script src="packages/shared/ui-prefs.js?v=35"></script>
 </body>
 </html>

@@ -45,7 +45,9 @@ function normalizeSpecialShapeTemplates(templates) {
   return templates.map(template => {
     const normalized = Object.assign({}, template);
     const centerDistance = parseFloat(normalized.differentialCenterDistance);
+    const hdiRadius = parseFloat(normalized.hdiSearchRadiusMm);
     normalized.differentialCenterDistance = centerDistance > 0 ? centerDistance : 10.0;
+    normalized.hdiSearchRadiusMm = hdiRadius > 0 ? hdiRadius : 0.175;
     return normalized;
   });
 }
@@ -95,6 +97,7 @@ const State = {
         name: 'L2特定异型铜皮_1',
         padstack: 'BGA_3510',
         differentialCenterDistance: 10.0,
+        hdiSearchRadiusMm: 0.175,
         layer: '02G01P',
         expectedArea: 452.4,
         areaTolerance: 30.0

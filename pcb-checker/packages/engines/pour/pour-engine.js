@@ -20,7 +20,6 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
   var expandLayerRange = parser.expandLayerRange;
   var parsePcbElements = parser.parsePcbElements;
   var parseShapeBlock = parser.parseShapeBlock;
-  var pairDifferentialVias = parser.pairDifferentialVias;
   var SPECIAL_SHAPE_CENTER_DISTANCE_TOLERANCE = 0.01;
   function checkViaLayerCoverage(vias, shapes, rules = [], availableLayers = []) {
     const results = [];
@@ -92,6 +91,26 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
     return bestShape;
   }
 
+  function findNearbySameNetHdi(via, vias, maxDistanceMil) {
+    const net = String(via.net || '').trim().toLowerCase();
+    let nearest = null;
+    let nearestDistance = Infinity;
+    if (!net || !(maxDistanceMil > 0)) return null;
+    (vias || []).forEach(candidate => {
+      if (candidate === via || !String(candidate.padstack || '').toLowerCase().includes('hdi')) return;
+      if (String(candidate.net || '').trim().toLowerCase() !== net) return;
+      const distance = dist2D(via.x, via.y, candidate.x, candidate.y);
+      const isNearer = distance < nearestDistance - 1e-9;
+      const isStableTie = Math.abs(distance - nearestDistance) <= 1e-9 && (!nearest ||
+        String(candidate.id).localeCompare(String(nearest.id), undefined, { numeric: true }) < 0);
+      if (distance <= maxDistanceMil + 1e-9 && (isNearer || isStableTie)) {
+        nearest = candidate;
+        nearestDistance = distance;
+      }
+    });
+    return nearest ? { via: nearest, distance: nearestDistance } : null;
+  }
+
   function checkSpecialShapedCopper(vias, shapes, templates = []) {
     const results = [];
     const shapesByLayer = new Map();
@@ -105,16 +124,18 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
       const targetLayers = [...new Set(expandLayerRange(tmpl.layer, [...shapesByLayer.keys()])
         .map(layer => layer.trim().toUpperCase()))];
       const expectedCenterDistance = parseFloat(tmpl.differentialCenterDistance);
+      const configuredHdiRadiusMm = parseFloat(tmpl.hdiSearchRadiusMm);
+      const hdiSearchRadiusMm = configuredHdiRadiusMm > 0 ? configuredHdiRadiusMm : 0.175;
+      const hdiSearchRadiusMil = hdiSearchRadiusMm * MIL_PER_MM;
       if (!(expectedCenterDistance > 0) || !targetLayers.length) return;
       const tmplName = tmpl.name || `异型铜皮模板_${tIdx + 1}`;
       const expectedArea = tmpl.expectedArea || (tmpl.shape ? tmpl.shape.area : 0);
       const tolArea = tmpl.areaTolerance != null ? parseFloat(tmpl.areaTolerance) : 30.0;
       const matchedVias = vias.filter(via => !padPattern || padPattern === '*' ||
         via.padstack.toLowerCase().includes(padPattern));
-      const pairsByVia = pairDifferentialVias(matchedVias);
       matchedVias.forEach(via => {
-        const pair = pairsByVia.get(via);
-        if (!pair || Math.abs(pair.distance - expectedCenterDistance) > SPECIAL_SHAPE_CENTER_DISTANCE_TOLERANCE) return;
+        const nearbyHdi = findNearbySameNetHdi(via, vias, hdiSearchRadiusMil);
+        if (!nearbyHdi || Math.abs(nearbyHdi.distance - expectedCenterDistance) > SPECIAL_SHAPE_CENTER_DISTANCE_TOLERANCE) return;
         targetLayers.forEach(targetLayer => {
           const bestShape = findAssociatedShape(via, shapesByLayer.get(targetLayer) || []);
           let isMatch = false;
@@ -134,14 +155,16 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
             checkCategory: 'special_shape', checkCategoryName: '② 特定异型铜皮比对检查',
             templateIndex: tIdx + 1, templateId: tmpl.id || `special_shape_${tIdx + 1}`, templateName: tmplName,
             viaId: via.id, viaPadstack: via.padstack, viaNet: via.net, viaCoord: [via.x, via.y],
-            pairedViaId: pair.mate.id, pairedViaNet: pair.mate.net,
-            actualDifferentialCenterDistance: pair.distance,
+            actualHdiViaId: nearbyHdi.via.id, actualHdiViaPadstack: nearbyHdi.via.padstack,
+            hdiAssociationDistance: nearbyHdi.distance,
+            hdiSearchRadiusMm,
+            actualDifferentialCenterDistance: nearbyHdi.distance,
             expectedDifferentialCenterDistance: expectedCenterDistance,
             layer: targetLayer, targetShapeId: bestShape ? bestShape.id : null,
             actualArea: bestShape ? bestShape.area : 0, expectedArea, areaTolerance: tolArea, pass: isMatch,
             message: isMatch
-              ? `✅ 符合：孔 #${via.id} 与孔 #${pair.mate.id} 中心距 ${roundN(pair.distance, 2)} mil，在 ${targetLayer} 层的铜皮与异型模板【${tmplName}】匹配 (实测面积 ${bestShape ? roundN(bestShape.area, 1) : '-'} sq mil)`
-              : `❌ 不符合：孔 #${via.id} 与孔 #${pair.mate.id} 中心距 ${roundN(pair.distance, 2)} mil，在 ${targetLayer} 层异型铜皮不匹配 (${failReason})`
+              ? `✅ 符合：孔 #${via.id} 到同网络 HDI 孔 #${nearbyHdi.via.id} 的中心距 ${roundN(nearbyHdi.distance, 2)} mil，在 ${targetLayer} 层的铜皮与异型模板【${tmplName}】匹配 (实测面积 ${bestShape ? roundN(bestShape.area, 1) : '-'} sq mil)`
+              : `❌ 不符合：孔 #${via.id} 到同网络 HDI 孔 #${nearbyHdi.via.id} 的中心距 ${roundN(nearbyHdi.distance, 2)} mil，在 ${targetLayer} 层异型铜皮不匹配 (${failReason})`
           });
         });
       });
@@ -432,7 +455,7 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
         g.actualArea = s0.actualArea;
         g.failCount = failedSubs.length;
         g.passCount = subs.length - failedSubs.length;
-        g.metricsStr = `差分孔中心距: ${roundN(s0.actualDifferentialCenterDistance, 2)} mil (规则 ${s0.expectedDifferentialCenterDistance} mil)；${subs.map(s => `${s.layer} 实测面积 ${roundN(s.actualArea, 1)} sq mil`).join('；')}`;
+        g.metricsStr = `差分孔中心距: ${roundN(s0.actualDifferentialCenterDistance, 2)} mil (目标孔 #${s0.viaId} → HDI #${s0.actualHdiViaId}；规则 ${s0.expectedDifferentialCenterDistance} mil；搜索距离 ≤ ${s0.hdiSearchRadiusMm} mm)；${subs.map(s => `${s.layer} 实测面积 ${roundN(s.actualArea, 1)} sq mil`).join('；')}`;
         g.message = allPass
           ? `✅ 符合：孔 #${g.viaId} 在目标层【${g.layerListStr}】的铜皮均匹配异型模板【${s0.templateName}】`
           : failedSubs.map(s => s.message).join('；');
@@ -484,8 +507,8 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
       { id: 'cov_2', padstack: 'BGA_GND_pad1mil_0902', layers: '02G01P, 19IS08', coverageRadius: 50.0 }
     ];
     const specialShapeTemplates = config.specialShapeTemplates || [
-      { id: 'tmpl_1', name: 'L2特定异型泪滴铜皮', padstack: 'BGA_3510', differentialCenterDistance: 10.0, layer: '02G01P', expectedArea: 452.38, areaTolerance: 30.0 },
-      { id: 'tmpl_2', name: 'L19特定异型铜皮', padstack: 'BGA_3510', differentialCenterDistance: 10.0, layer: '19IS08', expectedArea: 113.10, areaTolerance: 20.0 }
+      { id: 'tmpl_1', name: 'L2特定异型泪滴铜皮', padstack: 'BGA_3510', differentialCenterDistance: 10.0, hdiSearchRadiusMm: 0.175, layer: '02G01P', expectedArea: 452.38, areaTolerance: 30.0 },
+      { id: 'tmpl_2', name: 'L19特定异型铜皮', padstack: 'BGA_3510', differentialCenterDistance: 10.0, hdiSearchRadiusMm: 0.175, layer: '19IS08', expectedArea: 113.10, areaTolerance: 20.0 }
     ];
     const traceMarginRules = config.traceMarginRules || [
       { id: 'margin_1', traceLayer: '19IS08', upperRefLayer: '08IS03', lowerRefLayer: 'Bottom', minMargin: 50.0 },

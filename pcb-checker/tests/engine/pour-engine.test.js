@@ -57,7 +57,10 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
     ['line', 'line', 'arc', 'arc', 'arc', 'arc', 'line', 'line', 'arc', 'line', 'arc']);
   assert.ok(Math.abs(shape.areaComputed - shape.areaReported) < 0.6,
     `真实扫掠轮廓面积 ${shape.areaComputed} 应接近 EDA 报告面积 ${shape.areaReported}`);
-  console.log('  PASS  EDA 异型铜皮：Seg 与 Arc seg 按原始顺序解析为真实扫掠轮廓');
+  assert.ok(/Item\s+1\s+< Shape >/.test(shape.rawText) && /Subset:\s+05G02P/.test(shape.rawText),
+    '解析后的 Shape 应保留可回填编辑框的原始 TXT 块');
+  assert.ok(!Object.keys(shape).includes('rawText'), '原始 TXT 不应污染 Shape 的 JSON 导出字段');
+  console.log('  PASS  EDA 异型铜皮：Seg 与 Arc seg 按原始顺序解析并保留源 TXT');
 }
 
 // 2. 第一项：孔经过层铺铜覆盖检查 (Via Layer Coverage Check)
@@ -104,7 +107,9 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
 {
   const vias = [
     { id: 10, x: 23286.13, y: 27990.27, padstack: 'BGA_3510_L19_ring3mil_L2pad_0907', net: '63_N' },
-    { id: 11, x: 23296.13, y: 27990.27, padstack: 'BGA_3510_L19_ring3mil_L2pad_0907', net: '63_P' }
+    { id: 11, x: 23296.13, y: 27990.27, padstack: 'BGA_3510_L19_ring3mil_L2pad_0907', net: '63_P' },
+    { id: 12, x: 23287.13, y: 27990.27, padstack: 'HDI_045drill_N', net: '63_N' },
+    { id: 13, x: 23297.13, y: 27990.27, padstack: 'HDI_045drill_P', net: '63_P' }
   ];
 
   const shapes = [
@@ -124,7 +129,7 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   const templates = [
     {
       id: 'tmpl_1', name: 'L2特定异型铜皮',
-      padstack: 'BGA_3510', differentialCenterDistance: 10.0, layer: '02G01P；L3',
+      padstack: 'BGA_3510', differentialCenterDistance: 1.0, layer: '02G01P；L3',
       expectedArea: 452.38, areaTolerance: 10.0
     }
   ];
@@ -134,35 +139,58 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   assert.deepStrictEqual([...new Set(res.map(item => item.layer))].sort(), ['02G01P', 'L3']);
   assert.ok(res.filter(item => item.layer === '02G01P').every(item => item.pass));
   assert.ok(res.filter(item => item.layer === 'L3').every(item => !item.pass));
-  assert.ok(res.every(item => item.actualDifferentialCenterDistance === 10));
+  assert.ok(res.every(item => item.actualDifferentialCenterDistance === 1));
+  assert.ok(res.every(item => [12, 13].includes(item.actualHdiViaId) && item.hdiSearchRadiusMm === 0.175));
   const grouped = groupResultsByTargetObject(res);
   assert.strictEqual(grouped.length, 2, '每颗差分孔的多个目标层应汇总为一个对象');
   assert.ok(grouped.every(item => !item.pass && item.failCount === 1 && item.subRecords.length === 2 && item.layerListStr.includes('L3')));
   console.log('  PASS  第二项：过孔类型、差分孔中心距与多个目标层依次匹配异型铜皮模板');
 }
 
-// 4. 同一过孔类型按差分孔中心距选择唯一模板，且配对不跨过孔类型
+// 4. 每颗目标 Via 独立关联最近的同网络 HDI Via，并按实测中心距选择模板
 {
+  const defaultRadiusMil = 0.175 * 1000 / 25.4;
   const vias = [
-    { id: 20, x: 0, y: 0, padstack: 'TYPE_A_SIG', net: '88_P' },
-    { id: 21, x: 30, y: 0, padstack: 'TYPE_A_SIG', net: '88_N' },
-    { id: 22, x: 10, y: 0, padstack: 'TYPE_B_SIG', net: '88_N' }
+    { id: 20, x: 0, y: 0, padstack: 'TYPE_A_SIG', net: 'NET_A' },
+    { id: 21, x: 20, y: 0, padstack: 'TYPE_A_SIG', net: 'NET_B' },
+    { id: 22, x: 40, y: 0, padstack: 'TYPE_A_SIG', net: 'NET_C' },
+    { id: 23, x: 60, y: 0, padstack: 'TYPE_A_SIG', net: 'NET_D' },
+    // NET_A 的等距 HDI 候选故意逆 ID 排列，确定性规则应选较小 ID 30。
+    { id: 31, x: -2, y: 0, padstack: 'LASER_HDI_A_TIE', net: 'NET_A' },
+    { id: 30, x: 2, y: 0, padstack: 'HDI_LASER_A_NEAREST', net: 'NET_A' },
+    { id: 38, x: 5, y: 0, padstack: 'HDI_LASER_A_FARTHER', net: 'NET_A' },
+    { id: 32, x: 0.25, y: 0, padstack: 'HDI_WRONG_NET', net: 'OTHER' },
+    { id: 33, x: 0.5, y: 0, padstack: 'MICRO_LASER', net: 'NET_A' },
+    { id: 34, x: 25, y: 0, padstack: 'laser_hdi_b', net: 'net_b' },
+    { id: 35, x: 41, y: 0, padstack: 'HDI_ONLY_WRONG_NET', net: 'OTHER' },
+    { id: 36, x: 60 + defaultRadiusMil, y: 0, padstack: 'HDI_BOUNDARY', net: 'NET_D' }
   ];
   const shapes = [
     { id: 210, layer: 'L2', area: 100, centroid: { x: 0, y: 0 } },
-    { id: 211, layer: 'L2', area: 100, centroid: { x: 30, y: 0 } }
+    { id: 211, layer: 'L2', area: 100, centroid: { x: 20, y: 0 } },
+    { id: 212, layer: 'L2', area: 100, centroid: { x: 40, y: 0 } },
+    { id: 213, layer: 'L2', area: 100, centroid: { x: 60, y: 0 } }
   ];
   const templates = [
-    { id: 'distance_30', name: '中心距30模板', padstack: 'TYPE_A', differentialCenterDistance: 30.009, layer: 'L2', expectedArea: 100, areaTolerance: 1 },
-    { id: 'outside_tolerance', name: '中心距超容差模板', padstack: 'TYPE_A', differentialCenterDistance: 30.011, layer: 'L2', expectedArea: 999, areaTolerance: 1 },
-    { id: 'distance_10', name: '中心距10模板', padstack: 'TYPE_A', differentialCenterDistance: 10, layer: 'L2', expectedArea: 999, areaTolerance: 1 }
+    { id: 'distance_2', name: '中心距2模板', padstack: 'TYPE_A', differentialCenterDistance: 2.009, layer: 'L2', expectedArea: 100, areaTolerance: 1 },
+    { id: 'outside_tolerance', name: '中心距超容差模板', padstack: 'TYPE_A', differentialCenterDistance: 2.011, layer: 'L2', expectedArea: 999, areaTolerance: 1 },
+    { id: 'distance_5', name: '中心距5模板', padstack: 'TYPE_A', differentialCenterDistance: 5, layer: 'L2', expectedArea: 100, areaTolerance: 1 },
+    { id: 'inclusive_boundary', name: '默认搜索边界模板', padstack: 'TYPE_A', differentialCenterDistance: defaultRadiusMil, layer: 'L2', expectedArea: 100, areaTolerance: 1 },
+    { id: 'narrow_search', name: '修改后搜索距离过小模板', padstack: 'TYPE_A', differentialCenterDistance: 2, hdiSearchRadiusMm: 0.05, layer: 'L2', expectedArea: 999, areaTolerance: 1 }
   ];
   const res = checkSpecialShapedCopper(vias, shapes, templates);
-  assert.strictEqual(res.length, 2, '仅中心距 30 mil 的 TYPE_A 模板应生成两颗孔的检查记录');
-  assert.ok(res.every(item => item.templateName === '中心距30模板' && item.pass));
-  assert.deepStrictEqual(res.map(item => item.pairedViaId).sort(), [20, 21]);
-  assert.ok(res.every(item => Math.abs(item.actualDifferentialCenterDistance - 30) < 1e-9));
-  console.log('  PASS  第二项：先按 Via 类型配对，再按差分孔中心距选取对应模板');
+  assert.strictEqual(res.length, 3, '三颗有合格同网络 HDI 孔的目标 Via 应各自选择一个中心距模板');
+  assert.deepStrictEqual(res.map(item => item.viaId).sort((a, b) => a - b), [20, 21, 23]);
+  assert.deepStrictEqual(res.map(item => item.templateId).sort(), ['distance_2', 'distance_5', 'inclusive_boundary']);
+  assert.ok(res.every(item => item.pass && item.hdiSearchRadiusMm === 0.175));
+  assert.strictEqual(res.find(item => item.viaId === 20).actualHdiViaId, 30, '多个/等距候选必须稳定选择最近且 ID 较小的 HDI Via');
+  assert.strictEqual(res.find(item => item.viaId === 20).actualDifferentialCenterDistance, 2);
+  assert.strictEqual(res.find(item => item.viaId === 21).actualHdiViaId, 34, '网络匹配应忽略大小写');
+  assert.ok(Math.abs(res.find(item => item.viaId === 23).actualDifferentialCenterDistance - defaultRadiusMil) < 1e-9, '默认 0.175 mm 边界应包含');
+  assert.ok(!res.some(item => item.viaId === 22), '无同网络 HDI 候选的目标 Via 不应匹配模板');
+  assert.ok(!res.some(item => item.templateId === 'narrow_search'), '缩小可配置搜索距离后不得关联范围外 HDI Via');
+  assert.ok(res.every(item => item.pairedViaId == null && item.pairedHdiViaId == null), '规则 2 不得依赖 _P/_N 目标孔配对');
+  console.log('  PASS  第二项：目标 Via 到最近同网络 HDI Via 的独立中心距、边界与可配置搜索距离');
 }
 
 // 5. 第三项：走线上/下参考层铺铜覆盖与单侧超宽检查 (Trace Reference Layer Margin)

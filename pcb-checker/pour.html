@@ -4,11 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PCB 铜皮检查工具</title>
-<link rel="stylesheet" href="assets/styles/tokens.css?v=34">
-<link rel="stylesheet" href="assets/styles/eda-shell.css?v=34">
-<link rel="stylesheet" href="assets/styles/eda-dock.css?v=34">
-<link rel="stylesheet" href="assets/styles/components.css?v=34">
-<link rel="stylesheet" href="assets/styles/pages/pour.css?v=34">
+<link rel="stylesheet" href="assets/styles/tokens.css?v=35">
+<link rel="stylesheet" href="assets/styles/eda-shell.css?v=35">
+<link rel="stylesheet" href="assets/styles/eda-dock.css?v=35">
+<link rel="stylesheet" href="assets/styles/components.css?v=35">
+<link rel="stylesheet" href="assets/styles/pages/pour.css?v=35">
 </head>
 <body class="eda-workbench">
 
@@ -138,7 +138,8 @@
                 <th style="width:68px">缩略图</th>
                 <th>模板名称</th>
                 <th data-tip="目标过孔 Padstack 匹配关键字">过孔类型</th>
-                <th data-tip="检查时计算该过孔与同一差分网络另一过孔的中心距，匹配容差为 0.01 mil">差分孔中心距 mil</th>
+                <th data-tip="查找默认 0.175 mm（可修改）内最近的同网络 HDI 孔，以目标 Via 到该 HDI Via 的中心距匹配模板；模板值单位 mil，匹配容差 0.01 mil">差分孔中心距</th>
+                <th data-tip="每个目标过孔仅关联该距离内同网络且 Padstack 含 HDI 的孔">HDI 搜索距离 mm</th>
                 <th data-tip="支持同时填写多个目标层，使用逗号、分号或斜杠分隔">目标层别</th>
                 <th>基准面积与容差</th>
                 <th style="width:124px">操作</th>
@@ -458,9 +459,14 @@
         <div class="chip-bar" id="chipsModalR2Padstack"></div>
       </div>
       <div class="form-item">
-        <label for="modalR2InpDiffDist" data-tip="先匹配过孔类型，再计算该过孔与同一差分网络另一过孔的中心距，匹配容差为 0.01 mil">差分孔中心距 mil *</label>
+        <label for="modalR2InpDiffDist" data-tip="查找默认 0.175 mm（可修改）内最近的同网络 HDI 孔，以目标 Via 到该 HDI Via 的中心距匹配模板；模板值单位 mil，匹配容差 0.01 mil">差分孔中心距 *</label>
         <input type="number" id="modalR2InpDiffDist" value="10.0" step="0.01" min="0.01" data-no-persist>
         <div class="chip-bar" id="chipsModalR2DiffDist"></div>
+      </div>
+      <div class="form-item">
+        <label for="modalR2InpHdiRadius" data-tip="目标过孔仅关联该距离内同网络且 Padstack 名称含 HDI 的激光孔">HDI 搜索距离 mm *</label>
+        <input type="number" id="modalR2InpHdiRadius" value="0.175" step="0.001" min="0.001" data-no-persist>
+        <div class="chip-bar" id="chipsModalR2HdiRadius"></div>
       </div>
       <div class="form-item">
         <label for="modalR2InpLayer" data-tip="支持同时填写多个 EDA Subset 层名，使用逗号、分号或斜杠分隔">目标层别 *</label>
@@ -552,17 +558,17 @@
   </div>
 </div>
 
-<script src="packages/shared/dom-utils.js?v=34"></script>
-<script src="packages/shared/shape-preview-canvas.js?v=34"></script>
-<script src="packages/engines/pour/pour-geom.js?v=34"></script>
-<script src="packages/engines/pour/pour-parser.js?v=34"></script>
-<script src="packages/engines/pour/pour-engine.js?v=34"></script>
-<script src="packages/pages/pour/pour-state.js?v=34"></script>
-<script src="packages/pages/pour/pour-rules-ui.js?v=34"></script>
-<script src="packages/pages/pour/pour-results-ui.js?v=34"></script>
-<script src="packages/pages/pour/pour-canvas-viewer.js?v=34"></script>
-<script src="packages/shared/eda-tooltip.js?v=34"></script>
-<script src="packages/shared/eda-shell.js?v=34"></script>
-<script src="packages/shared/ui-prefs.js?v=34"></script>
+<script src="packages/shared/dom-utils.js?v=35"></script>
+<script src="packages/shared/shape-preview-canvas.js?v=35"></script>
+<script src="packages/engines/pour/pour-geom.js?v=35"></script>
+<script src="packages/engines/pour/pour-parser.js?v=35"></script>
+<script src="packages/engines/pour/pour-engine.js?v=35"></script>
+<script src="packages/pages/pour/pour-state.js?v=35"></script>
+<script src="packages/pages/pour/pour-rules-ui.js?v=35"></script>
+<script src="packages/pages/pour/pour-results-ui.js?v=35"></script>
+<script src="packages/pages/pour/pour-canvas-viewer.js?v=35"></script>
+<script src="packages/shared/eda-tooltip.js?v=35"></script>
+<script src="packages/shared/eda-shell.js?v=35"></script>
+<script src="packages/shared/ui-prefs.js?v=35"></script>
 </body>
 </html>

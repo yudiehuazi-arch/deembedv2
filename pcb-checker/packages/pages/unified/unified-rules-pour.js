@@ -20,6 +20,9 @@ function openAddPourShapeModal() {
   $('modalPourShapeInpDiffDist').value = '10.0';
   $('modalPourShapeInpDiffDist').disabled = false;
   $('modalPourShapeInpDiffDist').style.background = '#ffffff';
+  $('modalPourShapeInpHdiRadius').value = '0.175';
+  $('modalPourShapeInpHdiRadius').disabled = false;
+  $('modalPourShapeInpHdiRadius').style.background = '#ffffff';
   $('modalPourShapeInpLayer').value = '02G01P';
   $('modalPourShapeInpLayer').disabled = false;
   $('modalPourShapeInpLayer').style.background = '#ffffff';
@@ -51,6 +54,10 @@ function editPourShapeTemplate(idx) {
   $('modalPourShapeInpDiffDist').value = t.differentialCenterDistance || 10.0;
   $('modalPourShapeInpDiffDist').disabled = false;
   $('modalPourShapeInpDiffDist').style.background = '#ffffff';
+
+  $('modalPourShapeInpHdiRadius').value = t.hdiSearchRadiusMm || 0.175;
+  $('modalPourShapeInpHdiRadius').disabled = false;
+  $('modalPourShapeInpHdiRadius').style.background = '#ffffff';
 
   $('modalPourShapeInpLayer').value = t.layer || '02G01P';
   $('modalPourShapeInpLayer').disabled = false;
@@ -123,6 +130,8 @@ function savePourShapeFromModal() {
 
   const padstack = $('modalPourShapeInpPadstack').value.trim() || 'BGA_3510';
   const diffCenterDistance = parseFloat($('modalPourShapeInpDiffDist').value) || 10.0;
+  const hdiRadiusInput = parseFloat($('modalPourShapeInpHdiRadius').value);
+  const hdiSearchRadiusMm = hdiRadiusInput > 0 ? hdiRadiusInput : 0.175;
   const layer = $('modalPourShapeInpLayer').value.trim() || '02G01P';
   const tol = parseFloat($('modalPourShapeInpTol').value) || 30.0;
   const rawTxt = $('modalPourShapeTxt').value;
@@ -135,6 +144,7 @@ function savePourShapeFromModal() {
     t.name = name;
     t.padstack = padstack;
     t.differentialCenterDistance = diffCenterDistance;
+    t.hdiSearchRadiusMm = hdiSearchRadiusMm;
     t.layer = layer;
     t.expectedArea = area;
     t.areaTolerance = tol;
@@ -149,6 +159,7 @@ function savePourShapeFromModal() {
       name,
       padstack,
       differentialCenterDistance: diffCenterDistance,
+      hdiSearchRadiusMm,
       layer,
       expectedArea: area,
       areaTolerance: tol,

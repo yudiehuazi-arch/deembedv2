@@ -69,6 +69,7 @@
         '<td><strong>' + esc(t.name) + '</strong></td>' +
         '<td><span class="badge-tag copper">' + esc(t.padstack) + '</span></td>' +
         '<td><strong>' + esc(t.differentialCenterDistance) + ' mil</strong></td>' +
+        '<td><strong>' + esc(t.hdiSearchRadiusMm || 0.175) + ' mm</strong></td>' +
         '<td><span class="badge-tag gray">' + esc(t.layer) + '</span></td>' +
         '<td><strong>' + esc(areaNum) + ' sq mil</strong> ±' + esc(t.areaTolerance) + '</td>' +
         '<td><div class="row" style="gap:4px">' +
@@ -164,8 +165,8 @@
   }
 
   function enableRule2Inputs() {
-    ['modalR2InpName', 'modalR2InpPadstack', 'modalR2InpDiffDist', 'modalR2InpLayer',
-      'modalR2InpTol', 'modalR2TxtShape'].forEach(function (id) {
+    ['modalR2InpName', 'modalR2InpPadstack', 'modalR2InpDiffDist', 'modalR2InpHdiRadius',
+      'modalR2InpLayer', 'modalR2InpTol', 'modalR2TxtShape'].forEach(function (id) {
       var el = document.getElementById(id);
       if (!el) return;
       el.disabled = false;
@@ -180,6 +181,7 @@
     document.getElementById('modalR2InpName').value = 'L2特定异型铜皮_' + (State.specialShapeTemplates.length + 1);
     document.getElementById('modalR2InpPadstack').value = 'BGA_3510';
     document.getElementById('modalR2InpDiffDist').value = '10.0';
+    document.getElementById('modalR2InpHdiRadius').value = '0.175';
     document.getElementById('modalR2InpLayer').value = '02G01P';
     document.getElementById('modalR2InpTol').value = '30.0';
     document.getElementById('modalR2TxtShape').value =
@@ -198,6 +200,7 @@
     document.getElementById('modalR2InpName').value = t.name;
     document.getElementById('modalR2InpPadstack').value = t.padstack;
     document.getElementById('modalR2InpDiffDist').value = t.differentialCenterDistance || 10.0;
+    document.getElementById('modalR2InpHdiRadius').value = t.hdiSearchRadiusMm || 0.175;
     document.getElementById('modalR2InpLayer').value = t.layer;
     document.getElementById('modalR2InpTol').value = t.areaTolerance;
     document.getElementById('modalR2TxtShape').value = typeof t.rawShapeText === 'string'
@@ -241,6 +244,8 @@
     var name = document.getElementById('modalR2InpName').value.trim();
     var pad = document.getElementById('modalR2InpPadstack').value.trim();
     var diffDist = parseFloat(document.getElementById('modalR2InpDiffDist').value) || 10.0;
+    var hdiRadiusInput = parseFloat(document.getElementById('modalR2InpHdiRadius').value);
+    var hdiSearchRadiusMm = hdiRadiusInput > 0 ? hdiRadiusInput : 0.175;
     var layer = document.getElementById('modalR2InpLayer').value.trim();
     var tol = parseFloat(document.getElementById('modalR2InpTol').value) || 30.0;
     var rawTxt = document.getElementById('modalR2TxtShape').value;
@@ -249,6 +254,7 @@
     recordHistory('r2_name', name);
     recordHistory('r2_padstack', pad);
     recordHistory('r2_diff_dist', String(diffDist));
+    recordHistory('r2_hdi_radius', String(hdiSearchRadiusMm));
     recordHistory('r2_layer', layer);
     recordHistory('r2_tol', String(tol));
 
@@ -262,6 +268,7 @@
       name: name,
       padstack: pad,
       differentialCenterDistance: diffDist,
+      hdiSearchRadiusMm: hdiSearchRadiusMm,
       layer: layer,
       expectedArea: expectedArea,
       areaTolerance: tol,
@@ -393,7 +400,9 @@
       State.specialShapeTemplates = data.specialShapeTemplates;
       State.specialShapeTemplates.forEach(function (t) {
         var centerDistance = parseFloat(t.differentialCenterDistance);
+        var hdiRadius = parseFloat(t.hdiSearchRadiusMm);
         t.differentialCenterDistance = centerDistance > 0 ? centerDistance : 10.0;
+        t.hdiSearchRadiusMm = hdiRadius > 0 ? hdiRadius : 0.175;
         if (t.rawShapeText && !t.shape && root.PourChecker && root.PourChecker.parsePcbElements) {
           try {
             var parsed = root.PourChecker.parsePcbElements(t.rawShapeText);
@@ -478,8 +487,8 @@
       { id: 'cov_2', padstack: 'BGA_GND_pad1mil_0902', layers: '02G01P, 19IS08', coverageRadius: 30.0 }
     ];
     State.specialShapeTemplates = [
-      { id: 'tmpl_1', name: 'L2特定异型泪滴铜皮', padstack: 'BGA_3510', differentialCenterDistance: 10.0, layer: '02G01P', expectedArea: 452.38, areaTolerance: 30.0, rawShapeText: '' },
-      { id: 'tmpl_2', name: 'L19特定异型铜皮', padstack: 'BGA_3510', differentialCenterDistance: 10.0, layer: '19IS08', expectedArea: 113.10, areaTolerance: 20.0, rawShapeText: '' }
+      { id: 'tmpl_1', name: 'L2特定异型泪滴铜皮', padstack: 'BGA_3510', differentialCenterDistance: 10.0, hdiSearchRadiusMm: 0.175, layer: '02G01P', expectedArea: 452.38, areaTolerance: 30.0, rawShapeText: '' },
+      { id: 'tmpl_2', name: 'L19特定异型铜皮', padstack: 'BGA_3510', differentialCenterDistance: 10.0, hdiSearchRadiusMm: 0.175, layer: '19IS08', expectedArea: 113.10, areaTolerance: 20.0, rawShapeText: '' }
     ];
     State.traceMarginRules = [
       { id: 'margin_1', traceLayer: '19IS08', upperRefLayer: '08IS03', lowerRefLayer: 'Bottom', minMargin: 50.0 },

@@ -474,9 +474,12 @@ function handlePourShapeTxtFile(e) {
             name: `${sh.layer || 'L2'}导入异型铜皮_${State.rules.specialShapeTemplates.length + 1}`,
             padstack: 'BGA_3510',
             differentialCenterDistance: 10.0,
+            hdiSearchRadiusMm: 0.175,
             layer: sh.layer || '02G01P',
             expectedArea: parseFloat((sh.area || 452.4).toFixed(1)),
-            areaTolerance: 30.0
+            areaTolerance: 30.0,
+            rawTxt: sh.rawText || text,
+            shape: sh
           });
         });
         renderRulesUI();
@@ -489,6 +492,7 @@ function handlePourShapeTxtFile(e) {
           name: `${file.name.replace(/\.[^.]+$/, '')}`,
           padstack: 'BGA_3510',
           differentialCenterDistance: 10.0,
+          hdiSearchRadiusMm: 0.175,
           layer: '02G01P',
           expectedArea: 452.4,
           areaTolerance: 30.0
