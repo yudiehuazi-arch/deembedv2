@@ -331,10 +331,13 @@
       var traceList = Object.keys(traceNums).map(function (k) { return +k; });
       var spanText = unit.startLayer && unit.endLayer ? ('L' + unit.startLayer + '-L' + unit.endLayer) : '层跨未识别';
       var pitchMembers = unit.pitchMode === 'HDI' ? ('，参与 Via ' + unit.pitchViaIds.join('、') + ' ↔ Via ' + unit.matePitchViaIds.join('、')) : '';
+      var netName = String(via.net || '').trim(), padName = String(via.padstack || '').trim();
+      var nonGndNet = !!netName && netName.toUpperCase() !== 'GND', missingSig = !/SIG/i.test(padName), containsGnd = /GND/i.test(padName);
+      var namingReason = nonGndNet && (missingSig || containsGnd) ? [missingSig ? '未包含 SIG' : '', containsGnd ? '包含 GND' : ''].filter(Boolean).join('；') : '';
       var note = unit.signal
         ? ('SIG 完整孔组 ' + unit.memberIds.length + ' 段（Via ' + unit.memberIds.join('、') + '），连接 ' + spanText +
           (unit.pitchMm != null ? ('，' + (unit.pitchMode === 'HDI' ? 'HDI 激光孔中心距 ' : '差分孔中心距 ') + unit.pitchMm.toFixed(3) + ' mm' + pitchMembers + '，匹配最近约束值') : '，未找到差分配对孔'))
-        : 'Padstack 不含 SIG：仅显示，不推算约束，不执行核查';
+        : (namingReason ? ('Padstack 信号命名不符合：' + namingReason + '；不推算约束') : 'Padstack 不含 SIG：仅显示，不推算约束，不执行核查');
 
       var rows = near.map(function (sh) {
         var ctype = checkTypeOf(sh);
@@ -357,6 +360,12 @@
           shapeId: sh.id, subset: sh.subset, layer: layer, checkType: ctype,
           actual: sh.radius, expect: expect, status: status, constraint: constraint, enabled: on
         };
+      });
+      if (namingReason) rows.unshift({
+        shapeId: 'via', subset: '—', layer: '—', checkType: 'Padstack信号命名',
+        actual: padName || '无 Padstack', expect: '包含 SIG 且不包含 GND', status: '不符合',
+        constraint: '非 GND 网络命名规则', reason: '网络 ' + netName + ' 不是 GND，Padstack Name ' + namingReason,
+        enabled: true, isPadstackCheck: true
       });
       if (sel.rule && sel.rule.constraints) {
         var present = {};
@@ -509,7 +518,7 @@
       for (var fi = 0; fi < rows.length; fi++) if (rows[fi].status === '不符合') failRows.push(rows[fi]);
       return {
         via: via, vias: unit.vias, signal: unit.signal, keys: keys,
-        rule: sel.rule, candidates: sel.candidates, note: note,
+        rule: sel.rule, candidates: sel.candidates, note: note, namingError: namingReason,
         startLayer: unit.startLayer, endLayer: unit.endLayer,
         pitchMm: unit.pitchMm, pitchMode: unit.pitchMode, pitchViaIds: unit.pitchViaIds,
         matePitchViaIds: unit.matePitchViaIds, mateNet: unit.mateNet,

@@ -488,7 +488,7 @@
         '<span>' + esc(g.via.padstack || '无 Padstack') + '</span>' +
         '<span class="badge rev" style="margin-left:auto" id="grv-' + si + '" data-tip="点击整组切换复核状态">复核 0/' + failCount + '</span>' +
         (failCount ? ('<label class="grpRvw" data-tip="将本孔所有不符合项一次标为已复核"><input type="checkbox" class="grpBox" data-no-persist data-si="' + si + '">总复核</label>') : '') +
-        '<span>约束 ' + (g.rule ? esc(g.rule.title) : (g.signal !== false ? '未推算到' : '非 SIG · 不检查')) + '</span>' +
+        '<span>约束 ' + (g.rule ? esc(g.rule.title) : (g.signal !== false ? '未推算到' : (g.namingError ? '非 SIG · 命名不符合' : '非 SIG · 不检查'))) + '</span>' +
         '<button type="button" class="btn gray small copper-locate-btn" data-si="' + si + '" data-tip="在空间几何视口定位该完整孔">定位</button></div><div class="body">' +
         '<div class="srcnote">提取：' + esc(keyTxt(g)) + (g.note ? ' · ' + esc(g.note) : '') + (g.via.connections ? ' · ' + esc(g.via.connections) : '') + '</div>';
       if (!rows.length) {

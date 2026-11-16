@@ -178,37 +178,23 @@
       var r = find(idx);
       (comps[r] || (comps[r] = [])).push(v);
     });
-    var out = [];
-    Object.keys(comps).forEach(function (k) {
+    return Object.keys(comps).map(function (k) {
       var members = comps[k];
-      var signal = members.some(function (v) { return isSignalPadstack(v.padstack); });
-      if (signal) {
-        var first = Math.min.apply(null, members.map(function (v) { return firstOrder[v.id]; }));
-        out.push(buildUnit(members, n, true, first));
-      } else {
-        members.forEach(function (v) { out.push(buildUnit([v], n, false, firstOrder[v.id])); });
-      }
+      var order = Math.min.apply(null, members.map(function (v) { return firstOrder[v.id]; }));
+      return buildUnit(members, n, true, order);
     });
-    return out;
   }
 
   function groupVias(vias, n) {
     var byNet = {}, out = [], order = {};
     (vias || []).forEach(function (v, i) {
       order[v.id] = i;
+      if (!isSignalPadstack(v.padstack)) { out.push(buildUnit([v], n, false, i)); return; }
       var key = String(v.net || '');
       (byNet[key] || (byNet[key] = [])).push(v);
     });
     Object.keys(byNet).forEach(function (net) {
-      var members = byNet[net];
-      if (mateName(net)) {
-        out = out.concat(connectedUnits(members, n, order));
-        return;
-      }
-      var signal = members.filter(function (v) { return isSignalPadstack(v.padstack); });
-      var other = members.filter(function (v) { return !isSignalPadstack(v.padstack); });
-      if (signal.length) out = out.concat(connectedUnits(signal, n, order));
-      other.forEach(function (v) { out.push(buildUnit([v], n, false, order[v.id])); });
+      out = out.concat(connectedUnits(byNet[net], n, order));
     });
     return out.sort(function (a, b) { return a.order - b.order; });
   }

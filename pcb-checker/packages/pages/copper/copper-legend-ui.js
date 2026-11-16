@@ -176,7 +176,7 @@
 
     h += '<div class="hint" style="margin-top:20px;padding-top:12px;border-top:1px solid var(--line)">当前比对参数：位置容差 ' + pos + ' mil，数值容差 ' + val + ' mil。</div>' +
       '<h3>1. 铜皮 × 完整信号孔怎么配对</h3><ol class="rules">' +
-      '<li>仅含 <code>SIG</code> 的 Padstack 参与约束推算；非 SIG 过孔保留显示，但不推算、不核查。</li>' +
+      '<li>仅含 <code>SIG</code> 的 Padstack 参与约束推算；非 SIG 过孔不推算尺寸约束。网络非 GND 时，Padstack 未包含 <code>SIG</code> 或包含 <code>GND</code> 均报命名不符合。</li>' +
       '<li>同网络孔段中心距命中 0 / 0.025 / 0.075 / 0.125 / 0.175 mm（允许 ±0.005 mm）时组成一个完整孔。</li>' +
       '<li>完整孔内每个孔段坐标处、圆心距离 ≤ ' + pos + ' mil 的全部圆形 Route Keepout 均归入同一孔组；多边形不参与。</li>' +
       '</ol>' +
