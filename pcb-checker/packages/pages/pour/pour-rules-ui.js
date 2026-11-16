@@ -46,30 +46,10 @@
     }).join('');
   }
 
-  function drawShapeThumb(canvasId) {
-    var canvas = document.getElementById(canvasId);
-    if (!canvas || !canvas.getContext) return;
-    var ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    var w = canvas.width;
-    var h = canvas.height;
-    ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = '#0b1220';
-    ctx.fillRect(0, 0, w, h);
-
-    ctx.fillStyle = 'rgba(180, 83, 9, 0.4)';
-    ctx.strokeStyle = '#f59e0b';
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.arc(w / 2, h / 2, w * 0.35, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.fillStyle = '#10b981';
-    ctx.beginPath();
-    ctx.arc(w / 2, h / 2, 3, 0, Math.PI * 2);
-    ctx.fill();
+  function drawShapeThumb(canvasId, template) {
+    if (!root.drawShapePreviewCanvas) return;
+    var shape = root.resolveShapePreview ? root.resolveShapePreview(template) : template.shape;
+    root.drawShapePreviewCanvas(document.getElementById(canvasId), shape);
   }
 
   function renderRule2Table() {
@@ -99,8 +79,8 @@
     }).join('');
 
     safeRAF(function () {
-      State.specialShapeTemplates.forEach(function (_, idx) {
-        drawShapeThumb('r2Thumb_' + idx);
+      State.specialShapeTemplates.forEach(function (template, idx) {
+        drawShapeThumb('r2Thumb_' + idx, template);
       });
     });
   }

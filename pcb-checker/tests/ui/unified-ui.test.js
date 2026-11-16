@@ -205,6 +205,17 @@ async function test(name, fn) {
     if (edited.rawTxt !== editedShapeTxt || Math.abs(edited.expectedArea - 321.12345) > 0.001 || !edited.shape) {
       throw new Error('综合页编辑弹窗未保存修改后的 Shape TXT 数据');
     }
+    const originalDrawPreview = w.drawShapePreviewCanvas;
+    let thumbnailShape = null;
+    w.drawShapePreviewCanvas = (canvas, shape) => {
+      if (canvas && canvas.id === `unifiedR2Thumb_${before}`) thumbnailShape = shape;
+      return true;
+    };
+    w.renderRulesUI();
+    w.drawShapePreviewCanvas = originalDrawPreview;
+    if (!thumbnailShape || Math.abs(thumbnailShape.area - 321.12345) > 0.001) {
+      throw new Error('综合页规则表缩略图未使用编辑面板中的 Shape TXT 轮廓');
+    }
     w.editPourShapeTemplate(before);
     if ($('modalPourShapeTxt').value !== editedShapeTxt) throw new Error('综合页编辑弹窗未回填修改后的 Shape TXT 数据');
     $('modalPourShapeTxt').value = '';

@@ -4,6 +4,26 @@
 (function (root) {
   "use strict";
 
+  function resolveShapePreview(template) {
+    if (!template) return null;
+    if (Array.isArray(template.boundary)) return template;
+    var rawText = typeof template.rawShapeText === 'string'
+      ? template.rawShapeText
+      : (typeof template.rawTxt === 'string' ? template.rawTxt : null);
+    var checker = root.PourChecker;
+    if (rawText != null) {
+      if (!rawText.trim() || !checker || !checker.parsePcbElements) return null;
+      try {
+        var parsed = checker.parsePcbElements(rawText);
+        template.shape = parsed.shapes && parsed.shapes.length ? parsed.shapes[0] : null;
+      } catch (_) {
+        template.shape = null;
+      }
+      return template.shape;
+    }
+    return template.shape || null;
+  }
+
   function getShapeRing(shape) {
     if (!shape) return [];
     if (Array.isArray(shape._ring) && shape._ring.length >= 3) return shape._ring;
@@ -31,7 +51,7 @@
     var maxY = Math.max.apply(null, ys);
     var centerX = (minX + maxX) / 2;
     var centerY = (minY + maxY) / 2;
-    var padding = 12;
+    var padding = Math.max(4, Math.min(12, Math.min(width, height) * 0.11));
     var scale = Math.min(
       (width - padding * 2) / Math.max(maxX - minX, 1),
       (height - padding * 2) / Math.max(maxY - minY, 1)
@@ -66,5 +86,6 @@
     return true;
   }
 
+  root.resolveShapePreview = resolveShapePreview;
   root.drawShapePreviewCanvas = drawShapePreviewCanvas;
 })(typeof window !== "undefined" ? window : globalThis);

@@ -111,6 +111,20 @@ test('弹窗新增规则 1/2/3 与异型铜皮 Shape TXT 几何解析保存', ()
   if ($('modalRule2').classList.contains('open')) throw new Error('Modal 2 未关闭');
   const savedTemplateIndex = w.State.specialShapeTemplates.findIndex(t => Math.abs(t.expectedArea - 97.38256) < 0.1 && t.differentialCenterDistance === 19.68);
   if (savedTemplateIndex < 0) throw new Error('规则 2 模板与差分孔中心距未保存');
+  const originalDrawPreview = w.drawShapePreviewCanvas;
+  const originalRAF = w.requestAnimationFrame;
+  let thumbnailShape = null;
+  w.requestAnimationFrame = callback => callback();
+  w.drawShapePreviewCanvas = (canvas, shape) => {
+    if (canvas && canvas.id === `r2Thumb_${savedTemplateIndex}`) thumbnailShape = shape;
+    return true;
+  };
+  w.renderRule2Table();
+  w.drawShapePreviewCanvas = originalDrawPreview;
+  w.requestAnimationFrame = originalRAF;
+  if (!thumbnailShape || thumbnailShape.boundary.length !== 11 || thumbnailShape.arcs.length !== 6) {
+    throw new Error('规则表缩略图未使用导入的异型铜皮真实轮廓');
+  }
   w.openEditRule2Modal(savedTemplateIndex);
   if ($('modalR2InpDiffDist').value !== '19.68') throw new Error('规则 2 编辑弹窗未回填差分孔中心距');
   ['modalR2InpPadstack', 'modalR2InpDiffDist', 'modalR2InpLayer', 'modalR2TxtShape'].forEach(id => {

@@ -6,6 +6,14 @@
  * 渲染全套规则配置 UI
  */
 
+function renderPourShapeThumbnails(templates) {
+  if (typeof drawShapePreviewCanvas !== 'function') return;
+  templates.forEach((template, index) => {
+    const shape = typeof resolveShapePreview === 'function' ? resolveShapePreview(template) : template.shape;
+    drawShapePreviewCanvas($(`unifiedR2Thumb_${index}`), shape);
+  });
+}
+
 function renderRulesUI() {
   renderFanoutSchemesGrid();
   // 1. Trace Layer Rules Table
@@ -87,11 +95,8 @@ function renderRulesUI() {
         <tr>
           <td style="font-weight:700;color:#6b7280">#${i + 1}</td>
           <td>
-            <div style="width:48px;height:48px;background:#0b1120;border-radius:6px;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 4px rgba(0,0,0,0.5)">
-              <svg width="34" height="34" viewBox="0 0 34 34">
-                <circle cx="17" cy="17" r="13" fill="none" stroke="#d97706" stroke-width="2"/>
-                <circle cx="17" cy="17" r="3.5" fill="#10b981"/>
-              </svg>
+            <div style="width:48px;height:48px;background:#0b1120;border-radius:6px;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 4px rgba(0,0,0,0.5);overflow:hidden">
+              <canvas id="unifiedR2Thumb_${i}" width="48" height="48"></canvas>
             </div>
           </td>
           <td>
@@ -120,6 +125,7 @@ function renderRulesUI() {
         </tr>
       `).join('');
     }
+    renderPourShapeThumbnails(r2List);
   }
 
   // Rule 3: Trace Margin
