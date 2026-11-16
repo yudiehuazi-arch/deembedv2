@@ -41,16 +41,19 @@
     (group.vias && group.vias.length ? group.vias : [group.via]).forEach(function (via) { bucket.viaIds[via.id] = 1; });
   }
 
+  function signalNamingText(row, reason) {
+    var padstack = String(row.actual || row.sourcePadstack || '当前');
+    var issue = reason;
+    if (reason.indexOf('未包含 SIG') >= 0) issue = '未包含 SIG';
+    else if (reason.indexOf('包含 GND') >= 0) issue = '包含 GND';
+    return padstack + ' padstack选取错误，非 GND 网络的 Padstack Name ' + issue;
+  }
+
   function addCause(entry, group, row) {
     if (row.checkType === 'Padstack信号命名' || row.checkType === 'Padstack层名') {
       var signalName = row.checkType === 'Padstack信号命名';
-      var prefix = signalName ? 'Padstack命名不符合' : 'Padstack层名不符合';
       var reason = String(row.reason || row.actual || '命名与规则不一致');
-      var marker = 'Padstack Name ';
-      if (signalName && reason.indexOf(marker) >= 0) {
-        reason = '非 GND 网络的 Padstack Name ' + reason.slice(reason.indexOf(marker) + marker.length);
-      }
-      var text = prefix + '：' + reason;
+      var text = signalName ? signalNamingText(row, reason) : ('Padstack层名不符合：' + reason);
       var named = entry.namedCauses[text] || (entry.namedCauses[text] = newCauseBucket({ text: text }));
       addCauseScope(named, group);
       return;

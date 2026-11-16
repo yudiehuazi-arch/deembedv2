@@ -436,12 +436,12 @@ setTimeout(() => {
     const plain = w.CopperBadSummary.plainTable(w.CopperBadSummary.buildRows(w.eval('UI.result')));
     if (plain.indexOf('约束方案\t网络\t异常原因\t板上位置') !== 0 || plain.indexOf('Via ') < 0) throw new Error('复制文本格式异常');
     const duplicateResult = {groups: [
-      {rule:{title:'BGA-L2-L12'}, via:{id:'10',net:'21_N'}, vias:[{id:'10'}], failRows:[{status:'不符合',checkType:'Padstack信号命名',reason:'网络 21_N 不是 GND，Padstack Name 未包含 SIG；包含 GND',sourceViaIds:['10']}]},
-      {rule:{title:'BGA-L2-L12'}, via:{id:'11',net:'21_P'}, vias:[{id:'11'}], failRows:[{status:'不符合',checkType:'Padstack信号命名',reason:'网络 21_P 不是 GND，Padstack Name 未包含 SIG；包含 GND',sourceViaIds:['11']}]},
-      {rule:{title:'BGA-L2-L12'}, via:{id:'12',net:'22_N'}, vias:[{id:'12'}], failRows:[{status:'不符合',checkType:'Padstack信号命名',reason:'网络 22_N 不是 GND，Padstack Name 未包含 SIG',sourceViaIds:['12']}]}
+      {rule:{title:'BGA-L2-L12'}, via:{id:'10',net:'21_N'}, vias:[{id:'10'}], failRows:[{status:'不符合',checkType:'Padstack信号命名',actual:'BGA_GND_0902',reason:'网络 21_N 不是 GND，Padstack Name 未包含 SIG；包含 GND',sourceViaIds:['10']}]},
+      {rule:{title:'BGA-L2-L12'}, via:{id:'11',net:'21_P'}, vias:[{id:'11'}], failRows:[{status:'不符合',checkType:'Padstack信号命名',actual:'BGA_GND_0902',reason:'网络 21_P 不是 GND，Padstack Name 未包含 SIG；包含 GND',sourceViaIds:['11']}]},
+      {rule:{title:'BGA-L2-L12'}, via:{id:'12',net:'22_N'}, vias:[{id:'12'}], failRows:[{status:'不符合',checkType:'Padstack信号命名',actual:'BGA_GND_1002',reason:'网络 22_N 不是 GND，Padstack Name 未包含 SIG',sourceViaIds:['12']}]}
     ]};
     const duplicate = w.CopperBadSummary.buildRows(duplicateResult)[0];
-    if (duplicate.reasonList.length !== 2 || duplicate.reasonList[0] !== 'Padstack命名不符合：非 GND 网络的 Padstack Name 未包含 SIG；包含 GND' || duplicate.reasonList[1] !== 'Padstack命名不符合：非 GND 网络的 Padstack Name 未包含 SIG') throw new Error(JSON.stringify(duplicate.reasonList));
+    if (duplicate.reasonList.length !== 2 || duplicate.reasonList[0] !== 'BGA_GND_0902 padstack选取错误，非 GND 网络的 Padstack Name 未包含 SIG' || duplicate.reasonList[1] !== 'BGA_GND_1002 padstack选取错误，非 GND 网络的 Padstack Name 未包含 SIG') throw new Error(JSON.stringify(duplicate.reasonList));
     w.__summaryOriginal = w.eval('UI.result'); w.__summaryDuplicate = duplicateResult;
     w.eval('UI.result=window.__summaryDuplicate');
     const preview = d.createElement('div'); w.CopperBadSummary.render(preview);
@@ -451,7 +451,7 @@ setTimeout(() => {
     if (preview.querySelectorAll('tbody tr').length !== 2 || preview.querySelector('td[rowspan="2"]') == null || preview.querySelectorAll('.bad-summary-board').length !== 2) throw new Error('异常原因未逐行关联位置图');
     if (preview.querySelectorAll('.bad-summary-network wbr').length !== 1) throw new Error('网络名缺少按斜杠自动换行点');
     const duplicatePlain = w.CopperBadSummary.plainTable([duplicate]);
-    if (duplicatePlain.split('\n').length !== 3 || duplicatePlain.indexOf('21_N/21_P\tPadstack命名不符合') < 0) throw new Error(duplicatePlain);
+    if (duplicatePlain.split('\n').length !== 3 || duplicatePlain.indexOf('21_N/21_P\tBGA_GND_0902 padstack选取错误，非 GND 网络的 Padstack Name 未包含 SIG') < 0 || duplicatePlain.indexOf('；包含 GND') >= 0) throw new Error(duplicatePlain);
     preview.querySelector('.bad-summary-board-open').click();
     const zoom = $('copperBadSummaryZoom');
     if (!zoom || zoom.hidden || !zoom.querySelector('.bad-summary-zoom-image').src.startsWith('data:image/svg+xml')) throw new Error('位置图无法放大');
