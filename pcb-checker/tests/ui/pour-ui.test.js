@@ -96,7 +96,17 @@ test('弹窗新增规则 1/2/3 与异型铜皮 Shape TXT 几何解析保存', ()
   if (savedTemplateIndex < 0) throw new Error('规则 2 模板与差分孔中心距未保存');
   w.openEditRule2Modal(savedTemplateIndex);
   if ($('modalR2InpDiffDist').value !== '19.68') throw new Error('规则 2 编辑弹窗未回填差分孔中心距');
-  w.closeModal('modalRule2');
+  ['modalR2InpPadstack', 'modalR2InpDiffDist', 'modalR2InpLayer'].forEach(id => {
+    if ($(id).disabled) throw new Error('规则 2 编辑弹窗字段不可手动输入：' + id);
+  });
+  $('modalR2InpPadstack').value = 'BGA_EDITABLE';
+  $('modalR2InpDiffDist').value = '23.62';
+  $('modalR2InpLayer').value = '19IS08';
+  w.saveRule2FromModal();
+  const editedTemplate = w.State.specialShapeTemplates[savedTemplateIndex];
+  if (editedTemplate.padstack !== 'BGA_EDITABLE' || editedTemplate.differentialCenterDistance !== 23.62 || editedTemplate.layer !== '19IS08') {
+    throw new Error('规则 2 编辑弹窗未保存三个可输入字段');
+  }
 
   w.openAddRule3Modal();
   if (!$('modalRule3').classList.contains('open')) throw new Error('Modal 3 未打开');

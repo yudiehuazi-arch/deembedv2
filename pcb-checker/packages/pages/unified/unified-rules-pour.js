@@ -40,22 +40,21 @@ function editPourShapeTemplate(idx) {
   const modal = $('modalPourShape');
   if (!modal) return;
 
-  // In edit mode per user instruction: 编辑特定类型孔时只能改模板名称，参考image-3的编辑页面
   $('modalPourShapeTitle').textContent = '编辑特定异型铜皮模板';
   $('modalPourShapeInpName').value = t.name || '';
   $('modalPourShapeInpName').disabled = false;
 
   $('modalPourShapeInpPadstack').value = t.padstack || 'BGA_3510';
-  $('modalPourShapeInpPadstack').disabled = true; // Locked in edit mode
-  $('modalPourShapeInpPadstack').style.background = '#f8fafc';
+  $('modalPourShapeInpPadstack').disabled = false;
+  $('modalPourShapeInpPadstack').style.background = '#ffffff';
 
   $('modalPourShapeInpDiffDist').value = t.differentialCenterDistance || 10.0;
-  $('modalPourShapeInpDiffDist').disabled = true;
-  $('modalPourShapeInpDiffDist').style.background = '#f8fafc';
+  $('modalPourShapeInpDiffDist').disabled = false;
+  $('modalPourShapeInpDiffDist').style.background = '#ffffff';
 
   $('modalPourShapeInpLayer').value = t.layer || '02G01P';
-  $('modalPourShapeInpLayer').disabled = true; // Locked in edit mode
-  $('modalPourShapeInpLayer').style.background = '#f8fafc';
+  $('modalPourShapeInpLayer').disabled = false;
+  $('modalPourShapeInpLayer').style.background = '#ffffff';
 
   $('modalPourShapeInpTol').value = t.areaTolerance || 30.0;
 
@@ -114,8 +113,11 @@ function savePourShapeFromModal() {
   if (g_editingPourShapeIdx >= 0) {
     const t = State.rules.specialShapeTemplates[g_editingPourShapeIdx];
     t.name = name;
+    t.padstack = padstack;
+    t.differentialCenterDistance = diffCenterDistance;
+    t.layer = layer;
     t.areaTolerance = tol;
-    showToast(`已修改异型铜皮模板名称为【${name}】`);
+    showToast(`已更新异型铜皮模板【${name}】`);
   } else {
     if (!State.rules.specialShapeTemplates) State.rules.specialShapeTemplates = [];
     State.rules.specialShapeTemplates.push({

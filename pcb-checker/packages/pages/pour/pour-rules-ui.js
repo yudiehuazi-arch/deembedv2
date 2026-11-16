@@ -184,12 +184,17 @@
   }
 
   function setRule2InputsLocked(locked) {
-    ['modalR2InpPadstack', 'modalR2InpDiffDist', 'modalR2InpLayer', 'modalR2TxtShape'].forEach(function (id) {
+    ['modalR2InpPadstack', 'modalR2InpDiffDist', 'modalR2InpLayer'].forEach(function (id) {
       var el = document.getElementById(id);
       if (!el) return;
-      el.disabled = !!locked;
-      el.style.background = locked ? '#f8fafc' : '#ffffff';
+      el.disabled = false;
+      el.style.background = '#ffffff';
     });
+    var shapeInput = document.getElementById('modalR2TxtShape');
+    if (shapeInput) {
+      shapeInput.disabled = !!locked;
+      shapeInput.style.background = locked ? '#f8fafc' : '#ffffff';
+    }
   }
 
   function openAddRule2Modal() {

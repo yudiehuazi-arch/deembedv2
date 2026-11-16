@@ -189,10 +189,20 @@ async function test(name, fn) {
     if (!added || added.differentialCenterDistance !== 19.68) throw new Error('弹窗未保存差分孔中心距');
     w.editPourShapeTemplate(before);
     if ($('modalPourShapeInpDiffDist').value !== '19.68') throw new Error('编辑弹窗未回填差分孔中心距');
-    w.closePourShapeModal();
+    ['modalPourShapeInpPadstack', 'modalPourShapeInpDiffDist', 'modalPourShapeInpLayer'].forEach(id => {
+      if ($(id).disabled) throw new Error('综合页规则 2 字段不可手动输入：' + id);
+    });
+    $('modalPourShapeInpPadstack').value = 'BGA_EDITABLE';
+    $('modalPourShapeInpDiffDist').value = '23.62';
+    $('modalPourShapeInpLayer').value = '19IS08';
+    w.savePourShapeFromModal();
+    const edited = w.State.rules.specialShapeTemplates[before];
+    if (edited.padstack !== 'BGA_EDITABLE' || edited.differentialCenterDistance !== 23.62 || edited.layer !== '19IS08') {
+      throw new Error('综合页编辑弹窗未保存三个可输入字段');
+    }
     w.exportPourRulesPrompt();
     const exported = JSON.parse($('txtModalExportContent').value);
-    if (exported.specialShapeTemplates[before].differentialCenterDistance !== 19.68) {
+    if (exported.specialShapeTemplates[before].differentialCenterDistance !== 23.62) {
       throw new Error('铜皮规则 JSON 未导出差分孔中心距');
     }
     w.State.rules.specialShapeTemplates.splice(before, 1);
