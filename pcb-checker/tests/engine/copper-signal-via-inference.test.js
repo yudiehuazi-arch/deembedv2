@@ -58,6 +58,27 @@ t('孔段中心距仅命中 0/0.025/0.075/0.125/0.175mm ±0.005mm 才合并', ()
   assert(!C.isSegmentDistance([0, 0], [mil(0.181), 0]), '超过 0.175+0.005mm 不应命中');
 });
 
+t('差分网络完整孔吸收相邻的 GND 命名孔段，但独立非 SIG 孔仍不推算', () => {
+  const mixed = [
+    { id: 50, type: 'via', origin: [0, 0], net: '21_P', padstack: 'BGA-HDI-SIG_L2_L5', traceLayers: [] },
+    { id: 51, type: 'via', origin: [mil(0.175), 0], net: '21_P', padstack: 'PTH-SIG_L5_L10', traceLayers: [] },
+    { id: 52, type: 'via', origin: [0, 0], net: '21_P', padstack: 'BGA-HDI-GND_L10_L12', traceLayers: [] },
+    { id: 53, type: 'via', origin: [mil(0.8), 0], net: '21_N', padstack: 'BGA-HDI-SIG_L2_L5', traceLayers: [] },
+    { id: 54, type: 'via', origin: [mil(0.625), 0], net: '21_N', padstack: 'PTH-SIG_L5_L10', traceLayers: [] },
+    { id: 55, type: 'via', origin: [mil(0.8), 0], net: '21_N', padstack: 'BGA-HDI-GND_L10_L12', traceLayers: [] },
+    { id: 56, type: 'via', origin: [500, 500], net: 'AUX', padstack: 'BGA-HDI-GND_L10_L12', traceLayers: [] }
+  ];
+  const rule = { kind: 'BGA', title: 'BGA-L2-L12-0.8mm', constraints: [] };
+  const out = C.runCopperCheck(mixed, [rule], { layerCount: 14 });
+  const p = out.groups.find(g => g.via.net === '21_P');
+  const isolated = out.groups.find(g => g.via.net === 'AUX');
+  assert(p.vias.map(v => v.id).join('/') === '50/51/52', '组合孔段=' + p.via.id);
+  assert(p.startLayer === 2 && p.endLayer === 12, '完整层跨=' + p.startLayer + '-' + p.endLayer);
+  assert(p.rule && p.rule.title === rule.title, '未映射 L2-L12-0.8mm');
+  assert(p.pitchViaIds.join('/') === '50/52' && p.matePitchViaIds.join('/') === '53/55', JSON.stringify(p.pitchViaIds));
+  assert(isolated && isolated.signal === false && !isolated.rule, '独立非 SIG 孔不应推算');
+});
+
 t('按 _P/_N 配对后只用 HDI 激光孔中心计算 0.600mm，排除偏移 PTH', () => {
   assert(pGroup.mateNet === 'DP_N' && nGroup.mateNet === 'DP_P', pGroup.mateNet + '/' + nGroup.mateNet);
   near(pGroup.pitchMm, 0.6, 1e-9, 'P/N HDI 中心距');
