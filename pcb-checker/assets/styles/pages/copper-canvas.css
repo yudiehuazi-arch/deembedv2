@@ -130,7 +130,8 @@
 .copper-canvas-legend i.via { height: 10px; border: 2px solid #38bdf8; background: transparent; }
 .copper-canvas-legend i.shape { height: 10px; border: 2px solid #f59e0b; background: transparent; border-radius: 50%; }
 .copper-canvas-legend i.trace { background: #22c55e; }
-.copper-canvas-legend i.located { background: #ef4444; }
+.copper-canvas-legend i.located { background: #38bdf8; }
+.copper-canvas-legend i.all-fail { height: 10px; border: 2px dashed #ef4444; background: rgba(239,68,68,0.18); }
 .copper-canvas-legend i.measure { background: #38bdf8; }
 
 .copper-locate-btn {

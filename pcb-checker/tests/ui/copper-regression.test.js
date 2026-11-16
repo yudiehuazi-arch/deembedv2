@@ -377,6 +377,30 @@ setTimeout(() => {
     $('btnReturnCopperResults').click();
     if (activeTab() !== 'tab-result') throw new Error('未返回检查结果');
   });
+  t('空间几何视口可显示并标注所有不符合位置', () => {
+    $('tabs').querySelector('[data-tab="canvas"]').click();
+    const toggle = $('ckCopperCanvasAllFails');
+    if (!toggle || $('copperCanvasLegend').textContent.indexOf('全部不符合') < 0) throw new Error('缺少显示所有不符合选项或图例');
+    $('selCopperCanvasLayer').value = '5';
+    $('ckCopperCanvasVias').checked = false;
+    $('ckCopperCanvasShapes').checked = false;
+    toggle.click();
+    if (!toggle.checked) throw new Error('显示所有不符合未开启');
+    if ($('selCopperCanvasLayer').value !== '' || !$('ckCopperCanvasVias').checked || !$('ckCopperCanvasShapes').checked) {
+      throw new Error('未自动恢复全部层、过孔和圆形铜皮');
+    }
+    const highlights = w.CopperCanvas.collectFailureHighlights();
+    if (highlights.groupCount !== 1 || highlights.rowCount !== 1 || highlights.viaCount !== 1 || highlights.shapeCount !== 1) {
+      throw new Error('不符合标注统计异常 ' + JSON.stringify(highlights));
+    }
+    if ($('copperCanvasHud').dataset.failGroups !== '1' || $('copperCanvasHud').dataset.failShapes !== '1') throw new Error('HUD 缺少可断言的标注统计');
+    if ($('copperSpatialReviewText').textContent.indexOf('全板不符合标注') < 0 || $('copperSpatialReviewText').textContent.indexOf('1 条不符合记录') < 0) {
+      throw new Error($('copperSpatialReviewText').textContent);
+    }
+    toggle.click();
+    if (toggle.checked || $('copperCanvasHud').dataset.failGroups !== '0') throw new Error('关闭后仍保留全板不符合标注');
+    $('tabs').querySelector('[data-tab="result"]').click();
+  });
 
   console.log('== 底部判定规律与分布 ==');
   t('规律卡片渲染在 ⑥ 规律分析页，且不在结果页里', () => {

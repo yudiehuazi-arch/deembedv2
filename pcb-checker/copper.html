@@ -4,12 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PCB 约束检查 · 规则</title>
-<link rel="stylesheet" href="assets/styles/tokens.css?v=16">
-<link rel="stylesheet" href="assets/styles/eda-shell.css?v=16">
-<link rel="stylesheet" href="assets/styles/eda-dock.css?v=16">
-<link rel="stylesheet" href="assets/styles/components.css?v=16">
-<link rel="stylesheet" href="assets/styles/pages/copper.css?v=16">
-<link rel="stylesheet" href="assets/styles/pages/copper-canvas.css?v=16">
+<link rel="stylesheet" href="assets/styles/tokens.css?v=17">
+<link rel="stylesheet" href="assets/styles/eda-shell.css?v=17">
+<link rel="stylesheet" href="assets/styles/eda-dock.css?v=17">
+<link rel="stylesheet" href="assets/styles/components.css?v=17">
+<link rel="stylesheet" href="assets/styles/pages/copper.css?v=17">
+<link rel="stylesheet" href="assets/styles/pages/copper-canvas.css?v=17">
 </head>
 <body class="eda-workbench">
 
@@ -205,6 +205,7 @@
             <button type="button" class="btn gray small" id="btnReturnCopperResults">返回检查结果明细</button>
           </div>
           <div class="copper-tool-group">
+            <label class="chk" data-tip="标注所有含不符合记录的完整孔及对应异常铜皮，并自动切换到全部层"><input type="checkbox" id="ckCopperCanvasAllFails">显示所有不符合</label>
             <label class="fld" data-tip="定位结果默认显示全部层，避免隐藏其他孔群；需要时可手动只看单层">显示层 <select id="selCopperCanvasLayer" data-no-persist><option value="">全部层</option></select></label>
             <label class="chk"><input type="checkbox" id="ckCopperCanvasVias" checked>过孔</label>
             <label class="chk"><input type="checkbox" id="ckCopperCanvasShapes" checked>圆形铜皮</label>
@@ -225,7 +226,8 @@
           <span><i class="via"></i>过孔</span>
           <span><i class="shape"></i>圆形铜皮</span>
           <span><i class="trace"></i>走线</span>
-          <span><i class="located"></i>当前定位完整孔 / 异常铜皮</span>
+          <span><i class="located"></i>当前定位完整孔</span>
+          <span><i class="all-fail"></i>全部不符合</span>
           <span><i class="measure"></i>测量标尺</span>
         </div>
       </div>
@@ -276,15 +278,15 @@
 
 <div id="expMask"></div>
 
-<script src="packages/engines/copper/via-constraint-inference.js?v=16"></script><script src="packages/engines/copper/copper-engine.js?v=16"></script>
-<script src="packages/engines/copper/constraint-parser.js?v=16"></script>
-<script src="packages/pages/copper/copper-state.js?v=16"></script>
-<script src="packages/pages/copper/copper-sets-ui.js?v=16"></script>
-<script src="packages/pages/copper/copper-canvas-viewer.js?v=16"></script>
-<script src="packages/pages/copper/copper-results-ui.js?v=16"></script>
-<script src="packages/pages/copper/copper-legend-ui.js?v=16"></script>
-<script src="packages/shared/eda-tooltip.js?v=16"></script>
-<script src="packages/shared/eda-shell.js?v=16"></script>
-<script src="packages/shared/ui-prefs.js?v=16"></script>
+<script src="packages/engines/copper/via-constraint-inference.js?v=17"></script><script src="packages/engines/copper/copper-engine.js?v=17"></script>
+<script src="packages/engines/copper/constraint-parser.js?v=17"></script>
+<script src="packages/pages/copper/copper-state.js?v=17"></script>
+<script src="packages/pages/copper/copper-sets-ui.js?v=17"></script>
+<script src="packages/pages/copper/copper-canvas-viewer.js?v=17"></script>
+<script src="packages/pages/copper/copper-results-ui.js?v=17"></script>
+<script src="packages/pages/copper/copper-legend-ui.js?v=17"></script>
+<script src="packages/shared/eda-tooltip.js?v=17"></script>
+<script src="packages/shared/eda-shell.js?v=17"></script>
+<script src="packages/shared/ui-prefs.js?v=17"></script>
 </body>
 </html>
