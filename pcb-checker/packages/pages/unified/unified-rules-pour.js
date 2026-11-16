@@ -58,9 +58,14 @@ function editPourShapeTemplate(idx) {
 
   $('modalPourShapeInpTol').value = t.areaTolerance || 30.0;
 
-  $('modalPourShapeTxt').value = t.rawTxt || `Item 2  < Shape >\n  Subset: ${t.layer || '02G01P'}\n  Area: ${(t.expectedArea || 452.39).toFixed(5)} (sq mil)\n  Exterior Boundary:\n    Arc seg: xy [23274.13, 27990.27]  xy [23274.13, 27990.27]\n      Center-xy: [23286.13, 27990.27] Radius (12.0000) CCW`;
-  $('modalPourShapeTxt').disabled = true; // Locked in edit mode
-  $('modalPourShapeTxt').style.background = '#f8fafc';
+  const savedShapeTxt = typeof t.rawTxt === 'string'
+    ? t.rawTxt
+    : (typeof t.rawShapeText === 'string' ? t.rawShapeText : null);
+  $('modalPourShapeTxt').value = savedShapeTxt != null
+    ? savedShapeTxt
+    : `Item 2  < Shape >\n  Subset: ${t.layer || '02G01P'}\n  Area: ${(t.expectedArea || 452.39).toFixed(5)} (sq mil)\n  Exterior Boundary:\n    Arc seg: xy [23274.13, 27990.27]  xy [23274.13, 27990.27]\n      Center-xy: [23286.13, 27990.27] Radius (12.0000) CCW`;
+  $('modalPourShapeTxt').disabled = false;
+  $('modalPourShapeTxt').style.background = '#ffffff';
 
   previewModalPourShape();
   modal.style.display = 'flex';
@@ -71,25 +76,39 @@ function closePourShapeModal() {
   if (modal) modal.style.display = 'none';
 }
 
+function parseModalPourShapeText(txt) {
+  if (!String(txt || '').trim()) return null;
+  if (typeof PourChecker !== 'undefined' && PourChecker.parsePcbElements) {
+    try {
+      const parsed = PourChecker.parsePcbElements(txt);
+      if (parsed.shapes && parsed.shapes.length) return parsed.shapes[0];
+    } catch (_) { /* 非完整文本继续尝试读取面积 */ }
+  }
+  const mArea = String(txt).match(/Area:\s*([0-9.]+)/i);
+  const area = mArea ? parseFloat(mArea[1]) : 0;
+  return area > 0 ? { area, boundary: [], arcs: [] } : null;
+}
+
 function previewModalPourShape() {
   const txt = $('modalPourShapeTxt').value;
   const layer = $('modalPourShapeInpLayer').value || '02G01P';
-
-  let area = 452.39;
-  const mArea = txt.match(/Area:\s*([0-9.]+)/i);
-  if (mArea) area = parseFloat(mArea[1]) || 452.39;
-
-  const mm2 = (area * 0.00064516).toFixed(4);
-
+  const shape = parseModalPourShapeText(txt);
   const title = $('modalPourShapePreviewTitle');
   const stats = $('modalPourShapePreviewStats');
 
-  if (title) title.textContent = `已解析 Shape，所在层 ${layer}`;
+  if (!shape) {
+    if (title) title.textContent = txt.trim() ? '未识别到有效 Shape 块' : '未配置 Shape TXT 数据';
+    if (stats) stats.textContent = '可粘贴新的 Shape TXT 数据，或保持为空。';
+    return;
+  }
+
+  const area = shape.area;
+  const boundary = shape.boundary || [];
+  const arcCount = (shape.arcs || []).length;
+  if (title) title.textContent = `已解析 Shape，所在层 ${shape.layer || layer}`;
   if (stats) {
-    stats.innerHTML = `
-      实测面积: <b style="color:#ffffff">${area.toFixed(2)} sq mil</b> · ${mm2} mm²<br>
-      边界：1 段，直线 0、圆弧 1
-    `;
+    stats.innerHTML = `实测面积: <b style="color:#ffffff">${area.toFixed(2)} sq mil</b> · ${(area * 0.00064516).toFixed(4)} mm²<br>` +
+      `边界：${boundary.length} 段，直线 ${Math.max(0, boundary.length - arcCount)}、圆弧 ${arcCount}`;
   }
 }
 
@@ -106,9 +125,8 @@ function savePourShapeFromModal() {
   const tol = parseFloat($('modalPourShapeInpTol').value) || 30.0;
   const rawTxt = $('modalPourShapeTxt').value;
 
-  let area = 452.39;
-  const mArea = rawTxt.match(/Area:\s*([0-9.]+)/i);
-  if (mArea) area = parseFloat(mArea[1]) || 452.39;
+  const parsedShape = parseModalPourShapeText(rawTxt);
+  const area = parsedShape && parsedShape.area > 0 ? parsedShape.area : 0;
 
   if (g_editingPourShapeIdx >= 0) {
     const t = State.rules.specialShapeTemplates[g_editingPourShapeIdx];
@@ -116,7 +134,11 @@ function savePourShapeFromModal() {
     t.padstack = padstack;
     t.differentialCenterDistance = diffCenterDistance;
     t.layer = layer;
+    t.expectedArea = area;
     t.areaTolerance = tol;
+    t.rawTxt = rawTxt;
+    t.shape = parsedShape;
+    if (Object.prototype.hasOwnProperty.call(t, 'rawShapeText')) t.rawShapeText = rawTxt;
     showToast(`已更新异型铜皮模板【${name}】`);
   } else {
     if (!State.rules.specialShapeTemplates) State.rules.specialShapeTemplates = [];
@@ -128,7 +150,8 @@ function savePourShapeFromModal() {
       layer,
       expectedArea: area,
       areaTolerance: tol,
-      rawTxt
+      rawTxt,
+      shape: parsedShape
     });
     showToast(`已新增异型铜皮模板【${name}】`);
   }

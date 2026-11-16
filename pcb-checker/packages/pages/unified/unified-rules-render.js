@@ -111,7 +111,7 @@ function renderRulesUI() {
             </span>
           </td>
           <td style="font-family:var(--mono);font-size:12px;font-weight:600;color:#111827">
-            <input type="number" step="0.1" value="${r.expectedArea || 452.4}" onchange="State.rules.specialShapeTemplates[${i}].expectedArea=parseFloat(this.value)" style="width:65px"> sq mil (±<input type="number" step="1" value="${r.areaTolerance || 30}" onchange="State.rules.specialShapeTemplates[${i}].areaTolerance=parseFloat(this.value)" style="width:40px">)
+            <input type="number" step="0.1" value="${r.expectedArea != null ? r.expectedArea : 452.4}" onchange="State.rules.specialShapeTemplates[${i}].expectedArea=parseFloat(this.value)" style="width:65px"> sq mil (±<input type="number" step="1" value="${r.areaTolerance || 30}" onchange="State.rules.specialShapeTemplates[${i}].areaTolerance=parseFloat(this.value)" style="width:40px">)
           </td>
           <td style="text-align:right">
             <button class="btn sec small" style="padding:2px 6px;font-size:11px" onclick="editPourShapeTemplate(${i})">编辑</button>

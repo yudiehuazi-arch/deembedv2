@@ -172,7 +172,7 @@ async function test(name, fn) {
     w.zoomCanvas(1.2);
   });
 
-  await test('铜皮异型模板可配置、展示并导出差分孔中心距', () => {
+  await test('铜皮异型模板可编辑匹配字段与 Shape TXT 数据并导出', () => {
     w.renderRulesUI();
     if (![...d.querySelectorAll('#tblPourRule2 th')].some(th => th.textContent.includes('差分孔中心距'))) {
       throw new Error('规则 2 表格缺少差分孔中心距列');
@@ -189,24 +189,41 @@ async function test(name, fn) {
     if (!added || added.differentialCenterDistance !== 19.68) throw new Error('弹窗未保存差分孔中心距');
     w.editPourShapeTemplate(before);
     if ($('modalPourShapeInpDiffDist').value !== '19.68') throw new Error('编辑弹窗未回填差分孔中心距');
-    ['modalPourShapeInpPadstack', 'modalPourShapeInpDiffDist', 'modalPourShapeInpLayer'].forEach(id => {
+    ['modalPourShapeInpPadstack', 'modalPourShapeInpDiffDist', 'modalPourShapeInpLayer', 'modalPourShapeTxt'].forEach(id => {
       if ($(id).disabled) throw new Error('综合页规则 2 字段不可手动输入：' + id);
     });
+    const editedShapeTxt = `Item 2  < Shape >\n  Subset: 19IS08\n  Area: 321.12345 (sq mil)\n  Exterior Boundary:\n    Arc seg: xy [23274.13, 27990.27]  xy [23274.13, 27990.27]\n      Center-xy: [23286.13, 27990.27] Radius (12.0000) CCW`;
     $('modalPourShapeInpPadstack').value = 'BGA_EDITABLE';
     $('modalPourShapeInpDiffDist').value = '23.62';
     $('modalPourShapeInpLayer').value = '19IS08, L5';
+    $('modalPourShapeTxt').value = editedShapeTxt;
     w.savePourShapeFromModal();
     const edited = w.State.rules.specialShapeTemplates[before];
     if (edited.padstack !== 'BGA_EDITABLE' || edited.differentialCenterDistance !== 23.62 || edited.layer !== '19IS08, L5') {
-      throw new Error('综合页编辑弹窗未保存三个可输入字段');
+      throw new Error('综合页编辑弹窗未保存三个匹配字段');
     }
+    if (edited.rawTxt !== editedShapeTxt || Math.abs(edited.expectedArea - 321.12345) > 0.001 || !edited.shape) {
+      throw new Error('综合页编辑弹窗未保存修改后的 Shape TXT 数据');
+    }
+    w.editPourShapeTemplate(before);
+    if ($('modalPourShapeTxt').value !== editedShapeTxt) throw new Error('综合页编辑弹窗未回填修改后的 Shape TXT 数据');
+    $('modalPourShapeTxt').value = '';
+    w.previewModalPourShape();
+    w.savePourShapeFromModal();
+    const cleared = w.State.rules.specialShapeTemplates[before];
+    if (cleared.rawTxt !== '' || cleared.expectedArea !== 0 || cleared.shape !== null) {
+      throw new Error('综合页编辑弹窗未删除已清空的 Shape TXT 数据');
+    }
+    w.editPourShapeTemplate(before);
+    if ($('modalPourShapeTxt').value !== '' || $('modalPourShapeTxt').disabled) throw new Error('综合页清空后的 Shape TXT 数据未保持可编辑空值');
+    w.closePourShapeModal();
     if (![...d.querySelectorAll('#tblPourRule2Body input[type="text"]')].some(input => input.value === '19IS08, L5')) {
       throw new Error('综合页规则表未显示多个目标层');
     }
     w.exportPourRulesPrompt();
     const exported = JSON.parse($('txtModalExportContent').value);
-    if (exported.specialShapeTemplates[before].differentialCenterDistance !== 23.62) {
-      throw new Error('铜皮规则 JSON 未导出差分孔中心距');
+    if (exported.specialShapeTemplates[before].differentialCenterDistance !== 23.62 || exported.specialShapeTemplates[before].rawTxt !== '') {
+      throw new Error('铜皮规则 JSON 未导出差分孔中心距与已清空的 Shape TXT 数据');
     }
     w.State.rules.specialShapeTemplates.splice(before, 1);
     w.renderRulesUI();

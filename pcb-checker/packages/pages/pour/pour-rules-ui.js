@@ -183,24 +183,20 @@
     renderRule1Table();
   }
 
-  function setRule2InputsLocked(locked) {
-    ['modalR2InpPadstack', 'modalR2InpDiffDist', 'modalR2InpLayer'].forEach(function (id) {
+  function enableRule2Inputs() {
+    ['modalR2InpName', 'modalR2InpPadstack', 'modalR2InpDiffDist', 'modalR2InpLayer',
+      'modalR2InpTol', 'modalR2TxtShape'].forEach(function (id) {
       var el = document.getElementById(id);
       if (!el) return;
       el.disabled = false;
       el.style.background = '#ffffff';
     });
-    var shapeInput = document.getElementById('modalR2TxtShape');
-    if (shapeInput) {
-      shapeInput.disabled = !!locked;
-      shapeInput.style.background = locked ? '#f8fafc' : '#ffffff';
-    }
   }
 
   function openAddRule2Modal() {
     State.editingIndex = -1;
     document.getElementById('modalR2Title').textContent = '新增特定异型铜皮模板';
-    setRule2InputsLocked(false);
+    enableRule2Inputs();
     document.getElementById('modalR2InpName').value = 'L2特定异型铜皮_' + (State.specialShapeTemplates.length + 1);
     document.getElementById('modalR2InpPadstack').value = 'BGA_3510';
     document.getElementById('modalR2InpDiffDist').value = '10.0';
@@ -218,13 +214,15 @@
     var t = State.specialShapeTemplates[idx];
     if (!t) return;
     document.getElementById('modalR2Title').textContent = '编辑特定异型铜皮模板';
-    setRule2InputsLocked(true);
+    enableRule2Inputs();
     document.getElementById('modalR2InpName').value = t.name;
     document.getElementById('modalR2InpPadstack').value = t.padstack;
     document.getElementById('modalR2InpDiffDist').value = t.differentialCenterDistance || 10.0;
     document.getElementById('modalR2InpLayer').value = t.layer;
     document.getElementById('modalR2InpTol').value = t.areaTolerance;
-    document.getElementById('modalR2TxtShape').value = t.rawShapeText || ('Item 1  < Shape >\n  Subset: ' + t.layer + '\n  Area: ' + t.expectedArea + ' (sq mil)');
+    document.getElementById('modalR2TxtShape').value = typeof t.rawShapeText === 'string'
+      ? t.rawShapeText
+      : ('Item 1  < Shape >\n  Subset: ' + t.layer + '\n  Area: ' + t.expectedArea + ' (sq mil)');
     previewModalShape();
     renderHistoryChips();
     openModal('modalRule2');
@@ -300,6 +298,7 @@
     var layer = document.getElementById('modalR2InpLayer').value.trim();
     var tol = parseFloat(document.getElementById('modalR2InpTol').value) || 30.0;
     var rawTxt = document.getElementById('modalR2TxtShape').value;
+    previewModalShape();
 
     recordHistory('r2_name', name);
     recordHistory('r2_padstack', pad);
@@ -307,7 +306,7 @@
     recordHistory('r2_layer', layer);
     recordHistory('r2_tol', String(tol));
 
-    var expectedArea = 452.38;
+    var expectedArea = 0;
     if (State.modalShapeParsed && State.modalShapeParsed.area > 0) {
       expectedArea = State.modalShapeParsed.area;
     }

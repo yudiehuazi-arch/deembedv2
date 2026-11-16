@@ -96,17 +96,34 @@ test('弹窗新增规则 1/2/3 与异型铜皮 Shape TXT 几何解析保存', ()
   if (savedTemplateIndex < 0) throw new Error('规则 2 模板与差分孔中心距未保存');
   w.openEditRule2Modal(savedTemplateIndex);
   if ($('modalR2InpDiffDist').value !== '19.68') throw new Error('规则 2 编辑弹窗未回填差分孔中心距');
-  ['modalR2InpPadstack', 'modalR2InpDiffDist', 'modalR2InpLayer'].forEach(id => {
+  ['modalR2InpPadstack', 'modalR2InpDiffDist', 'modalR2InpLayer', 'modalR2TxtShape'].forEach(id => {
     if ($(id).disabled) throw new Error('规则 2 编辑弹窗字段不可手动输入：' + id);
   });
+  const editedShapeTxt = `Item 1  < Shape >\n  Subset: 19IS08\n  Area: 321.12345 (sq mil)\nExterior Boundary:\n  Arc seg: xy [21208.94, 35522.46]  xy [21208.94, 35522.46]\n    Center-xy: [21220.94, 35522.46] Radius (12.0000) CCW`;
   $('modalR2InpPadstack').value = 'BGA_EDITABLE';
   $('modalR2InpDiffDist').value = '23.62';
   $('modalR2InpLayer').value = '19IS08, L5';
+  $('modalR2TxtShape').value = editedShapeTxt;
   w.saveRule2FromModal();
   const editedTemplate = w.State.specialShapeTemplates[savedTemplateIndex];
   if (editedTemplate.padstack !== 'BGA_EDITABLE' || editedTemplate.differentialCenterDistance !== 23.62 || editedTemplate.layer !== '19IS08, L5') {
-    throw new Error('规则 2 编辑弹窗未保存三个可输入字段');
+    throw new Error('规则 2 编辑弹窗未保存三个匹配字段');
   }
+  if (editedTemplate.rawShapeText !== editedShapeTxt || Math.abs(editedTemplate.expectedArea - 321.12345) > 0.001 || !editedTemplate.shape) {
+    throw new Error('规则 2 编辑弹窗未保存修改后的 Shape TXT 数据');
+  }
+  w.openEditRule2Modal(savedTemplateIndex);
+  if ($('modalR2TxtShape').value !== editedShapeTxt) throw new Error('规则 2 编辑弹窗未回填修改后的 Shape TXT 数据');
+  $('modalR2TxtShape').value = '';
+  w.previewModalShape();
+  w.saveRule2FromModal();
+  const clearedTemplate = w.State.specialShapeTemplates[savedTemplateIndex];
+  if (clearedTemplate.rawShapeText !== '' || clearedTemplate.expectedArea !== 0 || clearedTemplate.shape !== null) {
+    throw new Error('规则 2 编辑弹窗未删除已清空的 Shape TXT 数据');
+  }
+  w.openEditRule2Modal(savedTemplateIndex);
+  if ($('modalR2TxtShape').value !== '' || $('modalR2TxtShape').disabled) throw new Error('清空后的 Shape TXT 数据未保持可编辑空值');
+  w.closeModal('modalRule2');
   if (!$('tblRule2Body').textContent.includes('19IS08, L5')) throw new Error('规则 2 表格未显示多个目标层');
 
   w.openAddRule3Modal();
