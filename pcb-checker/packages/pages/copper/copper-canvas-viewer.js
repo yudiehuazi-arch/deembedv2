@@ -232,8 +232,9 @@
     if (!text) return;
     if (!g) { text.textContent = UI.items.length ? '当前为全板视图，可缩放、平移、筛层或使用测量标尺。' : '请先导入板级 Item 数据。'; return; }
     var layer = typeof row.layer === 'number' ? ('L' + row.layer) : String(row.layer || '—');
+    var source = (row.sourceViaIds || []).map(function (id) { return 'Via ' + id; }).join('/') + ' · ' + (row.sourcePadstack || '无 Padstack');
     text.textContent = 'Via ' + g.via.id + ' · ' + (g.via.net || '无网络') + ' · L' + g.startLayer + '-L' + g.endLayer +
-      ' · ' + layer + ' ' + row.checkType + ' · 实测 ' + row.actual + ' / 规则 ' + (row.expect || '无') + ' · ' + row.status;
+      ' · ' + layer + ' ' + row.checkType + ' · 来源 ' + source + ' · 实测 ' + row.actual + ' / 规则 ' + (row.expect || '无') + ' · ' + row.status;
   }
 
   function draw() {

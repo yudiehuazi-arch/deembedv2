@@ -28,6 +28,8 @@ const shapes = pParts.map((v, i) => ({
   id: 20 + i, type: 'shape', circle: true, center: v.origin.slice(), radius: 10,
   set: 'Route Keepout', subset: ['L2', 'L5', 'L12'][i], head: 'Route Keepout'
 }));
+// L5 在 L2-L5 与 L5-L10 两个孔段坐标各有一条 Route Keepout，用于验证逐行来源 Padstack。
+shapes.push({ id: 23, type: 'shape', circle: true, center: pParts[0].origin.slice(), radius: 10, set: 'Route Keepout', subset: 'L5', head: 'Route Keepout' });
 shapes.push({ id: 30, type: 'shape', circle: true, center: nonSig.origin.slice(), radius: 10, set: 'Route Keepout', subset: 'L2', head: 'Route Keepout' });
 const sets = [0.5, 0.6, 0.7].map(pitch => ({
   kind: 'BGA', title: `BGA-L2-L12-${pitch}mm`,
@@ -62,8 +64,16 @@ t('同封装与完整层跨下选择中心距最近的 BGA-L2-L12-0.6mm 约束',
 
 t('完整孔三个孔段坐标处的全部 Route Keepout 都归入同一约束核查', () => {
   const real = pGroup.rows.filter(r => !r.missing && !r.isPadstackCheck);
-  assert(real.length === 3, '配对 Route Keepout=' + real.length);
+  assert(real.length === 4, '配对 Route Keepout=' + real.length);
   assert(real.every(r => r.status === '符合'), real.map(r => r.status).join(','));
+});
+
+t('同层 Route Keepout 逐行标明其坐标对应的孔段 Via 与 Padstack', () => {
+  const l5 = pGroup.rows.filter(r => r.layer === 5 && !r.missing);
+  assert(l5.length === 2, 'L5 Route Keepout=' + l5.length);
+  const sources = l5.map(r => r.sourceViaIds.join('/') + ':' + r.sourcePadstack).sort();
+  assert(sources[0] === '1:BGA_SIG_L2_L5', JSON.stringify(sources));
+  assert(sources[1] === '2:BGA_SIG_L5_L10', JSON.stringify(sources));
 });
 
 t('检查结果补齐完整孔经过的 L2-L12 所有层，稀疏 Shape 层不再被隐藏', () => {
@@ -74,6 +84,7 @@ t('检查结果补齐完整孔经过的 L2-L12 所有层，稀疏 Shape 层不�
   const sparse = geometryRows.find(r => r.layer === 3);
   assert(sparse && sparse.spanPlaceholder && sparse.status === '未检查', JSON.stringify(sparse));
   assert(sparse.actual === '无铜皮' && sparse.expect === '该层无约束', JSON.stringify(sparse));
+  assert(sparse.sourcePadstack === 'BGA_SIG_L2_L5' && sparse.sourceViaIds.join('/') === '1', JSON.stringify(sparse));
 });
 
 t('不含 SIG 的过孔保留显示，但不推算约束且配对 Keepout 为未检查', () => {

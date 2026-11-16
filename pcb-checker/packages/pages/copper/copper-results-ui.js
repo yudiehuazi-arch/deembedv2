@@ -447,17 +447,21 @@
       if (!rows.length) {
         h += '<div class="hint">该过孔附近无圆形铜皮。</div>';
       } else {
-        h += '<table><thead><tr><th class="rvw">复核</th><th>层</th><th>Subset</th><th>检查项</th><th>实测</th><th>规则值</th><th>结果</th><th>定位</th></tr></thead><tbody>';
+        h += '<table><thead><tr><th class="rvw">复核</th><th>层</th><th>Subset</th><th>来源 Padstack</th><th>检查项</th><th>实测</th><th>规则值</th><th>结果</th><th>定位</th></tr></thead><tbody>';
         rows.forEach(function (row) {
           var fail = row.status === '不符合';
           var rowIndex = g.rows.indexOf(row);
           var rk = reviewKey(g, row);
           var rvd = fail && !!UI.reviewed[rk];
           var layerDisplay = (typeof row.layer === 'number' && row.layer > 0) ? ('L' + row.layer) : (String(row.layer).startsWith('L') ? row.layer : (row.layer === '—' ? '—' : ('L' + row.layer)));
+          var sourceVia = (row.sourceViaIds || []).map(function (id) { return 'Via ' + id; }).join(' / ');
+          var sourcePadstack = row.sourcePadstack || g.via.padstack || '无 Padstack';
           var reasonTooltip = row.reason ? (' title="' + esc(row.reason) + '" data-tip="' + esc(row.reason) + '"') : '';
           h += '<tr class="' + (fail ? 'fail ' : '') + (rvd ? 'reviewed' : '') + '" data-rk="' + esc(rk) + '">' +
             '<td class="rvw">' + (fail ? ('<input type="checkbox" class="rvwBox" data-no-persist data-rk="' + esc(rk) + '"' + (rvd ? ' checked' : '') + ' data-tip="勾选标记已人工复核">') : '') + '</td>' +
-            '<td>' + esc(layerDisplay) + '</td><td>' + esc(row.subset) + '</td><td>' + esc(row.checkType) + '</td>' +
+            '<td>' + esc(layerDisplay) + '</td><td>' + esc(row.subset) + '</td>' +
+            '<td class="padstack-source" data-tip="' + esc(sourceVia + ' · ' + sourcePadstack) + '"><span>' + esc(sourcePadstack) + '</span><small>' + esc(sourceVia) + '</small></td>' +
+            '<td>' + esc(row.checkType) + '</td>' +
             '<td class="' + (fail ? 'bad' : '') + '"' + reasonTooltip + '>' + esc(row.actual) + '</td><td' + reasonTooltip + '>' + esc(row.expect || '无') + '</td>' +
             '<td class="' + (fail ? 'bad' : (row.status === '符合' ? 'ok' : 'muted')) + '"' + reasonTooltip + '><span class="resTxt">' + esc(row.status) + '</span>' +
             (fail ? '<span class="rvTag"' + (rvd ? '' : ' style="display:none"') + '>已复核</span>' : '') + '</td>' +

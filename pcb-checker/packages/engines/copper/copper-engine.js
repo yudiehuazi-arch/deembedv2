@@ -293,7 +293,7 @@
 
     var used = {};
     var groups = viaUnits.map(function (unit) {
-      var via = unit.via, near = [], nearSeen = {}, traceNums = {};
+      var via = unit.via, near = [], nearSeen = {}, nearOwners = {}, traceNums = {};
       unit.vias.forEach(function (part) {
         (part.traceLayers || []).forEach(function (name) {
           var ln = subsetToLayer(name, n);
@@ -304,9 +304,10 @@
           for (var cy = b.y0; cy <= b.y1; cy++) {
             var list = circleGrid[cx + ',' + cy];
             if (list) list.forEach(function (sh) {
-              if (dist(part.origin, sh.center) <= posTol && !nearSeen[sh.id]) {
-                nearSeen[sh.id] = 1; near.push(sh); used[sh.id] = 1;
-              }
+              if (dist(part.origin, sh.center) > posTol) return;
+              if (!nearSeen[sh.id]) { nearSeen[sh.id] = 1; near.push(sh); used[sh.id] = 1; }
+              var owners = nearOwners[sh.id] || (nearOwners[sh.id] = []);
+              if (!owners.some(function (v) { return String(v.id) === String(part.id); })) owners.push(part);
             });
             var tlist = traceGrid[cx + ',' + cy];
             if (tlist) tlist.forEach(function (tk) {
@@ -486,6 +487,20 @@
         isPadstackCheck: true
       });
       }
+
+      rows.forEach(function (row) {
+        var owners = nearOwners[row.shapeId] || unit.vias;
+        if (typeof row.layer === 'number' && row.layer > 0) {
+          var layerOwners = owners.filter(function (part) {
+            var span = VI.spanOfVia(part, n);
+            return !span.start || !span.end || (row.layer >= span.start && row.layer <= span.end);
+          });
+          if (layerOwners.length) owners = layerOwners;
+        }
+        row.sourceViaIds = owners.map(function (part) { return part.id; });
+        row.sourcePadstack = owners.map(function (part) { return part.padstack || '无 Padstack'; })
+          .filter(function (name, idx, all) { return all.indexOf(name) === idx; }).join(' + ');
+      });
 
       rows.sort(function (a, b) {
         if (a.isPadstackCheck) return -1;

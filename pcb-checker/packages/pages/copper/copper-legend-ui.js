@@ -187,6 +187,7 @@
       '</ol>' +
       '<h3>3. 每一层怎么判</h3><ol class="rules">' +
       '<li>结果表按完整孔层跨补齐所有层；没有 Shape 的层显示无铜皮，没有规则值的层保留为未检查。</li>' +
+      '<li>每条 Route Keepout 按圆心匹配到具体孔段，并在来源 Padstack 列标明对应 Via；相邻孔段的交界层可分别追溯。</li>' +
       '<li>Subset 前导数字映射层号，实测半径与规则值差值 ≤ ' + val + ' mil 判为符合，缺失应有层铜皮判为无铜皮不符合。</li>' +
       '<li>Padstack层名核对过孔名称是否覆盖 Connections 全部连接层。</li>' +
       '</ol>';
@@ -350,7 +351,7 @@
   function exportCsv() {
     var r = UI.result;
     if (!r) { if ($('resHint')) $('resHint').textContent = '尚未产生检查结果。'; return; }
-    var lines = ['铜皮,过孔,网络,Padstack,约束,层,Subset,检查项,实测,规则值,结果,复核'];
+    var lines = ['铜皮,过孔,网络,完整孔Padstack,约束,层,Subset,来源Via,来源Padstack,检查项,实测,规则值,结果,复核'];
     var rf = effectiveResFilter();
     r.groups.forEach(function (g) {
       if (!resultGroupMatch(g, rf)) return;
@@ -360,8 +361,8 @@
         var layerDisplay = (typeof row.layer === 'number' && row.layer > 0) ? ('L' + row.layer) : (String(row.layer).startsWith('L') ? row.layer : (row.layer === '—' ? '—' : ('L' + row.layer)));
         lines.push([
           row.shapeId, g.via.id, g.via.net || '', g.via.padstack || '', g.rule ? g.rule.title : '',
-          layerDisplay, row.subset, row.checkType, row.actual, row.expect, row.status,
-          (UI.reviewed[reviewKey(g, row)] ? '已复核' : '')
+          layerDisplay, row.subset, (row.sourceViaIds || []).join('/'), row.sourcePadstack || '',
+          row.checkType, row.actual, row.expect, row.status, (UI.reviewed[reviewKey(g, row)] ? '已复核' : '')
         ].map(function (x) {
           return '"' + String(x == null ? '' : x).replace(/"/g, '""') + '"';
         }).join(','));

@@ -80,7 +80,11 @@ setTimeout(() => {
   t('④ 检查结果 页显示 层/实测/规则值/结果，不符合为红', () => {
     w.eval('renderResults()');
     const h = $('checkOut').innerHTML;
-    if (h.indexOf('实测') < 0 || h.indexOf('规则值') < 0) throw new Error('缺列');
+    if (h.indexOf('实测') < 0 || h.indexOf('规则值') < 0 || h.indexOf('来源 Padstack') < 0) throw new Error('缺列');
+    const sourceCell = d.querySelector('#checkOut td.padstack-source');
+    if (!sourceCell || sourceCell.textContent.indexOf('BGA_SIG_L1_L19_3510') < 0 || sourceCell.textContent.indexOf('Via') < 0) {
+      throw new Error('缺 Route Keepout 来源 Padstack');
+    }
     if (h.indexOf('class="bad"') < 0) throw new Error('没有红色标注');
     if (h.indexOf('不符合') < 0) throw new Error('没有不符合');
     if (h.indexOf('L19') < 0) throw new Error('没有 L19 行');

@@ -137,6 +137,28 @@
   white-space: nowrap;
 }
 
+.set .body {
+  overflow-x: auto;
+}
+
+.set .body table {
+  min-width: 1120px;
+}
+
+td.padstack-source {
+  min-width: 230px;
+  max-width: 360px;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+td.padstack-source small {
+  display: block;
+  margin-top: 3px;
+  color: var(--sub);
+  font-size: 11px;
+}
+
 @media (max-width: 900px) {
   .copper-tool-group + .copper-tool-group { margin-left: 0; }
   .copper-canvas-stage { min-height: 360px; }
