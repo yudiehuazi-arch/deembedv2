@@ -20,6 +20,8 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
   var expandLayerRange = parser.expandLayerRange;
   var parsePcbElements = parser.parsePcbElements;
   var parseShapeBlock = parser.parseShapeBlock;
+  var pairDifferentialVias = parser.pairDifferentialVias;
+  var SPECIAL_SHAPE_CENTER_DISTANCE_TOLERANCE = 0.01;
   function checkViaLayerCoverage(vias, shapes, rules = [], availableLayers = []) {
     const results = [];
     const shapesByLayer = new Map();
@@ -77,72 +79,71 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
     }
     return results;
   }
+  function findAssociatedShape(via, layerShapes) {
+    let bestShape = null;
+    let minCenterDist = Infinity;
+    layerShapes.forEach(shape => {
+      const distance = dist2D(via.x, via.y, shape.centroid.x, shape.centroid.y);
+      if (distance < minCenterDist && distance <= 120.0) {
+        minCenterDist = distance;
+        bestShape = shape;
+      }
+    });
+    return bestShape;
+  }
+
   function checkSpecialShapedCopper(vias, shapes, templates = []) {
     const results = [];
     const shapesByLayer = new Map();
-    shapes.forEach(s => {
-      const l = s.layer.toUpperCase();
-      if (!shapesByLayer.has(l)) shapesByLayer.set(l, []);
-      shapesByLayer.get(l).push(s);
+    shapes.forEach(shape => {
+      const layer = shape.layer.toUpperCase();
+      if (!shapesByLayer.has(layer)) shapesByLayer.set(layer, []);
+      shapesByLayer.get(layer).push(shape);
     });
-    for (let tIdx = 0; tIdx < templates.length; tIdx++) {
-      const tmpl = templates[tIdx];
+    templates.forEach((tmpl, tIdx) => {
       const padPattern = (tmpl.padstack || '').trim().toLowerCase();
       const targetLayer = (tmpl.layer || '').trim().toUpperCase();
+      const expectedCenterDistance = parseFloat(tmpl.differentialCenterDistance);
+      if (!(expectedCenterDistance > 0)) return;
       const tmplName = tmpl.name || `异型铜皮模板_${tIdx + 1}`;
-      
-      let expectedArea = tmpl.expectedArea || (tmpl.shape ? tmpl.shape.area : 0);
+      const expectedArea = tmpl.expectedArea || (tmpl.shape ? tmpl.shape.area : 0);
       const tolArea = tmpl.areaTolerance != null ? parseFloat(tmpl.areaTolerance) : 30.0;
-      const matchedVias = vias.filter(v => {
-        if (!padPattern || padPattern === '*') return true;
-        return v.padstack.toLowerCase().includes(padPattern);
-      });
+      const matchedVias = vias.filter(via => !padPattern || padPattern === '*' ||
+        via.padstack.toLowerCase().includes(padPattern));
+      const pairsByVia = pairDifferentialVias(matchedVias);
       const layerShapes = shapesByLayer.get(targetLayer) || [];
-      for (const via of matchedVias) {
-        let bestShape = null;
-        let minCenterDist = Infinity;
-        for (const shape of layerShapes) {
-          const d = dist2D(via.x, via.y, shape.centroid.x, shape.centroid.y);
-          if (d < minCenterDist && d <= 120.0) {
-            minCenterDist = d;
-            bestShape = shape;
-          }
-        }
+      matchedVias.forEach(via => {
+        const pair = pairsByVia.get(via);
+        if (!pair || Math.abs(pair.distance - expectedCenterDistance) > SPECIAL_SHAPE_CENTER_DISTANCE_TOLERANCE) return;
+        const bestShape = findAssociatedShape(via, layerShapes);
         let isMatch = false;
         let failReason = '';
         if (!bestShape) {
           failReason = `在 ${targetLayer} 层未找到与孔 #${via.id} 关联的铜皮`;
+        } else if (!(expectedArea > 0)) {
+          isMatch = true;
         } else {
-          if (expectedArea > 0) {
-            const areaDiff = Math.abs(bestShape.area - expectedArea);
-            if (areaDiff <= tolArea) {
-              isMatch = true;
-            } else {
-              failReason = `铜皮 Shape #${bestShape.id} 面积为 ${roundN(bestShape.area, 1)} sq mil，与模板期望面积 ${roundN(expectedArea, 1)} sq mil 偏差 ${roundN(areaDiff, 1)} sq mil (超出容差 ±${tolArea})`;
-            }
-          } else {
-            isMatch = true;
+          const areaDiff = Math.abs(bestShape.area - expectedArea);
+          isMatch = areaDiff <= tolArea;
+          if (!isMatch) {
+            failReason = `铜皮 Shape #${bestShape.id} 面积为 ${roundN(bestShape.area, 1)} sq mil，与模板期望面积 ${roundN(expectedArea, 1)} sq mil 偏差 ${roundN(areaDiff, 1)} sq mil (超出容差 ±${tolArea})`;
           }
         }
         results.push({
-          checkCategory: 'special_shape',
-          checkCategoryName: '② 特定异型铜皮比对检查',
-          templateIndex: tIdx + 1,
-          templateName: tmplName,
-          viaId: via.id,
-          viaPadstack: via.padstack,
-          viaCoord: [via.x, via.y],
-          layer: tmpl.layer,
-          targetShapeId: bestShape ? bestShape.id : null,
-          actualArea: bestShape ? bestShape.area : 0,
-          expectedArea,
-          pass: isMatch,
+          checkCategory: 'special_shape', checkCategoryName: '② 特定异型铜皮比对检查',
+          templateIndex: tIdx + 1, templateId: tmpl.id || `special_shape_${tIdx + 1}`, templateName: tmplName,
+          viaId: via.id, viaPadstack: via.padstack, viaNet: via.net, viaCoord: [via.x, via.y],
+          pairedViaId: pair.mate.id, pairedViaNet: pair.mate.net,
+          actualDifferentialCenterDistance: pair.distance,
+          expectedDifferentialCenterDistance: expectedCenterDistance,
+          layer: tmpl.layer, targetShapeId: bestShape ? bestShape.id : null,
+          actualArea: bestShape ? bestShape.area : 0, expectedArea, areaTolerance: tolArea, pass: isMatch,
           message: isMatch
-            ? `✅ 符合：孔 #${via.id} 在 ${tmpl.layer} 层的铜皮与异型模板【${tmplName}】匹配 (实测面积 ${bestShape ? roundN(bestShape.area, 1) : '-'} sq mil)`
-            : `❌ 不符合：孔 #${via.id} 在 ${tmpl.layer} 层异型铜皮不匹配 (${failReason})`
+            ? `✅ 符合：孔 #${via.id} 与孔 #${pair.mate.id} 中心距 ${roundN(pair.distance, 2)} mil，在 ${tmpl.layer} 层的铜皮与异型模板【${tmplName}】匹配 (实测面积 ${bestShape ? roundN(bestShape.area, 1) : '-'} sq mil)`
+            : `❌ 不符合：孔 #${via.id} 与孔 #${pair.mate.id} 中心距 ${roundN(pair.distance, 2)} mil，在 ${tmpl.layer} 层异型铜皮不匹配 (${failReason})`
         });
-      }
-    }
+      });
+    });
     return results;
   }
   function checkTraceReferenceMargin(traces, shapes, rules = []) {
@@ -425,7 +426,7 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
         g.layerListStr = s0.layer;
         g.expectedArea = s0.expectedArea;
         g.actualArea = s0.actualArea;
-        g.metricsStr = `实测面积: ${roundN(s0.actualArea, 1)} sq mil (期望 ${s0.expectedArea})`;
+        g.metricsStr = `差分孔中心距: ${roundN(s0.actualDifferentialCenterDistance, 2)} mil (规则 ${s0.expectedDifferentialCenterDistance} mil)；实测面积: ${roundN(s0.actualArea, 1)} sq mil (期望 ${s0.expectedArea})`;
         g.message = s0.message;
       } else if (g.checkCategory === 'trace_ref_margin') {
         const failedSubs = subs.filter(s => !s.pass);
@@ -475,8 +476,8 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
       { id: 'cov_2', padstack: 'BGA_GND_pad1mil_0902', layers: '02G01P, 19IS08', coverageRadius: 50.0 }
     ];
     const specialShapeTemplates = config.specialShapeTemplates || [
-      { id: 'tmpl_1', name: 'L2特定异型泪滴铜皮', padstack: 'BGA_3510', layer: '02G01P', expectedArea: 452.38, areaTolerance: 30.0 },
-      { id: 'tmpl_2', name: 'L19特定异型铜皮', padstack: 'BGA_3510', layer: '19IS08', expectedArea: 113.10, areaTolerance: 20.0 }
+      { id: 'tmpl_1', name: 'L2特定异型泪滴铜皮', padstack: 'BGA_3510', differentialCenterDistance: 10.0, layer: '02G01P', expectedArea: 452.38, areaTolerance: 30.0 },
+      { id: 'tmpl_2', name: 'L19特定异型铜皮', padstack: 'BGA_3510', differentialCenterDistance: 10.0, layer: '19IS08', expectedArea: 113.10, areaTolerance: 20.0 }
     ];
     const traceMarginRules = config.traceMarginRules || [
       { id: 'margin_1', traceLayer: '19IS08', upperRefLayer: '08IS03', lowerRefLayer: 'Bottom', minMargin: 50.0 },

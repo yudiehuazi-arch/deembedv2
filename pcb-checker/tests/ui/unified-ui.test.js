@@ -172,6 +172,33 @@ async function test(name, fn) {
     w.zoomCanvas(1.2);
   });
 
+  await test('铜皮异型模板可配置、展示并导出差分孔中心距', () => {
+    w.renderRulesUI();
+    if (![...d.querySelectorAll('#tblPourRule2 th')].some(th => th.textContent.includes('差分孔中心距'))) {
+      throw new Error('规则 2 表格缺少差分孔中心距列');
+    }
+    if (!w.State.rules.specialShapeTemplates.every(t => t.differentialCenterDistance > 0)) {
+      throw new Error('默认异型模板缺少差分孔中心距');
+    }
+    const before = w.State.rules.specialShapeTemplates.length;
+    w.openAddPourShapeModal();
+    $('modalPourShapeInpName').value = '中心距模板测试';
+    $('modalPourShapeInpDiffDist').value = '19.68';
+    w.savePourShapeFromModal();
+    const added = w.State.rules.specialShapeTemplates[before];
+    if (!added || added.differentialCenterDistance !== 19.68) throw new Error('弹窗未保存差分孔中心距');
+    w.editPourShapeTemplate(before);
+    if ($('modalPourShapeInpDiffDist').value !== '19.68') throw new Error('编辑弹窗未回填差分孔中心距');
+    w.closePourShapeModal();
+    w.exportPourRulesPrompt();
+    const exported = JSON.parse($('txtModalExportContent').value);
+    if (exported.specialShapeTemplates[before].differentialCenterDistance !== 19.68) {
+      throw new Error('铜皮规则 JSON 未导出差分孔中心距');
+    }
+    w.State.rules.specialShapeTemplates.splice(before, 1);
+    w.renderRulesUI();
+  });
+
   await test('页面运行期零脚本错误', () => {
     if (ctx.errors.length) throw new Error(ctx.errors.join(' | '));
   });

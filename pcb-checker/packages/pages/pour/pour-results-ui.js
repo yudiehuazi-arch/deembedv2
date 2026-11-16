@@ -141,7 +141,7 @@
       return '实测距铜皮: <strong>' + esc(r.actualDistStr) + '</strong> / 要求 ≤ ' + esc(r.requiredDist) + ' mil';
     }
     if (r.checkCategory === 'special_shape') {
-      return '实测面积: <strong>' + esc(rn(r.actualArea, 1)) + ' sq mil</strong> / 期望 ' + esc(r.expectedArea);
+      return '差分孔中心距: <strong>' + esc(rn(r.actualDifferentialCenterDistance, 2)) + ' mil</strong> / 规则 ' + esc(r.expectedDifferentialCenterDistance) + ' mil；实测面积 ' + esc(rn(r.actualArea, 1)) + ' sq mil / 期望 ' + esc(r.expectedArea);
     }
     if (r.checkCategory === 'trace_ref_margin') {
       return '单侧外延: <strong>' + esc(rn(r.actualMargin, 1)) + ' mil</strong> / 要求 ≥ ' + esc(r.minMargin) + ' mil';

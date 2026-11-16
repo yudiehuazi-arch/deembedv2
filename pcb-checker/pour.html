@@ -4,11 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PCB 铜皮检查工具</title>
-<link rel="stylesheet" href="assets/styles/tokens.css?v=28">
-<link rel="stylesheet" href="assets/styles/eda-shell.css?v=28">
-<link rel="stylesheet" href="assets/styles/eda-dock.css?v=28">
-<link rel="stylesheet" href="assets/styles/components.css?v=28">
-<link rel="stylesheet" href="assets/styles/pages/pour.css?v=28">
+<link rel="stylesheet" href="assets/styles/tokens.css?v=29">
+<link rel="stylesheet" href="assets/styles/eda-shell.css?v=29">
+<link rel="stylesheet" href="assets/styles/eda-dock.css?v=29">
+<link rel="stylesheet" href="assets/styles/components.css?v=29">
+<link rel="stylesheet" href="assets/styles/pages/pour.css?v=29">
 </head>
 <body class="eda-workbench">
 
@@ -126,7 +126,7 @@
       <div class="card">
         <div class="row" style="justify-content:space-between;margin-bottom:6px">
           <div>
-            <h2>2. 特定异型铜皮模板比对规则 <span class="badge-tag copper" id="lblR2Count">2 条规则</span> <span class="eda-tip" tabindex="0" data-tip="导入标准异型泪滴或局部加宽铜皮 Shape TXT 提取基准面积与轮廓，核对目标层过孔周边铜皮面积偏差">?</span></h2>
+            <h2>2. 特定异型铜皮模板比对规则 <span class="badge-tag copper" id="lblR2Count">2 条规则</span> <span class="eda-tip" tabindex="0" data-tip="先匹配过孔 Padstack，再计算差分对过孔中心距，据此选择目标层铜皮模板并核对面积偏差">?</span></h2>
           </div>
           <button type="button" class="btn pri small" onclick="openAddRule2Modal()" data-tip="粘贴 EDA Shape Item 文本自动提取边界与基准面积">+ 导入异型铜皮模板</button>
         </div>
@@ -138,6 +138,7 @@
                 <th style="width:68px">缩略图</th>
                 <th>模板名称</th>
                 <th data-tip="目标过孔 Padstack 匹配关键字">过孔类型</th>
+                <th data-tip="检查时计算该过孔与同一差分网络另一过孔的中心距，匹配容差为 0.01 mil">差分孔中心距 mil</th>
                 <th>目标层别</th>
                 <th>基准面积与容差</th>
                 <th style="width:124px">操作</th>
@@ -457,6 +458,11 @@
         <div class="chip-bar" id="chipsModalR2Padstack"></div>
       </div>
       <div class="form-item">
+        <label for="modalR2InpDiffDist" data-tip="先匹配过孔类型，再计算该过孔与同一差分网络另一过孔的中心距，匹配容差为 0.01 mil">差分孔中心距 mil *</label>
+        <input type="number" id="modalR2InpDiffDist" value="10.0" step="0.01" min="0.01" data-no-persist>
+        <div class="chip-bar" id="chipsModalR2DiffDist"></div>
+      </div>
+      <div class="form-item">
         <label for="modalR2InpLayer" data-tip="EDA TXT 中的 Subset 层名">目标层别 *</label>
         <input type="text" id="modalR2InpLayer" placeholder="如 02G01P 或 L2" data-no-persist>
         <div class="chip-bar" id="chipsModalR2Layer"></div>
@@ -546,16 +552,16 @@
   </div>
 </div>
 
-<script src="packages/shared/dom-utils.js?v=28"></script>
-<script src="packages/engines/pour/pour-geom.js?v=28"></script>
-<script src="packages/engines/pour/pour-parser.js?v=28"></script>
-<script src="packages/engines/pour/pour-engine.js?v=28"></script>
-<script src="packages/pages/pour/pour-state.js?v=28"></script>
-<script src="packages/pages/pour/pour-rules-ui.js?v=28"></script>
-<script src="packages/pages/pour/pour-results-ui.js?v=28"></script>
-<script src="packages/pages/pour/pour-canvas-viewer.js?v=28"></script>
-<script src="packages/shared/eda-tooltip.js?v=28"></script>
-<script src="packages/shared/eda-shell.js?v=28"></script>
-<script src="packages/shared/ui-prefs.js?v=28"></script>
+<script src="packages/shared/dom-utils.js?v=29"></script>
+<script src="packages/engines/pour/pour-geom.js?v=29"></script>
+<script src="packages/engines/pour/pour-parser.js?v=29"></script>
+<script src="packages/engines/pour/pour-engine.js?v=29"></script>
+<script src="packages/pages/pour/pour-state.js?v=29"></script>
+<script src="packages/pages/pour/pour-rules-ui.js?v=29"></script>
+<script src="packages/pages/pour/pour-results-ui.js?v=29"></script>
+<script src="packages/pages/pour/pour-canvas-viewer.js?v=29"></script>
+<script src="packages/shared/eda-tooltip.js?v=29"></script>
+<script src="packages/shared/eda-shell.js?v=29"></script>
+<script src="packages/shared/ui-prefs.js?v=29"></script>
 </body>
 </html>

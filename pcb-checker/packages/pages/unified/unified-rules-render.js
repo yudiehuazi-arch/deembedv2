@@ -72,6 +72,7 @@ function renderRulesUI() {
       id: 'tmpl_1',
       name: 'L2特定异型铜皮_1',
       padstack: 'BGA_3510',
+      differentialCenterDistance: 10.0,
       layer: '02G01P',
       expectedArea: 452.4,
       areaTolerance: 30.0
@@ -80,7 +81,7 @@ function renderRulesUI() {
   if (badgePour2) badgePour2.textContent = `${r2List.length} 条规则`;
   if (tbodyPour2) {
     if (r2List.length === 0) {
-      tbodyPour2.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:16px;color:#6b7280">暂未配置异型铜皮模板。可点击上方「导入异型铜皮模板」或下方「新增模板规则」。</td></tr>`;
+      tbodyPour2.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:16px;color:#6b7280">暂未配置异型铜皮模板。可点击上方「导入异型铜皮模板」或下方「新增模板规则」。</td></tr>`;
     } else {
       tbodyPour2.innerHTML = r2List.map((r, i) => `
         <tr>
@@ -100,6 +101,9 @@ function renderRulesUI() {
             <span style="background:#fef3c7;color:#92400e;border:1px solid #fde68a;padding:2px 8px;border-radius:4px;font-weight:600;font-family:var(--mono);display:inline-block">
               <input type="text" value="${escHtml(r.padstack || 'BGA_3510')}" onchange="State.rules.specialShapeTemplates[${i}].padstack=this.value" style="background:transparent;border:none;color:#92400e;font-weight:700;width:90px;font-family:var(--mono)">
             </span>
+          </td>
+          <td>
+            <input type="number" min="0.01" step="0.01" value="${r.differentialCenterDistance || 10}" onchange="State.rules.specialShapeTemplates[${i}].differentialCenterDistance=parseFloat(this.value)" style="width:72px"> mil
           </td>
           <td>
             <span style="background:#f1f5f9;color:#374151;border:1px solid #cbd5e1;padding:2px 8px;border-radius:4px;font-weight:600;font-family:var(--mono);display:inline-block">
@@ -165,6 +169,7 @@ function addPourRule2Row() {
     id: `tmpl_${Date.now()}`,
     name: `新增异型铜皮_${State.rules.specialShapeTemplates.length + 1}`,
     padstack: 'BGA_3510',
+    differentialCenterDistance: 10.0,
     layer: '02G01P',
     expectedArea: 452.4,
     areaTolerance: 30.0

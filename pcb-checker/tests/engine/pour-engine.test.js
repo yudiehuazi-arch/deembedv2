@@ -86,7 +86,8 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
 // 3. 第二项：特定异型铜皮比对检查 (Special Shaped Copper Check)
 {
   const vias = [
-    { id: 10, x: 23286.13, y: 27990.27, padstack: 'BGA_3510_L19_ring3mil_L2pad_0907', net: '63_N' }
+    { id: 10, x: 23286.13, y: 27990.27, padstack: 'BGA_3510_L19_ring3mil_L2pad_0907', net: '63_N' },
+    { id: 11, x: 23296.13, y: 27990.27, padstack: 'BGA_3510_L19_ring3mil_L2pad_0907', net: '63_P' }
   ];
 
   const shapes = [
@@ -101,18 +102,43 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   const templates = [
     {
       id: 'tmpl_1', name: 'L2特定异型铜皮',
-      padstack: 'BGA_3510', layer: '02G01P',
+      padstack: 'BGA_3510', differentialCenterDistance: 10.0, layer: '02G01P',
       expectedArea: 452.38, areaTolerance: 10.0
     }
   ];
 
   const res = checkSpecialShapedCopper(vias, shapes, templates);
-  assert.strictEqual(res.length, 1);
-  assert.strictEqual(res[0].pass, true, '面积与位置符合模板应判定为通过');
-  console.log('  PASS  第二项：特定类型孔在指定层的异型铜皮比对检查');
+  assert.strictEqual(res.length, 2, '差分对两颗孔均应使用中心距匹配到模板');
+  assert.ok(res.every(item => item.pass), '面积、位置与差分孔中心距符合模板应判定为通过');
+  assert.ok(res.every(item => item.actualDifferentialCenterDistance === 10));
+  console.log('  PASS  第二项：过孔类型与差分孔中心距依次匹配异型铜皮模板');
 }
 
-// 4. 第三项：走线上/下参考层铺铜覆盖与单侧超宽检查 (Trace Reference Layer Margin)
+// 4. 同一过孔类型按差分孔中心距选择唯一模板，且配对不跨过孔类型
+{
+  const vias = [
+    { id: 20, x: 0, y: 0, padstack: 'TYPE_A_SIG', net: '88_P' },
+    { id: 21, x: 30, y: 0, padstack: 'TYPE_A_SIG', net: '88_N' },
+    { id: 22, x: 10, y: 0, padstack: 'TYPE_B_SIG', net: '88_N' }
+  ];
+  const shapes = [
+    { id: 210, layer: 'L2', area: 100, centroid: { x: 0, y: 0 } },
+    { id: 211, layer: 'L2', area: 100, centroid: { x: 30, y: 0 } }
+  ];
+  const templates = [
+    { id: 'distance_30', name: '中心距30模板', padstack: 'TYPE_A', differentialCenterDistance: 30.009, layer: 'L2', expectedArea: 100, areaTolerance: 1 },
+    { id: 'outside_tolerance', name: '中心距超容差模板', padstack: 'TYPE_A', differentialCenterDistance: 30.011, layer: 'L2', expectedArea: 999, areaTolerance: 1 },
+    { id: 'distance_10', name: '中心距10模板', padstack: 'TYPE_A', differentialCenterDistance: 10, layer: 'L2', expectedArea: 999, areaTolerance: 1 }
+  ];
+  const res = checkSpecialShapedCopper(vias, shapes, templates);
+  assert.strictEqual(res.length, 2, '仅中心距 30 mil 的 TYPE_A 模板应生成两颗孔的检查记录');
+  assert.ok(res.every(item => item.templateName === '中心距30模板' && item.pass));
+  assert.deepStrictEqual(res.map(item => item.pairedViaId).sort(), [20, 21]);
+  assert.ok(res.every(item => Math.abs(item.actualDifferentialCenterDistance - 30) < 1e-9));
+  console.log('  PASS  第二项：先按 Via 类型配对，再按差分孔中心距选取对应模板');
+}
+
+// 5. 第三项：走线上/下参考层铺铜覆盖与单侧超宽检查 (Trace Reference Layer Margin)
 {
   const traces = [
     {
@@ -151,7 +177,7 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   console.log('  PASS  第三项：走线上/下参考层铺铜覆盖与单侧 50mil 超宽检查');
 }
 
-// 5. 第四项：孤立小铜皮检查 (Isolated Small Copper)
+// 6. 第四项：孤立小铜皮检查 (Isolated Small Copper)
 {
   const shapes = [
     { id: 501, layer: 'Top', area: 1200.0, areaMm2: 0.774, centroid: { x: 100, y: 100 } },
@@ -165,7 +191,7 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   console.log('  PASS  第四项：孤立小铜皮 / 碎铜死铜检查 (500 sq mil 阈值)');
 }
 
-// 6. 第五项：铜皮最小圆弧半径检查 (Copper Arc Minimum Radius)
+// 7. 第五项：铜皮最小圆弧半径检查 (Copper Arc Minimum Radius)
 {
   const shapes = [
     {
@@ -183,7 +209,7 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   console.log('  PASS  第五项：铜皮最小圆弧半径检查 (10 mil 阈值)');
 }
 
-// 7. 全量集成运行器测试 (runAllCopperChecks)
+// 8. 全量集成运行器测试 (runAllCopperChecks)
 {
   const sampleTxt = fs.readFileSync(path.join(__dirname, '../../sample/铜皮数据示例.txt'), 'utf8');
   const fullRes = runAllCopperChecks(sampleTxt, {
@@ -196,7 +222,7 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   console.log(`  PASS  全量 5 项铜皮检查集成运行器 (总检查项 ${fullRes.summary.totalChecks}，检出缺陷 ${fullRes.summary.totalDefects})`);
 }
 
-// 8. 走线圆弧高精度参数化插值采样与 image-1.png 全量走线解析对齐测试
+// 9. 走线圆弧高精度参数化插值采样与 image-1.png 全量走线解析对齐测试
 {
   const { sampleArcPoints } = PourChecker;
   // Test CCW arc
@@ -224,7 +250,7 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
 }
 
 
-// 9. 圆弧扫掠角：点位于弧的「缺口」方向时，最近点必须是弧端点
+// 10. 圆弧扫掠角：点位于弧的「缺口」方向时，最近点必须是弧端点
 {
   const shape = {
     id: 900, layer: 'Top', bbox: { minX: 0, minY: 0, maxX: 100, maxY: 100, spanX: 100, spanY: 100 },
@@ -243,7 +269,7 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   console.log('  PASS  圆弧扫掠角：缺口方向的点按弧端点取距（不再用 |d−r| 逼近）');
 }
 
-// 10. 点在形内判定：L 形铜皮的包围盒中心不在铜皮上
+// 11. 点在形内判定：L 形铜皮的包围盒中心不在铜皮上
 {
   const L = [[0, 0], [100, 0], [100, 20], [20, 20], [20, 100], [0, 100]];
   const boundary = L.map((p, i) => ({
@@ -261,7 +287,7 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   console.log('  PASS  点在形内判定：L 形/带缺口铜皮的包围盒中心不再被误判为「在上面」');
 }
 
-// 11. 孤立小铜皮判定：过孔是否真的落在铜皮轮廓内（同层）
+// 12. 孤立小铜皮判定：过孔是否真的落在铜皮轮廓内（同层）
 {
   const L = [[0, 0], [100, 0], [100, 20], [20, 20], [20, 100], [0, 100]];
   const boundary = L.map((p, i) => ({
@@ -285,4 +311,4 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   console.log('  PASS  孤立小铜皮：按轮廓点内判定 + 同层过滤（不再用「质心 30 mil 内」近似）');
 }
 
-console.log('\n结果: 全部 11 项铜皮检查单元测试通过！');
+console.log('\n结果: 全部 12 项铜皮检查单元测试通过！');

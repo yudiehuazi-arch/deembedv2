@@ -16,11 +16,17 @@ function openAddPourShapeModal() {
   $('modalPourShapeInpName').value = `L2特定异型铜皮_${(State.rules.specialShapeTemplates || []).length + 1}`;
   $('modalPourShapeInpPadstack').value = 'BGA_3510';
   $('modalPourShapeInpPadstack').disabled = false;
+  $('modalPourShapeInpPadstack').style.background = '#ffffff';
+  $('modalPourShapeInpDiffDist').value = '10.0';
+  $('modalPourShapeInpDiffDist').disabled = false;
+  $('modalPourShapeInpDiffDist').style.background = '#ffffff';
   $('modalPourShapeInpLayer').value = '02G01P';
   $('modalPourShapeInpLayer').disabled = false;
+  $('modalPourShapeInpLayer').style.background = '#ffffff';
   $('modalPourShapeInpTol').value = '30.0';
   $('modalPourShapeTxt').value = `Item 2  < Shape >\n  Subset: 02G01P\n  Area: 452.38934 (sq mil)\n  Exterior Boundary:\n    Arc seg: xy [23274.13, 27990.27]  xy [23274.13, 27990.27]\n      Center-xy: [23286.13, 27990.27] Radius (12.0000) CCW`;
   $('modalPourShapeTxt').disabled = false;
+  $('modalPourShapeTxt').style.background = '#ffffff';
 
   previewModalPourShape();
   modal.style.display = 'flex';
@@ -42,6 +48,10 @@ function editPourShapeTemplate(idx) {
   $('modalPourShapeInpPadstack').value = t.padstack || 'BGA_3510';
   $('modalPourShapeInpPadstack').disabled = true; // Locked in edit mode
   $('modalPourShapeInpPadstack').style.background = '#f8fafc';
+
+  $('modalPourShapeInpDiffDist').value = t.differentialCenterDistance || 10.0;
+  $('modalPourShapeInpDiffDist').disabled = true;
+  $('modalPourShapeInpDiffDist').style.background = '#f8fafc';
 
   $('modalPourShapeInpLayer').value = t.layer || '02G01P';
   $('modalPourShapeInpLayer').disabled = true; // Locked in edit mode
@@ -92,6 +102,7 @@ function savePourShapeFromModal() {
   }
 
   const padstack = $('modalPourShapeInpPadstack').value.trim() || 'BGA_3510';
+  const diffCenterDistance = parseFloat($('modalPourShapeInpDiffDist').value) || 10.0;
   const layer = $('modalPourShapeInpLayer').value.trim() || '02G01P';
   const tol = parseFloat($('modalPourShapeInpTol').value) || 30.0;
   const rawTxt = $('modalPourShapeTxt').value;
@@ -111,6 +122,7 @@ function savePourShapeFromModal() {
       id: `tmpl_${Date.now()}`,
       name,
       padstack,
+      differentialCenterDistance: diffCenterDistance,
       layer,
       expectedArea: area,
       areaTolerance: tol,

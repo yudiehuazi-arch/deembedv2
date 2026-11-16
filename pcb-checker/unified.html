@@ -4,12 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PCB 综合一体化检查</title>
-<link rel="stylesheet" href="assets/styles/tokens.css?v=28">
-<link rel="stylesheet" href="assets/styles/eda-shell.css?v=28">
-<link rel="stylesheet" href="assets/styles/eda-dock.css?v=28">
-<link rel="stylesheet" href="assets/styles/components.css?v=28">
-<link rel="stylesheet" href="assets/styles/pages/unified.css?v=28">
-<link rel="stylesheet" href="assets/styles/pages/unified-config.css?v=28">
+<link rel="stylesheet" href="assets/styles/tokens.css?v=29">
+<link rel="stylesheet" href="assets/styles/eda-shell.css?v=29">
+<link rel="stylesheet" href="assets/styles/eda-dock.css?v=29">
+<link rel="stylesheet" href="assets/styles/components.css?v=29">
+<link rel="stylesheet" href="assets/styles/pages/unified.css?v=29">
+<link rel="stylesheet" href="assets/styles/pages/unified-config.css?v=29">
 </head>
 <body class="eda-workbench">
 
@@ -460,7 +460,7 @@
                     <span id="badgePourRule2Count" style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">1 条规则</span>
                   </div>
                   <div style="font-size:12px;color:#6b7280;margin-top:3px">
-                    轮廓与面积取自导入的 TXT，逐孔比对周围铜皮与模板
+                    先匹配过孔类型，再按差分孔中心距选择导入的铜皮模板
                   </div>
                 </div>
                 <div style="display:flex;gap:6px">
@@ -479,6 +479,7 @@
                       <th style="width:90px">模板缩略图</th>
                       <th style="width:180px">模板名称</th>
                       <th style="width:140px">过孔类型</th>
+                      <th style="width:120px" data-tip="检查时计算该过孔与同一差分网络另一过孔的中心距，匹配容差为 0.01 mil">差分孔中心距 mil</th>
                       <th style="width:100px">目标层别</th>
                       <th style="width:160px">期望面积与容差</th>
                       <th style="width:110px;text-align:right">操作</th>
@@ -1104,22 +1105,23 @@
         </div>
       </div>
 
-      <!-- Row 2: Target Layer & Area Tolerance -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
         <div>
           <label style="font-weight:600;color:#374151;display:block;margin-bottom:4px">目标层别 *</label>
           <input type="text" id="modalPourShapeInpLayer" style="width:100%" placeholder="例如: 02G01P" data-no-persist>
           <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px" id="chipsModalPourLayer">
             <span style="font-size:11px;color:#6b7280;margin-right:2px">快捷选项:</span>
-            <span class="hist-chip" onclick="fillInput('modalPourShapeInpLayer','02G01P')">02G01P</span>
-            <span class="hist-chip" onclick="fillInput('modalPourShapeInpLayer','19IS08')">19IS08</span>
-            <span class="hist-chip" onclick="fillInput('modalPourShapeInpLayer','L2')">L2</span>
-            <span class="hist-chip" onclick="fillInput('modalPourShapeInpLayer','L4')">L4</span>
-            <span class="hist-chip" onclick="fillInput('modalPourShapeInpLayer','L17')">L17</span>
+            <span class="hist-chip" onclick="fillInput('modalPourShapeInpLayer','02G01P')">02G01P</span><span class="hist-chip" onclick="fillInput('modalPourShapeInpLayer','19IS08')">19IS08</span>
+            <span class="hist-chip" onclick="fillInput('modalPourShapeInpLayer','L2')">L2</span><span class="hist-chip" onclick="fillInput('modalPourShapeInpLayer','L4')">L4</span><span class="hist-chip" onclick="fillInput('modalPourShapeInpLayer','L17')">L17</span>
           </div>
         </div>
         <div>
-          <label style="font-weight:600;color:#374151;display:block;margin-bottom:4px">面积允许容差 (± sq mil)</label>
+          <label style="font-weight:600;color:#374151;display:block;margin-bottom:4px" data-tip="先匹配过孔类型，再计算该过孔与同一差分网络另一过孔的中心距，匹配容差为 0.01 mil">差分孔中心距 mil *</label>
+          <input type="number" id="modalPourShapeInpDiffDist" value="10.0" min="0.01" step="0.01" style="width:100%" data-no-persist>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px"><span class="hist-chip" onclick="fillInput('modalPourShapeInpDiffDist','10.0')">10.0 mil</span><span class="hist-chip" onclick="fillInput('modalPourShapeInpDiffDist','19.68')">19.68 mil</span><span class="hist-chip" onclick="fillInput('modalPourShapeInpDiffDist','23.62')">23.62 mil</span></div>
+        </div>
+        <div>
+          <label style="font-weight:600;color:#374151;display:block;margin-bottom:4px">面积允许容差 ± sq mil</label>
           <input type="number" id="modalPourShapeInpTol" value="30.0" step="5.0" style="width:100%" data-no-persist>
           <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">
             <span style="font-size:11px;color:#6b7280;margin-right:2px">快捷选项:</span>
@@ -1131,13 +1133,11 @@
         </div>
       </div>
 
-      <!-- Row 3: Shape Item TXT Data -->
       <div style="margin-bottom:12px">
         <label style="font-weight:600;color:#374151;display:block;margin-bottom:4px">导入异型铜皮 Item TXT 数据 <span class="eda-tip" tabindex="0" data-tip="包含 Exterior Boundary 与 Area">?</span>:</label>
         <textarea id="modalPourShapeTxt" rows="4" style="width:100%;font-family:monospace;font-size:11px" placeholder="在此粘贴包含 Item <Shape>, Subset, Area, Exterior Boundary 的 TXT 文本..." oninput="previewModalPourShape()"></textarea>
       </div>
 
-      <!-- Row 4: Visual Parsed Shape Card matching image-3.png -->
       <div style="background:#0f172a;border-radius:8px;padding:12px;display:flex;gap:16px;align-items:center;color:#f8fafc">
         <div id="modalPourShapeThumbnailBox" style="width:110px;height:110px;background:#0b1329;border-radius:6px;flex-shrink:0;display:flex;align-items:center;justify-content:center;overflow:hidden">
           <svg width="110" height="110" viewBox="0 0 110 110">
@@ -1292,48 +1292,48 @@
 </div>
 
 
-<script src="packages/shared/xlsx-export.js?v=28"></script>
-<script src="packages/geometry/pad-primitives.js?v=28"></script>
-<script src="packages/geometry/pad-region.js?v=28"></script>
-<script src="packages/engines/copper/via-constraint-inference.js?v=28"></script><script src="packages/engines/copper/copper-engine.js?v=28"></script>
-<script src="packages/engines/copper/constraint-parser.js?v=28"></script>
-<script src="packages/engines/dfm/dfm-layers.js?v=28"></script>
-<script src="packages/engines/dfm/dfm-parser.js?v=28"></script>
-<script src="packages/engines/dfm/dfm-engine.js?v=28"></script>
-<script src="packages/engines/dfm/dfm-pattern.js?v=28"></script>
-<script src="packages/engines/fanout/fanout-parser.js?v=28"></script>
-<script src="packages/engines/fanout/fanout-palette.js?v=28"></script>
-<script src="packages/engines/fanout/fanout-scheme.js?v=28"></script>
-<script src="packages/engines/fanout/fanout-clustering.js?v=28"></script>
-<script src="packages/engines/fanout/fanout-inspector.js?v=28"></script>
-<script src="packages/engines/fanout/fanout-layout.js?v=28"></script>
-<script src="packages/engines/fanout/fanout-canvas.js?v=28"></script>
-<script src="packages/engines/pour/pour-geom.js?v=28"></script>
-<script src="packages/engines/pour/pour-parser.js?v=28"></script>
-<script src="packages/engines/pour/pour-engine.js?v=28"></script>
-<script src="packages/pages/unified/unified-constraint-parse.js?v=28"></script>
-<script src="packages/pages/unified/unified-defaults.js?v=28"></script>
-<script src="packages/pages/unified/unified-state.js?v=28"></script>
-<script src="packages/pages/unified/unified-data-ingest.js?v=28"></script>
-<script src="packages/pages/unified/unified-sample-data.js?v=28"></script>
-<script src="packages/pages/unified/unified-rules-constraint.js?v=28"></script>
-<script src="packages/pages/unified/unified-rules-dfm.js?v=28"></script>
-<script src="packages/pages/unified/unified-fanout-library.js?v=28"></script>
-<script src="packages/pages/unified/unified-fanout-batch.js?v=28"></script>
-<script src="packages/pages/unified/unified-fanout-naming.js?v=28"></script>
-<script src="packages/pages/unified/unified-fanout-viewer.js?v=28"></script>
-<script src="packages/pages/unified/unified-fanout-io.js?v=28"></script>
-<script src="packages/pages/unified/unified-rules-pour.js?v=28"></script>
-<script src="packages/pages/unified/unified-rules-render.js?v=28"></script>
-<script src="packages/pages/unified/unified-trace-analysis.js?v=28"></script>
-<script src="packages/pages/unified/unified-runner.js?v=28"></script>
-<script src="packages/pages/unified/unified-dashboard.js?v=28"></script>
-<script src="packages/pages/unified/unified-canvas-viewer.js?v=28"></script>
-<script src="packages/pages/unified/unified-rules-io.js?v=28"></script>
-<script src="packages/pages/unified/unified-report-export.js?v=28"></script>
-<script src="packages/pages/unified/unified-bootstrap.js?v=28"></script>
-<script src="packages/shared/eda-tooltip.js?v=28"></script>
-<script src="packages/shared/eda-shell.js?v=28"></script>
-<script src="packages/shared/ui-prefs.js?v=28"></script>
+<script src="packages/shared/xlsx-export.js?v=29"></script>
+<script src="packages/geometry/pad-primitives.js?v=29"></script>
+<script src="packages/geometry/pad-region.js?v=29"></script>
+<script src="packages/engines/copper/via-constraint-inference.js?v=29"></script><script src="packages/engines/copper/copper-engine.js?v=29"></script>
+<script src="packages/engines/copper/constraint-parser.js?v=29"></script>
+<script src="packages/engines/dfm/dfm-layers.js?v=29"></script>
+<script src="packages/engines/dfm/dfm-parser.js?v=29"></script>
+<script src="packages/engines/dfm/dfm-engine.js?v=29"></script>
+<script src="packages/engines/dfm/dfm-pattern.js?v=29"></script>
+<script src="packages/engines/fanout/fanout-parser.js?v=29"></script>
+<script src="packages/engines/fanout/fanout-palette.js?v=29"></script>
+<script src="packages/engines/fanout/fanout-scheme.js?v=29"></script>
+<script src="packages/engines/fanout/fanout-clustering.js?v=29"></script>
+<script src="packages/engines/fanout/fanout-inspector.js?v=29"></script>
+<script src="packages/engines/fanout/fanout-layout.js?v=29"></script>
+<script src="packages/engines/fanout/fanout-canvas.js?v=29"></script>
+<script src="packages/engines/pour/pour-geom.js?v=29"></script>
+<script src="packages/engines/pour/pour-parser.js?v=29"></script>
+<script src="packages/engines/pour/pour-engine.js?v=29"></script>
+<script src="packages/pages/unified/unified-constraint-parse.js?v=29"></script>
+<script src="packages/pages/unified/unified-defaults.js?v=29"></script>
+<script src="packages/pages/unified/unified-state.js?v=29"></script>
+<script src="packages/pages/unified/unified-data-ingest.js?v=29"></script>
+<script src="packages/pages/unified/unified-sample-data.js?v=29"></script>
+<script src="packages/pages/unified/unified-rules-constraint.js?v=29"></script>
+<script src="packages/pages/unified/unified-rules-dfm.js?v=29"></script>
+<script src="packages/pages/unified/unified-fanout-library.js?v=29"></script>
+<script src="packages/pages/unified/unified-fanout-batch.js?v=29"></script>
+<script src="packages/pages/unified/unified-fanout-naming.js?v=29"></script>
+<script src="packages/pages/unified/unified-fanout-viewer.js?v=29"></script>
+<script src="packages/pages/unified/unified-fanout-io.js?v=29"></script>
+<script src="packages/pages/unified/unified-rules-pour.js?v=29"></script>
+<script src="packages/pages/unified/unified-rules-render.js?v=29"></script>
+<script src="packages/pages/unified/unified-trace-analysis.js?v=29"></script>
+<script src="packages/pages/unified/unified-runner.js?v=29"></script>
+<script src="packages/pages/unified/unified-dashboard.js?v=29"></script>
+<script src="packages/pages/unified/unified-canvas-viewer.js?v=29"></script>
+<script src="packages/pages/unified/unified-rules-io.js?v=29"></script>
+<script src="packages/pages/unified/unified-report-export.js?v=29"></script>
+<script src="packages/pages/unified/unified-bootstrap.js?v=29"></script>
+<script src="packages/shared/eda-tooltip.js?v=29"></script>
+<script src="packages/shared/eda-shell.js?v=29"></script>
+<script src="packages/shared/ui-prefs.js?v=29"></script>
 </body>
 </html>

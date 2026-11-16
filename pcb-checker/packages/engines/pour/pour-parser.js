@@ -284,14 +284,46 @@
     };
   }
 
-  /**
-   * 空间几何辅助：点到铜皮 Shape 的最短距离
-   */
+  function parseDifferentialNet(net) {
+    const match = String(net || '').trim().match(/^(.+?)([_-])([PN])$/i);
+    if (!match) return null;
+    return { base: match[1].toLowerCase(), polarity: match[3].toUpperCase() };
+  }
+
+  function pairDifferentialVias(vias) {
+    const groups = new Map();
+    const pairsByVia = new Map();
+    (vias || []).forEach(via => {
+      const diff = parseDifferentialNet(via.net);
+      if (!diff) return;
+      if (!groups.has(diff.base)) groups.set(diff.base, { P: [], N: [] });
+      groups.get(diff.base)[diff.polarity].push(via);
+    });
+    groups.forEach(group => {
+      const candidates = [];
+      group.P.forEach(positive => group.N.forEach(negative => {
+        candidates.push({ positive, negative, distance: dist2D(positive.x, positive.y, negative.x, negative.y) });
+      }));
+      candidates.sort((a, b) => a.distance - b.distance || a.positive.id - b.positive.id || a.negative.id - b.negative.id);
+      const usedPositive = new Set();
+      const usedNegative = new Set();
+      candidates.forEach(pair => {
+        if (usedPositive.has(pair.positive) || usedNegative.has(pair.negative)) return;
+        usedPositive.add(pair.positive);
+        usedNegative.add(pair.negative);
+        pairsByVia.set(pair.positive, { mate: pair.negative, distance: pair.distance });
+        pairsByVia.set(pair.negative, { mate: pair.positive, distance: pair.distance });
+      });
+    });
+    return pairsByVia;
+  }
+
   return {
     expandLayerRange: expandLayerRange,
     parsePcbElements: parsePcbElements,
     parseShapeBlock: parseShapeBlock,
     parseViaBlock: parseViaBlock,
-    parseTraceBlock: parseTraceBlock
+    parseTraceBlock: parseTraceBlock,
+    pairDifferentialVias: pairDifferentialVias
   };
 });
