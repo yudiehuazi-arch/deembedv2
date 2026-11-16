@@ -443,15 +443,15 @@
         '<span>' + esc(g.via.padstack || '无 Padstack') + '</span>' +
         '<span class="badge rev" style="margin-left:auto" id="grv-' + si + '" data-tip="点击整组切换复核状态">复核 0/' + failCount + '</span>' +
         (failCount ? ('<label class="grpRvw" data-tip="将本孔所有不符合项一次标为已复核"><input type="checkbox" class="grpBox" data-no-persist data-si="' + si + '">总复核</label>') : '') +
-        '<span>约束 ' + (g.rule ? esc(g.rule.title) : (g.signal !== false ? '未推算到' : '非 SIG · 不检查')) + '</span></div><div class="body">' +
+        '<span>约束 ' + (g.rule ? esc(g.rule.title) : (g.signal !== false ? '未推算到' : '非 SIG · 不检查')) + '</span>' +
+        '<button type="button" class="btn gray small copper-locate-btn" data-si="' + si + '" data-tip="在空间几何视口定位该完整孔">定位</button></div><div class="body">' +
         '<div class="srcnote">提取：' + esc(keyTxt(g)) + (g.note ? ' · ' + esc(g.note) : '') + (g.via.connections ? ' · ' + esc(g.via.connections) : '') + '</div>';
       if (!rows.length) {
         h += '<div class="hint">该过孔附近无圆形铜皮。</div>';
       } else {
-        h += '<table><thead><tr><th class="rvw">复核</th><th>层</th><th>Subset</th><th>来源 Padstack</th><th>检查项</th><th>实测</th><th>规则值</th><th>结果</th><th>定位</th></tr></thead><tbody>';
+        h += '<table><thead><tr><th class="rvw">复核</th><th>层</th><th>Subset</th><th>来源 Padstack</th><th>检查项</th><th>实测</th><th>规则值</th><th>结果</th></tr></thead><tbody>';
         rows.forEach(function (row) {
           var fail = row.status === '不符合';
-          var rowIndex = g.rows.indexOf(row);
           var rk = reviewKey(g, row);
           var rvd = fail && !!UI.reviewed[rk];
           var layerDisplay = (typeof row.layer === 'number' && row.layer > 0) ? ('L' + row.layer) : (String(row.layer).startsWith('L') ? row.layer : (row.layer === '—' ? '—' : ('L' + row.layer)));
@@ -465,8 +465,7 @@
             '<td>' + esc(row.checkType) + '</td>' +
             '<td class="' + (fail ? 'bad' : '') + '"' + reasonTooltip + '>' + esc(row.actual) + '</td><td' + reasonTooltip + '>' + esc(row.expect || '无') + '</td>' +
             '<td class="' + (fail ? 'bad' : (row.status === '符合' ? 'ok' : 'muted')) + '"' + reasonTooltip + '><span class="resTxt">' + esc(row.status) + '</span>' +
-            (fail ? '<span class="rvTag"' + (rvd ? '' : ' style="display:none"') + '>已复核</span>' : '') + '</td>' +
-            '<td>' + (fail ? ('<button type="button" class="btn gray small copper-locate-btn" data-si="' + si + '" data-ri="' + rowIndex + '" data-tip="在空间几何视口定位该完整信号孔与当前层铜皮">定位</button>') : '—') + '</td></tr>';
+            (fail ? '<span class="rvTag"' + (rvd ? '' : ' style="display:none"') + '>已复核</span>' : '') + '</td></tr>';
         });
         h += '</tbody></table>';
       }
@@ -479,7 +478,7 @@
     out.innerHTML = h || '<div class="card"><div class="hint">暂无结果，请先在 ③ 导入数据 载入 Item 数据。</div></div>';
     out.querySelectorAll('.copper-locate-btn').forEach(function (btn) {
       btn.onclick = function () {
-        if (typeof root.locateCopperResult === 'function') root.locateCopperResult(+btn.dataset.si, +btn.dataset.ri);
+        if (typeof root.locateCopperResult === 'function') root.locateCopperResult(+btn.dataset.si, -1);
       };
     });
     out.dataset.ver = ver;

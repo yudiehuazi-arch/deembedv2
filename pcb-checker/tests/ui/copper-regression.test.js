@@ -156,6 +156,14 @@ setTimeout(() => {
     ['过孔','已配对过孔','圆形铜皮','未配对铜皮'].forEach(x => { if (h.indexOf(x) < 0) throw new Error('缺方块 ' + x); });
   });
   t('默认显示全部 4 行', () => { if (bodyRows() !== 4) throw new Error('rows=' + bodyRows()); });
+  t('混合样本中每个孔都只有一个组级定位按钮', () => {
+    w.eval("UI.resFilter=''; UI.onlyBad=false; renderResults()");
+    const cards = [...d.querySelectorAll('#checkOut .set[id^="grp-"]')];
+    const buttons = [...d.querySelectorAll('#checkOut .copper-locate-btn')];
+    if (cards.length !== w.eval('UI.result.groups.length') || buttons.length !== cards.length) throw new Error('孔卡与定位按钮数量不一致');
+    if (cards.some(card => card.querySelectorAll(':scope > .hd .copper-locate-btn').length !== 1)) throw new Error('有孔缺定位或包含多个定位按钮');
+    if (d.querySelector('#checkOut tbody .copper-locate-btn')) throw new Error('层明细中仍有定位按钮');
+  });
   t('点「过孔」= 2 个配对行 + 1 个未配对过孔', () => {
     d.querySelector('#matchOut .stat.click[data-f="via"]').click();
     if (bodyRows() !== 3) throw new Error('rows=' + bodyRows());
@@ -300,9 +308,13 @@ setTimeout(() => {
     if (renderedRows() !== 20) throw new Error('全部后行数 ' + renderedRows());
     if (d.querySelector('#resStats .stat.click.on')) throw new Error('还有方块高亮');
   });
-  t('不符合项可定位到空间几何视口，聚焦完整孔后测量并返回原结果', () => {
-    const locate = d.querySelector('#checkOut tr.fail .copper-locate-btn');
-    if (!locate) throw new Error('不符合行缺少定位按钮');
+  t('每个孔只有一个定位按钮，符合与不符合孔都可定位完整孔', () => {
+    const groups = [...d.querySelectorAll('#checkOut .set[id^="grp-"]')];
+    const buttons = [...d.querySelectorAll('#checkOut .copper-locate-btn')];
+    if (!groups.length || buttons.length !== groups.length) throw new Error('定位按钮数未与孔数一致');
+    if (d.querySelector('#checkOut tbody .copper-locate-btn')) throw new Error('层明细中仍有定位按钮');
+    if ([...d.querySelectorAll('#checkOut th')].some(th => th.textContent.trim() === '定位')) throw new Error('层明细仍有定位列');
+    const locate = buttons[0];
     w.CopperCanvas.state.dataVer = -1;
     w.CopperCanvas.state.fitted = false;
     locate.click();
@@ -311,11 +323,11 @@ setTimeout(() => {
     if (!($('copperCanvas').compareDocumentPosition($('copperCanvasLegend')) & w.Node.DOCUMENT_POSITION_FOLLOWING)) {
       throw new Error('几何图例未放在画布下方');
     }
-    if (w.CopperCanvas.state.groupIndex !== 0) throw new Error('未记录定位完整孔');
+    if (w.CopperCanvas.state.groupIndex !== 0 || w.CopperCanvas.state.rowIndex !== -1) throw new Error('未按完整孔记录定位');
     if ($('selCopperCanvasLayer').value !== '') throw new Error('定位后不应隐藏其他层数据');
     if (!/全部层 · Via \d+\/\d+ · Shape \d+\/\d+/.test($('copperCanvasHud').textContent)) throw new Error('视口未显示可见对象计数');
-    if ($('copperSpatialReviewText').textContent.indexOf('Via') < 0 || $('copperSpatialReviewText').textContent.indexOf('L19') < 0) {
-      throw new Error('定位复核信息缺失异常层');
+    if ($('copperSpatialReviewText').textContent.indexOf('完整孔定位') < 0 || $('copperSpatialReviewText').textContent.indexOf('L1-L19') < 0) {
+      throw new Error('定位复核信息缺失完整孔层跨');
     }
     $('selCopperCanvasLayer').value = '5';
     if (!w.CopperCanvas.isVisible({ type: 'shape', subset: 'Through All' })) throw new Error('Through All 被单层筛选错误隐藏');

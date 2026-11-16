@@ -233,6 +233,11 @@
     if (back) back.style.display = g ? '' : 'none';
     if (!text) return;
     if (!g) { text.textContent = UI.items.length ? '当前为全板视图，可缩放、平移、筛层或使用测量标尺。' : '请先导入板级 Item 数据。'; return; }
+    if (!row) {
+      text.textContent = 'Via ' + g.via.id + ' · ' + (g.via.net || '无网络') + ' · L' + g.startLayer + '-L' + g.endLayer +
+        ' · 完整孔定位 · ' + (g.vias || [g.via]).length + ' 个孔段全部高亮';
+      return;
+    }
     var layer = typeof row.layer === 'number' ? ('L' + row.layer) : String(row.layer || '—');
     var source = (row.sourceViaIds || []).map(function (id) { return 'Via ' + id; }).join('/') + ' · ' + (row.sourcePadstack || '无 Padstack');
     text.textContent = 'Via ' + g.via.id + ' · ' + (g.via.net || '无网络') + ' · L' + g.startLayer + '-L' + g.endLayer +
@@ -288,10 +293,10 @@
   function locateCopperResult(groupIndex, rowIndex) {
     if (!UI.result || !UI.result.groups[groupIndex]) return;
     view.dataVer = UI.dataVer;
-    view.groupIndex = groupIndex; view.rowIndex = rowIndex; view.returnY = root.scrollY || 0;
-    var row = selectedRow(), sel = $('selCopperCanvasLayer');
+    view.groupIndex = groupIndex; view.rowIndex = typeof rowIndex === 'number' ? rowIndex : -1; view.returnY = root.scrollY || 0;
+    var sel = $('selCopperCanvasLayer');
     App.showTab('canvas');
-    // 定位只高亮异常对象，不自动过滤其他层；否则会让其他孔群看起来像“缺失”。
+    // 定位只聚焦并高亮完整孔，不自动过滤其他层；否则会让其他孔群看起来像“缺失”。
     if (sel) sel.value = '';
     updateReview();
     var go = function () { focusLocated(); };
@@ -299,11 +304,11 @@
   }
 
   function returnToResults() {
-    var si = view.groupIndex, ri = view.rowIndex;
+    var si = view.groupIndex;
     App.showTab('result');
     var go = function () {
-      var btn = document.querySelector('.copper-locate-btn[data-si="' + si + '"][data-ri="' + ri + '"]');
-      var target = btn ? btn.closest('tr') : $('grp-' + si);
+      var btn = document.querySelector('.copper-locate-btn[data-si="' + si + '"]');
+      var target = btn ? btn.closest('.set') : $('grp-' + si);
       if (target && target.scrollIntoView) target.scrollIntoView({ block: 'center' });
       if (target) { target.classList.add('pulse-target'); setTimeout(function () { target.classList.remove('pulse-target'); }, 1400); }
       else if (root.scrollTo) root.scrollTo(0, view.returnY);
