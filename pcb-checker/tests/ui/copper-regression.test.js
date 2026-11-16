@@ -268,6 +268,18 @@ setTimeout(() => {
     if (!$('btnOnlyBad').classList.contains('on')) throw new Error('按钮没高亮');
     if ($('resHint').textContent.indexOf('孔内显示所有层') < 0) throw new Error($('resHint').textContent);
   });
+  t('只看不符合可按 Padstack 命名与反焊盘尺寸类型显示', () => {
+    const bar = $('badTypeFilters');
+    if (bar.hidden) throw new Error('不符合类型选项未显示');
+    const labels = [...bar.querySelectorAll('.bad-type-chip .cl')].map(x => x.textContent);
+    if (JSON.stringify(labels) !== JSON.stringify(['全部不符合','Padstack命名不符合','反焊盘尺寸不符合'])) throw new Error(JSON.stringify(labels));
+    bar.querySelector('[data-bad-type="Padstack信号命名"]').click();
+    if (renderedGroups() !== 0) throw new Error('Padstack 命名筛选应为空');
+    bar.querySelector('[data-bad-type="反焊盘尺寸"]').click();
+    if (renderedGroups() !== 1 || w.eval('UI.resBadType') !== '反焊盘尺寸') throw new Error('反焊盘筛选异常');
+    bar.querySelector('[data-bad-type="反焊盘尺寸"]').click();
+    if (renderedGroups() !== 1 || w.eval('UI.resBadType') !== '') throw new Error('重复点击未恢复全部不符合');
+  });
   t('只看已配对过孔：只留已配对的过孔组并显示完整孔所有层', () => {
     $('btnOnlyMatched').click();
     if (renderedGroups() !== 1) throw new Error('组数 ' + renderedGroups());
@@ -377,28 +389,28 @@ setTimeout(() => {
     $('btnReturnCopperResults').click();
     if (activeTab() !== 'tab-result') throw new Error('未返回检查结果');
   });
-  t('空间几何视口可显示并标注所有不符合位置', () => {
+  t('空间视图只保留不符合与未推算两类，并分别按扇出方案和网络名选择', () => {
     $('tabs').querySelector('[data-tab="canvas"]').click();
-    const toggle = $('ckCopperCanvasAllFails');
-    if (!toggle || $('copperCanvasLegend').textContent.indexOf('全部不符合') < 0) throw new Error('缺少显示所有不符合选项或图例');
-    $('selCopperCanvasLayer').value = '5';
-    $('ckCopperCanvasVias').checked = false;
-    $('ckCopperCanvasShapes').checked = false;
-    toggle.click();
-    if (!toggle.checked) throw new Error('显示所有不符合未开启');
-    if ($('selCopperCanvasLayer').value !== '' || !$('ckCopperCanvasVias').checked || !$('ckCopperCanvasShapes').checked) {
-      throw new Error('未自动恢复全部层、过孔和圆形铜皮');
-    }
-    const highlights = w.CopperCanvas.collectFailureHighlights();
-    if (highlights.groupCount !== 1 || highlights.rowCount !== 1 || highlights.viaCount !== 1 || highlights.shapeCount !== 1) {
-      throw new Error('不符合标注统计异常 ' + JSON.stringify(highlights));
-    }
-    if ($('copperCanvasHud').dataset.failGroups !== '1' || $('copperCanvasHud').dataset.failShapes !== '1') throw new Error('HUD 缺少可断言的标注统计');
-    if ($('copperSpatialReviewText').textContent.indexOf('全板不符合标注') < 0 || $('copperSpatialReviewText').textContent.indexOf('1 条不符合记录') < 0) {
-      throw new Error($('copperSpatialReviewText').textContent);
-    }
-    toggle.click();
-    if (toggle.checked || $('copperCanvasHud').dataset.failGroups !== '0') throw new Error('关闭后仍保留全板不符合标注');
+    const mode = $('selCopperCanvasIssueMode'), detail = $('selCopperCanvasIssueDetail');
+    if (!mode || !detail || [...mode.options].map(o => o.textContent).join('/') !== '只看不符合/只看没推算到约束') throw new Error('空间类别选项异常');
+    if ($('copperCanvasLegend').textContent.indexOf('类别筛选标注') < 0) throw new Error('空间图例未更新');
+    if ($('copperCanvasIssueDetailTitle').textContent !== '扇出方案' || ![...detail.options].some(o => o.value === 'BGA-L1-L19')) throw new Error('不符合未按扇出方案列出');
+    detail.value = 'BGA-L1-L19'; detail.dispatchEvent(new w.Event('change', {bubbles:true}));
+    let highlights = w.CopperCanvas.collectFailureHighlights();
+    if (highlights.groupCount !== 1 || highlights.rowCount !== 1 || highlights.viaCount !== 1 || highlights.shapeCount !== 1) throw new Error(JSON.stringify(highlights));
+    $('selCopperCanvasLayer').value = '5'; $('ckCopperCanvasVias').checked = false; $('ckCopperCanvasShapes').checked = false;
+    mode.value = 'norule'; mode.dispatchEvent(new w.Event('change', {bubbles:true}));
+    if ($('selCopperCanvasLayer').value !== '' || !$('ckCopperCanvasVias').checked || !$('ckCopperCanvasShapes').checked) throw new Error('切换类别未恢复完整视图');
+    w.__noRuleNetItems = noRuleNetItems;
+    w.eval("S.sets=[]; UI.items=window.__noRuleNetItems; runCheck(true); CopperCanvas.state.groupIndex=-1; renderCopperCanvas();");
+    if ($('copperCanvasIssueDetailTitle').textContent !== '网络名') throw new Error('未推算类别未切换到网络名');
+    const nets = [...detail.options].map(o => o.textContent);
+    if (!['全部网络名','GND','SIG_A','VCC_3V3','无网络'].every(x => nets.includes(x))) throw new Error(JSON.stringify(nets));
+    detail.value = 'SIG_A'; detail.dispatchEvent(new w.Event('change', {bubbles:true}));
+    highlights = w.CopperCanvas.collectFailureHighlights();
+    if (highlights.groupCount !== 1 || highlights.viaCount !== 1 || highlights.shapeCount !== 1) throw new Error('网络名筛选异常 ' + JSON.stringify(highlights));
+    if ($('copperCanvasHud').dataset.issueMode !== 'norule' || $('copperCanvasHud').dataset.failGroups !== '1') throw new Error('HUD 分类统计异常');
+    if ($('copperSpatialReviewText').textContent.indexOf('只看没推算到约束') < 0) throw new Error($('copperSpatialReviewText').textContent);
     $('tabs').querySelector('[data-tab="result"]').click();
   });
 
@@ -1356,9 +1368,11 @@ setTimeout(() => {
     if (!signal || signal.via.id !== '198/199/200' || signal.endLayer !== 12 || !signal.rule) throw new Error('GND 命名孔段未参与完整孔推算');
     if (signal.failCount !== 1 || signal.failRows[0].checkType !== 'Padstack信号命名') throw new Error(JSON.stringify(signal));
     if (signal.failRows[0].reason.indexOf('未包含 SIG；包含 GND') < 0 || signal.failRows[0].sourceViaIds.join('/') !== '200') throw new Error(JSON.stringify(signal.failRows[0]));
-    w.eval("UI.resFilter='bad'; renderResults();");
+    w.eval("UI.resFilter='bad'; UI.resBadType=''; renderResults();");
+    $('badTypeFilters').querySelector('[data-bad-type="Padstack信号命名"]').click();
     const badCard = d.querySelector('#checkOut .set');
     if (!badCard || badCard.textContent.indexOf('Via 198/199/200') < 0 || badCard.textContent.indexOf('Padstack命名不符合') < 0 || badCard.textContent.indexOf('Via 200') < 0) throw new Error('合并后未显示命名错误提醒');
+    if (w.eval('UI.resBadType') !== 'Padstack信号命名') throw new Error('Padstack 命名类型筛选未生效');
   });
 
   t('Padstack Name 缺少 Connections 连接层（如缺少 L8）时判定为「不符合」并报错', () => {

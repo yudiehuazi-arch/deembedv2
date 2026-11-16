@@ -109,25 +109,40 @@
     }) || null;
   }
 
-  function allFailuresEnabled() {
-    var el = $('ckCopperCanvasAllFails');
-    return !!(el && el.checked);
+  function issueMode() {
+    var el = $('selCopperCanvasIssueMode');
+    return el ? el.value : 'bad';
+  }
+
+  function issueDetail() {
+    var el = $('selCopperCanvasIssueDetail');
+    return el ? el.value : '';
+  }
+
+  function groupNetName(g) {
+    return String(g && g.via && g.via.net || '').trim() || '无网络';
   }
 
   function collectFailureHighlights() {
     var out = { vias: {}, shapes: {}, groupCount: 0, rowCount: 0, viaCount: 0, shapeCount: 0 };
     if (!UI.result || !UI.result.groups) return out;
+    var mode = issueMode(), detail = issueDetail();
     UI.result.groups.forEach(function (g) {
-      var rows = (g.failRows || g.rows || []).filter(function (row) { return row.status === '不符合'; });
+      var rows;
+      if (mode === 'norule') {
+        if (g.signal === false || !g.rows.length || g.rule || (detail && groupNetName(g) !== detail)) return;
+        rows = g.rows.filter(function (row) { return !row.missing; });
+      } else {
+        if (detail && (g.rule ? g.rule.title : '未推算到约束') !== detail) return;
+        rows = (g.failRows || g.rows || []).filter(function (row) { return row.status === '不符合'; });
+      }
       if (!rows.length) return;
       out.groupCount++; out.rowCount += rows.length;
       (g.vias && g.vias.length ? g.vias : [g.via]).forEach(function (via) {
         if (via && via.id != null) out.vias[String(via.id)] = 1;
       });
       rows.forEach(function (row) {
-        if (!row.isPadstackCheck && row.shapeId != null && row.shapeId !== 'none' && !String(row.shapeId).startsWith('span-')) {
-          out.shapes[String(row.shapeId)] = 1;
-        }
+        if (!row.isPadstackCheck && row.shapeId != null && row.shapeId !== 'none' && !String(row.shapeId).startsWith('span-')) out.shapes[String(row.shapeId)] = 1;
       });
     });
     out.viaCount = Object.keys(out.vias).length;
@@ -136,8 +151,7 @@
   }
 
   function activeFailureHighlights() {
-    return allFailuresEnabled() ? collectFailureHighlights() :
-      { vias: {}, shapes: {}, groupCount: 0, rowCount: 0, viaCount: 0, shapeCount: 0 };
+    return collectFailureHighlights();
   }
 
   function fitBoard() {
@@ -167,6 +181,26 @@
     });
     if (items.length) fitBounds(boundsOf(items), 70);
     draw();
+  }
+
+  function initIssueFilters(resetDetail) {
+    var modeEl = $('selCopperCanvasIssueMode'), detailEl = $('selCopperCanvasIssueDetail');
+    if (!modeEl || !detailEl) return;
+    var mode = modeEl.value || 'bad', old = resetDetail ? '' : detailEl.value, values = {};
+    (UI.result && UI.result.groups || []).forEach(function (g) {
+      if (mode === 'bad') {
+        if (g.failCount && g.rule) values[g.rule.title] = 1;
+      } else if (g.signal !== false && g.rows.length && !g.rule) values[groupNetName(g)] = 1;
+    });
+    var allLabel = mode === 'bad' ? '全部扇出方案' : '全部网络名';
+    detailEl.innerHTML = '';
+    var all = document.createElement('option'); all.value = ''; all.textContent = allLabel; detailEl.appendChild(all);
+    Object.keys(values).sort(function (a, b) { return a.localeCompare(b); }).forEach(function (value) {
+      var opt = document.createElement('option'); opt.value = value; opt.textContent = value; detailEl.appendChild(opt);
+    });
+    detailEl.value = old && values[old] ? old : '';
+    var title = $('copperCanvasIssueDetailTitle');
+    if (title) title.textContent = mode === 'bad' ? '扇出方案' : '网络名';
   }
 
   function initLayerSelect() {
@@ -284,15 +318,14 @@
     var g = selectedGroup(), row = selectedRow();
     if (back) back.style.display = g ? '' : 'none';
     if (!text) return;
-    if (allFailuresEnabled()) {
+    if (!g) {
       failures = failures || collectFailureHighlights();
+      var modeText = issueMode() === 'bad' ? '只看不符合' : '只看没推算到约束';
       text.textContent = failures.groupCount
-        ? ('全板不符合标注 · ' + failures.groupCount + ' 个完整孔 · ' + failures.rowCount + ' 条不符合记录 · ' +
-          failures.viaCount + ' 个孔段 · ' + failures.shapeCount + ' 处异常铜皮' + (g ? (' · 当前定位 Via ' + g.via.id + ' 保留蓝色标记') : ''))
-        : '全板不符合标注 · 当前没有不符合记录。';
+        ? (modeText + ' · ' + failures.groupCount + ' 个完整孔 · ' + failures.rowCount + ' 条记录 · ' + failures.viaCount + ' 个孔段 · ' + failures.shapeCount + ' 处铜皮')
+        : (modeText + ' · 当前没有匹配记录。');
       return;
     }
-    if (!g) { text.textContent = UI.items.length ? '当前为全板视图，可缩放、平移、筛层或使用测量标尺。' : '请先导入板级 Item 数据。'; return; }
     if (!row) {
       text.textContent = 'Via ' + g.via.id + ' · ' + (g.via.net || '无网络') + ' · L' + g.startLayer + '-L' + g.endLayer +
         ' · 完整孔定位 · ' + (g.vias || [g.via]).length + ' 个孔段全部高亮';
@@ -327,7 +360,8 @@
     if (hud) {
       hud.textContent = '缩放 ' + Math.round(view.zoom * 100) + '% · ' + (selectedLayer() ? ('L' + selectedLayer()) : '全部层') +
         ' · Via ' + stats.shown.via + '/' + stats.totals.via + ' · Shape ' + stats.shown.shape + '/' + stats.totals.shape +
-        (allFailuresEnabled() ? (' · 不符合孔 ' + failures.groupCount + ' · 异常铜皮 ' + failures.shapeCount) : '');
+        ' · ' + (issueMode() === 'bad' ? '不符合孔 ' : '未推算孔 ') + failures.groupCount + ' · 标注铜皮 ' + failures.shapeCount;
+      hud.dataset.issueMode = issueMode();
       hud.dataset.failGroups = String(failures.groupCount);
       hud.dataset.failRows = String(failures.rowCount);
       hud.dataset.failVias = String(failures.viaCount);
@@ -339,7 +373,7 @@
   function renderCopperCanvas() {
     if (!canvas) return;
     var dataChanged = view.dataVer !== UI.dataVer;
-    initLayerSelect(); syncSize();
+    initIssueFilters(false); initLayerSelect(); syncSize();
     if (!view.fitted || dataChanged) {
       if (dataChanged) {
         view.groupIndex = -1; view.rowIndex = -1; view.measure = [];
@@ -426,13 +460,14 @@
     };
     if ($('btnCopperClearMeasure')) $('btnCopperClearMeasure').onclick = function () { view.measure = []; draw(); };
     if ($('btnReturnCopperResults')) $('btnReturnCopperResults').onclick = returnToResults;
-    if ($('ckCopperCanvasAllFails')) $('ckCopperCanvasAllFails').onchange = function () {
-      if ($('ckCopperCanvasAllFails').checked) {
-        if ($('selCopperCanvasLayer')) $('selCopperCanvasLayer').value = '';
-        if ($('ckCopperCanvasVias')) $('ckCopperCanvasVias').checked = true;
-        if ($('ckCopperCanvasShapes')) $('ckCopperCanvasShapes').checked = true;
-        focusAllFailures();
-      } else draw();
+    if ($('selCopperCanvasIssueMode')) $('selCopperCanvasIssueMode').onchange = function () {
+      if ($('selCopperCanvasLayer')) $('selCopperCanvasLayer').value = '';
+      if ($('ckCopperCanvasVias')) $('ckCopperCanvasVias').checked = true;
+      if ($('ckCopperCanvasShapes')) $('ckCopperCanvasShapes').checked = true;
+      view.groupIndex = -1; view.rowIndex = -1; initIssueFilters(true); focusAllFailures();
+    };
+    if ($('selCopperCanvasIssueDetail')) $('selCopperCanvasIssueDetail').onchange = function () {
+      view.groupIndex = -1; view.rowIndex = -1; focusAllFailures();
     };
     ['selCopperCanvasLayer', 'ckCopperCanvasVias', 'ckCopperCanvasShapes', 'ckCopperCanvasTraces', 'ckCopperCanvasGrid'].forEach(function (id) {
       if ($(id)) $(id).onchange = draw;

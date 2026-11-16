@@ -250,6 +250,11 @@
     return { gnd: 'GND', other: '非 GND', none: '无网络' }[kind] || '全部网络';
   }
 
+  function groupHasBadType(g, type) {
+    if (!type) return !!g.failCount;
+    return (g.failRows || []).some(function (row) { return row.checkType === type; });
+  }
+
   function ruleCounts() {
     var r = UI.result, out = {}, order = [];
     var f = UI.resFilter || '';
@@ -262,7 +267,7 @@
       if (!out[key]) { out[key] = { n: 0, title: title, via: 0, badVia: 0, badRec: 0 }; order.push(key); }
       out[key].via++;
       if (g.failCount) { out[key].badVia++; out[key].badRec += (g.failCount || 0); }
-      if (f === 'bad') { if (g.failCount) out[key].n++; }
+      if (f === 'bad') { if (groupHasBadType(g, UI.resBadType)) out[key].n++; }
       else if (f === 'norule') { if (!g.rule) out[key].n++; }
       else out[key].n++;
     });
@@ -345,7 +350,7 @@
       if (title !== UI.resRule) return false;
     }
     if (!f) return true;
-    if (f === 'bad') return !!(g.failCount);
+    if (f === 'bad') return groupHasBadType(g, UI.resBadType);
     if (f === 'matched') return g.rows.some(function (row) { return !row.missing; });
     if (f === 'norule') {
       if (g.signal === false || !g.rows.length || g.rule) return false;
@@ -382,6 +387,22 @@
     }).join('');
   }
 
+  function renderBadTypeFilters(f) {
+    var box = $('badTypeFilters');
+    if (!box) return;
+    box.hidden = f !== 'bad';
+    if (box.hidden) { box.innerHTML = ''; return; }
+    var options = [
+      { key: '', label: '全部不符合' },
+      { key: 'Padstack信号命名', label: 'Padstack命名不符合' },
+      { key: '反焊盘尺寸', label: '反焊盘尺寸不符合' }
+    ];
+    box.innerHTML = '<span class="hint no-rule-net-title">按不符合类型显示</span>' + options.map(function (o) {
+      var count = (UI.result.groups || []).filter(function (g) { return groupHasBadType(g, o.key); }).length;
+      return '<button type="button" class="chip bad-type-chip' + (UI.resBadType === o.key ? ' on' : '') + '" data-bad-type="' + o.key + '"><span class="cl">' + o.label + '</span><span class="cn">' + count + '</span></button>';
+    }).join('');
+  }
+
   function resultGroupTotal(f) {
     var r = UI.result;
     var n = 0;
@@ -401,6 +422,7 @@
     })();
     var out = byRule ? (byRule + (f ? ' + ' + base : '')) : base;
     if (f === 'norule' && UI.resNet) out += ' · 网络类别 ' + resultNetLabel(UI.resNet);
+    if (f === 'bad' && UI.resBadType) out += ' · ' + (UI.resBadType === 'Padstack信号命名' ? 'Padstack命名不符合' : '反焊盘尺寸不符合');
     if (bySearch) out += (out ? ' · ' : '') + bySearch;
     return out;
   }
@@ -444,11 +466,12 @@
       if ($('legendOut')) $('legendOut').innerHTML = '';
       if ($('resChips')) $('resChips').innerHTML = '';
       if ($('noRuleNetFilters')) $('noRuleNetFilters').hidden = true;
+      if ($('badTypeFilters')) $('badTypeFilters').hidden = true;
       if ($('resHint')) $('resHint').textContent = '尚未产生检查结果。';
       return;
     }
     var rf = effectiveResFilter();
-    var ver = UI.dataVer + '-' + UI.viewVer + '-' + UI.resLimit + '-' + rf + '-' + (UI.resRule || '') + '-' + (UI.resSearch || '') + '-' + (UI.resNet || '');
+    var ver = UI.dataVer + '-' + UI.viewVer + '-' + UI.resLimit + '-' + rf + '-' + (UI.resRule || '') + '-' + (UI.resSearch || '') + '-' + (UI.resNet || '') + '-' + (UI.resBadType || '');
     if (out.dataset.ver === ver) {
       refreshReview();
       return;
@@ -466,6 +489,7 @@
         '<div class="stat" id="rvStat"><b>0/0</b><span class="hint">已复核</span></div>';
     }
     renderNoRuleNetFilters(rf);
+    renderBadTypeFilters(rf);
 
     var h = '';
     var totalGroups = resultGroupTotal(rf);
