@@ -431,7 +431,7 @@ setTimeout(() => {
     if (heads.join('/') !== '约束方案/网络/异常原因/板上位置') throw new Error(heads.join('/'));
     const sumRow = summaryTable.querySelector('tbody tr'), board = summaryTable.querySelector('.bad-summary-board');
     if (!sumRow || sumRow.textContent.indexOf('BGA-L1-L19') < 0 || sumRow.textContent.indexOf('L19') < 0) throw new Error('归纳内容不完整');
-    if (!board || !board.src.startsWith('data:image/svg+xml')) throw new Error('缺板上位置缩略图');
+    if (!board || !board.src.startsWith('data:image/svg+xml') || board.src.indexOf('width%3D%22960%22') < 0) throw new Error('缺高清板上位置缩略图');
     if (!summary.querySelector('#btnCopyBadSummary')) throw new Error('缺复制表格按钮');
     const plain = w.CopperBadSummary.plainTable(w.CopperBadSummary.buildRows(w.eval('UI.result')));
     if (plain.indexOf('约束方案\t网络\t异常原因\t板上位置') !== 0 || plain.indexOf('Via ') < 0) throw new Error('复制文本格式异常');
@@ -447,7 +447,16 @@ setTimeout(() => {
     const preview = d.createElement('div'); w.CopperBadSummary.render(preview);
     w.eval('UI.result=window.__summaryOriginal'); delete w.__summaryDuplicate; delete w.__summaryOriginal;
     const networkLines = [...preview.querySelectorAll('.bad-summary-network')].map(x => x.textContent);
-    if (networkLines.join('/') !== '21_N/21_P/22_N' || preview.querySelectorAll('.bad-summary-reason').length !== 2) throw new Error(preview.textContent);
+    if (networkLines.join('|') !== '21_N/21_P|22_N' || preview.querySelectorAll('.bad-summary-reason').length !== 2) throw new Error(preview.textContent);
+    if (preview.querySelectorAll('tbody tr').length !== 2 || preview.querySelector('td[rowspan="2"]') == null || preview.querySelectorAll('.bad-summary-board').length !== 2) throw new Error('异常原因未逐行关联位置图');
+    if (preview.querySelectorAll('.bad-summary-network wbr').length !== 1) throw new Error('网络名缺少按斜杠自动换行点');
+    const duplicatePlain = w.CopperBadSummary.plainTable([duplicate]);
+    if (duplicatePlain.split('\n').length !== 3 || duplicatePlain.indexOf('21_N/21_P\tPadstack命名不符合') < 0) throw new Error(duplicatePlain);
+    preview.querySelector('.bad-summary-board-open').click();
+    const zoom = $('copperBadSummaryZoom');
+    if (!zoom || zoom.hidden || !zoom.querySelector('.bad-summary-zoom-image').src.startsWith('data:image/svg+xml')) throw new Error('位置图无法放大');
+    zoom.querySelector('.bad-summary-zoom-close').click();
+    if (!zoom.hidden) throw new Error('位置图放大层无法关闭');
     ['铜皮 × 完整信号孔怎么配对','怎么推算该用哪条约束','每一层怎么判','各约束下不符合的具体原因展开明细','没推算到约束的分布','未配对铜皮'].forEach(x => {
       if (h.indexOf(x) < 0) throw new Error('缺小节：' + x);
     });

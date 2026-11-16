@@ -28,7 +28,20 @@
     }[checkType] || '';
   }
 
-  function addCause(entry, row) {
+  function newCauseBucket(data) {
+    var bucket = data || {};
+    bucket.networks = {}; bucket.groups = []; bucket.groupIds = {}; bucket.viaIds = {};
+    return bucket;
+  }
+
+  function addCauseScope(bucket, group) {
+    bucket.networks[group.via.net || '无网络'] = 1;
+    var groupId = String(group.via.id);
+    if (!bucket.groupIds[groupId]) { bucket.groupIds[groupId] = 1; bucket.groups.push(group); }
+    (group.vias && group.vias.length ? group.vias : [group.via]).forEach(function (via) { bucket.viaIds[via.id] = 1; });
+  }
+
+  function addCause(entry, group, row) {
     if (row.checkType === 'Padstack信号命名' || row.checkType === 'Padstack层名') {
       var signalName = row.checkType === 'Padstack信号命名';
       var prefix = signalName ? 'Padstack命名不符合' : 'Padstack层名不符合';
@@ -37,36 +50,55 @@
       if (signalName && reason.indexOf(marker) >= 0) {
         reason = '非 GND 网络的 Padstack Name ' + reason.slice(reason.indexOf(marker) + marker.length);
       }
-      entry.namedCauses[prefix + '：' + reason] = 1;
+      var text = prefix + '：' + reason;
+      var named = entry.namedCauses[text] || (entry.namedCauses[text] = newCauseBucket({ text: text }));
+      addCauseScope(named, group);
       return;
     }
     var dim = dimensionName(row.checkType), missing = row.actual === '无铜皮' || row.statusNote === '缺失层';
     var key = [row.checkType, row.expect, missing ? 'missing' : 'value', dim ? '' : row.actual].join('|');
-    var bucket = entry.causes[key] || (entry.causes[key] = {
+    var bucket = entry.causes[key] || (entry.causes[key] = newCauseBucket({
       checkType: row.checkType || '检查项', dim: dim, expect: row.expect, actual: row.actual,
       missing: missing, layers: {}
-    });
+    }));
     if (typeof row.layer === 'number' && row.layer > 0) bucket.layers[row.layer] = 1;
+    addCauseScope(bucket, group);
   }
 
-  function causeTexts(entry) {
-    var out = Object.keys(entry.namedCauses);
-    Object.keys(entry.causes).forEach(function (key) {
-      var cause = entry.causes[key], layers = layerText(cause.layers), where = layers ? (layers + ' ') : '';
-      if (cause.dim) {
-        out.push(cause.missing
-          ? (where + '缺' + cause.dim + '，规则值为 ' + expectedText(cause.expect))
-          : (where + '实际' + cause.dim + '应为 ' + expectedText(cause.expect)));
-      } else {
-        out.push(where + cause.checkType + '不符合：实际 ' + String(cause.actual) + '，规则值 ' + String(cause.expect || '无'));
+  function mergeCauseScope(target, source) {
+    Object.keys(source.networks).forEach(function (network) { target.networks[network] = 1; });
+    Object.keys(source.viaIds).forEach(function (id) { target.viaIds[id] = 1; });
+    source.groups.forEach(function (group) {
+      var groupId = String(group.via.id);
+      if (!target.groupIds[groupId]) { target.groupIds[groupId] = 1; target.groups.push(group); }
+    });
+  }
+
+  function causeText(cause) {
+    if (cause.text) return cause.text;
+    var layers = layerText(cause.layers), where = layers ? (layers + ' ') : '';
+    if (cause.dim) return cause.missing
+      ? (where + '缺' + cause.dim + '，规则值为 ' + expectedText(cause.expect))
+      : (where + '实际' + cause.dim + '应为 ' + expectedText(cause.expect));
+    return where + cause.checkType + '不符合：实际 ' + String(cause.actual) + '，规则值 ' + String(cause.expect || '无');
+  }
+
+  function buildCauseRows(entry) {
+    var rows = [], byText = {};
+    function append(cause) {
+      var text = causeText(cause), target = byText[text];
+      if (!target) {
+        target = newCauseBucket({ text: text }); byText[text] = target; rows.push(target);
       }
+      mergeCauseScope(target, cause);
+    }
+    Object.keys(entry.namedCauses).forEach(function (key) { append(entry.namedCauses[key]); });
+    Object.keys(entry.causes).forEach(function (key) { append(entry.causes[key]); });
+    rows.forEach(function (row) {
+      row.networkList = Object.keys(row.networks).sort();
+      row.viaList = Object.keys(row.viaIds);
     });
-    var seen = {};
-    return out.filter(function (text) {
-      if (seen[text]) return false;
-      seen[text] = 1;
-      return true;
-    });
+    return rows;
   }
 
   function buildRows(result) {
@@ -83,12 +115,13 @@
       entry.networks[group.via.net || '无网络'] = 1;
       entry.groups.push(group);
       (group.vias && group.vias.length ? group.vias : [group.via]).forEach(function (via) { entry.viaIds[via.id] = 1; });
-      fails.forEach(function (row) { addCause(entry, row); });
+      fails.forEach(function (row) { addCause(entry, group, row); });
     });
     return order.map(function (title) {
       var entry = map[title];
       entry.networkList = Object.keys(entry.networks).sort();
-      entry.reasonList = causeTexts(entry);
+      entry.reasonRows = buildCauseRows(entry);
+      entry.reasonList = entry.reasonRows.map(function (row) { return row.text; });
       entry.viaList = Object.keys(entry.viaIds);
       return entry;
     });
@@ -114,7 +147,7 @@
   }
 
   function boardImage(entry, geometry) {
-    var width = 320, height = 190, pad = 9;
+    var width = 960, height = 570, pad = 28;
     var dx = Math.max(1, geometry.maxX - geometry.minX), dy = Math.max(1, geometry.maxY - geometry.minY);
     var scale = Math.min((width - pad * 2) / dx, (height - pad * 2) / dy);
     function xy(point) {
@@ -122,31 +155,43 @@
     }
     var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '">' +
       '<rect width="100%" height="100%" fill="#07111f"/>';
-    var step = Math.max(1, Math.ceil(geometry.points.length / 1200));
+    for (var gridX = 1; gridX < 4; gridX++) {
+      var gx = (width * gridX / 4).toFixed(2);
+      svg += '<line x1="' + gx + '" y1="0" x2="' + gx + '" y2="' + height + '" stroke="#94a3b8" stroke-opacity=".16" stroke-width="1"/>';
+    }
+    for (var gridY = 1; gridY < 3; gridY++) {
+      var gy = (height * gridY / 3).toFixed(2);
+      svg += '<line x1="0" y1="' + gy + '" x2="' + width + '" y2="' + gy + '" stroke="#94a3b8" stroke-opacity=".16" stroke-width="1"/>';
+    }
+    var step = Math.max(1, Math.ceil(geometry.points.length / 3000));
     for (var i = 0; i < geometry.points.length; i += step) {
       var point = geometry.points[i], p = xy([point.x, point.y]);
-      svg += '<circle cx="' + p[0].toFixed(2) + '" cy="' + p[1].toFixed(2) + '" r="' + (point.via ? '1.6' : '1.2') + '" fill="' + (point.via ? '#60a5fa' : '#f59e0b') + '" fill-opacity=".88"/>';
+      svg += '<circle cx="' + p[0].toFixed(2) + '" cy="' + p[1].toFixed(2) + '" r="' + (point.via ? '2.3' : '1.7') + '" fill="' + (point.via ? '#60a5fa' : '#f59e0b') + '" fill-opacity=".52"/>';
     }
-    var marked = {};
+    var marked = {}, count = entry.viaList.length;
+    var markerRadius = count > 100 ? 4.2 : (count > 30 ? 5.2 : 7.2);
     entry.groups.forEach(function (group) {
       (group.vias && group.vias.length ? group.vias : [group.via]).forEach(function (via) {
         if (!via || !via.origin || marked[via.id]) return;
         marked[via.id] = 1;
         var p = xy(via.origin);
-        svg += '<circle cx="' + p[0].toFixed(2) + '" cy="' + p[1].toFixed(2) + '" r="5.5" fill="#ef4444" fill-opacity=".28" stroke="#ef4444" stroke-width="2"/>';
-        if (entry.viaList.length <= 8) {
-          svg += '<text x="' + (p[0] + 7).toFixed(2) + '" y="' + (p[1] - 5).toFixed(2) + '" fill="#f8fafc" font-size="8">' + esc(via.id) + '</text>';
+        svg += '<circle cx="' + p[0].toFixed(2) + '" cy="' + p[1].toFixed(2) + '" r="' + (markerRadius + 3) + '" fill="#ef4444" fill-opacity=".2"/>' +
+          '<circle cx="' + p[0].toFixed(2) + '" cy="' + p[1].toFixed(2) + '" r="' + markerRadius + '" fill="#ef4444" stroke="#fecaca" stroke-width="1.2"/>';
+        if (count <= 8) {
+          svg += '<text x="' + (p[0] + 10).toFixed(2) + '" y="' + (p[1] - 8).toFixed(2) + '" fill="#f8fafc" font-size="18">' + esc(via.id) + '</text>';
         }
       });
     });
-    svg += '<text x="8" y="14" fill="#f8fafc" font-size="10">异常孔 ' + entry.viaList.length + ' 个</text></svg>';
+    svg += '<text x="24" y="32" fill="#f8fafc" font-size="24">异常孔 ' + count + ' 个</text></svg>';
     return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
   }
 
   function plainTable(rows) {
     var lines = [['约束方案', '网络', '异常原因', '板上位置']];
     rows.forEach(function (row) {
-      lines.push([row.title, row.networkList.join('/'), row.reasonList.join('；'), 'Via ' + row.viaList.join('/')]);
+      row.reasonRows.forEach(function (reason) {
+        lines.push([row.title, reason.networkList.join('/'), reason.text, 'Via ' + reason.viaList.join('/')]);
+      });
     });
     return lines.map(function (line) { return line.join('\t'); }).join('\n');
   }
@@ -182,6 +227,27 @@
     } else done(fallbackCopy(table, text));
   }
 
+  function openBoardZoom(button) {
+    var source = button.querySelector('.bad-summary-board');
+    if (!source) return;
+    var mask = document.getElementById('copperBadSummaryZoom');
+    if (!mask) {
+      mask = document.createElement('div');
+      mask.id = 'copperBadSummaryZoom'; mask.className = 'bad-summary-zoom'; mask.hidden = true;
+      mask.innerHTML = '<div class="bad-summary-zoom-dialog" role="dialog" aria-modal="true" aria-labelledby="copperBadSummaryZoomTitle">' +
+        '<div class="bad-summary-zoom-head"><b id="copperBadSummaryZoomTitle"></b><button type="button" class="btn gray bad-summary-zoom-close">关闭</button></div>' +
+        '<img class="bad-summary-zoom-image" alt=""></div>';
+      document.body.appendChild(mask);
+      mask.querySelector('.bad-summary-zoom-close').onclick = function () { mask.hidden = true; };
+      mask.onclick = function (event) { if (event.target === mask) mask.hidden = true; };
+      document.addEventListener('keydown', function (event) { if (event.key === 'Escape') mask.hidden = true; });
+    }
+    mask.querySelector('#copperBadSummaryZoomTitle').textContent = source.alt;
+    var image = mask.querySelector('.bad-summary-zoom-image');
+    image.src = source.src; image.alt = source.alt; mask.hidden = false;
+    mask.querySelector('.bad-summary-zoom-close').focus();
+  }
+
   function render(host) {
     if (!host) return;
     var rows = buildRows(UI.result), geometry = boardGeometry();
@@ -192,12 +258,16 @@
     else {
       h += '<div class="bad-summary-wrap"><table class="bad-summary-table"><thead><tr><th>约束方案</th><th>网络</th><th>异常原因</th><th>板上位置</th></tr></thead><tbody>';
       rows.forEach(function (row) {
-        var image = boardImage(row, geometry);
-        h += '<tr><td><b>' + esc(row.title) + '</b></td><td><div class="bad-summary-networks">' +
-          row.networkList.map(function (network) { return '<div class="bad-summary-network">' + esc(network) + '</div>'; }).join('') +
-          '</div></td><td><div class="bad-summary-reasons">' +
-          row.reasonList.map(function (reason) { return '<div class="bad-summary-reason">' + esc(reason) + '</div>'; }).join('') +
-          '</div></td><td><img class="bad-summary-board" src="' + image + '" alt="' + esc(row.title + ' 板上异常位置，Via ' + row.viaList.join('/')) + '"></td></tr>';
+        row.reasonRows.forEach(function (reason, index) {
+          var image = boardImage(reason, geometry);
+          var alt = row.title + ' · ' + reason.text + '，Via ' + reason.viaList.join('/');
+          h += '<tr>';
+          if (index === 0) h += '<td rowspan="' + row.reasonRows.length + '"><b>' + esc(row.title) + '</b></td>';
+          h += '<td><div class="bad-summary-network">' + reason.networkList.map(function (network) { return esc(network); }).join('/<wbr>') + '</div></td>' +
+            '<td><div class="bad-summary-reason">' + esc(reason.text) + '</div></td>' +
+            '<td><button type="button" class="bad-summary-board-open" aria-label="' + esc('放大查看 ' + alt) + '">' +
+            '<img class="bad-summary-board" src="' + image + '" alt="' + esc(alt) + '"><span>放大查看</span></button></td></tr>';
+        });
       });
       h += '</tbody></table></div>';
     }
@@ -205,6 +275,9 @@
     host.innerHTML = h;
     var button = host.querySelector('#btnCopyBadSummary');
     if (button) { button.disabled = !rows.length; button.onclick = function () { copyTable(host, rows); }; }
+    Array.prototype.forEach.call(host.querySelectorAll('.bad-summary-board-open'), function (zoom) {
+      zoom.onclick = function () { openBoardZoom(zoom); };
+    });
   }
 
   root.CopperBadSummary = { render: render, buildRows: buildRows, plainTable: plainTable };
