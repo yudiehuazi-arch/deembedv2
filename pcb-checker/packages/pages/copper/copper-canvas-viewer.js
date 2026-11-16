@@ -59,7 +59,9 @@
     var layer = selectedLayer();
     if (!layer) return true;
     if (item.type === 'via') return viaOnLayer(item, layer);
-    return itemLayer(item) === layer;
+    var ownLayer = itemLayer(item);
+    // Through All 或无法解析层号的数据必须保留，避免单层筛选静默漏图。
+    return !ownLayer || ownLayer === layer;
   }
 
   function boundsOf(items) {
@@ -237,6 +239,17 @@
       ' · ' + layer + ' ' + row.checkType + ' · 来源 ' + source + ' · 实测 ' + row.actual + ' / 规则 ' + (row.expect || '无') + ' · ' + row.status;
   }
 
+  function visibilityStats() {
+    var totals = { via: 0, shape: 0, trace: 0 }, shown = { via: 0, shape: 0, trace: 0 };
+    UI.items.forEach(function (item) {
+      var key = item.type === 'via' ? 'via' : (item.circle ? 'shape' : (item.type === 'trace' ? 'trace' : ''));
+      if (!key) return;
+      totals[key]++;
+      if (visibleItem(item)) shown[key]++;
+    });
+    return { totals: totals, shown: shown };
+  }
+
   function draw() {
     if (!canvas) return;
     syncSize();
@@ -244,16 +257,21 @@
       ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.fillStyle = '#07111f'; ctx.fillRect(0, 0, canvas.width, canvas.height);
       drawGrid(); drawTraces(); drawShapes(); drawVias(); drawMeasure();
     }
-    var hud = $('copperCanvasHud');
-    if (hud) hud.textContent = '缩放 ' + Math.round(view.zoom * 100) + '% · ' + (selectedLayer() ? ('L' + selectedLayer()) : '全部层');
+    var hud = $('copperCanvasHud'), stats = visibilityStats();
+    if (hud) hud.textContent = '缩放 ' + Math.round(view.zoom * 100) + '% · ' + (selectedLayer() ? ('L' + selectedLayer()) : '全部层') +
+      ' · Via ' + stats.shown.via + '/' + stats.totals.via + ' · Shape ' + stats.shown.shape + '/' + stats.totals.shape;
     updateMeasureText(); updateReview();
   }
 
   function renderCopperCanvas() {
     if (!canvas) return;
+    var dataChanged = view.dataVer !== UI.dataVer;
     initLayerSelect(); syncSize();
-    if (!view.fitted || view.dataVer !== UI.dataVer) {
-      if (view.dataVer !== UI.dataVer) { view.groupIndex = -1; view.rowIndex = -1; view.measure = []; }
+    if (!view.fitted || dataChanged) {
+      if (dataChanged) {
+        view.groupIndex = -1; view.rowIndex = -1; view.measure = [];
+        if ($('selCopperCanvasLayer')) $('selCopperCanvasLayer').value = '';
+      }
       view.dataVer = UI.dataVer; fitBounds(boundsOf(UI.items), 58);
     }
     draw();
@@ -273,7 +291,8 @@
     view.groupIndex = groupIndex; view.rowIndex = rowIndex; view.returnY = root.scrollY || 0;
     var row = selectedRow(), sel = $('selCopperCanvasLayer');
     App.showTab('canvas');
-    if (sel) sel.value = row && typeof row.layer === 'number' ? String(row.layer) : '';
+    // 定位只高亮异常对象，不自动过滤其他层；否则会让其他孔群看起来像“缺失”。
+    if (sel) sel.value = '';
     updateReview();
     var go = function () { focusLocated(); };
     if (root.requestAnimationFrame) root.requestAnimationFrame(go); else setTimeout(go, 0);
@@ -350,7 +369,8 @@
     fitBoard: fitBoard,
     focusLocated: focusLocated,
     locateResult: locateCopperResult,
-    returnToResults: returnToResults
+    returnToResults: returnToResults,
+    isVisible: visibleItem
   };
   bindControls();
 })(typeof window !== 'undefined' ? window : globalThis);

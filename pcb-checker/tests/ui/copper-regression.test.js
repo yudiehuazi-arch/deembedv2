@@ -312,8 +312,15 @@ setTimeout(() => {
       throw new Error('几何图例未放在画布下方');
     }
     if (w.CopperCanvas.state.groupIndex !== 0) throw new Error('未记录定位完整孔');
-    if ($('selCopperCanvasLayer').value !== '19') throw new Error('未切到异常所在 L19');
-    if ($('copperSpatialReviewText').textContent.indexOf('Via') < 0) throw new Error('定位复核信息缺失');
+    if ($('selCopperCanvasLayer').value !== '') throw new Error('定位后不应隐藏其他层数据');
+    if (!/全部层 · Via \d+\/\d+ · Shape \d+\/\d+/.test($('copperCanvasHud').textContent)) throw new Error('视口未显示可见对象计数');
+    if ($('copperSpatialReviewText').textContent.indexOf('Via') < 0 || $('copperSpatialReviewText').textContent.indexOf('L19') < 0) {
+      throw new Error('定位复核信息缺失异常层');
+    }
+    $('selCopperCanvasLayer').value = '5';
+    if (!w.CopperCanvas.isVisible({ type: 'shape', subset: 'Through All' })) throw new Error('Through All 被单层筛选错误隐藏');
+    $('selCopperCanvasLayer').value = '';
+    if (!w.CopperCanvas.isVisible({ type: 'via', padstack: 'SMA-HDI-SIG_L12_L14' })) throw new Error('全部层未保留底部孔群');
     $('btnCopperMeasure').click();
     $('copperCanvas').dispatchEvent(new w.MouseEvent('click', { bubbles: true, clientX: 100, clientY: 100 }));
     $('copperCanvas').dispatchEvent(new w.MouseEvent('click', { bubbles: true, clientX: 160, clientY: 140 }));
