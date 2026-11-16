@@ -1,5 +1,5 @@
 /* ============================================================================
- * copper-legend-ui.js —— 约束检查模块：⑤ 规律分析、数据读取、过孔搜索定位、CSV 导出与事件绑定
+ * copper-legend-ui.js —— 约束检查模块：⑥ 规律分析、数据读取、过孔搜索定位、CSV 导出与事件绑定
  * ========================================================================== */
 (function (root) {
   "use strict";
@@ -354,7 +354,8 @@
     var rf = effectiveResFilter();
     r.groups.forEach(function (g) {
       if (!resultGroupMatch(g, rf)) return;
-      var rows = (rf === 'bad') ? g.failRows : g.rows;
+      // 与结果表一致：“只看不符合”只筛孔组，导出仍保留该孔全部层。
+      var rows = g.rows;
       rows.forEach(function (row) {
         var layerDisplay = (typeof row.layer === 'number' && row.layer > 0) ? ('L' + row.layer) : (String(row.layer).startsWith('L') ? row.layer : (row.layer === '—' ? '—' : ('L' + row.layer)));
         lines.push([

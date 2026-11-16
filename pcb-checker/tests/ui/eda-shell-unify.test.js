@@ -8,7 +8,7 @@ const { openPage, tick, readPageCss } = require('../helpers/open-page');
 
 const PAGES = {
   'index.html': 6,
-  'copper.html': 5,
+  'copper.html': 6,
   'dfm.html': 5,
   'fanout.html': 5,
   'pour.html': 5,

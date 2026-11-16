@@ -351,7 +351,7 @@
     var byRule = UI.resRule ? ('只看约束 ' + UI.resRule) : '';
     var bySearch = UI.resSearch ? ('搜索 "' + UI.resSearch + '"') : '';
     var base = (function () {
-      if (f === 'bad') return '只显示不符合项';
+      if (f === 'bad') return '只看含不符合项的信号孔，孔内显示所有层';
       if (f === 'matched') return '只看已配对过孔的记录';
       if (f === 'norule') return '只看没推算到约束的过孔';
       return '显示全部检查项';
@@ -413,7 +413,7 @@
     var bad = rc.bad, rowsAll = rc.rows, noRule = rc.norule;
     if ($('resStats')) {
       $('resStats').innerHTML =
-        '<div class="stat click' + (rf === 'bad' ? ' on' : '') + '" data-res="bad" data-tip="点击切换仅看不符合项"><b class="' + (bad ? 'bad' : 'ok') + '">' + bad + '</b><span class="hint">不符合</span></div>' +
+        '<div class="stat click' + (rf === 'bad' ? ' on' : '') + '" data-res="bad" data-tip="只看含不符合项的完整孔，孔内仍显示全部层"><b class="' + (bad ? 'bad' : 'ok') + '">' + bad + '</b><span class="hint">不符合</span></div>' +
         '<div class="stat"><b>' + rowsAll + '</b><span class="hint">检查记录</span></div>' +
         '<div class="stat click' + (rf === 'matched' ? ' on' : '') + '" data-res="matched" data-tip="点击切换仅看已配对过孔"><b>' + rc.matched + '</b><span class="hint">已配对过孔</span></div>' +
         '<div class="stat"><b>' + r.unmatchedCircles.length + '</b><span class="hint">未配对铜皮</span></div>' +
@@ -433,7 +433,9 @@
       if (!resultGroupMatch(g, rf)) continue;
       shownGroups++;
       UI.groupKeys[si] = (g.failRows || []).map(function (row) { return reviewKey(g, row); });
-      var rows = (rf === 'bad') ? g.failRows : g.rows;
+      // “只看不符合”按完整孔筛组，但组内仍展示该信号孔的全部层，
+      // 便于在同一上下文中对照符合、未检查和不符合层。
+      var rows = g.rows;
       var failCount = (g.failRows || []).length;
       h += '<div class="set ' + esc(g.keys.kind || '其他') + '" id="grp-' + si + '"><div class="hd">' +
         '<span class="badge">Via ' + g.via.id + '</span><b>' + esc(g.via.net || '无网络') + '</b>' +
@@ -445,9 +447,10 @@
       if (!rows.length) {
         h += '<div class="hint">该过孔附近无圆形铜皮。</div>';
       } else {
-        h += '<table><thead><tr><th class="rvw">复核</th><th>层</th><th>Subset</th><th>检查项</th><th>实测</th><th>规则值</th><th>结果</th></tr></thead><tbody>';
+        h += '<table><thead><tr><th class="rvw">复核</th><th>层</th><th>Subset</th><th>检查项</th><th>实测</th><th>规则值</th><th>结果</th><th>定位</th></tr></thead><tbody>';
         rows.forEach(function (row) {
           var fail = row.status === '不符合';
+          var rowIndex = g.rows.indexOf(row);
           var rk = reviewKey(g, row);
           var rvd = fail && !!UI.reviewed[rk];
           var layerDisplay = (typeof row.layer === 'number' && row.layer > 0) ? ('L' + row.layer) : (String(row.layer).startsWith('L') ? row.layer : (row.layer === '—' ? '—' : ('L' + row.layer)));
@@ -457,7 +460,8 @@
             '<td>' + esc(layerDisplay) + '</td><td>' + esc(row.subset) + '</td><td>' + esc(row.checkType) + '</td>' +
             '<td class="' + (fail ? 'bad' : '') + '"' + reasonTooltip + '>' + esc(row.actual) + '</td><td' + reasonTooltip + '>' + esc(row.expect || '无') + '</td>' +
             '<td class="' + (fail ? 'bad' : (row.status === '符合' ? 'ok' : 'muted')) + '"' + reasonTooltip + '><span class="resTxt">' + esc(row.status) + '</span>' +
-            (fail ? '<span class="rvTag"' + (rvd ? '' : ' style="display:none"') + '>已复核</span>' : '') + '</td></tr>';
+            (fail ? '<span class="rvTag"' + (rvd ? '' : ' style="display:none"') + '>已复核</span>' : '') + '</td>' +
+            '<td>' + (fail ? ('<button type="button" class="btn gray small copper-locate-btn" data-si="' + si + '" data-ri="' + rowIndex + '" data-tip="在空间几何视口定位该完整信号孔与当前层铜皮">定位</button>') : '—') + '</td></tr>';
         });
         h += '</tbody></table>';
       }
@@ -468,6 +472,11 @@
         '<button type="button" class="btn gray" id="btnMoreResAll">全部展开</button></div>';
     }
     out.innerHTML = h || '<div class="card"><div class="hint">暂无结果，请先在 ③ 导入数据 载入 Item 数据。</div></div>';
+    out.querySelectorAll('.copper-locate-btn').forEach(function (btn) {
+      btn.onclick = function () {
+        if (typeof root.locateCopperResult === 'function') root.locateCopperResult(+btn.dataset.si, +btn.dataset.ri);
+      };
+    });
     out.dataset.ver = ver;
     renderChips();
     UI.resMs = App.viewMs(t0);

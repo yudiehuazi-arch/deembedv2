@@ -40,11 +40,11 @@ setTimeout(() => {
     });
   });
 
-  t('初始在 ① 规则约束，五个工序页签完整且可切换', () => {
+  t('初始在 ① 规则约束，六个工序页签完整且可切换', () => {
     if (activeTab() !== 'tab-rules') throw new Error(activeTab());
     const b = [...d.querySelectorAll('#tabs button')].map(x => x.textContent.trim());
-    if (b.length !== 5) throw new Error('页签数 ' + b.length);
-    ['① 规则约束', '② 生成的约束', '③ 导入数据', '④ 检查结果', '⑤ 规律分析'].forEach((x, i) => {
+    if (b.length !== 6) throw new Error('页签数 ' + b.length);
+    ['① 规则约束', '② 生成的约束', '③ 导入数据', '④ 检查结果', '⑤ 空间几何视口与测量', '⑥ 规律分析'].forEach((x, i) => {
       if (!b[i].startsWith(x)) throw new Error('第' + (i + 1) + '个页签为 ' + b[i]);
     });
     $('tabs').querySelector('[data-tab="sets"]').click();
@@ -159,7 +159,7 @@ setTimeout(() => {
     }
   });
 
-  t('⑤ 规律分析页与手动叠层数切换同步更新', () => {
+  t('⑥ 规律分析页与手动叠层数切换同步更新', () => {
     const botSrc = fs.readFileSync(path.join(CHECKER_DIR, 'sample/L19层扇出SMA_bot_D2M5.txt'), 'utf8');
     w.__botSrc = botSrc;
     w.eval("S.queue=[{id:1,name:'L19层扇出SMA_bot_D2M5.txt',text:window.__botSrc,enc:'UTF-8',status:''}]; S.sets=[]; document.getElementById('inpN').value=''; rebuild();");
@@ -176,7 +176,7 @@ setTimeout(() => {
     w.eval('renderLegend(true)');
     const h = $('legendOut').innerHTML;
     if (!h.includes('各约束下不符合的具体原因展开明细') || !h.includes('铜皮 × 完整信号孔怎么配对')) {
-      throw new Error('⑤ 规律分析页核心小节缺失');
+      throw new Error('⑥ 规律分析页核心小节缺失');
     }
   });
 

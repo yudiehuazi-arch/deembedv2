@@ -19,10 +19,10 @@ function activeTab() { const s = d.querySelector('section.tab.active'); return s
 setTimeout(() => {
   console.log('== 页签 ==');
   t('初始在 ① 规则约束', () => { if (activeTab() !== 'tab-rules') throw new Error(activeTab()); });
-  t('五个页签按钮存在且编号顺延', () => {
+  t('六个页签按钮存在且编号顺延', () => {
     const b = [...d.querySelectorAll('#tabs button')].map(x => x.textContent);
-    if (b.length !== 5) throw new Error('按钮数 ' + b.length + ' ' + b.join('|'));
-    ['① 规则约束', '② 生成的约束', '③ 导入数据', '④ 检查结果', '⑤ 规律分析'].forEach((x, i) => {
+    if (b.length !== 6) throw new Error('按钮数 ' + b.length + ' ' + b.join('|'));
+    ['① 规则约束', '② 生成的约束', '③ 导入数据', '④ 检查结果', '⑤ 空间几何视口与测量', '⑥ 规律分析'].forEach((x, i) => {
       if (b[i].indexOf(x) !== 0) throw new Error('第' + (i + 1) + '个页签是 ' + b[i]);
     });
   });
@@ -41,7 +41,8 @@ setTimeout(() => {
   });
   t('切到 ③ 导入数据', () => { $('tabs').querySelector('[data-tab="data"]').click(); if (activeTab() !== 'tab-data') throw new Error(activeTab()); });
   t('切到 ④ 检查结果', () => { $('tabs').querySelector('[data-tab="result"]').click(); if (activeTab() !== 'tab-result') throw new Error(activeTab()); });
-  t('切到 ⑤ 规律分析', () => { $('tabs').querySelector('[data-tab="legend"]').click(); if (activeTab() !== 'tab-legend') throw new Error(activeTab()); });
+  t('切到 ⑤ 空间几何视口与测量', () => { $('tabs').querySelector('[data-tab="canvas"]').click(); if (activeTab() !== 'tab-canvas') throw new Error(activeTab()); });
+  t('切到 ⑥ 规律分析', () => { $('tabs').querySelector('[data-tab="legend"]').click(); if (activeTab() !== 'tab-legend') throw new Error(activeTab()); });
   t('切回 ① 规则约束', () => { $('tabs').querySelector('[data-tab="rules"]').click(); if (activeTab() !== 'tab-rules') throw new Error(activeTab()); });
   t('钉住块和约束区都还在', () => { if (!$('pin') || !$('pinB') || !$('rulesBody') || !$('sets')) throw new Error('缺元素'); });
   console.log('== 铜皮 × 过孔 配对与推算 ==');
@@ -99,12 +100,13 @@ setTimeout(() => {
     $('ckPadstack').checked = true;
     w.eval('runCheck(true)');
   });
-  t('只看不符合 过滤掉符合项', () => {
+  t('只看不符合按完整孔筛选，孔内符合与未检查层仍保留', () => {
     w.eval('UI.onlyBad=true; renderResults()');
-    const h = $('checkOut').innerHTML;
-    if (h.indexOf('不符合') < 0) throw new Error('空');
-    const okRows = (w.eval("UI.result.groups[0].rows.filter(r=>r.status==='符合').length"));
-    if (okRows < 1) throw new Error('样本里没有符合项，测不了过滤');
+    const statuses = [...d.querySelectorAll('#checkOut .resTxt')].map(el => el.textContent);
+    if (!statuses.includes('不符合') || !statuses.includes('符合') || !statuses.includes('未检查')) {
+      throw new Error('状态不完整：' + statuses.join(','));
+    }
+    if (d.querySelectorAll('#checkOut tbody tr').length !== 20) throw new Error('未显示完整孔全部层');
     w.eval('UI.onlyBad=false; renderResults()');
   });
   t('没有规则时提示导入约束 TXT', () => {
@@ -246,11 +248,13 @@ setTimeout(() => {
   t('三个筛选按钮都在', () => {
     ['btnOnlyBad','btnOnlyMatched','btnOnlyNoRule','btnAllRows'].forEach(id => { if (!$(id)) throw new Error('缺 ' + id); });
   });
-  t('只看不符合：只留不符合行，按钮高亮', () => {
+  t('只看不符合：筛选有异常的完整孔，但孔内仍显示所有层', () => {
     $('btnOnlyBad').click();
-    if (renderedRows() !== 1) throw new Error('行数 ' + renderedRows());
+    if (renderedRows() !== 20) throw new Error('行数 ' + renderedRows());
+    if (d.querySelectorAll('#checkOut tr.fail').length !== 1) throw new Error('不符合行数异常');
+    if (!d.querySelector('#checkOut tr:not(.fail)')) throw new Error('未保留同孔的符合或未检查层');
     if (!$('btnOnlyBad').classList.contains('on')) throw new Error('按钮没高亮');
-    if ($('resHint').textContent.indexOf('只显示不符合项') < 0) throw new Error($('resHint').textContent);
+    if ($('resHint').textContent.indexOf('孔内显示所有层') < 0) throw new Error($('resHint').textContent);
   });
   t('只看已配对过孔：只留已配对的过孔组并显示完整孔所有层', () => {
     $('btnOnlyMatched').click();
@@ -286,14 +290,37 @@ setTimeout(() => {
     const tile = d.querySelector('#resStats .stat.click[data-res="bad"]');
     if (!tile) throw new Error('没有可点的方块');
     tile.click();
-    if (renderedRows() !== 1) throw new Error('行数 ' + renderedRows());
+    if (renderedRows() !== 20) throw new Error('行数 ' + renderedRows());
+    if (d.querySelectorAll('#checkOut tr.fail').length !== 1) throw new Error('不符合行数异常');
     $('btnAllRows').click();
     if (renderedRows() !== 20) throw new Error('全部后行数 ' + renderedRows());
     if (d.querySelector('#resStats .stat.click.on')) throw new Error('还有方块高亮');
   });
+  t('不符合项可定位到空间几何视口，聚焦完整孔后测量并返回原结果', () => {
+    const locate = d.querySelector('#checkOut tr.fail .copper-locate-btn');
+    if (!locate) throw new Error('不符合行缺少定位按钮');
+    w.CopperCanvas.state.dataVer = -1;
+    w.CopperCanvas.state.fitted = false;
+    locate.click();
+    if (activeTab() !== 'tab-canvas') throw new Error('定位后未切到几何视口');
+    if (!$('copperCanvas') || !$('copperCanvasLegend')) throw new Error('几何画布或底部图例缺失');
+    if (!($('copperCanvas').compareDocumentPosition($('copperCanvasLegend')) & w.Node.DOCUMENT_POSITION_FOLLOWING)) {
+      throw new Error('几何图例未放在画布下方');
+    }
+    if (w.CopperCanvas.state.groupIndex !== 0) throw new Error('未记录定位完整孔');
+    if ($('selCopperCanvasLayer').value !== '19') throw new Error('未切到异常所在 L19');
+    if ($('copperSpatialReviewText').textContent.indexOf('Via') < 0) throw new Error('定位复核信息缺失');
+    $('btnCopperMeasure').click();
+    $('copperCanvas').dispatchEvent(new w.MouseEvent('click', { bubbles: true, clientX: 100, clientY: 100 }));
+    $('copperCanvas').dispatchEvent(new w.MouseEvent('click', { bubbles: true, clientX: 160, clientY: 140 }));
+    if (w.CopperCanvas.state.measure.length !== 2) throw new Error('两点测量未记录');
+    if ($('copperMeasureReadout').textContent.indexOf('两点距离') < 0) throw new Error('测量结果未显示');
+    $('btnReturnCopperResults').click();
+    if (activeTab() !== 'tab-result') throw new Error('未返回检查结果');
+  });
 
   console.log('== 底部判定规律与分布 ==');
-  t('规律卡片渲染在 ⑤ 规律分析页，且不在结果页里', () => {
+  t('规律卡片渲染在 ⑥ 规律分析页，且不在结果页里', () => {
     $('tabs').querySelector('[data-tab="result"]').click();
     w.__sampleTxt = sampleTxt;
     w.eval("S.sets=" + JSON.stringify(rules) + "; UI.items=CopperCheck.parseBoardItems(window.__sampleTxt); UI.resFilter=''; UI.onlyBad=false; runCheck(true); renderResults();");
@@ -305,10 +332,10 @@ setTimeout(() => {
     });
     if ($('tab-result').querySelector('#legendOut')) throw new Error('结果页还挂着规律卡片');
     $('tabs').querySelector('[data-tab="legend"]').click();
-    if (activeTab() !== 'tab-legend') throw new Error('没切到 ⑤ 页：' + activeTab());
-    if (!$('tab-legend').querySelector('#legendOut')) throw new Error('⑤ 页没有规律内容');
+    if (activeTab() !== 'tab-legend') throw new Error('没切到 ⑥ 页：' + activeTab());
+    if (!$('tab-legend').querySelector('#legendOut')) throw new Error('⑥ 页没有规律内容');
     const h2 = $('tab-legend').innerHTML;
-    if (h2.indexOf('判定规律与当前分布') < 0) throw new Error('⑤ 页缺标题');
+    if (h2.indexOf('判定规律与当前分布') < 0) throw new Error('⑥ 页缺标题');
   });
   t('写明位置/数值容差和配对条件', () => {
     w.eval("renderLegend(true)");
@@ -540,7 +567,7 @@ setTimeout(() => {
     chip.click();
     $('btnOnlyBad').click();
     if (groupsShown() !== 0) throw new Error('L1 13 对 13 是符合的，应该没有卡片，实际 ' + groupsShown());
-    if ($('resHint').textContent.indexOf('只看约束 Top-SMA-L8-D2M6mil + 只显示不符合项') < 0) throw new Error($('resHint').textContent);
+    if ($('resHint').textContent.indexOf('只看约束 Top-SMA-L8-D2M6mil + 只看含不符合项的信号孔，孔内显示所有层') < 0) throw new Error($('resHint').textContent);
     $('btnAllRows').click();
     if (w.eval('UI.resRule')) throw new Error('「全部」没清掉约束筛选');
     if (groupsShown() !== 3) throw new Error('「全部」后卡片数 ' + groupsShown());
@@ -752,7 +779,7 @@ setTimeout(() => {
     if (back.L21 !== '13') throw new Error('L21 应回到 bottom 的 13：' + back.L21);
     if (back.L24 !== undefined) throw new Error('L24 应该被清掉：' + back.L24);
   });
-  t('改层数会重算检查结果与 ⑤ 页说明', () => {
+  t('改层数会重算检查结果与 ⑥ 页说明', () => {
     w.__sampleTxt = sampleTxt;
     w.eval("S.sets=" + JSON.stringify(rules) + "; UI.items=CopperCheck.parseBoardItems(window.__sampleTxt); UI.runSeq=0; runCheck(true);");
     const eff = w.eval(`(function(){
@@ -1082,13 +1109,13 @@ setTimeout(() => {
     w.eval("S.sets=" + JSON.stringify(rules) + "; UI.items=CopperCheck.parseBoardItems(window.__sampleTxt); UI.resLimit=1000; UI.resFilter=''; UI.resRule=''; UI.resSearch=''; UI.onlyBad=false; runCheck(true); renderResults();");
   });
 
-  console.log('== ⑤ 规律分析页 ==');
-  t('没有结果时 ⑤ 页给出提示', () => {
+  console.log('== ⑥ 规律分析页 ==');
+  t('没有结果时 ⑥ 页给出提示', () => {
     w.eval("UI.result=null; UI.items=[]; renderLegend(true)");
     const h = $('legendOut').innerHTML;
     if (h.indexOf('还没有检查结果') < 0) throw new Error('没有提示');
   });
-  t('跑完检查后切到 ⑤ 页，内容自动出来', () => {
+  t('跑完检查后切到 ⑥ 页，内容自动出来', () => {
     w.__sampleTxt = sampleTxt;
     w.eval("S.sets=" + JSON.stringify(rules) + "; UI.items=CopperCheck.parseBoardItems(window.__sampleTxt); runCheck(true);");
     $('tabs').querySelector('[data-tab="result"]').click();
@@ -1097,20 +1124,20 @@ setTimeout(() => {
     if (h.indexOf('各约束下不符合') < 0) throw new Error('没渲染分布');
     if (h.indexOf('铜皮 × 完整信号孔怎么配对') < 0) throw new Error('没渲染规律');
   });
-  t('⑤ 页内容有缓存，重复切页签不会重复渲染', () => {
+  t('⑥ 页内容有缓存，重复切页签不会重复渲染', () => {
     const v1 = $('legendOut').dataset.ver;
     $('tabs').querySelector('[data-tab="result"]').click();
     $('tabs').querySelector('[data-tab="legend"]').click();
     if (!$('legendOut').dataset.ver) throw new Error('没有版本标记');
     if (v1 && v1.indexOf(String(w.eval('UI.runSeq'))) < 0 && v1.indexOf('|') < 0) throw new Error('版本标记异常');
   });
-  t('改容差后 ⑤ 页的说明跟着变', () => {
+  t('改容差后 ⑥ 页的说明跟着变', () => {
     w.eval("document.getElementById('valTol').value='0.5'; renderLegend(true)");
     if ($('legendOut').innerHTML.indexOf('0.5 mil') < 0) throw new Error('容差没同步');
     w.eval("document.getElementById('valTol').value='0.01'");
   });
 
-  t('⑤ 规律分析页展开归纳不符合的具体原因（按层排行与分层偏差明细）', () => {
+  t('⑥ 规律分析页展开归纳不符合的具体原因（按层排行与分层偏差明细）', () => {
     // 注入包含多层不同偏差的样本数据
     const shapes = [
       { id: 1, type: 'shape', subset: '19IS08', set: 'Route Keepout', radius: 10.5, center: [100, 100], circle: true, head: 'Set: Route Keepout' },

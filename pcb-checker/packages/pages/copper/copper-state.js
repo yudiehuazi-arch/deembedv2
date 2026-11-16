@@ -190,7 +190,7 @@
   }
 
   function showTab(name) {
-    ['rules', 'sets', 'data', 'result', 'legend'].forEach(function (t) {
+    ['rules', 'sets', 'data', 'result', 'canvas', 'legend'].forEach(function (t) {
       var sec = $('tab-' + t);
       if (sec) sec.className = 'tab' + (t === name ? ' active' : '');
     });
@@ -200,6 +200,7 @@
     if (name === 'data' && root.renderMatch) root.renderMatch();
     if (name === 'result' && UI.result && root.renderResults) root.renderResults();
     if (name === 'sets' && root.render) root.render();
+    if (name === 'canvas' && root.renderCopperCanvas) root.renderCopperCanvas();
     if (name === 'legend' && root.renderLegend) root.renderLegend(true);
     syncPin();
     if (root.EdaShell && typeof root.EdaShell.syncStageBar === 'function') {
