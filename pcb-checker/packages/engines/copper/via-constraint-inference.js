@@ -61,6 +61,26 @@
     };
   }
 
+  function sourceOwnersForLayer(owners, layer, n) {
+    var seen = {}, list = (owners || []).filter(function (via) {
+      var key = String(via && via.id);
+      if (!via || seen[key]) return false;
+      seen[key] = 1;
+      return true;
+    });
+    if (!(typeof layer === 'number' && layer > 0) || list.length < 2) return list;
+    var ranked = list.map(function (via) {
+      var span = spanOfVia(via, n), d = Infinity;
+      if (span.start && span.end) {
+        d = layer < span.start ? span.start - layer : (layer > span.end ? layer - span.end : 0);
+      }
+      return { via: via, distance: d };
+    });
+    var min = Math.min.apply(null, ranked.map(function (x) { return x.distance; }));
+    if (!isFinite(min)) return list;
+    return ranked.filter(function (x) { return x.distance === min; }).map(function (x) { return x.via; });
+  }
+
   function familyOf(padstacks) {
     var blob = (padstacks || []).join(' ');
     if (/BGA/i.test(blob)) return 'BGA';
@@ -239,6 +259,7 @@
     isSignalPadstack: isSignalPadstack,
     layerTokens: layerTokens,
     spanOfVia: spanOfVia,
+    sourceOwnersForLayer: sourceOwnersForLayer,
     isSegmentDistance: isSegmentDistance,
     groupVias: groupVias,
     mateName: mateName,

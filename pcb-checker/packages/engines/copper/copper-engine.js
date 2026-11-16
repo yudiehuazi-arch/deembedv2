@@ -356,7 +356,6 @@
           actual: sh.radius, expect: expect, status: status, constraint: constraint, enabled: on
         };
       });
-
       if (sel.rule && sel.rule.constraints) {
         var present = {};
         rows.forEach(function (r) {
@@ -490,13 +489,7 @@
 
       rows.forEach(function (row) {
         var owners = nearOwners[row.shapeId] || unit.vias;
-        if (typeof row.layer === 'number' && row.layer > 0) {
-          var layerOwners = owners.filter(function (part) {
-            var span = VI.spanOfVia(part, n);
-            return !span.start || !span.end || (row.layer >= span.start && row.layer <= span.end);
-          });
-          if (layerOwners.length) owners = layerOwners;
-        }
+        if (!row.isPadstackCheck) owners = VI.sourceOwnersForLayer(owners, row.layer, n);
         row.sourceViaIds = owners.map(function (part) { return part.id; });
         row.sourcePadstack = owners.map(function (part) { return part.padstack || '无 Padstack'; })
           .filter(function (name, idx, all) { return all.indexOf(name) === idx; }).join(' + ');

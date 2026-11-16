@@ -187,7 +187,7 @@
       '</ol>' +
       '<h3>3. 每一层怎么判</h3><ol class="rules">' +
       '<li>结果表按完整孔层跨补齐所有层；没有 Shape 的层显示无铜皮，没有规则值的层保留为未检查。</li>' +
-      '<li>每条 Route Keepout 按圆心匹配到具体孔段，并在来源 Padstack 列标明对应 Via；相邻孔段的交界层可分别追溯。</li>' +
+      '<li>每条 Route Keepout 按圆心和所在层匹配到具体孔段；Top 只追溯顶部孔段，Bottom 只追溯底部孔段。</li>' +
       '<li>Subset 前导数字映射层号，实测半径与规则值差值 ≤ ' + val + ' mil 判为符合，缺失应有层铜皮判为无铜皮不符合。</li>' +
       '<li>Padstack层名核对过孔名称是否覆盖 Connections 全部连接层。</li>' +
       '</ol>';

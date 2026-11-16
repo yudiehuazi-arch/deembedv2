@@ -14,26 +14,32 @@ const mil = mm => mm / C.MM_PER_MIL;
 console.log('== 约束检查：SIG 完整孔组与差分孔距推算 ==');
 
 const pParts = [
-  { id: 1, type: 'via', origin: [0, 0], net: 'DP_P', padstack: 'BGA_SIG_L2_L5', traceLayers: ['L2', 'L5'] },
-  { id: 2, type: 'via', origin: [mil(0.075), 0], net: 'DP_P', padstack: 'BGA_SIG_L5_L10', traceLayers: ['L5', 'L10'] },
-  { id: 3, type: 'via', origin: [mil(0.150), 0], net: 'DP_P', padstack: 'BGA_SIG_L10_L12', traceLayers: ['L10', 'L12'] }
+  { id: 1, type: 'via', origin: [0, 0], net: 'DP_P', padstack: 'BGA-HDI-SIG_L2_L5', traceLayers: ['L2', 'L5'] },
+  { id: 2, type: 'via', origin: [mil(0.075), 0], net: 'DP_P', padstack: 'PTH-SIG_L5_L10', traceLayers: ['L5', 'L10'] },
+  { id: 3, type: 'via', origin: [0, 0], net: 'DP_P', padstack: 'BGA-HDI-SIG_L10_L12', traceLayers: ['L10', 'L12'] }
 ];
 const nParts = [
-  { id: 4, type: 'via', origin: [mil(0.600), 0], net: 'DP_N', padstack: 'BGA_SIG_L2_L5', traceLayers: ['L2', 'L5'] },
-  { id: 5, type: 'via', origin: [mil(0.675), 0], net: 'DP_N', padstack: 'BGA_SIG_L5_L10', traceLayers: ['L5', 'L10'] },
-  { id: 6, type: 'via', origin: [mil(0.750), 0], net: 'DP_N', padstack: 'BGA_SIG_L10_L12', traceLayers: ['L10', 'L12'] }
+  { id: 4, type: 'via', origin: [mil(0.600), 0], net: 'DP_N', padstack: 'BGA-HDI-SIG_L2_L5', traceLayers: ['L2', 'L5'] },
+  { id: 5, type: 'via', origin: [mil(0.675), 0], net: 'DP_N', padstack: 'PTH-SIG_L5_L10', traceLayers: ['L5', 'L10'] },
+  { id: 6, type: 'via', origin: [mil(0.600), 0], net: 'DP_N', padstack: 'BGA-HDI-SIG_L10_L12', traceLayers: ['L10', 'L12'] }
 ];
 const nonSig = { id: 7, type: 'via', origin: [100, 100], net: 'GND', padstack: 'BGA_GND_L2_L12', traceLayers: [] };
-const shapes = pParts.map((v, i) => ({
-  id: 20 + i, type: 'shape', circle: true, center: v.origin.slice(), radius: 10,
-  set: 'Route Keepout', subset: ['L2', 'L5', 'L12'][i], head: 'Route Keepout'
-}));
-// L5 在 L2-L5 与 L5-L10 两个孔段坐标各有一条 Route Keepout，用于验证逐行来源 Padstack。
-shapes.push({ id: 23, type: 'shape', circle: true, center: pParts[0].origin.slice(), radius: 10, set: 'Route Keepout', subset: 'L5', head: 'Route Keepout' });
-shapes.push({ id: 30, type: 'shape', circle: true, center: nonSig.origin.slice(), radius: 10, set: 'Route Keepout', subset: 'L2', head: 'Route Keepout' });
+const shapes = [
+  { id: 20, type: 'shape', circle: true, center: pParts[0].origin.slice(), radius: 10, set: 'Route Keepout', subset: 'L2', head: 'Route Keepout' },
+  { id: 21, type: 'shape', circle: true, center: pParts[1].origin.slice(), radius: 10, set: 'Route Keepout', subset: 'L5', head: 'Route Keepout' },
+  { id: 22, type: 'shape', circle: true, center: pParts[2].origin.slice(), radius: 10, set: 'Route Keepout', subset: 'L12', head: 'Route Keepout' },
+  { id: 23, type: 'shape', circle: true, center: pParts[0].origin.slice(), radius: 10, set: 'Route Keepout', subset: 'L5', head: 'Route Keepout' },
+  { id: 24, type: 'shape', circle: true, center: pParts[0].origin.slice(), radius: 10, set: 'Route Keepout', subset: 'Top', head: 'Route Keepout' },
+  { id: 25, type: 'shape', circle: true, center: pParts[2].origin.slice(), radius: 10, set: 'Route Keepout', subset: 'Bottom', head: 'Route Keepout' },
+  { id: 26, type: 'shape', circle: true, center: pParts[1].origin.slice(), radius: 10, set: 'Route Keepout', subset: 'L10', head: 'Route Keepout' },
+  { id: 27, type: 'shape', circle: true, center: pParts[2].origin.slice(), radius: 10, set: 'Route Keepout', subset: 'L10', head: 'Route Keepout' },
+  { id: 30, type: 'shape', circle: true, center: nonSig.origin.slice(), radius: 10, set: 'Route Keepout', subset: 'L2', head: 'Route Keepout' }
+];
 const sets = [0.5, 0.6, 0.7].map(pitch => ({
   kind: 'BGA', title: `BGA-L2-L12-${pitch}mm`,
-  constraints: [{ cat: '反焊盘尺寸', name: '反焊盘半径', unit: 'mil', values: { L2: '10', L5: '10', L12: '10' } }]
+  constraints: [
+    { cat: '反焊盘尺寸', name: '反焊盘半径', unit: 'mil', values: { L1: '10', L2: '10', L5: '10', L10: '10', L12: '10', L14: '10' } }
+  ]
 }));
 const result = C.runCopperCheck([...pParts, ...nParts, nonSig, ...shapes], sets, { layerCount: 14, posTol: 0.05, valTol: 0.01 });
 const pGroup = result.groups.find(g => g.via.net === 'DP_P');
@@ -64,16 +70,28 @@ t('同封装与完整层跨下选择中心距最近的 BGA-L2-L12-0.6mm 约束',
 
 t('完整孔三个孔段坐标处的全部 Route Keepout 都归入同一约束核查', () => {
   const real = pGroup.rows.filter(r => !r.missing && !r.isPadstackCheck);
-  assert(real.length === 4, '配对 Route Keepout=' + real.length);
-  assert(real.every(r => r.status === '符合'), real.map(r => r.status).join(','));
+  assert(real.length === 8, '配对 Route Keepout=' + real.length);
+  assert(real.every(r => r.status === '符合'), real.map(r => `${r.layer}:${r.status}`).join(','));
 });
 
-t('同层 Route Keepout 逐行标明其坐标对应的孔段 Via 与 Padstack', () => {
-  const l5 = pGroup.rows.filter(r => r.layer === 5 && !r.missing);
-  assert(l5.length === 2, 'L5 Route Keepout=' + l5.length);
-  const sources = l5.map(r => r.sourceViaIds.join('/') + ':' + r.sourcePadstack).sort();
-  assert(sources[0] === '1:BGA_SIG_L2_L5', JSON.stringify(sources));
-  assert(sources[1] === '2:BGA_SIG_L5_L10', JSON.stringify(sources));
+t('L5/L10 交界层的每条 Route Keepout 只追溯实际所在孔段', () => {
+  [
+    { layer: 5, hdiPad: 'BGA-HDI-SIG_L2_L5', hdiVia: '1' },
+    { layer: 10, hdiPad: 'BGA-HDI-SIG_L10_L12', hdiVia: '3' }
+  ].forEach(({ layer, hdiPad, hdiVia }) => {
+    const rows = pGroup.rows.filter(r => r.layer === layer && !r.missing);
+    assert(rows.length === 2 && rows.every(r => r.checkType === '反焊盘尺寸'), JSON.stringify(rows));
+    const byPad = Object.fromEntries(rows.map(r => [r.sourcePadstack, r]));
+    assert(byPad[hdiPad] && byPad[hdiPad].sourceViaIds.join('/') === hdiVia, JSON.stringify(rows));
+    assert(byPad['PTH-SIG_L5_L10'] && byPad['PTH-SIG_L5_L10'].sourceViaIds.join('/') === '2', JSON.stringify(rows));
+  });
+});
+
+t('Top 与 Bottom 同坐标时只追溯各自最近的首尾孔段', () => {
+  const top = pGroup.rows.find(r => r.subset === 'Top');
+  const bottom = pGroup.rows.find(r => r.subset === 'Bottom');
+  assert(top.sourcePadstack === 'BGA-HDI-SIG_L2_L5' && top.sourceViaIds.join('/') === '1', JSON.stringify(top));
+  assert(bottom.sourcePadstack === 'BGA-HDI-SIG_L10_L12' && bottom.sourceViaIds.join('/') === '3', JSON.stringify(bottom));
 });
 
 t('检查结果补齐完整孔经过的 L2-L12 所有层，稀疏 Shape 层不再被隐藏', () => {
@@ -84,7 +102,7 @@ t('检查结果补齐完整孔经过的 L2-L12 所有层，稀疏 Shape 层不�
   const sparse = geometryRows.find(r => r.layer === 3);
   assert(sparse && sparse.spanPlaceholder && sparse.status === '未检查', JSON.stringify(sparse));
   assert(sparse.actual === '无铜皮' && sparse.expect === '该层无约束', JSON.stringify(sparse));
-  assert(sparse.sourcePadstack === 'BGA_SIG_L2_L5' && sparse.sourceViaIds.join('/') === '1', JSON.stringify(sparse));
+  assert(sparse.sourcePadstack === 'BGA-HDI-SIG_L2_L5' && sparse.sourceViaIds.join('/') === '1', JSON.stringify(sparse));
 });
 
 t('不含 SIG 的过孔保留显示，但不推算约束且配对 Keepout 为未检查', () => {
