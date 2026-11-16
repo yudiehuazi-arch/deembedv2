@@ -102,45 +102,47 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
     });
     templates.forEach((tmpl, tIdx) => {
       const padPattern = (tmpl.padstack || '').trim().toLowerCase();
-      const targetLayer = (tmpl.layer || '').trim().toUpperCase();
+      const targetLayers = [...new Set(expandLayerRange(tmpl.layer, [...shapesByLayer.keys()])
+        .map(layer => layer.trim().toUpperCase()))];
       const expectedCenterDistance = parseFloat(tmpl.differentialCenterDistance);
-      if (!(expectedCenterDistance > 0)) return;
+      if (!(expectedCenterDistance > 0) || !targetLayers.length) return;
       const tmplName = tmpl.name || `异型铜皮模板_${tIdx + 1}`;
       const expectedArea = tmpl.expectedArea || (tmpl.shape ? tmpl.shape.area : 0);
       const tolArea = tmpl.areaTolerance != null ? parseFloat(tmpl.areaTolerance) : 30.0;
       const matchedVias = vias.filter(via => !padPattern || padPattern === '*' ||
         via.padstack.toLowerCase().includes(padPattern));
       const pairsByVia = pairDifferentialVias(matchedVias);
-      const layerShapes = shapesByLayer.get(targetLayer) || [];
       matchedVias.forEach(via => {
         const pair = pairsByVia.get(via);
         if (!pair || Math.abs(pair.distance - expectedCenterDistance) > SPECIAL_SHAPE_CENTER_DISTANCE_TOLERANCE) return;
-        const bestShape = findAssociatedShape(via, layerShapes);
-        let isMatch = false;
-        let failReason = '';
-        if (!bestShape) {
-          failReason = `在 ${targetLayer} 层未找到与孔 #${via.id} 关联的铜皮`;
-        } else if (!(expectedArea > 0)) {
-          isMatch = true;
-        } else {
-          const areaDiff = Math.abs(bestShape.area - expectedArea);
-          isMatch = areaDiff <= tolArea;
-          if (!isMatch) {
-            failReason = `铜皮 Shape #${bestShape.id} 面积为 ${roundN(bestShape.area, 1)} sq mil，与模板期望面积 ${roundN(expectedArea, 1)} sq mil 偏差 ${roundN(areaDiff, 1)} sq mil (超出容差 ±${tolArea})`;
+        targetLayers.forEach(targetLayer => {
+          const bestShape = findAssociatedShape(via, shapesByLayer.get(targetLayer) || []);
+          let isMatch = false;
+          let failReason = '';
+          if (!bestShape) {
+            failReason = `在 ${targetLayer} 层未找到与孔 #${via.id} 关联的铜皮`;
+          } else if (!(expectedArea > 0)) {
+            isMatch = true;
+          } else {
+            const areaDiff = Math.abs(bestShape.area - expectedArea);
+            isMatch = areaDiff <= tolArea;
+            if (!isMatch) {
+              failReason = `铜皮 Shape #${bestShape.id} 面积为 ${roundN(bestShape.area, 1)} sq mil，与模板期望面积 ${roundN(expectedArea, 1)} sq mil 偏差 ${roundN(areaDiff, 1)} sq mil (超出容差 ±${tolArea})`;
+            }
           }
-        }
-        results.push({
-          checkCategory: 'special_shape', checkCategoryName: '② 特定异型铜皮比对检查',
-          templateIndex: tIdx + 1, templateId: tmpl.id || `special_shape_${tIdx + 1}`, templateName: tmplName,
-          viaId: via.id, viaPadstack: via.padstack, viaNet: via.net, viaCoord: [via.x, via.y],
-          pairedViaId: pair.mate.id, pairedViaNet: pair.mate.net,
-          actualDifferentialCenterDistance: pair.distance,
-          expectedDifferentialCenterDistance: expectedCenterDistance,
-          layer: tmpl.layer, targetShapeId: bestShape ? bestShape.id : null,
-          actualArea: bestShape ? bestShape.area : 0, expectedArea, areaTolerance: tolArea, pass: isMatch,
-          message: isMatch
-            ? `✅ 符合：孔 #${via.id} 与孔 #${pair.mate.id} 中心距 ${roundN(pair.distance, 2)} mil，在 ${tmpl.layer} 层的铜皮与异型模板【${tmplName}】匹配 (实测面积 ${bestShape ? roundN(bestShape.area, 1) : '-'} sq mil)`
-            : `❌ 不符合：孔 #${via.id} 与孔 #${pair.mate.id} 中心距 ${roundN(pair.distance, 2)} mil，在 ${tmpl.layer} 层异型铜皮不匹配 (${failReason})`
+          results.push({
+            checkCategory: 'special_shape', checkCategoryName: '② 特定异型铜皮比对检查',
+            templateIndex: tIdx + 1, templateId: tmpl.id || `special_shape_${tIdx + 1}`, templateName: tmplName,
+            viaId: via.id, viaPadstack: via.padstack, viaNet: via.net, viaCoord: [via.x, via.y],
+            pairedViaId: pair.mate.id, pairedViaNet: pair.mate.net,
+            actualDifferentialCenterDistance: pair.distance,
+            expectedDifferentialCenterDistance: expectedCenterDistance,
+            layer: targetLayer, targetShapeId: bestShape ? bestShape.id : null,
+            actualArea: bestShape ? bestShape.area : 0, expectedArea, areaTolerance: tolArea, pass: isMatch,
+            message: isMatch
+              ? `✅ 符合：孔 #${via.id} 与孔 #${pair.mate.id} 中心距 ${roundN(pair.distance, 2)} mil，在 ${targetLayer} 层的铜皮与异型模板【${tmplName}】匹配 (实测面积 ${bestShape ? roundN(bestShape.area, 1) : '-'} sq mil)`
+              : `❌ 不符合：孔 #${via.id} 与孔 #${pair.mate.id} 中心距 ${roundN(pair.distance, 2)} mil，在 ${targetLayer} 层异型铜皮不匹配 (${failReason})`
+          });
         });
       });
     });
@@ -422,12 +424,18 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
         }
       } else if (g.checkCategory === 'special_shape') {
         const s0 = subs[0];
-        g.layer = s0.layer;
-        g.layerListStr = s0.layer;
+        const failedSubs = subs.filter(s => !s.pass);
+        const layersChecked = [...new Set(subs.map(s => s.layer))];
+        g.layer = layersChecked.join(', ');
+        g.layerListStr = g.layer;
         g.expectedArea = s0.expectedArea;
         g.actualArea = s0.actualArea;
-        g.metricsStr = `差分孔中心距: ${roundN(s0.actualDifferentialCenterDistance, 2)} mil (规则 ${s0.expectedDifferentialCenterDistance} mil)；实测面积: ${roundN(s0.actualArea, 1)} sq mil (期望 ${s0.expectedArea})`;
-        g.message = s0.message;
+        g.failCount = failedSubs.length;
+        g.passCount = subs.length - failedSubs.length;
+        g.metricsStr = `差分孔中心距: ${roundN(s0.actualDifferentialCenterDistance, 2)} mil (规则 ${s0.expectedDifferentialCenterDistance} mil)；${subs.map(s => `${s.layer} 实测面积 ${roundN(s.actualArea, 1)} sq mil`).join('；')}`;
+        g.message = allPass
+          ? `✅ 符合：孔 #${g.viaId} 在目标层【${g.layerListStr}】的铜皮均匹配异型模板【${s0.templateName}】`
+          : failedSubs.map(s => s.message).join('；');
       } else if (g.checkCategory === 'trace_ref_margin') {
         const failedSubs = subs.filter(s => !s.pass);
         const s0 = subs[0];

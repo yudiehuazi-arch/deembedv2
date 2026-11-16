@@ -101,12 +101,13 @@ test('弹窗新增规则 1/2/3 与异型铜皮 Shape TXT 几何解析保存', ()
   });
   $('modalR2InpPadstack').value = 'BGA_EDITABLE';
   $('modalR2InpDiffDist').value = '23.62';
-  $('modalR2InpLayer').value = '19IS08';
+  $('modalR2InpLayer').value = '19IS08, L5';
   w.saveRule2FromModal();
   const editedTemplate = w.State.specialShapeTemplates[savedTemplateIndex];
-  if (editedTemplate.padstack !== 'BGA_EDITABLE' || editedTemplate.differentialCenterDistance !== 23.62 || editedTemplate.layer !== '19IS08') {
+  if (editedTemplate.padstack !== 'BGA_EDITABLE' || editedTemplate.differentialCenterDistance !== 23.62 || editedTemplate.layer !== '19IS08, L5') {
     throw new Error('规则 2 编辑弹窗未保存三个可输入字段');
   }
+  if (!$('tblRule2Body').textContent.includes('19IS08, L5')) throw new Error('规则 2 表格未显示多个目标层');
 
   w.openAddRule3Modal();
   if (!$('modalRule3').classList.contains('open')) throw new Error('Modal 3 未打开');

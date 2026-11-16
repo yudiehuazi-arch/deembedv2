@@ -194,11 +194,14 @@ async function test(name, fn) {
     });
     $('modalPourShapeInpPadstack').value = 'BGA_EDITABLE';
     $('modalPourShapeInpDiffDist').value = '23.62';
-    $('modalPourShapeInpLayer').value = '19IS08';
+    $('modalPourShapeInpLayer').value = '19IS08, L5';
     w.savePourShapeFromModal();
     const edited = w.State.rules.specialShapeTemplates[before];
-    if (edited.padstack !== 'BGA_EDITABLE' || edited.differentialCenterDistance !== 23.62 || edited.layer !== '19IS08') {
+    if (edited.padstack !== 'BGA_EDITABLE' || edited.differentialCenterDistance !== 23.62 || edited.layer !== '19IS08, L5') {
       throw new Error('综合页编辑弹窗未保存三个可输入字段');
+    }
+    if (![...d.querySelectorAll('#tblPourRule2Body input[type="text"]')].some(input => input.value === '19IS08, L5')) {
+      throw new Error('综合页规则表未显示多个目标层');
     }
     w.exportPourRulesPrompt();
     const exported = JSON.parse($('txtModalExportContent').value);

@@ -4,11 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PCB 铜皮检查工具</title>
-<link rel="stylesheet" href="assets/styles/tokens.css?v=30">
-<link rel="stylesheet" href="assets/styles/eda-shell.css?v=30">
-<link rel="stylesheet" href="assets/styles/eda-dock.css?v=30">
-<link rel="stylesheet" href="assets/styles/components.css?v=30">
-<link rel="stylesheet" href="assets/styles/pages/pour.css?v=30">
+<link rel="stylesheet" href="assets/styles/tokens.css?v=31">
+<link rel="stylesheet" href="assets/styles/eda-shell.css?v=31">
+<link rel="stylesheet" href="assets/styles/eda-dock.css?v=31">
+<link rel="stylesheet" href="assets/styles/components.css?v=31">
+<link rel="stylesheet" href="assets/styles/pages/pour.css?v=31">
 </head>
 <body class="eda-workbench">
 
@@ -139,7 +139,7 @@
                 <th>模板名称</th>
                 <th data-tip="目标过孔 Padstack 匹配关键字">过孔类型</th>
                 <th data-tip="检查时计算该过孔与同一差分网络另一过孔的中心距，匹配容差为 0.01 mil">差分孔中心距 mil</th>
-                <th>目标层别</th>
+                <th data-tip="支持同时填写多个目标层，使用逗号、分号或斜杠分隔">目标层别</th>
                 <th>基准面积与容差</th>
                 <th style="width:124px">操作</th>
               </tr>
@@ -463,8 +463,8 @@
         <div class="chip-bar" id="chipsModalR2DiffDist"></div>
       </div>
       <div class="form-item">
-        <label for="modalR2InpLayer" data-tip="EDA TXT 中的 Subset 层名">目标层别 *</label>
-        <input type="text" id="modalR2InpLayer" placeholder="如 02G01P 或 L2" data-no-persist>
+        <label for="modalR2InpLayer" data-tip="支持同时填写多个 EDA Subset 层名，使用逗号、分号或斜杠分隔">目标层别 *</label>
+        <input type="text" id="modalR2InpLayer" placeholder="如 L5, L10" data-no-persist>
         <div class="chip-bar" id="chipsModalR2Layer"></div>
       </div>
       <div class="form-item">
@@ -552,16 +552,16 @@
   </div>
 </div>
 
-<script src="packages/shared/dom-utils.js?v=30"></script>
-<script src="packages/engines/pour/pour-geom.js?v=30"></script>
-<script src="packages/engines/pour/pour-parser.js?v=30"></script>
-<script src="packages/engines/pour/pour-engine.js?v=30"></script>
-<script src="packages/pages/pour/pour-state.js?v=30"></script>
-<script src="packages/pages/pour/pour-rules-ui.js?v=30"></script>
-<script src="packages/pages/pour/pour-results-ui.js?v=30"></script>
-<script src="packages/pages/pour/pour-canvas-viewer.js?v=30"></script>
-<script src="packages/shared/eda-tooltip.js?v=30"></script>
-<script src="packages/shared/eda-shell.js?v=30"></script>
-<script src="packages/shared/ui-prefs.js?v=30"></script>
+<script src="packages/shared/dom-utils.js?v=31"></script>
+<script src="packages/engines/pour/pour-geom.js?v=31"></script>
+<script src="packages/engines/pour/pour-parser.js?v=31"></script>
+<script src="packages/engines/pour/pour-engine.js?v=31"></script>
+<script src="packages/pages/pour/pour-state.js?v=31"></script>
+<script src="packages/pages/pour/pour-rules-ui.js?v=31"></script>
+<script src="packages/pages/pour/pour-results-ui.js?v=31"></script>
+<script src="packages/pages/pour/pour-canvas-viewer.js?v=31"></script>
+<script src="packages/shared/eda-tooltip.js?v=31"></script>
+<script src="packages/shared/eda-shell.js?v=31"></script>
+<script src="packages/shared/ui-prefs.js?v=31"></script>
 </body>
 </html>

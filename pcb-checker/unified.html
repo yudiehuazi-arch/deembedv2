@@ -4,12 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PCB 综合一体化检查</title>
-<link rel="stylesheet" href="assets/styles/tokens.css?v=30">
-<link rel="stylesheet" href="assets/styles/eda-shell.css?v=30">
-<link rel="stylesheet" href="assets/styles/eda-dock.css?v=30">
-<link rel="stylesheet" href="assets/styles/components.css?v=30">
-<link rel="stylesheet" href="assets/styles/pages/unified.css?v=30">
-<link rel="stylesheet" href="assets/styles/pages/unified-config.css?v=30">
+<link rel="stylesheet" href="assets/styles/tokens.css?v=31">
+<link rel="stylesheet" href="assets/styles/eda-shell.css?v=31">
+<link rel="stylesheet" href="assets/styles/eda-dock.css?v=31">
+<link rel="stylesheet" href="assets/styles/components.css?v=31">
+<link rel="stylesheet" href="assets/styles/pages/unified.css?v=31">
+<link rel="stylesheet" href="assets/styles/pages/unified-config.css?v=31">
 </head>
 <body class="eda-workbench">
 
@@ -480,7 +480,7 @@
                       <th style="width:180px">模板名称</th>
                       <th style="width:140px">过孔类型</th>
                       <th style="width:120px" data-tip="检查时计算该过孔与同一差分网络另一过孔的中心距，匹配容差为 0.01 mil">差分孔中心距 mil</th>
-                      <th style="width:100px">目标层别</th>
+                      <th style="width:100px" data-tip="支持同时填写多个目标层，使用逗号、分号或斜杠分隔">目标层别</th>
                       <th style="width:160px">期望面积与容差</th>
                       <th style="width:110px;text-align:right">操作</th>
                     </tr>
@@ -1107,8 +1107,8 @@
 
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
         <div>
-          <label style="font-weight:600;color:#374151;display:block;margin-bottom:4px">目标层别 *</label>
-          <input type="text" id="modalPourShapeInpLayer" style="width:100%" placeholder="例如: 02G01P" data-no-persist>
+          <label style="font-weight:600;color:#374151;display:block;margin-bottom:4px" data-tip="支持同时填写多个目标层，使用逗号、分号或斜杠分隔">目标层别 *</label>
+          <input type="text" id="modalPourShapeInpLayer" style="width:100%" placeholder="例如: L5, L10" data-no-persist>
           <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px" id="chipsModalPourLayer">
             <span style="font-size:11px;color:#6b7280;margin-right:2px">快捷选项:</span>
             <span class="hist-chip" onclick="fillInput('modalPourShapeInpLayer','02G01P')">02G01P</span><span class="hist-chip" onclick="fillInput('modalPourShapeInpLayer','19IS08')">19IS08</span>
@@ -1292,48 +1292,48 @@
 </div>
 
 
-<script src="packages/shared/xlsx-export.js?v=30"></script>
-<script src="packages/geometry/pad-primitives.js?v=30"></script>
-<script src="packages/geometry/pad-region.js?v=30"></script>
-<script src="packages/engines/copper/via-constraint-inference.js?v=30"></script><script src="packages/engines/copper/copper-engine.js?v=30"></script>
-<script src="packages/engines/copper/constraint-parser.js?v=30"></script>
-<script src="packages/engines/dfm/dfm-layers.js?v=30"></script>
-<script src="packages/engines/dfm/dfm-parser.js?v=30"></script>
-<script src="packages/engines/dfm/dfm-engine.js?v=30"></script>
-<script src="packages/engines/dfm/dfm-pattern.js?v=30"></script>
-<script src="packages/engines/fanout/fanout-parser.js?v=30"></script>
-<script src="packages/engines/fanout/fanout-palette.js?v=30"></script>
-<script src="packages/engines/fanout/fanout-scheme.js?v=30"></script>
-<script src="packages/engines/fanout/fanout-clustering.js?v=30"></script>
-<script src="packages/engines/fanout/fanout-inspector.js?v=30"></script>
-<script src="packages/engines/fanout/fanout-layout.js?v=30"></script>
-<script src="packages/engines/fanout/fanout-canvas.js?v=30"></script>
-<script src="packages/engines/pour/pour-geom.js?v=30"></script>
-<script src="packages/engines/pour/pour-parser.js?v=30"></script>
-<script src="packages/engines/pour/pour-engine.js?v=30"></script>
-<script src="packages/pages/unified/unified-constraint-parse.js?v=30"></script>
-<script src="packages/pages/unified/unified-defaults.js?v=30"></script>
-<script src="packages/pages/unified/unified-state.js?v=30"></script>
-<script src="packages/pages/unified/unified-data-ingest.js?v=30"></script>
-<script src="packages/pages/unified/unified-sample-data.js?v=30"></script>
-<script src="packages/pages/unified/unified-rules-constraint.js?v=30"></script>
-<script src="packages/pages/unified/unified-rules-dfm.js?v=30"></script>
-<script src="packages/pages/unified/unified-fanout-library.js?v=30"></script>
-<script src="packages/pages/unified/unified-fanout-batch.js?v=30"></script>
-<script src="packages/pages/unified/unified-fanout-naming.js?v=30"></script>
-<script src="packages/pages/unified/unified-fanout-viewer.js?v=30"></script>
-<script src="packages/pages/unified/unified-fanout-io.js?v=30"></script>
-<script src="packages/pages/unified/unified-rules-pour.js?v=30"></script>
-<script src="packages/pages/unified/unified-rules-render.js?v=30"></script>
-<script src="packages/pages/unified/unified-trace-analysis.js?v=30"></script>
-<script src="packages/pages/unified/unified-runner.js?v=30"></script>
-<script src="packages/pages/unified/unified-dashboard.js?v=30"></script>
-<script src="packages/pages/unified/unified-canvas-viewer.js?v=30"></script>
-<script src="packages/pages/unified/unified-rules-io.js?v=30"></script>
-<script src="packages/pages/unified/unified-report-export.js?v=30"></script>
-<script src="packages/pages/unified/unified-bootstrap.js?v=30"></script>
-<script src="packages/shared/eda-tooltip.js?v=30"></script>
-<script src="packages/shared/eda-shell.js?v=30"></script>
-<script src="packages/shared/ui-prefs.js?v=30"></script>
+<script src="packages/shared/xlsx-export.js?v=31"></script>
+<script src="packages/geometry/pad-primitives.js?v=31"></script>
+<script src="packages/geometry/pad-region.js?v=31"></script>
+<script src="packages/engines/copper/via-constraint-inference.js?v=31"></script><script src="packages/engines/copper/copper-engine.js?v=31"></script>
+<script src="packages/engines/copper/constraint-parser.js?v=31"></script>
+<script src="packages/engines/dfm/dfm-layers.js?v=31"></script>
+<script src="packages/engines/dfm/dfm-parser.js?v=31"></script>
+<script src="packages/engines/dfm/dfm-engine.js?v=31"></script>
+<script src="packages/engines/dfm/dfm-pattern.js?v=31"></script>
+<script src="packages/engines/fanout/fanout-parser.js?v=31"></script>
+<script src="packages/engines/fanout/fanout-palette.js?v=31"></script>
+<script src="packages/engines/fanout/fanout-scheme.js?v=31"></script>
+<script src="packages/engines/fanout/fanout-clustering.js?v=31"></script>
+<script src="packages/engines/fanout/fanout-inspector.js?v=31"></script>
+<script src="packages/engines/fanout/fanout-layout.js?v=31"></script>
+<script src="packages/engines/fanout/fanout-canvas.js?v=31"></script>
+<script src="packages/engines/pour/pour-geom.js?v=31"></script>
+<script src="packages/engines/pour/pour-parser.js?v=31"></script>
+<script src="packages/engines/pour/pour-engine.js?v=31"></script>
+<script src="packages/pages/unified/unified-constraint-parse.js?v=31"></script>
+<script src="packages/pages/unified/unified-defaults.js?v=31"></script>
+<script src="packages/pages/unified/unified-state.js?v=31"></script>
+<script src="packages/pages/unified/unified-data-ingest.js?v=31"></script>
+<script src="packages/pages/unified/unified-sample-data.js?v=31"></script>
+<script src="packages/pages/unified/unified-rules-constraint.js?v=31"></script>
+<script src="packages/pages/unified/unified-rules-dfm.js?v=31"></script>
+<script src="packages/pages/unified/unified-fanout-library.js?v=31"></script>
+<script src="packages/pages/unified/unified-fanout-batch.js?v=31"></script>
+<script src="packages/pages/unified/unified-fanout-naming.js?v=31"></script>
+<script src="packages/pages/unified/unified-fanout-viewer.js?v=31"></script>
+<script src="packages/pages/unified/unified-fanout-io.js?v=31"></script>
+<script src="packages/pages/unified/unified-rules-pour.js?v=31"></script>
+<script src="packages/pages/unified/unified-rules-render.js?v=31"></script>
+<script src="packages/pages/unified/unified-trace-analysis.js?v=31"></script>
+<script src="packages/pages/unified/unified-runner.js?v=31"></script>
+<script src="packages/pages/unified/unified-dashboard.js?v=31"></script>
+<script src="packages/pages/unified/unified-canvas-viewer.js?v=31"></script>
+<script src="packages/pages/unified/unified-rules-io.js?v=31"></script>
+<script src="packages/pages/unified/unified-report-export.js?v=31"></script>
+<script src="packages/pages/unified/unified-bootstrap.js?v=31"></script>
+<script src="packages/shared/eda-tooltip.js?v=31"></script>
+<script src="packages/shared/eda-shell.js?v=31"></script>
+<script src="packages/shared/ui-prefs.js?v=31"></script>
 </body>
 </html>

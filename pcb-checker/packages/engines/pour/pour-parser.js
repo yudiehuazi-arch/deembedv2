@@ -43,7 +43,7 @@
     }
 
     // 普通逗号、分号、斜杠、空格分隔
-    return str.split(/[,;\/\s]+/).map(s => s.trim()).filter(Boolean);
+    return str.split(/[,;\/\s，；、]+/).map(s => s.trim()).filter(Boolean);
   }
 
   /**

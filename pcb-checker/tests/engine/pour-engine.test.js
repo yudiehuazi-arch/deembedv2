@@ -15,6 +15,7 @@ const {
   checkTraceReferenceMargin,
   checkIsolatedSmallCopper,
   checkCopperArcRadius,
+  groupResultsByTargetObject,
   runAllCopperChecks
 } = PourChecker;
 
@@ -96,22 +97,32 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
       centroid: { x: 23286.13, y: 27990.27 },
       bbox: { minX: 23274, minY: 27978, maxX: 23298, maxY: 28002 },
       arcs: [{ cx: 23286.13, cy: 27990.27, radius: 12.0 }]
+    },
+    {
+      id: 202, layer: 'L3', area: 500.0,
+      centroid: { x: 23286.13, y: 27990.27 },
+      bbox: { minX: 23274, minY: 27978, maxX: 23298, maxY: 28002 }, arcs: []
     }
   ];
 
   const templates = [
     {
       id: 'tmpl_1', name: 'L2特定异型铜皮',
-      padstack: 'BGA_3510', differentialCenterDistance: 10.0, layer: '02G01P',
+      padstack: 'BGA_3510', differentialCenterDistance: 10.0, layer: '02G01P；L3',
       expectedArea: 452.38, areaTolerance: 10.0
     }
   ];
 
   const res = checkSpecialShapedCopper(vias, shapes, templates);
-  assert.strictEqual(res.length, 2, '差分对两颗孔均应使用中心距匹配到模板');
-  assert.ok(res.every(item => item.pass), '面积、位置与差分孔中心距符合模板应判定为通过');
+  assert.strictEqual(res.length, 4, '差分对两颗孔在两个目标层均应生成模板检查记录');
+  assert.deepStrictEqual([...new Set(res.map(item => item.layer))].sort(), ['02G01P', 'L3']);
+  assert.ok(res.filter(item => item.layer === '02G01P').every(item => item.pass));
+  assert.ok(res.filter(item => item.layer === 'L3').every(item => !item.pass));
   assert.ok(res.every(item => item.actualDifferentialCenterDistance === 10));
-  console.log('  PASS  第二项：过孔类型与差分孔中心距依次匹配异型铜皮模板');
+  const grouped = groupResultsByTargetObject(res);
+  assert.strictEqual(grouped.length, 2, '每颗差分孔的多个目标层应汇总为一个对象');
+  assert.ok(grouped.every(item => !item.pass && item.failCount === 1 && item.subRecords.length === 2 && item.layerListStr.includes('L3')));
+  console.log('  PASS  第二项：过孔类型、差分孔中心距与多个目标层依次匹配异型铜皮模板');
 }
 
 // 4. 同一过孔类型按差分孔中心距选择唯一模板，且配对不跨过孔类型
