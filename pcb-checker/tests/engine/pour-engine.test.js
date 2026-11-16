@@ -44,6 +44,22 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   console.log('  PASS  EDA TXT Shape、Via 与 Trace 走线 (直线+圆弧) 全量元素解析');
 }
 
+// 1.1 EDA Shape 的 Seg 与 Arc seg 必须按原始顺序组成真实轮廓
+{
+  const shapeTxt = fs.readFileSync(path.join(__dirname, '../../sample/special-shape-seg-arc.txt'), 'utf8');
+  const shape = parsePcbElements(shapeTxt).shapes[0];
+  assert.ok(shape, '应识别用户提供的异型铜皮 Shape');
+  assert.strictEqual(shape.layer, '05G02P');
+  assert.strictEqual(shape.area, 97.38256);
+  assert.strictEqual(shape.boundary.length, 11, '应识别 5 条 Seg 直线与 6 条 Arc seg 圆弧');
+  assert.strictEqual(shape.arcs.length, 6);
+  assert.deepStrictEqual(shape.boundary.map(seg => seg.type),
+    ['line', 'line', 'arc', 'arc', 'arc', 'arc', 'line', 'line', 'arc', 'line', 'arc']);
+  assert.ok(Math.abs(shape.areaComputed - shape.areaReported) < 0.6,
+    `真实扫掠轮廓面积 ${shape.areaComputed} 应接近 EDA 报告面积 ${shape.areaReported}`);
+  console.log('  PASS  EDA 异型铜皮：Seg 与 Arc seg 按原始顺序解析为真实扫掠轮廓');
+}
+
 // 2. 第一项：孔经过层铺铜覆盖检查 (Via Layer Coverage Check)
 {
   const vias = [
@@ -322,4 +338,4 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   console.log('  PASS  孤立小铜皮：按轮廓点内判定 + 同层过滤（不再用「质心 30 mil 内」近似）');
 }
 
-console.log('\n结果: 全部 12 项铜皮检查单元测试通过！');
+console.log('\n结果: 全部 13 项铜皮检查单元测试通过！');

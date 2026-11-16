@@ -228,45 +228,6 @@
     openModal('modalRule2');
   }
 
-  function drawModalShapeCanvas(shape) {
-    var canvas = document.getElementById('modalR2Canvas');
-    if (!canvas || !canvas.getContext) return;
-    var ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    var w = canvas.width;
-    var h = canvas.height;
-    ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = '#0b1220';
-    ctx.fillRect(0, 0, w, h);
-
-    var span = Math.max(shape.bbox.spanX, shape.bbox.spanY, 10);
-    var scale = (w * 0.75) / span;
-    var cx = w / 2;
-    var cy = h / 2;
-
-    ctx.fillStyle = 'rgba(180, 83, 9, 0.35)';
-    ctx.strokeStyle = '#f59e0b';
-    ctx.lineWidth = 1.5;
-
-    ctx.beginPath();
-    shape.boundary.forEach(function (seg) {
-      if (seg.type === 'line') {
-        ctx.moveTo(cx + (seg.x1 - shape.centroid.x) * scale, cy - (seg.y1 - shape.centroid.y) * scale);
-        ctx.lineTo(cx + (seg.x2 - shape.centroid.x) * scale, cy - (seg.y2 - shape.centroid.y) * scale);
-      } else if (seg.type === 'arc') {
-        ctx.arc(cx + (seg.cx - shape.centroid.x) * scale, cy - (seg.cy - shape.centroid.y) * scale, seg.radius * scale, 0, Math.PI * 2);
-      }
-    });
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.fillStyle = '#10b981';
-    ctx.beginPath();
-    ctx.arc(cx, cy, 3, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
   function previewModalShape() {
     var PC = root.PourChecker;
     if (!PC || !PC.parsePcbElements) return;
@@ -283,9 +244,14 @@
       desc.innerHTML =
         '<div>实测面积: <strong>' + PC.roundN(s.area, 2) + ' sq mil</strong> · ' + PC.roundN(s.areaMm2, 4) + ' mm²</div>' +
         '<div>边界段数: ' + s.boundary.length + ' 段 · 直线 ' + lineCnt + ' / 圆弧 ' + s.arcs.length + '</div>';
-      drawModalShapeCanvas(s);
+      if (root.drawShapePreviewCanvas) {
+        root.drawShapePreviewCanvas(document.getElementById('modalR2Canvas'), s);
+      }
     } else {
       State.modalShapeParsed = null;
+      if (root.drawShapePreviewCanvas) {
+        root.drawShapePreviewCanvas(document.getElementById('modalR2Canvas'), null);
+      }
       title.textContent = '未识别到有效 Shape 块';
       desc.textContent = '请粘贴包含 < Shape > 与 Area 字段的 EDA 报告片段。';
     }

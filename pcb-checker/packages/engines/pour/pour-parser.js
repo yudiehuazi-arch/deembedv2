@@ -96,6 +96,39 @@
     return { shapes, vias, traces, layers };
   }
 
+  function parseShapeBoundary(block) {
+    const exterior = block.split(/Exterior Boundary:/i)[1] || '';
+    const lines = exterior.split(/\r?\n/);
+    const boundary = [];
+    const arcs = [];
+    const SEG_RE = /^\s*(Arc\s+seg|Line\s+seg|Seg):\s*xy\s*\[\s*([\d.\-]+)\s*,\s*([\d.\-]+)\s*\]\s*xy\s*\[\s*([\d.\-]+)\s*,\s*([\d.\-]+)\s*\](?:\s*Width\s*\(\s*([\d.\-]+)\s*\))?/i;
+    const CENTER_RE = /Center-xy:\s*\[\s*([\d.\-]+)\s*,\s*([\d.\-]+)\s*\]\s*Radius\s*\(\s*([\d.\-]+)\s*\)(?:\s*(CCW|CW))?/i;
+
+    lines.forEach((line, index) => {
+      const match = line.match(SEG_RE);
+      if (!match) return;
+      const segment = {
+        type: /^Arc/i.test(match[1]) ? 'arc' : 'line',
+        x1: parseFloat(match[2]), y1: parseFloat(match[3]),
+        x2: parseFloat(match[4]), y2: parseFloat(match[5]),
+        width: match[6] ? parseFloat(match[6]) : 0
+      };
+      if (segment.type === 'line') {
+        boundary.push(segment);
+        return;
+      }
+      const center = (lines[index + 1] || '').match(CENTER_RE);
+      if (!center) return;
+      segment.cx = parseFloat(center[1]);
+      segment.cy = parseFloat(center[2]);
+      segment.radius = parseFloat(center[3]);
+      segment.ccw = !center[4] || center[4].toUpperCase() === 'CCW';
+      boundary.push(segment);
+      arcs.push(segment);
+    });
+    return { boundary, arcs };
+  }
+
   /**
    * 解析单个 Shape 块
    */
@@ -109,8 +142,9 @@
     const areaM = block.match(/Area:\s*([\d\.\-]+)/i);
     const area = areaM ? parseFloat(areaM[1]) : 0;
 
-    const boundary = [];
-    const arcs = [];
+    const parsedBoundary = parseShapeBoundary(block);
+    const boundary = parsedBoundary.boundary;
+    const arcs = parsedBoundary.arcs;
     let minX = Infinity, maxX = -Infinity;
     let minY = Infinity, maxY = -Infinity;
 
@@ -121,36 +155,15 @@
       if (y > maxY) maxY = y;
     }
 
-    // Line segs
-    const RE_LINE_SEG = /Line\s+seg:\s*xy\s*\[\s*([\d\.\-]+)\s*,\s*([\d\.\-]+)\s*\]\s*xy\s*\[\s*([\d\.\-]+)\s*,\s*([\d\.\-]+)\s*\](?:\s*Width\s*\(\s*([\d\.\-]+)\s*\))?/gi;
-    let lm;
-    while ((lm = RE_LINE_SEG.exec(block)) !== null) {
-      const x1 = parseFloat(lm[1]), y1 = parseFloat(lm[2]);
-      const x2 = parseFloat(lm[3]), y2 = parseFloat(lm[4]);
-      const width = lm[5] ? parseFloat(lm[5]) : 0;
-      boundary.push({ type: 'line', x1, y1, x2, y2, width });
-      updateBBox(x1, y1); updateBBox(x2, y2);
-    }
-
-    // Arc segs
-    const RE_ARC_SEG = /Arc\s+seg:\s*xy\s*\[\s*([\d\.\-]+)\s*,\s*([\d\.\-]+)\s*\]\s*xy\s*\[\s*([\d\.\-]+)\s*,\s*([\d\.\-]+)\s*\](?:\s*Width\s*\(\s*([\d\.\-]+)\s*\))?[\s\S]*?Center-xy:\s*\[\s*([\d\.\-]+)\s*,\s*([\d\.\-]+)\s*\]\s*Radius\s*\(\s*([\d\.\-]+)\s*\)(?:\s*(CCW|CW))?/gi;
-    let am;
-    while ((am = RE_ARC_SEG.exec(block)) !== null) {
-      const x1 = parseFloat(am[1]), y1 = parseFloat(am[2]);
-      const x2 = parseFloat(am[3]), y2 = parseFloat(am[4]);
-      const width = am[5] ? parseFloat(am[5]) : 0;
-      const cx = parseFloat(am[6]), cy = parseFloat(am[7]);
-      const radius = parseFloat(am[8]);
-      const ccw = !am[9] || am[9].toUpperCase() === 'CCW';
-
-      const arcItem = { type: 'arc', x1, y1, x2, y2, cx, cy, radius, ccw, width };
-      boundary.push(arcItem);
-      arcs.push(arcItem);
-
-      updateBBox(cx - radius, cy - radius);
-      updateBBox(cx + radius, cy + radius);
-      updateBBox(x1, y1); updateBBox(x2, y2);
-    }
+    boundary.forEach(seg => {
+      updateBBox(seg.x1, seg.y1);
+      updateBBox(seg.x2, seg.y2);
+      if (seg.type === 'arc') {
+        // 保守包围盒包含整圆，避免空间筛选漏检；预览按真实扫掠弧绘制。
+        updateBBox(seg.cx - seg.radius, seg.cy - seg.radius);
+        updateBBox(seg.cx + seg.radius, seg.cy + seg.radius);
+      }
+    });
 
     if (minX === Infinity) { minX = 0; maxX = 0; minY = 0; maxY = 0; }
 

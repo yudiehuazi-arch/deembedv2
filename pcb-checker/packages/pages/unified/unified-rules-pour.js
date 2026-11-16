@@ -97,6 +97,7 @@ function previewModalPourShape() {
   const stats = $('modalPourShapePreviewStats');
 
   if (!shape) {
+    if (typeof drawShapePreviewCanvas === 'function') drawShapePreviewCanvas($('modalPourShapeCanvas'), null);
     if (title) title.textContent = txt.trim() ? '未识别到有效 Shape 块' : '未配置 Shape TXT 数据';
     if (stats) stats.textContent = '可粘贴新的 Shape TXT 数据，或保持为空。';
     return;
@@ -105,6 +106,7 @@ function previewModalPourShape() {
   const area = shape.area;
   const boundary = shape.boundary || [];
   const arcCount = (shape.arcs || []).length;
+  if (typeof drawShapePreviewCanvas === 'function') drawShapePreviewCanvas($('modalPourShapeCanvas'), shape);
   if (title) title.textContent = `已解析 Shape，所在层 ${shape.layer || layer}`;
   if (stats) {
     stats.innerHTML = `实测面积: <b style="color:#ffffff">${area.toFixed(2)} sq mil</b> · ${(area * 0.00064516).toFixed(4)} mm²<br>` +

@@ -3,8 +3,11 @@
  * ========================================================================== */
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
 const { openPage } = require('../helpers/open-page');
 
+const SPECIAL_SHAPE_TXT = fs.readFileSync(path.join(__dirname, '../../sample/special-shape-seg-arc.txt'), 'utf8');
 const ctx = openPage('pour.html', { syncCheck: true });
 const { w, d } = ctx;
 const $ = id => d.getElementById(id);
@@ -68,6 +71,19 @@ test('规则 1/2/3 多规则配置表格与历史快捷标签初始化正常', (
   }
 });
 
+test('异型铜皮预览按离散轮廓绘制，不把圆弧画成整圆', () => {
+  const shape = w.PourChecker.parsePcbElements(SPECIAL_SHAPE_TXT).shapes[0];
+  const calls = { lineTo: 0, arc: 0 };
+  const context = {
+    clearRect() {}, fillRect() {}, beginPath() {}, moveTo() {}, closePath() {}, fill() {}, stroke() {},
+    lineTo() { calls.lineTo++; },
+    arc() { calls.arc++; }
+  };
+  const drawn = w.drawShapePreviewCanvas({ width: 110, height: 110, getContext: () => context }, shape);
+  if (!drawn || calls.lineTo !== shape._ring.length - 1) throw new Error('预览未按完整离散轮廓连续绘制');
+  if (calls.arc !== 1) throw new Error('预览仍把扫掠圆弧错误绘制为整圆');
+});
+
 test('弹窗新增规则 1/2/3 与异型铜皮 Shape TXT 几何解析保存', () => {
   w.openAddRule1Modal();
   if (!$('modalRule1').classList.contains('open')) throw new Error('Modal 1 未打开');
@@ -84,15 +100,16 @@ test('弹窗新增规则 1/2/3 与异型铜皮 Shape TXT 几何解析保存', ()
   if (!$('modalRule2').classList.contains('open')) throw new Error('Modal 2 未打开');
   $('modalR2InpPadstack').value = 'BGA_GND_pad1mil_0902';
   $('modalR2InpDiffDist').value = '19.68';
-  $('modalR2InpLayer').value = '02G01P';
-  $('modalR2TxtShape').value = `Item 1  < Shape >\n  Subset: 02G01P\n  Area: 907.92028 (sq mil)\nExterior Boundary:\n  Arc seg: xy [21208.94, 35522.46]  xy [21208.94, 35522.46]\n    Center-xy: [21220.94, 35522.46] Radius (12.0000) CCW`;
+  $('modalR2InpLayer').value = '05G02P';
+  $('modalR2TxtShape').value = SPECIAL_SHAPE_TXT;
   w.previewModalShape();
-  if (!w.State.modalShapeParsed || Math.abs(w.State.modalShapeParsed.area - 907.92028) > 0.001) {
-    throw new Error('异型 Shape 面积解析异常');
+  const parsedShape = w.State.modalShapeParsed;
+  if (!parsedShape || Math.abs(parsedShape.area - 97.38256) > 0.001 || parsedShape.boundary.length !== 11 || parsedShape.arcs.length !== 6) {
+    throw new Error('异型 Shape 的 Seg 与 Arc seg 真实轮廓解析异常');
   }
   w.saveRule2FromModal();
   if ($('modalRule2').classList.contains('open')) throw new Error('Modal 2 未关闭');
-  const savedTemplateIndex = w.State.specialShapeTemplates.findIndex(t => Math.abs(t.expectedArea - 907.92028) < 0.1 && t.differentialCenterDistance === 19.68);
+  const savedTemplateIndex = w.State.specialShapeTemplates.findIndex(t => Math.abs(t.expectedArea - 97.38256) < 0.1 && t.differentialCenterDistance === 19.68);
   if (savedTemplateIndex < 0) throw new Error('规则 2 模板与差分孔中心距未保存');
   w.openEditRule2Modal(savedTemplateIndex);
   if ($('modalR2InpDiffDist').value !== '19.68') throw new Error('规则 2 编辑弹窗未回填差分孔中心距');
