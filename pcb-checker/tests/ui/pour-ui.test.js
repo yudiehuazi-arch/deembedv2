@@ -323,19 +323,28 @@ Item 55  < Via >
   if (d.querySelectorAll('#tblResultsBody tr.subrow').length !== 1) throw new Error('展开后应出现 1 个子表行');
 });
 
-test('结果定位突出问题铜皮，返回时恢复原条目并播放边框动画', () => {
+test('铜皮可按层显示，结果定位仅绘制问题层并在返回时恢复原条目', () => {
   const locateTxt = `
-Total 2 Items
+Total 3 Items
 Item 1 < Shape >
   Set: Etch
-  Subset: L1
+  Subset: Top
   Area: 100
 Exterior Boundary:
   Seg: xy [56, -5] xy [66, -5]
   Seg: xy [66, -5] xy [66, 5]
   Seg: xy [66, 5] xy [56, 5]
   Seg: xy [56, 5] xy [56, -5]
-Item 2 < Via >
+Item 2 < Shape >
+  Set: Etch
+  Subset: L2
+  Area: 100
+Exterior Boundary:
+  Seg: xy [56, 10] xy [66, 10]
+  Seg: xy [66, 10] xy [66, 20]
+  Seg: xy [66, 20] xy [56, 20]
+  Seg: xy [56, 20] xy [56, 10]
+Item 3 < Via >
   Origin-xy: [0, 0]
   Net: TEST_N
   Padstack Name: PROBE_STACK
@@ -350,15 +359,49 @@ Item 2 < Via >
   const result = w.State.groupedResults.find(r => r.checkCategory === 'via_coverage');
   if (!result || result.pass) throw new Error('定位夹具应产生 56mil > 55mil 的孔铺铜问题');
 
+  const layerOptions = [...$('selCanvasShapeLayer').options].map(option => option.textContent);
+  if (!layerOptions.includes('铜皮层：Top') || !layerOptions.includes('铜皮层：L2')) {
+    throw new Error('铜皮按层显示选项未列出全部 Shape 层');
+  }
+  w.setCanvasShapeLayer('L2');
+  if (w.State.canvas.shapeLayerMode !== 'layer' || w.State.canvas.visibleShapeLayers.join(',') !== 'L2') {
+    throw new Error('手动选择铜皮层后未保存单层过滤状态');
+  }
+
   const oldRAF = w.requestAnimationFrame;
   w.requestAnimationFrame = callback => callback();
-  w.locateElementInCanvas('via_coverage', '2', result.groupKey);
+  w.locateElementInCanvas('via_coverage', '3', result.groupKey);
   if (w.State.activeTab !== 'tabCanvas') throw new Error('定位后未切换到几何视口');
   if (JSON.stringify(w.State.canvas.highlightShapeIds) !== '["1"]') {
     throw new Error('未将最近的问题铜皮 Shape #1 设置为红色突出对象');
   }
   if (!w.State.canvas.activeProblem || w.State.canvas.activeProblem.requiredDist !== 55) {
     throw new Error('几何视口未保存 55mil 孔心搜索范围');
+  }
+  if (w.State.canvas.shapeLayerMode !== 'problem' || w.State.canvas.visibleShapeLayers.join(',') !== 'Top') {
+    throw new Error('从 L1 规则结果定位后未映射为仅显示 Top 问题层铜皮');
+  }
+  if ($('selCanvasShapeLayer').value !== '__PROBLEM__' || !$('pourCanvasRevBody').textContent.includes('当前仅显示问题层铜皮：Top')) {
+    throw new Error('问题层选择状态或定位提示未同步');
+  }
+  const originalShapeRings = w.PourChecker.shapeRings;
+  const renderedShapeLayers = [];
+  const canvas = $('mainCanvas');
+  const originalGetContext = canvas.getContext;
+  canvas.getContext = () => ({
+    clearRect() {}, fillRect() {}, save() {}, restore() {}, beginPath() {}, moveTo() {}, lineTo() {},
+    closePath() {}, fill() {}, stroke() {}, arc() {}, fillText() {}, setLineDash() {},
+    measureText() { return { width: 0 }; }
+  });
+  w.PourChecker.shapeRings = shape => {
+    renderedShapeLayers.push(shape.layer);
+    return originalShapeRings(shape);
+  };
+  w.renderCanvas();
+  w.PourChecker.shapeRings = originalShapeRings;
+  canvas.getContext = originalGetContext;
+  if (renderedShapeLayers.join(',') !== 'Top') {
+    throw new Error('定位画布仍绘制了非问题层铜皮：' + renderedShapeLayers.join(','));
   }
   if ($('btnReturnPourResults').style.display === 'none') throw new Error('定位后未显示返回结果明细按钮');
 

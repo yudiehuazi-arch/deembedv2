@@ -80,6 +80,20 @@
     return ids;
   }
 
+  function collectProblemShapeLayers(record) {
+    if (!record) return [];
+    var candidates = record.subRecords && record.subRecords.length ? record.subRecords : [record];
+    if (!record.pass) candidates = candidates.filter(function (sub) { return !sub.pass; });
+    var layers = [];
+    candidates.forEach(function (sub) {
+      var category = sub.checkCategory || record.checkCategory;
+      var layer = category === 'trace_ref_margin' ? sub.refLayer
+        : (sub.layer || sub.nearestShapeLayer || sub.refLayer);
+      if (layer && layers.indexOf(String(layer)) < 0) layers.push(String(layer));
+    });
+    return layers;
+  }
+
   function returnToPourResults() {
     var State = root.State;
     var saved = State.canvas.returnPosition;
@@ -117,6 +131,12 @@
       ? 'background:rgba(16,185,129,0.18);border:1px solid rgba(52,211,153,0.55);'
       : 'background:rgba(245,158,11,0.15);border:1px solid rgba(251,191,36,0.45);';
     var safeKey = esc(itemKey);
+    var visibleLayerNotice = '';
+    if (State.canvas.shapeLayerMode === 'problem' && (State.canvas.problemShapeLayers || []).length) {
+      visibleLayerNotice = '当前仅显示问题层铜皮：' + State.canvas.problemShapeLayers.join('、');
+    } else if (State.canvas.shapeLayerMode === 'layer' && (State.canvas.visibleShapeLayers || []).length) {
+      visibleLayerNotice = '当前仅显示铜皮层：' + State.canvas.visibleShapeLayers.join('、');
+    }
     bodyEl.innerHTML =
       '<div style="' + barStyle + 'border-radius:6px;padding:8px 10px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px">' +
         '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;font-weight:700;color:' + (isReviewed ? '#6ee7b7' : '#fde68a') + ';margin:0">' +
@@ -125,6 +145,8 @@
         '<button type="button" class="btn small" onclick="toggleReviewItem(\'' + safeKey + '\', ' + (!isReviewed) + ')" style="padding:3px 9px;font-size:11px;border:none;background:' + (isReviewed ? '#334155' : '#10b981') + ';color:#ffffff">' +
           (isReviewed ? '取消复核' : '确认复核') + '</button></div>' +
       (r ? '<div style="font-size:11px;color:#cbd5e1;line-height:1.5;margin-bottom:8px">' + esc(cleanMsg(r.message)) + '</div>' : '') +
+      (visibleLayerNotice
+        ? '<div style="font-size:11px;color:#bfdbfe;margin-bottom:8px">' + esc(visibleLayerNotice) + '</div>' : '') +
       ((State.canvas.highlightShapeIds || []).length
         ? '<div style="font-size:11px;color:#fecaca;margin-bottom:8px">红色轮廓：问题铜皮 Shape #' + esc(State.canvas.highlightShapeIds.join(', #')) + '</div>' : '') +
       '<div style="display:flex;justify-content:flex-end"><button type="button" class="btn sec small" onclick="returnToPourResults()">返回结果明细</button></div>';
@@ -162,6 +184,7 @@
 
   function locateElementInCanvas(checkCategory, targetId, itemKey) {
     var result = itemKey ? findResultByKey(itemKey) : null;
+    var problemLayers = collectProblemShapeLayers(result);
     if (itemKey) rememberPourResultPosition(itemKey);
     root.State.canvas.highlightShapeIds = collectProblemShapeIds(result);
     root.State.canvas.activeProblem = result ? {
@@ -169,8 +192,10 @@
       checkCategory: checkCategory,
       x: result.viaCoord ? result.viaCoord[0] : null,
       y: result.viaCoord ? result.viaCoord[1] : null,
-      requiredDist: result.requiredDist || (result.subRecords && result.subRecords[0] ? result.subRecords[0].requiredDist : null)
+      requiredDist: result.requiredDist || (result.subRecords && result.subRecords[0] ? result.subRecords[0].requiredDist : null),
+      layers: problemLayers
     } : null;
+    if (typeof root.showCanvasProblemLayers === 'function') root.showCanvasProblemLayers(problemLayers);
     root.switchTab('tabCanvas');
     safeRAF(function () {
       if (typeof root.resizeCanvas === 'function') root.resizeCanvas();

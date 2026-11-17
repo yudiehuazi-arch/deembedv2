@@ -99,6 +99,9 @@
       measurePoints: [],
       highlightShapeIds: [],
       activeProblem: null,
+      shapeLayerMode: 'all',
+      visibleShapeLayers: [],
+      problemShapeLayers: [],
       returnPosition: null
     },
 

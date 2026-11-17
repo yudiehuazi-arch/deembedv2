@@ -99,6 +99,87 @@
     State.canvas.zoom = newZoom;
     renderCanvas();
   }
+  function layerKey(layer) {
+    return String(layer == null ? '' : layer).trim().toUpperCase();
+  }
+  function layerOrder(layer) {
+    var key = layerKey(layer);
+    if (key === 'TOP') return 1;
+    if (key === 'BOTTOM') return 9999;
+    var logical = key.match(/^L0*(\d+)$/);
+    var physical = key.match(/^0*(\d{1,2})(?=[A-Z])/);
+    return logical || physical ? parseInt((logical || physical)[1], 10) : 5000;
+  }
+  function uniqueShapeLayers() {
+    var seen = {};
+    return (root.State.shapes || []).map(function (shape) { return String(shape.layer || '').trim(); })
+      .filter(function (layer) {
+        var key = layerKey(layer);
+        if (!key || seen[key]) return false;
+        seen[key] = true;
+        return true;
+      }).sort(function (a, b) {
+        return layerOrder(a) - layerOrder(b) || a.localeCompare(b, undefined, { numeric: true });
+      });
+  }
+  function refreshCanvasShapeLayerOptions() {
+    var select = document.getElementById('selCanvasShapeLayer');
+    if (!select) return;
+    var c = root.State.canvas;
+    var problemLayers = c.problemShapeLayers || [];
+    var options = [{ value: '__ALL__', label: '铜皮层：全部层' }];
+    if (problemLayers.length) {
+      options.push({ value: '__PROBLEM__', label: '问题层：' + problemLayers.join('、') });
+    }
+    uniqueShapeLayers().forEach(function (layer) {
+      options.push({ value: layer, label: '铜皮层：' + layer });
+    });
+    select.innerHTML = '';
+    options.forEach(function (item) {
+      var option = document.createElement('option');
+      option.value = item.value;
+      option.textContent = item.label;
+      select.appendChild(option);
+    });
+    var selected = c.shapeLayerMode === 'problem' ? '__PROBLEM__'
+      : (c.shapeLayerMode === 'layer' && c.visibleShapeLayers.length ? c.visibleShapeLayers[0] : '__ALL__');
+    select.value = options.some(function (item) { return item.value === selected; }) ? selected : '__ALL__';
+  }
+  function setCanvasShapeLayer(value) {
+    var c = root.State.canvas;
+    if (value === '__PROBLEM__' && (c.problemShapeLayers || []).length) {
+      c.shapeLayerMode = 'problem';
+      c.visibleShapeLayers = c.problemShapeLayers.slice();
+    } else if (value && value !== '__ALL__') {
+      c.shapeLayerMode = 'layer';
+      c.visibleShapeLayers = [value];
+    } else {
+      c.shapeLayerMode = 'all';
+      c.visibleShapeLayers = [];
+    }
+    refreshCanvasShapeLayerOptions();
+    renderCanvas();
+    if (root.State.activeReviewKey && typeof root.renderPourCanvasReviewBox === 'function') {
+      root.renderPourCanvasReviewBox(root.State.activeReviewKey);
+    }
+  }
+  function showCanvasProblemLayers(layers) {
+    var available = uniqueShapeLayers();
+    var aliases = root.PourChecker && root.PourChecker.physicalLayerAlias;
+    var requested = (layers || []).map(layerKey).filter(Boolean);
+    var resolved = available.filter(function (actual) {
+      return requested.some(function (target) {
+        return layerKey(actual) === target || (aliases && aliases(actual) === aliases(target));
+      });
+    });
+    root.State.canvas.problemShapeLayers = resolved.length ? resolved : requested;
+    setCanvasShapeLayer(requested.length ? '__PROBLEM__' : '__ALL__');
+  }
+  function isShapeLayerVisible(shape) {
+    var layers = root.State.canvas.visibleShapeLayers || [];
+    if (root.State.canvas.shapeLayerMode === 'all' || !layers.length) return true;
+    return layers.some(function (layer) { return layerKey(layer) === layerKey(shape.layer); });
+  }
   function toggleCanvasLayer(layerKey) {
     var c = root.State.canvas;
     if (layerKey === 'shapes') c.showShapes = !c.showShapes;
@@ -151,6 +232,7 @@
     /* 1. 铜皮轮廓 */
     if (State.canvas.showShapes && State.shapes) {
       State.shapes.forEach(function (shape) {
+        if (!isShapeLayerVisible(shape)) return;
         var isProblemShape = (State.canvas.highlightShapeIds || []).some(function (id) {
           return String(id) === String(shape.id);
         });
@@ -419,6 +501,7 @@
     var canvas = document.getElementById('mainCanvas');
     if (!canvas || canvas.__pourBound) return;
     canvas.__pourBound = true;
+    refreshCanvasShapeLayerOptions();
     canvas.addEventListener('wheel', function (e) {
       e.preventDefault();
       var rect = canvas.getBoundingClientRect();
@@ -470,6 +553,9 @@
   root.resetCanvasView = resetCanvasView;
   root.zoomCanvas = zoomCanvas;
   root.toggleCanvasLayer = toggleCanvasLayer;
+  root.refreshCanvasShapeLayerOptions = refreshCanvasShapeLayerOptions;
+  root.setCanvasShapeLayer = setCanvasShapeLayer;
+  root.showCanvasProblemLayers = showCanvasProblemLayers;
   root.toggleMeasureMode = toggleMeasureMode;
   root.renderCanvas = renderCanvas;
   if (typeof root.initApp === 'function') {

@@ -179,7 +179,8 @@ canvas#mainCanvas:active {
   z-index: 10;
 }
 
-.canvas-toolbar button {
+.canvas-toolbar button,
+.canvas-toolbar select {
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.2);
   color: #f8fafc;
@@ -191,7 +192,19 @@ canvas#mainCanvas:active {
   transition: all 0.12s;
 }
 
-.canvas-toolbar button:hover {
+.canvas-toolbar select {
+  width: 168px;
+  max-width: 42vw;
+  color-scheme: dark;
+}
+
+.canvas-toolbar select option {
+  background: #0f172a;
+  color: #f8fafc;
+}
+
+.canvas-toolbar button:hover,
+.canvas-toolbar select:hover {
   background: rgba(255, 255, 255, 0.2);
 }
 
