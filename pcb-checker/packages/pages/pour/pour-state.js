@@ -90,6 +90,7 @@
       dragStartX: 0,
       dragStartY: 0,
       hasInitialFit: false,
+      deferNextTabRender: false,
       showShapes: true,
       showVias: true,
       showTraces: true,
@@ -132,6 +133,7 @@
     if (tabId === 'tabCanvas') {
       safeRAF(function () {
         if (typeof root.resizeCanvas === 'function') root.resizeCanvas();
+        if (State.canvas.deferNextTabRender) { State.canvas.deferNextTabRender = false; return; }
         if (!State.canvas.hasInitialFit && (State.shapes.length > 0 || State.vias.length > 0 || State.traces.length > 0)) {
           if (typeof root.fitCanvasToLayout === 'function') root.fitCanvasToLayout();
           State.canvas.hasInitialFit = true;

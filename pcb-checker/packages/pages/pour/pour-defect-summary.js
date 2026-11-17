@@ -1,5 +1,5 @@
 /* ============================================================================
- * pour-defect-summary.js —— 缺陷规律分析：五类异常总结与板上位置缩略图
+ * pour-defect-summary.js —— 缺陷规律分析：五类异常总结、板上位置与放大查看
  * ========================================================================== */
 (function (root) {
   'use strict';
@@ -11,47 +11,34 @@
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   };
   var CATEGORY = {
-    via_coverage: {
-      order: 1, type: '孔层铺铜缺失', color: '#ef4444',
-      fix: '在异常层补铺铜，确保孔心检测半径内存在铜皮。'
-    },
-    special_shape: {
-      order: 2, type: '异型铜皮不匹配', color: '#a855f7',
-      fix: '按模板重生成异型铜皮，并消除反焊盘侵占。'
-    },
-    trace_ref_margin: {
-      order: 3, type: '参考层铜皮外延不足', color: '#f59e0b',
-      fix: '外扩参考层铜皮至规则阈值，避免走线跨分割。'
-    },
-    isolated_copper: {
-      order: 4, type: '孤立小铜皮', color: '#06b6d4',
-      fix: '删除无连接碎铜，或增加同层过孔可靠接地。'
-    },
-    arc_radius: {
-      order: 5, type: '铜皮圆弧半径过小', color: '#ec4899',
-      fix: '增大铜皮圆角半径至规则阈值以上。'
-    }
+    via_coverage: { order: 1, type: '孔层铺铜缺失', color: '#ef4444', fix: '在异常层补铺铜，确保孔心检测半径内存在铜皮。' },
+    special_shape: { order: 2, type: '异型铜皮不匹配', color: '#a855f7', fix: '按模板重生成异型铜皮，并消除反焊盘侵占。' },
+    trace_ref_margin: { order: 3, type: '参考层铜皮外延不足', color: '#f59e0b', fix: '外扩参考层铜皮至规则阈值，避免走线跨分割。' },
+    isolated_copper: { order: 4, type: '孤立小铜皮', color: '#06b6d4', fix: '删除无连接碎铜，或增加同层过孔可靠接地。' },
+    arc_radius: { order: 5, type: '铜皮圆弧半径过小', color: '#ec4899', fix: '增大铜皮圆角半径至规则阈值以上。' }
   };
+  var currentModel = null;
 
-  function findById(items, id) {
-    return (items || []).find(function (item) { return String(item.id) === String(id); });
+  function idMap(items) {
+    var map = {};
+    (items || []).forEach(function (item) { map[String(item.id)] = item; });
+    return map;
   }
 
-  function identity(record, State) {
-    var via = record.viaId != null ? findById(State.vias, record.viaId) : null;
-    var shape = record.shapeId != null ? findById(State.shapes, record.shapeId) : null;
+  function identity(record, viaMap) {
+    var via = record.viaId != null ? viaMap[String(record.viaId)] : null;
     return {
       padstack: record.viaPadstack || (via && via.padstack) || '—',
-      network: record.viaNet || record.traceNet || (via && via.net) || (shape && shape.net) || '—'
+      network: record.viaNet || record.traceNet || (via && via.net) || '—'
     };
   }
 
   function buildRows(defects, State) {
-    var map = {};
+    var map = {}, viasById = idMap(State.vias);
     (defects || []).forEach(function (record) {
       var config = CATEGORY[record.checkCategory];
       if (!config || record.pass) return;
-      var id = identity(record, State);
+      var id = identity(record, viasById);
       var key = [record.checkCategory, id.padstack, id.network].join('|');
       if (!map[key]) map[key] = {
         category: record.checkCategory, config: config, padstack: id.padstack,
@@ -64,10 +51,7 @@
       var marker = typeof root.getPourDefectMarker === 'function' ? root.getPourDefectMarker(record) : null;
       if (marker) {
         var pointKey = marker.targetLabel + '|' + marker.x + '|' + marker.y;
-        if (!row.pointKeys[pointKey]) {
-          row.pointKeys[pointKey] = 1;
-          row.points.push(marker);
-        }
+        if (!row.pointKeys[pointKey]) { row.pointKeys[pointKey] = 1; row.points.push(marker); }
       }
     });
     return Object.keys(map).map(function (key) { return map[key]; }).sort(function (a, b) {
@@ -95,34 +79,104 @@
     return { minX: minX, maxX: maxX, minY: minY, maxY: maxY };
   }
 
-  function boardImage(row, bounds) {
-    var width = 420, height = 230, pad = 18;
+  function transform(bounds, width, height, pad) {
     var dx = bounds.maxX - bounds.minX, dy = bounds.maxY - bounds.minY;
     var scale = Math.min((width - pad * 2) / dx, (height - pad * 2) / dy);
     var offsetX = (width - dx * scale) / 2, offsetY = (height - dy * scale) / 2;
-    function xy(point) {
-      return [offsetX + (point.x - bounds.minX) * scale, height - offsetY - (point.y - bounds.minY) * scale];
-    }
-    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '">' +
-      '<rect width="100%" height="100%" rx="8" fill="#07111f"/>' +
-      '<rect x="12" y="12" width="396" height="206" rx="5" fill="none" stroke="#64748b" stroke-width="1"/>';
+    return function (x, y) {
+      return [offsetX + (x - bounds.minX) * scale, height - offsetY - (y - bounds.minY) * scale];
+    };
+  }
+
+  function canvasContext(canvas) {
+    try { return canvas && canvas.getContext ? canvas.getContext('2d') : null; }
+    catch (error) { return null; }
+  }
+
+  function drawBoardBase(canvas, model, large) {
+    var ctx = canvasContext(canvas);
+    if (!ctx) return false;
+    var width = canvas.width, height = canvas.height, xy = transform(model.bounds, width, height, large ? 28 : 16);
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = '#07111f'; ctx.fillRect(0, 0, width, height);
+    ctx.strokeStyle = 'rgba(148,163,184,.18)'; ctx.lineWidth = 1;
     for (var gx = 1; gx < 4; gx++) {
-      var x = width * gx / 4;
-      svg += '<line x1="' + x + '" y1="12" x2="' + x + '" y2="218" stroke="#94a3b8" stroke-opacity=".18"/>';
+      var x = width * gx / 4; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
     }
     for (var gy = 1; gy < 3; gy++) {
-      var y = 12 + 206 * gy / 3;
-      svg += '<line x1="12" y1="' + y + '" x2="408" y2="' + y + '" stroke="#94a3b8" stroke-opacity=".18"/>';
+      var y = height * gy / 3; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
     }
-    var step = Math.max(1, Math.ceil(row.points.length / 60));
-    for (var i = 0; i < row.points.length; i += step) {
-      var point = xy(row.points[i]);
-      svg += '<circle cx="' + point[0].toFixed(2) + '" cy="' + point[1].toFixed(2) + '" r="8" fill="' + row.config.color + '" fill-opacity=".28"/>' +
-        '<path d="M' + point[0].toFixed(2) + ' ' + (point[1] - 5).toFixed(2) + ' L' + (point[0] + 5).toFixed(2) + ' ' + point[1].toFixed(2) +
-        ' L' + point[0].toFixed(2) + ' ' + (point[1] + 5).toFixed(2) + ' L' + (point[0] - 5).toFixed(2) + ' ' + point[1].toFixed(2) + ' Z" fill="' + row.config.color + '" stroke="#fff" stroke-width="1"/>';
+    ctx.fillStyle = 'rgba(96,165,250,.62)';
+    var viaSize = large ? 2.4 : 1.4;
+    (model.vias || []).forEach(function (via) {
+      var point = xy(via.x, via.y);
+      ctx.fillRect(point[0] - viaSize / 2, point[1] - viaSize / 2, viaSize, viaSize);
+    });
+    ctx.strokeStyle = '#64748b'; ctx.strokeRect(1, 1, width - 2, height - 2);
+    return true;
+  }
+
+  function drawDefectPoints(ctx, row, bounds, width, height, large) {
+    var xy = transform(bounds, width, height, large ? 28 : 16);
+    var radius = large ? 7 : 5;
+    ctx.fillStyle = row.config.color; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    row.points.forEach(function (marker) {
+      var point = xy(marker.x, marker.y);
+      ctx.moveTo(point[0], point[1] - radius); ctx.lineTo(point[0] + radius, point[1]);
+      ctx.lineTo(point[0], point[1] + radius); ctx.lineTo(point[0] - radius, point[1]); ctx.closePath();
+    });
+    ctx.fill(); ctx.stroke();
+  }
+
+  function drawThumbnails(host, model) {
+    var canvases = host.querySelectorAll('.pour-defect-board-canvas');
+    if (!canvases.length) return;
+    var base = document.createElement('canvas'); base.width = 520; base.height = 292;
+    if (!drawBoardBase(base, model, false)) return;
+    Array.prototype.forEach.call(canvases, function (canvas) {
+      var row = model.rows[parseInt(canvas.getAttribute('data-row-index'), 10)];
+      var ctx = canvasContext(canvas);
+      if (!row || !ctx) return;
+      ctx.drawImage(base, 0, 0, canvas.width, canvas.height);
+      drawDefectPoints(ctx, row, model.bounds, canvas.width, canvas.height, false);
+    });
+  }
+
+  function ensureZoom() {
+    var mask = document.getElementById('pourDefectBoardZoom');
+    if (mask) return mask;
+    mask = document.createElement('div'); mask.id = 'pourDefectBoardZoom'; mask.className = 'pour-board-zoom'; mask.hidden = true;
+    mask.innerHTML = '<div class="pour-board-zoom-dialog" role="dialog" aria-modal="true" aria-labelledby="pourBoardZoomTitle">' +
+      '<div class="pour-board-zoom-head"><b id="pourBoardZoomTitle"></b><button type="button" class="btn sec pour-board-zoom-close">关闭</button></div>' +
+      '<canvas class="pour-board-zoom-canvas" width="960" height="570"></canvas></div>';
+    document.body.appendChild(mask);
+    mask.querySelector('.pour-board-zoom-close').onclick = function () { mask.hidden = true; };
+    mask.onclick = function (event) { if (event.target === mask) mask.hidden = true; };
+    document.addEventListener('keydown', function (event) { if (event.key === 'Escape') mask.hidden = true; });
+    return mask;
+  }
+
+  function openZoom(rowIndex) {
+    if (!currentModel) return;
+    var row = currentModel.rows[rowIndex], mask = ensureZoom();
+    if (!row) return;
+    mask.querySelector('#pourBoardZoomTitle').textContent = row.config.type + ' · ' + row.network + ' · 异常位置 ' + row.points.length + ' 处';
+    var canvas = mask.querySelector('.pour-board-zoom-canvas');
+    if (drawBoardBase(canvas, currentModel, true)) {
+      drawDefectPoints(canvasContext(canvas), row, currentModel.bounds, canvas.width, canvas.height, true);
     }
-    svg += '<text x="20" y="32" fill="#f8fafc" font-size="14" font-family="sans-serif">异常位置 ' + row.points.length + ' 处</text></svg>';
-    return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    mask.hidden = false;
+    mask.querySelector('.pour-board-zoom-close').focus();
+  }
+
+  function mount(host) {
+    if (!host || !currentModel) return;
+    Array.prototype.forEach.call(host.querySelectorAll('.pour-defect-board-open'), function (button) {
+      button.onclick = function () { openZoom(parseInt(button.getAttribute('data-row-index'), 10)); };
+    });
+    var draw = function () { if (currentModel) drawThumbnails(host, currentModel); };
+    if (typeof root.requestAnimationFrame === 'function') root.requestAnimationFrame(draw); else setTimeout(draw, 0);
   }
 
   function positionText(points) {
@@ -135,30 +189,25 @@
   function render(defects, State) {
     var rows = buildRows(defects, State);
     var total = rows.reduce(function (sum, row) { return sum + row.count; }, 0);
-    var bounds = boardBounds(State);
+    currentModel = { rows: rows, bounds: boardBounds(State), vias: State.vias || [] };
     var h = '<div class="card pour-defect-summary"><div class="pour-defect-summary-head">' +
-      '<div><h3>缺陷总结表</h3><div class="hint">按孔 Padstack、网络与异常类型归纳，共 ' + rows.length + ' 类、' + total + ' 条异常。</div></div></div>';
-    if (!rows.length) {
-      h += '<div class="hint pour-defect-summary-empty">当前没有异常记录。</div></div>';
-      return h;
-    }
+      '<div><h3>缺陷总结表</h3><div class="hint">按孔 Padstack、网络与异常类型归纳，共 ' + rows.length + ' 类、' + total + ' 条异常；位置图显示全部 ' + currentModel.vias.length + ' 个孔。</div></div></div>';
+    if (!rows.length) return h + '<div class="hint pour-defect-summary-empty">当前没有异常记录。</div></div>';
     h += '<div class="tbl-wrap"><table class="pour-defect-summary-table"><thead><tr>' +
-      '<th>孔 Padstack</th><th>网络</th><th>异常类型</th><th>如何修改</th><th>板上位置</th>' +
-      '</tr></thead><tbody>';
-    rows.forEach(function (row) {
+      '<th>孔 Padstack</th><th>网络</th><th>异常类型</th><th>如何修改</th><th>板上位置</th></tr></thead><tbody>';
+    rows.forEach(function (row, rowIndex) {
       var layerText = Object.keys(row.layers).join('、');
       var typeText = row.config.type + (layerText ? ' · ' + layerText : '') + (row.count > 1 ? ' · ' + row.count + ' 条' : '');
       var location = positionText(row.points) || '无可用坐标';
-      h += '<tr><td><b>' + esc(row.padstack) + '</b></td>' +
-        '<td><code>' + esc(row.network) + '</code></td>' +
+      h += '<tr><td><b>' + esc(row.padstack) + '</b></td><td><code>' + esc(row.network) + '</code></td>' +
         '<td><span class="pour-defect-type" style="--defect-color:' + row.config.color + '">' + esc(typeText) + '</span></td>' +
-        '<td class="pour-defect-fix">' + esc(row.config.fix) + '</td>' +
-        '<td><div class="pour-defect-board"><img src="' + boardImage(row, bounds) + '" alt="' + esc(row.config.type + '板上位置') + '">' +
-          '<div>' + esc(location) + '</div></div></td></tr>';
+        '<td class="pour-defect-fix">' + esc(row.config.fix) + '</td><td><div class="pour-defect-board">' +
+          '<button type="button" class="pour-defect-board-open" data-row-index="' + rowIndex + '" aria-label="放大查看' + esc(row.config.type) + '板上位置">' +
+            '<canvas class="pour-defect-board-canvas" data-row-index="' + rowIndex + '" data-all-via-count="' + currentModel.vias.length + '" width="520" height="292"></canvas>' +
+            '<span>放大查看</span></button><div>' + esc(location) + '</div></div></td></tr>';
     });
-    h += '</tbody></table></div></div>';
-    return h;
+    return h + '</tbody></table></div></div>';
   }
 
-  root.PourDefectSummary = { render: render, buildRows: buildRows };
+  root.PourDefectSummary = { render: render, mount: mount, buildRows: buildRows };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -44,6 +44,21 @@
       y: -(sy - c.panY) / c.zoom
     };
   }
+  function canvasViewBounds(canvas, marginPx) {
+    var c = root.State.canvas;
+    var margin = (marginPx || 24) / Math.max(c.zoom, 0.0001);
+    var x1 = (0 - c.panX) / c.zoom, x2 = ((canvas.width || 920) - c.panX) / c.zoom;
+    var y1 = -((canvas.height || 640) - c.panY) / c.zoom, y2 = -(0 - c.panY) / c.zoom;
+    return { minX: Math.min(x1, x2) - margin, maxX: Math.max(x1, x2) + margin,
+      minY: Math.min(y1, y2) - margin, maxY: Math.max(y1, y2) + margin };
+  }
+  function bboxInView(bbox, view) {
+    return !bbox || (bbox.maxX >= view.minX && bbox.minX <= view.maxX &&
+      bbox.maxY >= view.minY && bbox.minY <= view.maxY);
+  }
+  function pointInView(x, y, view) {
+    return x >= view.minX && x <= view.maxX && y >= view.minY && y <= view.maxY;
+  }
   function fitCanvasToLayout() {
     var State = root.State;
     var canvas = document.getElementById('mainCanvas');
@@ -145,7 +160,7 @@
       : (c.shapeLayerMode === 'layer' && c.visibleShapeLayers.length ? c.visibleShapeLayers[0] : '__ALL__');
     select.value = options.some(function (item) { return item.value === selected; }) ? selected : '__ALL__';
   }
-  function setCanvasShapeLayer(value) {
+  function setCanvasShapeLayer(value, deferRender) {
     var c = root.State.canvas;
     if (value === '__PROBLEM__' && (c.problemShapeLayers || []).length) {
       c.shapeLayerMode = 'problem';
@@ -158,12 +173,14 @@
       c.visibleShapeLayers = [];
     }
     refreshCanvasShapeLayerOptions();
-    renderCanvas();
-    if (root.State.activeReviewKey && typeof root.renderPourCanvasReviewBox === 'function') {
-      root.renderPourCanvasReviewBox(root.State.activeReviewKey);
+    if (!deferRender) {
+      renderCanvas();
+      if (root.State.activeReviewKey && typeof root.renderPourCanvasReviewBox === 'function') {
+        root.renderPourCanvasReviewBox(root.State.activeReviewKey);
+      }
     }
   }
-  function showCanvasProblemLayers(layers) {
+  function showCanvasProblemLayers(layers, deferRender) {
     var available = uniqueShapeLayers();
     var aliases = root.PourChecker && root.PourChecker.physicalLayerAlias;
     var requested = (layers || []).map(layerKey).filter(Boolean);
@@ -173,7 +190,7 @@
       });
     });
     root.State.canvas.problemShapeLayers = resolved.length ? resolved : requested;
-    setCanvasShapeLayer(requested.length ? '__PROBLEM__' : '__ALL__');
+    setCanvasShapeLayer(requested.length ? '__PROBLEM__' : '__ALL__', deferRender);
   }
   function isShapeLayerVisible(shape) {
     var layers = root.State.canvas.visibleShapeLayers || [];
@@ -225,17 +242,17 @@
     if (!ctx) return;
     var w = canvas.width;
     var h = canvas.height;
+    var viewBounds = canvasViewBounds(canvas, 28);
     ctx.clearRect(0, 0, w, h);
     ctx.fillStyle = '#050811';
     ctx.fillRect(0, 0, w, h);
     var PC = root.PourChecker;
+    var highlightedShapeIds = new Set((State.canvas.highlightShapeIds || []).map(String));
     /* 1. 铜皮轮廓 */
     if (State.canvas.showShapes && State.shapes) {
       State.shapes.forEach(function (shape) {
-        if (!isShapeLayerVisible(shape)) return;
-        var isProblemShape = (State.canvas.highlightShapeIds || []).some(function (id) {
-          return String(id) === String(shape.id);
-        });
+        if (!isShapeLayerVisible(shape) || !bboxInView(shape.bbox, viewBounds)) return;
+        var isProblemShape = highlightedShapeIds.has(String(shape.id));
         ctx.save();
         ctx.fillStyle = isProblemShape ? 'rgba(239, 68, 68, 0.42)' : 'rgba(180, 83, 9, 0.22)';
         ctx.strokeStyle = isProblemShape ? '#f87171' : '#d97706';
@@ -297,6 +314,7 @@
     /* 2. 过孔 */
     if (State.canvas.showVias && State.vias) {
       State.vias.forEach(function (v) {
+        if (!pointInView(v.x, v.y, viewBounds)) return;
         var sp = worldToScreen(v.x, v.y);
         var isGnd = v.net && v.net.toUpperCase() === 'GND';
         if (isGnd) {
@@ -351,6 +369,7 @@
     /* 3. 走线（直线与圆弧参数化采样） */
     if (State.canvas.showTraces && State.traces) {
       State.traces.forEach(function (trace) {
+        if (!bboxInView(trace.bbox, viewBounds)) return;
         ctx.save();
         var col = getNetColor(trace.net);
         ctx.strokeStyle = col;
@@ -441,7 +460,7 @@
     }
     /* 5. 五类异常位置标记 */
     if (State.canvas.showDefects && State.summary && typeof root.drawPourDefectMarkers === 'function') {
-      root.drawPourDefectMarkers(ctx, worldToScreen);
+      root.drawPourDefectMarkers(ctx, worldToScreen, viewBounds);
     }
     /* 6. 两点测距标尺 */
     if (State.canvas.measurePoints.length > 0) {

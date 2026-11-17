@@ -353,8 +353,6 @@
       return;
     }
 
-    var PC = root.PourChecker;
-    var rn = PC && PC.roundN ? PC.roundN : function (v, n) { return Number(v || 0).toFixed(n || 1); };
     var b = State.summary.breakdown;
     var defects = State.rawResults.filter(function (r) { return !r.pass; });
     var badTotal = defects.length;
@@ -380,10 +378,10 @@
         padName = '走线层: ' + (r.traceLayer || '-');
       } else if (r.checkCategory === 'isolated_copper') {
         ruleTitle = '全板孤立小铜皮 < ' + (r.areaThreshold || 500) + ' sq mil';
-        padName = 'Shape #' + r.shapeId;
+        padName = '铜皮 Shape';
       } else if (r.checkCategory === 'arc_radius') {
         ruleTitle = '全板铜皮圆弧半径 < ' + (r.requiredRadius || 10) + ' mil';
-        padName = 'Shape #' + r.shapeId;
+        padName = '铜皮 Shape';
       }
 
       var bKey = ruleTitle + ' · ' + r.checkCategoryName;
@@ -394,20 +392,20 @@
       badMap[bKey].padstacks[padName] = 1;
 
       var lk = r.layer || r.traceLayer || r.refLayer || '通用层';
-      var netName = r.viaNet || r.traceNet || (r.shapeId ? ('Shape #' + r.shapeId) : 'GND');
+      var netName = r.viaNet || r.traceNet || '无网络';
       var targetId = r.viaId || r.traceId || r.shapeId || 0;
       var reasonHtml = '';
 
       if (r.checkCategory === 'via_coverage') {
         reasonHtml = '<b style="color:var(--bad)">搜索范围内未检出铜皮</b> · 孔心 ' + esc(r.requiredDist || 50) + ' mil 范围内无铜皮';
       } else if (r.checkCategory === 'special_shape') {
-        reasonHtml = '<b style="color:var(--bad)">异型面积超差</b> · 实测 ' + esc(rn(r.actualArea, 1)) + ' sq mil vs 期望 ' + esc(r.expectedArea) + ' ± ' + esc(r.areaTolerance);
+        reasonHtml = '<b style="color:var(--bad)">异型面积超差</b> · 期望 ' + esc(r.expectedArea) + ' ± ' + esc(r.areaTolerance) + ' sq mil';
       } else if (r.checkCategory === 'trace_ref_margin') {
-        reasonHtml = '<b style="color:var(--bad)">参考层外延不足</b> · ' + esc(r.refType) + ' ' + esc(r.refLayer) + ' 实测 ' + esc(rn(r.actualMargin, 1)) + ' mil &lt; ' + esc(r.minMargin) + ' mil';
+        reasonHtml = '<b style="color:var(--bad)">参考层外延不足</b> · ' + esc(r.refType) + ' ' + esc(r.refLayer) + ' 未达到 ' + esc(r.minMargin) + ' mil';
       } else if (r.checkCategory === 'isolated_copper') {
-        reasonHtml = '<b style="color:var(--bad)">无连接孤立碎铜</b> · 面积 ' + esc(rn(r.area, 1)) + ' sq mil &lt; ' + esc(r.areaThreshold) + ' sq mil';
+        reasonHtml = '<b style="color:var(--bad)">无连接孤立碎铜</b> · 面积低于 ' + esc(r.areaThreshold) + ' sq mil';
       } else if (r.checkCategory === 'arc_radius') {
-        reasonHtml = '<b style="color:var(--bad)">圆弧半径过小</b> · 第 ' + esc(r.arcIndex || 1) + ' 段半径 ' + esc(rn(r.actualRadius, 2)) + ' mil &lt; ' + esc(r.requiredRadius) + ' mil';
+        reasonHtml = '<b style="color:var(--bad)">圆弧半径过小</b> · 半径低于 ' + esc(r.requiredRadius) + ' mil';
       }
 
       var subKey = lk + '|' + reasonHtml;
@@ -528,6 +526,7 @@
     '</div>';
 
     container.innerHTML = h;
+    if (root.PourDefectSummary && root.PourDefectSummary.mount) root.PourDefectSummary.mount(container);
   }
 
   function exportAnalysisReport() {

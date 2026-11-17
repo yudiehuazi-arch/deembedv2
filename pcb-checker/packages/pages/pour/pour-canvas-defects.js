@@ -12,6 +12,7 @@
     isolated_copper: { index: '4', label: '孤立小铜皮', color: '#06b6d4', buttonId: 'btnCanvasDefectSmall' },
     arc_radius: { index: '5', label: '圆弧半径', color: '#ec4899', buttonId: 'btnCanvasDefectArc' }
   };
+  var markerCache = { source: null, lists: {}, grids: {} };
 
   function findById(items, id) {
     return (items || []).find(function (item) { return String(item.id) === String(id); });
@@ -69,45 +70,54 @@
     if (typeof root.renderCanvas === 'function') root.renderCanvas();
   }
 
-  function drawPourDefectMarkers(ctx, worldToScreen) {
-    var filter = root.State.canvas.defectFilter || 'all';
-    var marked = {};
-    (root.State.rawResults || []).forEach(function (record) {
+  function rebuildMarkerCache() {
+    var source = root.State.rawResults || [];
+    if (markerCache.source === source) return;
+    var lists = { all: [] }, seen = {};
+    Object.keys(CATEGORIES).forEach(function (key) { lists[key] = []; });
+    source.forEach(function (record) {
       if (record.pass || !CATEGORIES[record.checkCategory]) return;
-      if (filter !== 'all' && record.checkCategory !== filter) return;
       var marker = defectMarker(record);
       if (!marker) return;
-      var dedupeKey = record.checkCategory + '|' + marker.targetLabel + '|' +
+      var key = record.checkCategory + '|' + marker.targetLabel + '|' +
         Number(marker.x).toFixed(4) + '|' + Number(marker.y).toFixed(4);
-      if (marked[dedupeKey]) return;
-      marked[dedupeKey] = true;
-      var meta = CATEGORIES[record.checkCategory];
+      if (seen[key]) return;
+      seen[key] = true;
+      marker.category = record.checkCategory;
+      lists.all.push(marker); lists[record.checkCategory].push(marker);
+    });
+    var grids = {}, PC = root.PourChecker;
+    if (PC && PC.buildPointGrid) {
+      Object.keys(lists).forEach(function (key) {
+        grids[key] = PC.buildPointGrid(lists[key], 500, function (marker) { return marker; });
+      });
+    }
+    markerCache = { source: source, lists: lists, grids: grids };
+  }
+
+  function visibleMarkers(filter, viewBounds) {
+    rebuildMarkerCache();
+    var key = CATEGORIES[filter] ? filter : 'all';
+    var PC = root.PourChecker, grid = markerCache.grids[key];
+    if (viewBounds && grid && PC && PC.queryPointGrid) {
+      return PC.queryPointGrid(grid, viewBounds.minX, viewBounds.minY, viewBounds.maxX, viewBounds.maxY);
+    }
+    return markerCache.lists[key] || [];
+  }
+
+  function drawPourDefectMarkers(ctx, worldToScreen, viewBounds) {
+    var filter = root.State.canvas.defectFilter || 'all';
+    visibleMarkers(filter, viewBounds).forEach(function (marker) {
+      var meta = CATEGORIES[marker.category];
       var point = worldToScreen(marker.x, marker.y);
       ctx.save();
-      ctx.strokeStyle = meta.color;
-      ctx.fillStyle = meta.color;
-      ctx.lineWidth = 2;
-      ctx.setLineDash([4, 3]);
-      ctx.beginPath();
-      ctx.arc(point.x, point.y, 15, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.beginPath();
-      ctx.moveTo(point.x, point.y - 8);
-      ctx.lineTo(point.x + 8, point.y);
-      ctx.lineTo(point.x, point.y + 8);
-      ctx.lineTo(point.x - 8, point.y);
-      ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 10px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(meta.index, point.x, point.y + 0.5);
-      ctx.restore();
+      ctx.strokeStyle = meta.color; ctx.fillStyle = meta.color; ctx.lineWidth = 2;
+      ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.arc(point.x, point.y, 15, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(point.x, point.y - 8); ctx.lineTo(point.x + 8, point.y);
+      ctx.lineTo(point.x, point.y + 8); ctx.lineTo(point.x - 8, point.y); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1; ctx.stroke();
+      ctx.fillStyle = '#ffffff'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(meta.index, point.x, point.y + 0.5); ctx.restore();
     });
   }
 

@@ -331,14 +331,14 @@ canvas#mainCanvas:active {
 
 .pour-defect-summary-table {
   table-layout: fixed;
-  min-width: 980px;
+  min-width: 1180px;
 }
 
-.pour-defect-summary-table th:nth-child(1) { width: 18%; }
-.pour-defect-summary-table th:nth-child(2) { width: 13%; }
-.pour-defect-summary-table th:nth-child(3) { width: 18%; }
-.pour-defect-summary-table th:nth-child(4) { width: 23%; }
-.pour-defect-summary-table th:nth-child(5) { width: 28%; }
+.pour-defect-summary-table th:nth-child(1) { width: 16%; }
+.pour-defect-summary-table th:nth-child(2) { width: 12%; }
+.pour-defect-summary-table th:nth-child(3) { width: 17%; }
+.pour-defect-summary-table th:nth-child(4) { width: 22%; }
+.pour-defect-summary-table th:nth-child(5) { width: 33%; }
 
 .pour-defect-summary-table td {
   vertical-align: top;
@@ -361,15 +361,34 @@ canvas#mainCanvas:active {
   font-weight: 600;
 }
 
-.pour-defect-board img {
+.pour-defect-board-open {
+  display: block;
+  width: min(380px, 100%);
+  padding: 0;
+  border: 1px solid #334155;
+  border-radius: 7px;
+  overflow: hidden;
+  background: #07111f;
+  color: #dbeafe;
+  cursor: zoom-in;
+  text-align: center;
+}
+
+.pour-defect-board-canvas {
   display: block;
   width: 100%;
-  max-width: 230px;
-  height: 112px;
-  object-fit: cover;
-  border: 1px solid #334155;
-  border-radius: 6px;
+  height: auto;
+  aspect-ratio: 16 / 9;
   background: #07111f;
+}
+
+.pour-defect-board-open span {
+  display: block;
+  padding: 5px 8px;
+  border-top: 1px solid #334155;
+  background: #0f172a;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .pour-defect-board div {
@@ -382,6 +401,48 @@ canvas#mainCanvas:active {
 
 .pour-defect-summary-empty {
   padding: 14px 0;
+}
+
+.pour-board-zoom {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(2, 6, 23, 0.82);
+}
+
+.pour-board-zoom[hidden] {
+  display: none;
+}
+
+.pour-board-zoom-dialog {
+  width: min(1100px, 96vw);
+  max-height: 94vh;
+  padding: 12px;
+  border: 1px solid #475569;
+  border-radius: 10px;
+  background: #0f172a;
+}
+
+.pour-board-zoom-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  color: #f8fafc;
+}
+
+.pour-board-zoom-canvas {
+  display: block;
+  width: 100%;
+  max-height: calc(94vh - 72px);
+  border: 1px solid #334155;
+  border-radius: 7px;
+  background: #07111f;
 }
 
 /* 异型铜皮预览小窗 */

@@ -442,8 +442,15 @@ Item 3 < Via >
       !summaryText.includes('Via #3')) {
     throw new Error('缺陷总结表未完整显示 Padstack、网络、异常类型、修改建议与板上位置');
   }
-  const boardImage = summaryTable.querySelector('.pour-defect-board img');
-  if (!boardImage || !boardImage.src.startsWith('data:image/svg+xml')) throw new Error('缺陷总结表缺少板上位置缩略图');
+  const boardCanvas = summaryTable.querySelector('.pour-defect-board-canvas');
+  const boardButton = summaryTable.querySelector('.pour-defect-board-open');
+  if (!boardCanvas || boardCanvas.getAttribute('data-all-via-count') !== '1' || !boardButton.textContent.includes('放大查看')) {
+    throw new Error('板上位置图未包含全部孔或缺少放大功能');
+  }
+  boardButton.click();
+  const boardZoom = $('pourDefectBoardZoom');
+  if (!boardZoom || boardZoom.hidden) throw new Error('板上位置图未打开高清放大视图');
+  boardZoom.querySelector('.pour-board-zoom-close').click();
 });
 
 test('走线导入、参考层超宽判定、2D 画布视口定位复核、规律分析与 CSV 导出', () => {

@@ -179,6 +179,7 @@
       State.canvas.zoom = 5.5;
       State.canvas.panX = w / 2 - tx * State.canvas.zoom;
       State.canvas.panY = h / 2 + ty * State.canvas.zoom;
+      State.canvas.hasInitialFit = true;
     }
   }
 
@@ -195,7 +196,8 @@
       requiredDist: result.requiredDist || (result.subRecords && result.subRecords[0] ? result.subRecords[0].requiredDist : null),
       layers: problemLayers
     } : null;
-    if (typeof root.showCanvasProblemLayers === 'function') root.showCanvasProblemLayers(problemLayers);
+    if (typeof root.showCanvasProblemLayers === 'function') root.showCanvasProblemLayers(problemLayers, true);
+    root.State.canvas.deferNextTabRender = true;
     root.switchTab('tabCanvas');
     safeRAF(function () {
       if (typeof root.resizeCanvas === 'function') root.resizeCanvas();
