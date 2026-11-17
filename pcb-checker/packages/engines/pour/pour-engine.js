@@ -315,7 +315,7 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
           maxX: shape.centroid.x + 30, maxY: shape.centroid.y + 30
         };
         const layerVias = queryPointGrid(viaIndex, b.minX, b.minY, b.maxX, b.maxY)
-          .filter(v => !v.layer || !shape.layer || physicalLayerAlias(v.layer) === physicalLayerAlias(shape.layer));
+          .filter(v => !v.layer || !shape.layer || v.layer === shape.layer);
         let containsVia = false;
         let viaInsideId = null;
         for (const via of layerVias) {
