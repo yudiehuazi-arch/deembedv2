@@ -90,6 +90,55 @@ test('搜索：可按孔到孔配对的信号孔号、孔盘到孔盘关键字�
   $('inpSearch').dispatchEvent(new w.Event('input', { bubbles: true }));
 });
 
+test('几何视口不满足位置：不显示、全显示、线到孔子类型与孔到孔搜索均生效', () => {
+  fixedRun(10);
+  const mode = $('selDfmDefectMode');
+  mode.value = 'all'; mode.dispatchEvent(new w.Event('change', { bubbles: true }));
+  let visible = w.getVisibleDfmDefects();
+  assert(visible.line.length > 0 && visible.pad.length === 8 && visible.total === visible.line.length + 8,
+    '全显示应同时包含线到孔与孔到孔不满足位置');
+
+  mode.value = 'none'; mode.dispatchEvent(new w.Event('change', { bubbles: true }));
+  visible = w.getVisibleDfmDefects();
+  assert(visible.total === 0 && $('canvasHud').dataset.lineDefects === '0' && $('canvasHud').dataset.padDefects === '0',
+    '不显示应清空全部特别标记');
+
+  mode.value = 'line'; mode.dispatchEvent(new w.Event('change', { bubbles: true }));
+  $('ckDfmLineToGnd').checked = false;
+  $('ckDfmLineToGnd').dispatchEvent(new w.Event('change', { bubbles: true }));
+  visible = w.getVisibleDfmDefects();
+  assert(visible.line.length > 0 && visible.pad.length === 0 && visible.line.every(pair => !pair.isGndVia),
+    '线到孔模式关闭 GND 后应只标记线到信号孔');
+  $('ckDfmLineToSignal').checked = false;
+  $('ckDfmLineToSignal').dispatchEvent(new w.Event('change', { bubbles: true }));
+  assert(w.getVisibleDfmDefects().total === 0, '两个线到孔子类型都关闭后不应有标记');
+  $('ckDfmLineToGnd').checked = true;
+  $('ckDfmLineToSignal').checked = true;
+
+  mode.value = 'pad'; mode.dispatchEvent(new w.Event('change', { bubbles: true }));
+  const first = w.State.checkResult.padPairDefects[0];
+  const query = first.sigVia.padstack || first.sigVia.net;
+  $('inpDfmPadPairSearch').value = query;
+  $('inpDfmPadPairSearch').dispatchEvent(new w.Event('input', { bubbles: true }));
+  visible = w.getVisibleDfmDefects();
+  assert(visible.line.length === 0 && visible.pad.length > 0 && visible.pad.every(defect =>
+    [defect.gndVia.padstack, defect.gndVia.net, defect.sigVia.padstack, defect.sigVia.net]
+      .some(value => String(value || '').toLowerCase().includes(query.toLowerCase()))),
+  '孔到孔搜索应按任一孔的 Padstack 筛选');
+  $('inpDfmPadPairSearch').value = first.sigVia.net;
+  $('inpDfmPadPairSearch').dispatchEvent(new w.Event('input', { bubbles: true }));
+  visible = w.getVisibleDfmDefects();
+  assert(visible.pad.length > 0 && visible.pad.every(defect =>
+    [defect.gndVia.net, defect.sigVia.net].some(value => String(value || '').toLowerCase().includes(first.sigVia.net.toLowerCase()))),
+  '孔到孔搜索应按任一孔的网络名筛选');
+  $('inpDfmPadPairSearch').value = 'NOT_FOUND_PADSTACK_OR_NET';
+  $('inpDfmPadPairSearch').dispatchEvent(new w.Event('input', { bubbles: true }));
+  assert(w.getVisibleDfmDefects().total === 0, '无匹配的 Padstack / 网络名不应显示孔到孔标记');
+
+  $('inpDfmPadPairSearch').value = '';
+  mode.value = 'all'; mode.dispatchEvent(new w.Event('change', { bubbles: true }));
+});
+
 test('未复核不满足：复核后该行消失，线到孔与孔到孔都生效', () => {
   assert($('btnFilterBadUnreviewed'), '缺少「未复核不满足」按钮');
   w.State.pageSize = 'all'; $('selPageSize').value = 'all';   // 一页显示全部，复核后行数才会直接减少
@@ -223,6 +272,34 @@ test('画布过孔绘制：全板总览用 2px 方点，放大后画完整孔，
   calls.length = 0;
   w.DfmCanvasVias.draw(rec, Object.assign(base(2, null), { bounds: { minX: 50, maxX: 60, minY: 50, maxY: 60 } }));
   assert(calls.length === 0, '视口外的过孔不应绘制');
+});
+
+test('不满足位置特别标记：线到 GND、线到信号与孔到孔使用独立颜色、光圈和菱形位置点', () => {
+  const calls = [];
+  const rec = new Proxy({}, {
+    get: (_, key) => (...args) => { calls.push([key, ...args]); },
+    set: (_, key, value) => { calls.push(['set:' + key, value]); return true; }
+  });
+  const gnd = { id: 1, origin: [0, 0], padRadius: 4, isGnd: true, net: 'GND', padstack: 'GND_STACK' };
+  const sig = { id: 2, origin: [20, 0], padRadius: 5, isGnd: false, net: 'SIG_P', padstack: 'SIG_STACK' };
+  const selection = {
+    line: [
+      { via: gnd, proj: [0, 6], isGndVia: true, evalDist: 2.5 },
+      { via: sig, proj: [20, 7], isGndVia: false, evalDist: 3.5 }
+    ],
+    pad: [{ gndVia: gnd, sigVia: sig, padAirgap: 4.5 }]
+  };
+  const drawn = w.DfmCanvasDefects.draw(rec, {
+    selection, vp: { zoom: 1 }, bounds: { minX: -50, maxX: 50, minY: -50, maxY: 50 },
+    worldToScreen: (x, y) => [x + 100, 100 - y], showLabels: true
+  });
+  const styles = calls.filter(call => call[0] === 'set:strokeStyle' || call[0] === 'set:fillStyle').map(call => call[1]);
+  assert(drawn.line === 2 && drawn.pad === 1 && drawn.total === 3, '三类特别标记数量不正确');
+  ['#f59e0b', '#fb7185', '#a78bfa'].forEach(color => assert(styles.includes(color), '缺少独立标记颜色 ' + color));
+  assert(calls.filter(call => call[0] === 'arc').length >= 4, '过孔位置应绘制光圈');
+  assert(calls.filter(call => call[0] === 'closePath').length >= 3, '最近点与孔对中点应绘制菱形位置点');
+  const labels = calls.filter(call => call[0] === 'fillText').map(call => call[1]).join('|');
+  assert(labels.includes('线→GND') && labels.includes('线→信号') && labels.includes('孔→孔'), '三类标记文字不完整：' + labels);
 });
 
 test('页面运行期零脚本错误', () => {

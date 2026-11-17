@@ -4,12 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PCB 加工能力与空间间距检查工具</title>
-<link rel="stylesheet" href="assets/styles/tokens.css?v=35">
-<link rel="stylesheet" href="assets/styles/eda-shell.css?v=35">
-<link rel="stylesheet" href="assets/styles/eda-dock.css?v=35">
-<link rel="stylesheet" href="assets/styles/components.css?v=35">
-<link rel="stylesheet" href="assets/styles/pages/dfm.css?v=35">
-<link rel="stylesheet" href="assets/styles/pages/dfm-panels.css?v=35">
+<link rel="stylesheet" href="assets/styles/tokens.css?v=36">
+<link rel="stylesheet" href="assets/styles/eda-shell.css?v=36">
+<link rel="stylesheet" href="assets/styles/eda-dock.css?v=36">
+<link rel="stylesheet" href="assets/styles/components.css?v=36">
+<link rel="stylesheet" href="assets/styles/pages/dfm.css?v=36">
+<link rel="stylesheet" href="assets/styles/pages/dfm-panels.css?v=36">
 </head>
 <body class="eda-workbench">
 
@@ -265,9 +265,16 @@
             <div class="tb-group">
               <label><input type="checkbox" id="ckShowVias" checked> 过孔</label>
               <label><input type="checkbox" id="ckShowTraces" checked> 走线</label>
-              <label><input type="checkbox" id="ckShowDefects" checked> 超标连线</label>
               <label><input type="checkbox" id="ckShowLabels" checked> 数值标注</label>
               <label><input type="checkbox" id="ckShowGrid" checked> 网格</label>
+            </div>
+            <div class="tb-group dfm-defect-controls">
+              <label data-tip="选择不满足位置的特别标记范围">不满足位置 <select id="selDfmDefectMode"><option value="none">不显示</option><option value="all" selected>全显示</option><option value="line">线到孔</option><option value="pad">孔到孔</option></select></label>
+              <span id="dfmLineDefectOptions" class="dfm-defect-subcontrols" style="display:none">
+                <label><input type="checkbox" id="ckDfmLineToGnd" checked> 线到 GND 孔</label><label><input type="checkbox" id="ckDfmLineToSignal" checked> 线到信号孔</label>
+              </span>
+              <label id="dfmPadPairSearchWrap" class="dfm-padpair-search" style="display:none" data-tip="按任一孔的 Padstack 名称或网络名筛选不满足孔对">孔到孔搜索 <input type="search" id="inpDfmPadPairSearch" placeholder="Padstack / 网络名" autocomplete="off" data-no-persist></label>
+              <span id="dfmDefectMarkCount" class="dfm-defect-count">标记 0 处</span>
             </div>
             <div style="margin-left:auto;display:flex;gap:6px">
               <button type="button" id="btnExportPng" class="pri">导出 PNG</button>
@@ -295,8 +302,11 @@
           </div>
           <div class="canvas-legend" id="canvasLegend">
             <strong>图例</strong>
-            <div class="canvas-legend-item"><div class="canvas-legend-color" style="background:#ef4444"></div><span>信号孔 / 超标连线</span></div>
+            <div class="canvas-legend-item"><div class="canvas-legend-color" style="background:#ef4444"></div><span>信号孔</span></div>
             <div class="canvas-legend-item"><div class="canvas-legend-color" style="background:#64748b"></div><span>GND 过孔</span></div>
+            <div class="canvas-legend-item"><div class="canvas-legend-color" style="background:#f59e0b"></div><span>线到 GND 孔不满足</span></div>
+            <div class="canvas-legend-item"><div class="canvas-legend-color" style="background:#fb7185"></div><span>线到信号孔不满足</span></div>
+            <div class="canvas-legend-item"><div class="canvas-legend-color" style="background:#a78bfa"></div><span>孔到孔不满足</span></div>
             <div class="canvas-legend-item"><div class="canvas-legend-color" style="background:#38bdf8"></div><span>标尺测量 / 高亮路由</span></div>
           </div>
         </div>
@@ -601,27 +611,26 @@
 
 <div class="tooltip" id="canvasTooltip"></div>
 
-<script src="packages/shared/dom-utils.js?v=35"></script>
-<script src="packages/geometry/pad-primitives.js?v=35"></script>
-<script src="packages/geometry/pad-region.js?v=35"></script>
-<script src="packages/engines/dfm/dfm-layers.js?v=35"></script>
-<script src="packages/engines/dfm/dfm-parser.js?v=35"></script>
-<script src="packages/engines/dfm/dfm-engine.js?v=35"></script>
-<script src="packages/engines/dfm/dfm-pattern.js?v=35"></script>
-<script src="packages/pages/dfm/dfm-config.js?v=35"></script>
-<script src="packages/pages/dfm/dfm-padstack-rules.js?v=35"></script>
-<script src="packages/pages/dfm/dfm-rule-export.js?v=35"></script>
-<script src="packages/pages/dfm/dfm-rules-io.js?v=35"></script>
-<script src="packages/pages/dfm/dfm-result-nav.js?v=35"></script>
-<script src="packages/pages/dfm/dfm-results-pairs.js?v=35"></script>
-<script src="packages/pages/dfm/dfm-results-ui.js?v=35"></script>
-<script src="packages/pages/dfm/dfm-pattern-ui.js?v=35"></script>
-<script src="packages/pages/dfm/dfm-pattern-filter-popover.js?v=35"></script>
-<script src="packages/pages/dfm/dfm-pattern-modes.js?v=35"></script>
-<script src="packages/pages/dfm/dfm-canvas-vias.js?v=35"></script>
-<script src="packages/pages/dfm/dfm-canvas-viewer.js?v=35"></script>
-<script src="packages/shared/eda-tooltip.js?v=35"></script>
-<script src="packages/shared/eda-shell.js?v=35"></script>
-<script src="packages/shared/ui-prefs.js?v=35"></script>
+<script src="packages/shared/dom-utils.js?v=36"></script>
+<script src="packages/geometry/pad-primitives.js?v=36"></script>
+<script src="packages/geometry/pad-region.js?v=36"></script>
+<script src="packages/engines/dfm/dfm-layers.js?v=36"></script>
+<script src="packages/engines/dfm/dfm-parser.js?v=36"></script>
+<script src="packages/engines/dfm/dfm-engine.js?v=36"></script>
+<script src="packages/engines/dfm/dfm-pattern.js?v=36"></script>
+<script src="packages/pages/dfm/dfm-config.js?v=36"></script>
+<script src="packages/pages/dfm/dfm-padstack-rules.js?v=36"></script>
+<script src="packages/pages/dfm/dfm-rule-export.js?v=36"></script>
+<script src="packages/pages/dfm/dfm-rules-io.js?v=36"></script>
+<script src="packages/pages/dfm/dfm-result-nav.js?v=36"></script>
+<script src="packages/pages/dfm/dfm-results-pairs.js?v=36"></script>
+<script src="packages/pages/dfm/dfm-results-ui.js?v=36"></script>
+<script src="packages/pages/dfm/dfm-pattern-ui.js?v=36"></script>
+<script src="packages/pages/dfm/dfm-pattern-filter-popover.js?v=36"></script>
+<script src="packages/pages/dfm/dfm-pattern-modes.js?v=36"></script>
+<script src="packages/pages/dfm/dfm-canvas-vias.js?v=36"></script><script src="packages/pages/dfm/dfm-canvas-defects.js?v=36"></script><script src="packages/pages/dfm/dfm-canvas-viewer.js?v=36"></script>
+<script src="packages/shared/eda-tooltip.js?v=36"></script>
+<script src="packages/shared/eda-shell.js?v=36"></script>
+<script src="packages/shared/ui-prefs.js?v=36"></script>
 </body>
 </html>

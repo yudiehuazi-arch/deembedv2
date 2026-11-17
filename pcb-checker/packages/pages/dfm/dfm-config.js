@@ -42,6 +42,9 @@
     activeLocatedPair: null,
     activeLocatedViaPair: null,
     resultReturnPosition: null,
+    defectDisplayMode: 'all',
+    lineDefectKinds: { gnd: true, signal: true },
+    viaPairSearch: '',
     viewport: {
       zoom: 1.0,
       panX: 0,
