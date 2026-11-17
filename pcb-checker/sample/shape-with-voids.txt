@@ -1,0 +1,69 @@
+Total 3 Items
+
+Item 1                < Shape >
+
+  Set:                Etch
+  Subset:             Top
+  Type:               Shape(Dynamic)
+  Area:               9285.84073 (sq mil)
+
+Exterior Boundary:
+  Seg: xy [0.0000, 0.0000]  xy [100.0000, 0.0000] Width (0.0000)
+  Seg: xy [100.0000, 0.0000]  xy [100.0000, 100.0000] Width (0.0000)
+  Seg: xy [100.0000, 100.0000]  xy [0.0000, 100.0000] Width (0.0000)
+  Seg: xy [0.0000, 100.0000]  xy [0.0000, 0.0000] Width (0.0000)
+Void:
+  Seg: xy [10.0000, 10.0000]  xy [30.0000, 10.0000] Width (0.0000)
+  Seg: xy [30.0000, 10.0000]  xy [30.0000, 30.0000] Width (0.0000)
+  Seg: xy [30.0000, 30.0000]  xy [10.0000, 30.0000] Width (0.0000)
+  Seg: xy [10.0000, 30.0000]  xy [10.0000, 10.0000] Width (0.0000)
+Void:
+  Arc seg: xy [70.0000, 50.0000]  xy [70.0000, 50.0000] Width (0.0000)
+    Center-xy: [60.0000, 50.0000] Radius (10.0000) CW
+Original Boundary:
+  Seg: xy [-500.0000, -500.0000]  xy [500.0000, -500.0000] Width (0.0000)
+  Seg: xy [500.0000, -500.0000]  xy [500.0000, 500.0000] Width (0.0000)
+  Seg: xy [500.0000, 500.0000]  xy [-500.0000, 500.0000] Width (0.0000)
+  Seg: xy [-500.0000, 500.0000]  xy [-500.0000, -500.0000] Width (0.0000)
+
+Item 2                < Shape >
+
+  Set:                Etch
+  Subset:             02G01P
+  Type:               Shape(Static)
+  Area:               6597.34457 (sq mil)
+
+Exterior Boundary:
+  Arc seg: xy [50.0000, 0.0000]  xy [50.0000, 0.0000] Width (0.0000)
+    Center-xy: [0.0000, 0.0000] Radius (50.0000) CCW
+Void:
+  Arc seg: xy [20.0000, 0.0000]  xy [20.0000, 0.0000] Width (0.0000)
+    Center-xy: [0.0000, 0.0000] Radius (20.0000) CW
+
+Item 308              < Shape >
+
+  Set:                Etch
+  Subset:             19IS08
+  Type:               Shape(Dynamic)
+  Area:               7800.00000 (sq mil)
+
+Exterior Boundary:
+  Seg: xy [0.0000, 0.0000]  xy [80.0000, 0.0000] Width (0.0000)
+  Arc seg: xy [80.0000, 0.0000]  xy [100.0000, 20.0000] Width (0.0000)
+    Center-xy: [80.0000, 20.0000] Radius (20.0000) CCW
+  Seg: xy [100.0000, 20.0000]  xy [100.0000, 80.0000] Width (0.0000)
+  Arc seg: xy [100.0000, 80.0000]  xy [80.0000, 100.0000] Width (0.0000)
+    Center-xy: [80.0000, 80.0000] Radius (20.0000) CCW
+  Seg: xy [80.0000, 100.0000]  xy [0.0000, 100.0000] Width (0.0000)
+  Seg: xy [0.0000, 100.0000]  xy [0.0000, 0.0000] Width (0.0000)
+Void:
+  Seg: xy [30.0000, 40.0000]  xy [70.0000, 40.0000] Width (0.0000)
+  Arc seg: xy [70.0000, 40.0000]  xy [70.0000, 60.0000] Width (0.0000)
+    Center-xy: [70.0000, 50.0000] Radius (10.0000) CCW
+  Seg: xy [70.0000, 60.0000]  xy [30.0000, 60.0000] Width (0.0000)
+  Arc seg: xy [30.0000, 60.0000]  xy [30.0000, 40.0000] Width (0.0000)
+    Center-xy: [30.0000, 50.0000] Radius (10.0000) CCW
+Original Boundary:
+  Seg: xy [-1000.0000, -1000.0000]  xy [1000.0000, -1000.0000] Width (0.0000)
+
+~ ~ ~ ~ ~ ~ ~ ~ ~ ~End~ ~ ~ ~ ~ ~ ~ ~ ~ ~

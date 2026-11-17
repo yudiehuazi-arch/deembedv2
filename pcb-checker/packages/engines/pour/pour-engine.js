@@ -16,7 +16,8 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
   var pointToShapeDistance = geom.pointToShapeDistance;
   var isPointInsideBBox = geom.isPointInsideBBox;
   var shapeRing = geom.shapeRing;
-  var pointInPolygon = geom.pointInPolygon;
+  var pointInShape = geom.pointInShape;
+  var pointToShapeBoundaryDistance = geom.pointToShapeBoundaryDistance;
   var expandLayerRange = parser.expandLayerRange;
   var parsePcbElements = parser.parsePcbElements;
   var parseShapeBlock = parser.parseShapeBlock;
@@ -258,13 +259,19 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
               totalSamples++;
               let ptMargin = -1;
               for (const shape of refShapes) {
-                if (isPointInsideBBox(pt.x, pt.y, shape.bbox)) {
-                  const dEdge = Math.min(
-                    pt.x - shape.bbox.minX,
-                    shape.bbox.maxX - pt.x,
-                    pt.y - shape.bbox.minY,
-                    shape.bbox.maxY - pt.y
-                  );
+                const hasOutline = !!(shape.boundary && shape.boundary.length);
+                const isCovered = hasOutline
+                  ? pointInShape(pt.x, pt.y, shape)
+                  : isPointInsideBBox(pt.x, pt.y, shape.bbox);
+                if (isCovered) {
+                  const dEdge = hasOutline
+                    ? pointToShapeBoundaryDistance(pt.x, pt.y, shape)
+                    : Math.min(
+                      pt.x - shape.bbox.minX,
+                      shape.bbox.maxX - pt.x,
+                      pt.y - shape.bbox.minY,
+                      shape.bbox.maxY - pt.y
+                    );
                   const singleSideMargin = dEdge - ((seg.width || 6.0) / 2);
                   if (singleSideMargin > ptMargin) {
                     ptMargin = singleSideMargin;
@@ -314,7 +321,7 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
         for (const via of layerVias) {
           let hit;
           if (hasRing) {
-            hit = pointInPolygon(via.x, via.y, ring);
+            hit = pointInShape(via.x, via.y, shape);
           } else {
             hit = dist2D(via.x, via.y, shape.centroid.x, shape.centroid.y) <= 30.0;
           }

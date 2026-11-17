@@ -8,6 +8,7 @@ const path = require('path');
 const { openPage } = require('../helpers/open-page');
 
 const SPECIAL_SHAPE_TXT = fs.readFileSync(path.join(__dirname, '../../sample/special-shape-seg-arc.txt'), 'utf8');
+const VOID_SHAPE_TXT = fs.readFileSync(path.join(__dirname, '../../sample/shape-with-voids.txt'), 'utf8');
 const ctx = openPage('pour.html', { syncCheck: true });
 const { w, d } = ctx;
 const $ = id => d.getElementById(id);
@@ -88,6 +89,53 @@ test('异型铜皮预览按离散轮廓绘制，不把圆弧画成整圆', () =>
   const drawn = w.drawShapePreviewCanvas({ width: 110, height: 110, getContext: () => context }, shape);
   if (!drawn || calls.lineTo !== shape._ring.length - 1) throw new Error('预览未按完整离散轮廓连续绘制');
   if (calls.arc !== 1) throw new Error('预览仍把扫掠圆弧错误绘制为整圆');
+});
+
+test('铜皮主画布与缩略图以 evenodd 复合路径镂空全部 Void', () => {
+  const shape = w.PourChecker.parsePcbElements(VOID_SHAPE_TXT).shapes[0];
+  const previewCalls = { moveTo: 0, closePath: 0, fillRules: [] };
+  const previewContext = {
+    clearRect() {}, fillRect() {}, beginPath() {}, lineTo() {}, stroke() {}, arc() {},
+    moveTo() { previewCalls.moveTo++; },
+    closePath() { previewCalls.closePath++; },
+    fill(rule) { previewCalls.fillRules.push(rule); }
+  };
+  if (!w.drawShapePreviewCanvas({ width: 120, height: 120, getContext: () => previewContext }, shape)) {
+    throw new Error('含 Void 的缩略图未绘制');
+  }
+  if (previewCalls.moveTo !== 3 || previewCalls.closePath !== 3 || !previewCalls.fillRules.includes('evenodd')) {
+    throw new Error(`缩略图未形成 exterior + 2 Void 复合路径: ${JSON.stringify(previewCalls)}`);
+  }
+
+  const mainCalls = { moveTo: 0, closePath: 0, fillRules: [] };
+  const mainContext = {
+    clearRect() {}, fillRect() {}, save() {}, restore() {}, beginPath() {}, lineTo() {}, stroke() {},
+    fillText() {}, setLineDash() {}, arc() {}, measureText() { return { width: 0 }; },
+    moveTo() { mainCalls.moveTo++; },
+    closePath() { mainCalls.closePath++; },
+    fill(rule) { mainCalls.fillRules.push(rule); }
+  };
+  const canvas = $('mainCanvas');
+  const oldGetContext = canvas.getContext;
+  const oldShapes = w.State.shapes;
+  const oldCanvas = Object.assign({}, w.State.canvas);
+  const oldSummary = w.State.summary;
+  canvas.getContext = () => mainContext;
+  w.State.shapes = [shape];
+  Object.assign(w.State.canvas, {
+    zoom: 1, panX: 0, panY: 0,
+    showShapes: true, showVias: false, showTraces: false, showPorts: false, showDefects: false,
+    measurePoints: []
+  });
+  w.State.summary = null;
+  w.renderCanvas();
+  canvas.getContext = oldGetContext;
+  w.State.shapes = oldShapes;
+  w.State.canvas = oldCanvas;
+  w.State.summary = oldSummary;
+  if (mainCalls.moveTo !== 3 || mainCalls.closePath !== 3 || !mainCalls.fillRules.includes('evenodd')) {
+    throw new Error(`主画布未形成 exterior + 2 Void 复合路径: ${JSON.stringify(mainCalls)}`);
+  }
 });
 
 test('弹窗新增规则 1/2/3 与异型铜皮 Shape TXT 几何解析保存', () => {

@@ -24,11 +24,14 @@
     return template.shape || null;
   }
 
-  function getShapeRing(shape) {
+  function getShapeRings(shape) {
     if (!shape) return [];
-    if (Array.isArray(shape._ring) && shape._ring.length >= 3) return shape._ring;
     var checker = root.PourChecker;
-    return checker && checker.flattenBoundary ? checker.flattenBoundary(shape) : [];
+    if (checker && checker.shapeRings) return checker.shapeRings(shape);
+    var exterior = Array.isArray(shape._ring) && shape._ring.length >= 3
+      ? shape._ring
+      : (checker && checker.flattenBoundary ? checker.flattenBoundary(shape) : []);
+    return exterior.length >= 3 ? [exterior] : [];
   }
 
   function drawShapePreviewCanvas(canvas, shape) {
@@ -41,8 +44,9 @@
     ctx.fillStyle = '#0b1220';
     ctx.fillRect(0, 0, width, height);
 
-    var ring = getShapeRing(shape);
-    if (ring.length < 3) return false;
+    var rings = getShapeRings(shape);
+    if (!rings.length || rings[0].length < 3) return false;
+    var ring = rings[0];
     var xs = ring.map(function (point) { return point[0]; });
     var ys = ring.map(function (point) { return point[1]; });
     var minX = Math.min.apply(null, xs);
@@ -64,16 +68,18 @@
     }
 
     ctx.beginPath();
-    ring.forEach(function (point, index) {
-      var screen = project(point);
-      if (index === 0) ctx.moveTo(screen.x, screen.y);
-      else ctx.lineTo(screen.x, screen.y);
+    rings.forEach(function (contourRing) {
+      contourRing.forEach(function (point, index) {
+        var screen = project(point);
+        if (index === 0) ctx.moveTo(screen.x, screen.y);
+        else ctx.lineTo(screen.x, screen.y);
+      });
+      ctx.closePath();
     });
-    ctx.closePath();
     ctx.fillStyle = 'rgba(180, 83, 9, 0.35)';
     ctx.strokeStyle = '#f59e0b';
     ctx.lineWidth = 1.5;
-    ctx.fill();
+    ctx.fill('evenodd');
     ctx.stroke();
 
     if (shape.centroid) {

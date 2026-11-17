@@ -171,29 +171,25 @@
         ctx.fillStyle = 'rgba(180, 83, 9, 0.22)';
         ctx.strokeStyle = '#d97706';
         ctx.lineWidth = Math.max(1.0, 1.2 * State.canvas.zoom);
+        var rings = PC && PC.shapeRings ? PC.shapeRings(shape) : [];
+        if (!rings.length && PC && PC.flattenBoundary) {
+          var exteriorRing = PC.flattenBoundary(shape);
+          if (exteriorRing.length) rings.push(exteriorRing);
+        }
         ctx.beginPath();
-        shape.boundary.forEach(function (seg) {
-          if (seg.type === 'line') {
-            var p1 = worldToScreen(seg.x1, seg.y1);
-            var p2 = worldToScreen(seg.x2, seg.y2);
-            ctx.moveTo(p1.x, p1.y);
-            ctx.lineTo(p2.x, p2.y);
-          } else if (seg.type === 'arc') {
-            if (Math.abs(seg.x1 - seg.x2) < 1e-4 && Math.abs(seg.y1 - seg.y2) < 1e-4) {
-              var cp = worldToScreen(seg.cx, seg.cy);
-              ctx.arc(cp.x, cp.y, seg.radius * State.canvas.zoom, 0, Math.PI * 2);
-            } else if (PC && PC.sampleArcPoints) {
-              var pts = PC.sampleArcPoints([seg.cx, seg.cy], seg.radius, [seg.x1, seg.y1], [seg.x2, seg.y2], seg.dir || (seg.ccw ? 'CCW' : 'CW'), 24);
-              pts.forEach(function (pt, i) {
-                var sp = worldToScreen(pt[0], pt[1]);
-                if (i === 0) ctx.moveTo(sp.x, sp.y);
-                else ctx.lineTo(sp.x, sp.y);
-              });
-            }
-          }
+        rings.forEach(function (ring) {
+          ring.forEach(function (point, index) {
+            var sp = worldToScreen(point[0], point[1]);
+            if (index === 0) ctx.moveTo(sp.x, sp.y);
+            else ctx.lineTo(sp.x, sp.y);
+          });
+          ctx.closePath();
         });
-        ctx.fill();
-        ctx.stroke();
+        if (rings.length) {
+          // evenodd 不依赖 EDA 导出的 CW/CCW 绕向，所有 Void 均稳定镂空。
+          ctx.fill('evenodd');
+          ctx.stroke();
+        }
         if (State.canvas.zoom > 1.5 && shape.centroid) {
           var cent = worldToScreen(shape.centroid.x, shape.centroid.y);
           ctx.fillStyle = '#fde68a';

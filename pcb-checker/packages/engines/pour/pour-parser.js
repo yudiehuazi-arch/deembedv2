@@ -96,37 +96,81 @@
     return { shapes, vias, traces, layers };
   }
 
-  function parseShapeBoundary(block) {
-    const exterior = block.split(/Exterior Boundary:/i)[1] || '';
-    const lines = exterior.split(/\r?\n/);
-    const boundary = [];
-    const arcs = [];
-    const SEG_RE = /^\s*(Arc\s+seg|Line\s+seg|Seg):\s*xy\s*\[\s*([\d.\-]+)\s*,\s*([\d.\-]+)\s*\]\s*xy\s*\[\s*([\d.\-]+)\s*,\s*([\d.\-]+)\s*\](?:\s*Width\s*\(\s*([\d.\-]+)\s*\))?/i;
-    const CENTER_RE = /Center-xy:\s*\[\s*([\d.\-]+)\s*,\s*([\d.\-]+)\s*\]\s*Radius\s*\(\s*([\d.\-]+)\s*\)(?:\s*(CCW|CW))?/i;
+  /**
+   * 解析 Shape 的实际铜皮轮廓。
+   *
+   * Allegro 报告把动态铜皮分成三个概念：Exterior Boundary、零到多个 Void，
+   * 以及仅供参考的 Original Boundary。后者不是回填后的真实铜皮，绝不能混入外轮廓。
+   */
+  function parseShapeContours(block) {
+    const lines = String(block || '').split(/\r?\n/);
+    const number = '([-+]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][-+]?\\d+)?)';
+    const SEG_RE = new RegExp('^\\s*(Arc\\s+seg|Line\\s+seg|Seg):\\s*xy\\s*\\[\\s*' + number + '\\s*,\\s*' + number + '\\s*\\]\\s*xy\\s*\\[\\s*' + number + '\\s*,\\s*' + number + '\\s*\\](?:\\s*Width\\s*\\(\\s*' + number + '\\s*\\))?', 'i');
+    const CENTER_RE = new RegExp('Center-xy:\\s*\\[\\s*' + number + '\\s*,\\s*' + number + '\\s*\\]\\s*Radius\\s*\\(\\s*' + number + '\\s*\\)(?:\\s*(CCW|CW))?', 'i');
+    const exterior = { boundary: [], arcs: [] };
+    const voids = [];
+    let contour = null;
+    let reachedOriginalBoundary = false;
 
-    lines.forEach((line, index) => {
-      const match = line.match(SEG_RE);
-      if (!match) return;
+    for (let index = 0; index < lines.length; index++) {
+      const heading = lines[index].trim();
+      if (/^Exterior\s+Boundary\s*:\s*$/i.test(heading)) {
+        contour = exterior;
+        reachedOriginalBoundary = false;
+        continue;
+      }
+      if (/^Original\s+Boundary\s*:\s*$/i.test(heading)) {
+        contour = null;
+        reachedOriginalBoundary = true;
+        continue;
+      }
+      if (/^Void(?:\s*(?:#?\d+|\(\d+\)))?\s*:\s*$/i.test(heading)) {
+        // Original Boundary 后的任何子段都属于参考几何，同样忽略。
+        if (!reachedOriginalBoundary) {
+          contour = { boundary: [], arcs: [] };
+          voids.push(contour);
+        }
+        continue;
+      }
+      if (!contour || reachedOriginalBoundary) continue;
+
+      const match = lines[index].match(SEG_RE);
+      if (!match) continue;
       const segment = {
         type: /^Arc/i.test(match[1]) ? 'arc' : 'line',
         x1: parseFloat(match[2]), y1: parseFloat(match[3]),
         x2: parseFloat(match[4]), y2: parseFloat(match[5]),
         width: match[6] ? parseFloat(match[6]) : 0
       };
-      if (segment.type === 'line') {
-        boundary.push(segment);
-        return;
+      if (segment.type === 'arc') {
+        const center = (lines[index + 1] || '').match(CENTER_RE);
+        if (!center) continue;
+        segment.cx = parseFloat(center[1]);
+        segment.cy = parseFloat(center[2]);
+        segment.radius = parseFloat(center[3]);
+        segment.dir = center[4] ? center[4].toUpperCase() : 'CCW';
+        segment.ccw = segment.dir === 'CCW';
+        contour.arcs.push(segment);
       }
-      const center = (lines[index + 1] || '').match(CENTER_RE);
-      if (!center) return;
-      segment.cx = parseFloat(center[1]);
-      segment.cy = parseFloat(center[2]);
-      segment.radius = parseFloat(center[3]);
-      segment.ccw = !center[4] || center[4].toUpperCase() === 'CCW';
-      boundary.push(segment);
-      arcs.push(segment);
-    });
-    return { boundary, arcs };
+      contour.boundary.push(segment);
+    }
+
+    // 空 Void 标题不是有效孔洞，避免给渲染器留下退化子路径。
+    return {
+      boundary: exterior.boundary,
+      exteriorArcs: exterior.arcs,
+      voids: voids.filter(voidContour => voidContour.boundary.length > 0)
+    };
+  }
+
+  function parseShapeBoundary(block) {
+    const parsed = parseShapeContours(block);
+    return {
+      boundary: parsed.boundary,
+      arcs: parsed.exteriorArcs.concat(...parsed.voids.map(voidContour => voidContour.arcs)),
+      voids: parsed.voids,
+      exteriorArcs: parsed.exteriorArcs
+    };
   }
 
   /**
@@ -144,6 +188,7 @@
 
     const parsedBoundary = parseShapeBoundary(block);
     const boundary = parsedBoundary.boundary;
+    const voids = parsedBoundary.voids;
     const arcs = parsedBoundary.arcs;
     let minX = Infinity, maxX = -Infinity;
     let minY = Infinity, maxY = -Infinity;
@@ -178,23 +223,43 @@
       areaComputed: 0,
       areaMm2: area * MM_PER_MIL * MM_PER_MIL,
       boundary,
+      voids,
       arcs,
       centroid: { x: (minX + maxX) / 2, y: (minY + maxY) / 2 },
       bbox: { minX, minY, maxX, maxY, spanX: maxX - minX, spanY: maxY - minY }
     };
     Object.defineProperty(shape, 'rawText', { value: block, enumerable: false });
 
-    // 有完整轮廓时用真实多边形面积/质心（不再是 bbox 中心）
-    const ring = flattenBoundary(shape);
+    // 用 exterior 减去全部 Void 得到实际铜面积与面积加权质心。
+    const ring = flattenBoundary(boundary);
     if (ring.length >= 3) {
       shape._ring = ring;
-      shape.areaComputed = polygonArea(ring);
+      const exteriorArea = polygonArea(ring);
+      const exteriorCentroid = polygonCentroid(ring);
+      let filledArea = exteriorArea;
+      let centroidXMoment = exteriorCentroid.x * exteriorArea;
+      let centroidYMoment = exteriorCentroid.y * exteriorArea;
+      shape._voidRings = [];
+      voids.forEach(voidContour => {
+        const voidRing = flattenBoundary(voidContour.boundary);
+        voidContour._ring = voidRing;
+        if (voidRing.length < 3) return;
+        shape._voidRings.push(voidRing);
+        const voidArea = polygonArea(voidRing);
+        const voidCentroid = polygonCentroid(voidRing);
+        filledArea -= voidArea;
+        centroidXMoment -= voidCentroid.x * voidArea;
+        centroidYMoment -= voidCentroid.y * voidArea;
+      });
+      shape.areaComputed = Math.max(0, filledArea);
       if (!(shape.area > 0)) {
         shape.area = shape.areaComputed;
         shape.areaMm2 = shape.area * MM_PER_MIL * MM_PER_MIL;
       }
-      const c = polygonCentroid(ring);
-      if (isFinite(c.x) && isFinite(c.y)) shape.centroid = c;
+      if (filledArea > 1e-12) {
+        const c = { x: centroidXMoment / filledArea, y: centroidYMoment / filledArea };
+        if (isFinite(c.x) && isFinite(c.y)) shape.centroid = c;
+      }
     }
 
     return shape;
@@ -301,6 +366,7 @@
   return {
     expandLayerRange: expandLayerRange,
     parsePcbElements: parsePcbElements,
+    parseShapeContours: parseShapeContours,
     parseShapeBlock: parseShapeBlock,
     parseViaBlock: parseViaBlock,
     parseTraceBlock: parseTraceBlock

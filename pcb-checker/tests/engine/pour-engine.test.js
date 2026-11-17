@@ -366,4 +366,66 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   console.log('  PASS  孤立小铜皮：按轮廓点内判定 + 同层过滤（不再用「质心 30 mil 内」近似）');
 }
 
-console.log('\n结果: 全部 13 项铜皮检查单元测试通过！');
+// 13. Allegro Shape：Exterior + 重复 Void，Original Boundary 不得混入真实铜皮
+{
+  const txt = fs.readFileSync(path.join(__dirname, '../../sample/shape-with-voids.txt'), 'utf8');
+  const parsed = parsePcbElements(txt);
+  assert.deepStrictEqual(parsed.shapes.map(shape => shape.id), [1, 2, 308]);
+
+  const item1 = parsed.shapes[0];
+  assert.strictEqual(item1.boundary.length, 4, 'Item 1 exterior 应只有四条边');
+  assert.strictEqual(item1.voids.length, 2, 'Item 1 应保留两个有序 Void');
+  assert.strictEqual(item1.voids[0].boundary.length, 4);
+  assert.strictEqual(item1.voids[1].boundary.length, 1);
+  assert.strictEqual(item1.arcs.length, 1, 'Void 圆弧也应进入 Shape 圆弧检查集合');
+  assert.strictEqual(item1.bbox.minX, 0, 'Original Boundary 的 -500 不得污染 bbox');
+  assert.strictEqual(item1.bbox.maxX, 100, 'Original Boundary 的 500 不得污染 bbox');
+  assert.ok(Math.abs(item1.areaComputed - item1.areaReported) < 2.5,
+    `扣除 Void 后面积应接近报告值，实得 ${item1.areaComputed}`);
+  assert.strictEqual(PourChecker.shapeRings(item1).length, 3, '应缓存 exterior + 两个 Void 环');
+  console.log('  PASS  Allegro Shape：重复 Void 有序解析，Original Boundary 与真实铜皮隔离');
+}
+
+// 14. 全圆 exterior / Void 的 CW、CCW 方向和孔洞距离必须正确
+{
+  const txt = fs.readFileSync(path.join(__dirname, '../../sample/shape-with-voids.txt'), 'utf8');
+  const item2 = parsePcbElements(txt).shapes.find(shape => shape.id === 2);
+  assert.strictEqual(item2.boundary[0].ccw, true);
+  assert.strictEqual(item2.voids[0].boundary[0].ccw, false, 'CW 全圆 Void 方向应保留');
+  assert.ok(item2._ring.length > 60 && item2._voidRings[0].length > 30, '全圆应完整离散而非退化为单点');
+  assert.strictEqual(PourChecker.pointToShapeDistance(30, 0, item2), 0, '圆环铜区内距离应为 0');
+  assert.ok(Math.abs(PourChecker.pointToShapeDistance(0, 0, item2) - 20) < 1e-6,
+    'Void 中心到铜皮的距离应为内圆半径 20');
+  assert.strictEqual(PourChecker.pointInShape(0, 0, item2), false, 'Void 中心不是铜');
+  assert.strictEqual(PourChecker.pointInShape(30, 0, item2), true, '圆环区域是铜');
+  console.log('  PASS  全圆 Shape/Void：CW/CCW 保真，孔洞不再被判为铜');
+}
+
+// 15. Item 308 混合直线/圆弧孔洞同时用于几何检查与参考层覆盖
+{
+  const txt = fs.readFileSync(path.join(__dirname, '../../sample/shape-with-voids.txt'), 'utf8');
+  const item308 = parsePcbElements(txt).shapes.find(shape => shape.id === 308);
+  assert.deepStrictEqual(item308.boundary.map(seg => seg.type),
+    ['line', 'arc', 'line', 'arc', 'line', 'line']);
+  assert.deepStrictEqual(item308.voids[0].boundary.map(seg => seg.type),
+    ['line', 'arc', 'line', 'arc']);
+  assert.strictEqual(PourChecker.pointInShape(50, 50, item308), false, '胶囊形 Void 内不是铜');
+  assert.ok(Math.abs(PourChecker.pointToShapeDistance(50, 50, item308) - 10) < 0.01,
+    '胶囊形 Void 中心到铜边距离应为 10 mil');
+
+  const isolated = checkIsolatedSmallCopper([
+    Object.assign({}, item308, { area: 100, areaMm2: 0.0645 })
+  ], [{ id: 88, x: 50, y: 50, layer: '19IS08' }], 500);
+  assert.strictEqual(isolated[0].containsVia, false, '落在 Void 中的过孔不能算作落在铜皮上');
+
+  const item2 = parsePcbElements(txt).shapes.find(shape => shape.id === 2);
+  const margin = checkTraceReferenceMargin([{
+    id: 99, layer: 'L1', net: 'TEST', width: 2,
+    segments: [{ type: 'line', x1: -30, y1: 0, x2: 30, y2: 0, width: 2, len: 60 }]
+  }], [item2], [{ traceLayer: 'L1', upperRefLayer: '02G01P', lowerRefLayer: '', minMargin: 1 }]);
+  assert.strictEqual(margin.length, 1);
+  assert.strictEqual(margin[0].pass, false, '走线穿过 Void 时参考层覆盖必须判失败');
+  console.log('  PASS  Item 308：混合线/弧 Void 参与点内、距离、孤铜与参考层覆盖检查');
+}
+
+console.log('\n结果: 全部 16 项铜皮检查单元测试通过！');

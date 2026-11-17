@@ -91,11 +91,14 @@
    * 把铜皮轮廓（直线 + 圆弧）离散成闭合多边形环。
    * 圆弧按弦高误差 tol(mil) 自适应分段，默认 0.05 mil。
    */
-  function flattenBoundary(shape, tol) {
-    if (!shape || !shape.boundary || !shape.boundary.length) return [];
+  function flattenBoundary(shapeOrBoundary, tol) {
+    const boundary = Array.isArray(shapeOrBoundary)
+      ? shapeOrBoundary
+      : (shapeOrBoundary && shapeOrBoundary.boundary);
+    if (!boundary || !boundary.length) return [];
     const maxErr = tol || 0.05;
     const ring = [];
-    for (const seg of shape.boundary) {
+    for (const seg of boundary) {
       if (seg.type === 'line') {
         ring.push([seg.x1, seg.y1]);
       } else {
@@ -168,13 +171,62 @@
     return inside;
   }
 
-  /** 铜皮多边形环（带缓存），没有几何数据时返回空 */
+  /** 铜皮外轮廓多边形环（带缓存），没有几何数据时返回空 */
   function shapeRing(shape) {
     if (!shape) return [];
-    if (shape._ring) return shape._ring;
+    if (Array.isArray(shape._ring)) return shape._ring;
     if (!shape.boundary || !shape.boundary.length) return [];
-    shape._ring = flattenBoundary(shape);
+    shape._ring = flattenBoundary(shape.boundary);
     return shape._ring;
+  }
+
+  /** 铜皮全部轮廓：第一个是 exterior，其余是按报告顺序排列的 Void。 */
+  function shapeRings(shape) {
+    const exterior = shapeRing(shape);
+    if (!exterior.length) return [];
+    if (Array.isArray(shape._voidRings)) return [exterior].concat(shape._voidRings);
+    shape._voidRings = (shape.voids || []).map(voidContour => {
+      if (Array.isArray(voidContour._ring)) return voidContour._ring;
+      const ring = flattenBoundary(voidContour.boundary || voidContour);
+      if (voidContour && !Array.isArray(voidContour)) voidContour._ring = ring;
+      return ring;
+    }).filter(ring => ring.length >= 3);
+    return [exterior].concat(shape._voidRings);
+  }
+
+  /** 与 Canvas evenodd 填充一致的铜皮点内判定：Void 内部不是铜。 */
+  function pointInShape(px, py, shape) {
+    const rings = shapeRings(shape);
+    if (!rings.length || !pointInPolygon(px, py, rings[0])) return false;
+    let inside = true;
+    for (let i = 1; i < rings.length; i++) {
+      if (pointInPolygon(px, py, rings[i])) inside = !inside;
+    }
+    return inside;
+  }
+
+  function shapeBoundaries(shape) {
+    const boundaries = [];
+    if (shape && shape.boundary && shape.boundary.length) boundaries.push(shape.boundary);
+    (shape && shape.voids || []).forEach(voidContour => {
+      const boundary = voidContour && (voidContour.boundary || voidContour);
+      if (boundary && boundary.length) boundaries.push(boundary);
+    });
+    return boundaries;
+  }
+
+  /** 点到 exterior 或任一 Void 边缘的精确最短距离。 */
+  function pointToShapeBoundaryDistance(px, py, shape) {
+    let minD = Infinity;
+    shapeBoundaries(shape).forEach(boundary => {
+      boundary.forEach(seg => {
+        const d = seg.type === 'line'
+          ? pointToSegmentDist(px, py, seg.x1, seg.y1, seg.x2, seg.y2)
+          : pointToArcDistance(px, py, seg);
+        if (d < minD) minD = d;
+      });
+    });
+    return minD;
   }
 
   /**
@@ -198,26 +250,18 @@
 
     // 圆形铜皮快捷计算：仅当确实是「整圆」时才走这条路径
     // （单段圆弧 + 一段弦（D 形铜皮）不是圆，必须按真实轮廓算）
-    if (shape.arcs && shape.arcs.length === 1 && shape.boundary.length <= 2 &&
+    if ((!shape.voids || shape.voids.length === 0) && shape.arcs && shape.arcs.length === 1 && shape.boundary.length <= 2 &&
         Math.abs(arcSpanOf(shape.arcs[0]) - 2 * Math.PI) < 1e-6) {
       const arc = shape.arcs[0];
       const dCenter = dist2D(px, py, arc.cx, arc.cy);
       return dCenter <= arc.radius ? 0 : dCenter - arc.radius;
     }
 
-    // 真实的内外判定：在多边形环内部才是 0（环形/带孔铜皮的中心不再误判为贴合）
-    const ring = shapeRing(shape);
-    if (ring.length >= 3 && pointInPolygon(px, py, ring)) return 0;
+    // 真实的内外判定：只有 exterior 内且不在 Void 内才是铜。
+    if (pointInShape(px, py, shape)) return 0;
 
-    // 细算点到所有边界段的最短距离（圆弧按扫掠角取精确最近点）
-    let minD = Infinity;
-    for (const seg of shape.boundary) {
-      const d = seg.type === 'line'
-        ? pointToSegmentDist(px, py, seg.x1, seg.y1, seg.x2, seg.y2)
-        : pointToArcDistance(px, py, seg);
-      if (d < minD) minD = d;
-    }
-
+    // 位于 Void 内时，距离应取到 Void 边缘；位于外部时取到 exterior/边缘。
+    const minD = pointToShapeBoundaryDistance(px, py, shape);
     if (minD === Infinity) {
       const dxBox = Math.max(0, b.minX - px, px - b.maxX);
       const dyBox = Math.max(0, b.minY - py, py - b.maxY);
@@ -255,6 +299,9 @@
     polygonCentroid: polygonCentroid,
     pointInPolygon: pointInPolygon,
     shapeRing: shapeRing,
+    shapeRings: shapeRings,
+    pointInShape: pointInShape,
+    pointToShapeBoundaryDistance: pointToShapeBoundaryDistance,
     pointToShapeDistance: pointToShapeDistance,
     isPointInsideBBox: isPointInsideBBox,
     pointToSegmentDist: pointToSegmentDist
