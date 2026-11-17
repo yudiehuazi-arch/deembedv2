@@ -286,6 +286,88 @@
     const projY = y1 + t * dy;
     return dist2D(px, py, projX, projY);
   }
+
+  function physicalLayerAlias(layer) {
+    const key = String(layer || '').trim().toUpperCase();
+    if (!key) return '';
+    if (key === 'TOP') return 'L1';
+    const logical = key.match(/^L0*(\d+)$/);
+    const allegro = key.match(/^0*(\d{1,2})(?=[A-Z])/);
+    return logical || allegro ? `L${parseInt((logical || allegro)[1], 10)}` : key;
+  }
+
+  function gridKey(gx, gy) { return gx + ',' + gy; }
+
+  /** 点对象空间网格，用于过孔/质心的局部半径查询。 */
+  function buildPointGrid(items, cellSize, pointGetter) {
+    const size = Math.max(1, cellSize || 100);
+    const getter = pointGetter || (item => ({ x: item.x, y: item.y }));
+    const cells = new Map();
+    (items || []).forEach(item => {
+      const point = getter(item);
+      if (!point || !isFinite(point.x) || !isFinite(point.y)) return;
+      const key = gridKey(Math.floor(point.x / size), Math.floor(point.y / size));
+      if (!cells.has(key)) cells.set(key, []);
+      cells.get(key).push(item);
+    });
+    return { cellSize: size, cells, pointGetter: getter };
+  }
+
+  function queryPointGrid(index, minX, minY, maxX, maxY) {
+    if (!index) return [];
+    const size = index.cellSize;
+    const result = [];
+    for (let gx = Math.floor(minX / size); gx <= Math.floor(maxX / size); gx++) {
+      for (let gy = Math.floor(minY / size); gy <= Math.floor(maxY / size); gy++) {
+        const bucket = index.cells.get(gridKey(gx, gy)) || [];
+        bucket.forEach(item => {
+          const point = index.pointGetter(item);
+          if (point.x >= minX && point.x <= maxX && point.y >= minY && point.y <= maxY) result.push(item);
+        });
+      }
+    }
+    return result;
+  }
+
+  /** BBox 空间网格；跨越过多网格的整板大铜皮单独保存，避免索引内存膨胀。 */
+  function buildBBoxGrid(items, cellSize) {
+    const size = Math.max(1, cellSize || 100);
+    const cells = new Map();
+    const largeItems = [];
+    (items || []).forEach(item => {
+      const b = item && item.bbox;
+      if (!b) return;
+      const minGX = Math.floor(b.minX / size), maxGX = Math.floor(b.maxX / size);
+      const minGY = Math.floor(b.minY / size), maxGY = Math.floor(b.maxY / size);
+      if ((maxGX - minGX + 1) * (maxGY - minGY + 1) > 256) {
+        largeItems.push(item);
+        return;
+      }
+      for (let gx = minGX; gx <= maxGX; gx++) {
+        for (let gy = minGY; gy <= maxGY; gy++) {
+          const key = gridKey(gx, gy);
+          if (!cells.has(key)) cells.set(key, []);
+          cells.get(key).push(item);
+        }
+      }
+    });
+    return { cellSize: size, cells, largeItems };
+  }
+
+  function queryBBoxGrid(index, minX, minY, maxX, maxY) {
+    if (!index) return [];
+    const size = index.cellSize;
+    const candidates = new Set(index.largeItems || []);
+    for (let gx = Math.floor(minX / size); gx <= Math.floor(maxX / size); gx++) {
+      for (let gy = Math.floor(minY / size); gy <= Math.floor(maxY / size); gy++) {
+        (index.cells.get(gridKey(gx, gy)) || []).forEach(item => candidates.add(item));
+      }
+    }
+    return Array.from(candidates).filter(item => {
+      const b = item.bbox;
+      return b && b.maxX >= minX && b.minX <= maxX && b.maxY >= minY && b.minY <= maxY;
+    });
+  }
   return {
     MM_PER_MIL: MM_PER_MIL,
     MIL_PER_MM: MIL_PER_MM,
@@ -304,6 +386,11 @@
     pointToShapeBoundaryDistance: pointToShapeBoundaryDistance,
     pointToShapeDistance: pointToShapeDistance,
     isPointInsideBBox: isPointInsideBBox,
-    pointToSegmentDist: pointToSegmentDist
+    pointToSegmentDist: pointToSegmentDist,
+    physicalLayerAlias: physicalLayerAlias,
+    buildPointGrid: buildPointGrid,
+    queryPointGrid: queryPointGrid,
+    buildBBoxGrid: buildBBoxGrid,
+    queryBBoxGrid: queryBBoxGrid
   };
 });

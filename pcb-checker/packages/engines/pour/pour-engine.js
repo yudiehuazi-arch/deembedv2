@@ -14,19 +14,11 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
   var pointToShapeDistance = geom.pointToShapeDistance, isPointInsideBBox = geom.isPointInsideBBox;
   var shapeRing = geom.shapeRing, pointInShape = geom.pointInShape;
   var pointToShapeBoundaryDistance = geom.pointToShapeBoundaryDistance;
+  var buildPointGrid = geom.buildPointGrid, queryPointGrid = geom.queryPointGrid;
+  var buildBBoxGrid = geom.buildBBoxGrid, queryBBoxGrid = geom.queryBBoxGrid, physicalLayerAlias = geom.physicalLayerAlias;
   var expandLayerRange = parser.expandLayerRange, parsePcbElements = parser.parsePcbElements;
   var parseShapeBlock = parser.parseShapeBlock;
   var SPECIAL_SHAPE_CENTER_DISTANCE_TOLERANCE = 0.01;
-  // 将规则里的 L1/L2… 与 Allegro 的 Top/02G01P/08IS03… 物理层名对齐。
-  function physicalLayerAlias(layer) {
-    const key = String(layer || '').trim().toUpperCase();
-    if (!key) return '';
-    if (key === 'TOP') return 'L1';
-    const logical = key.match(/^L0*(\d+)$/);
-    const allegro = key.match(/^0*(\d{1,2})(?=[A-Z])/);
-    if (logical || allegro) return `L${parseInt((logical || allegro)[1], 10)}`;
-    return key;
-  }
   function checkViaLayerCoverage(vias, shapes, rules = [], availableLayers = []) {
     const results = [];
     const shapesByLayer = new Map();
@@ -39,6 +31,8 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
         shapesByLayer.get(l).push(s);
       });
     });
+    const shapeIndexes = new Map();
+    shapesByLayer.forEach((layerShapes, layer) => shapeIndexes.set(layer, buildBBoxGrid(layerShapes, 100)));
     for (let rIdx = 0; rIdx < rules.length; rIdx++) {
       const rule = rules[rIdx];
       const padPattern = (rule.padstack || '').trim().toLowerCase();
@@ -51,7 +45,9 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
       for (const via of matchedVias) {
         for (const layer of targetLayers) {
           const lKey = layer.trim().toUpperCase();
-          const layerShapes = shapesByLayer.get(lKey) || shapesByLayer.get(physicalLayerAlias(lKey)) || [];
+          const shapeIndex = shapeIndexes.get(lKey) || shapeIndexes.get(physicalLayerAlias(lKey));
+          const nearbyRadius = Math.max(radiusThresh * 2, radiusThresh + 10);
+          const layerShapes = queryBBoxGrid(shapeIndex, via.x - nearbyRadius, via.y - nearbyRadius, via.x + nearbyRadius, via.y + nearbyRadius);
           let minCopperDist = Infinity;
           let nearestShape = null;
           for (const shape of layerShapes) {
@@ -81,33 +77,27 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
     }
     return results;
   }
-  function findAssociatedShape(via, layerShapes) {
+  function findAssociatedShape(via, shapeIndex) {
     let bestShape = null;
     let minCenterDist = Infinity;
-    layerShapes.forEach(shape => {
+    queryPointGrid(shapeIndex, via.x - 120, via.y - 120, via.x + 120, via.y + 120).forEach(shape => {
       const distance = dist2D(via.x, via.y, shape.centroid.x, shape.centroid.y);
-      if (distance < minCenterDist && distance <= 120.0) {
-        minCenterDist = distance;
-        bestShape = shape;
-      }
+      if (distance < minCenterDist && distance <= 120.0) { minCenterDist = distance; bestShape = shape; }
     });
     return bestShape;
   }
-  function findNearbySameNetHdi(via, vias, maxDistanceMil) {
-    const net = String(via.net || '').trim().toLowerCase();
+  function findNearbySameNetHdi(via, hdiIndex, maxDistanceMil) {
     let nearest = null;
     let nearestDistance = Infinity;
-    if (!net || !(maxDistanceMil > 0)) return null;
-    (vias || []).forEach(candidate => {
-      if (candidate === via || !String(candidate.padstack || '').toLowerCase().includes('hdi')) return;
-      if (String(candidate.net || '').trim().toLowerCase() !== net) return;
+    if (!hdiIndex || !(maxDistanceMil > 0)) return null;
+    queryPointGrid(hdiIndex, via.x - maxDistanceMil, via.y - maxDistanceMil, via.x + maxDistanceMil, via.y + maxDistanceMil).forEach(candidate => {
+      if (candidate === via) return;
       const distance = dist2D(via.x, via.y, candidate.x, candidate.y);
       const isNearer = distance < nearestDistance - 1e-9;
       const isStableTie = Math.abs(distance - nearestDistance) <= 1e-9 && (!nearest ||
         String(candidate.id).localeCompare(String(nearest.id), undefined, { numeric: true }) < 0);
       if (distance <= maxDistanceMil + 1e-9 && (isNearer || isStableTie)) {
-        nearest = candidate;
-        nearestDistance = distance;
+        nearest = candidate; nearestDistance = distance;
       }
     });
     return nearest ? { via: nearest, distance: nearestDistance } : null;
@@ -120,6 +110,19 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
       if (!shapesByLayer.has(layer)) shapesByLayer.set(layer, []);
       shapesByLayer.get(layer).push(shape);
     });
+    const shapeIndexes = new Map();
+    shapesByLayer.forEach((layerShapes, layer) => {
+      const index = buildPointGrid(layerShapes, 120, shape => shape.centroid);
+      shapeIndexes.set(layer, index); if (!shapeIndexes.has(physicalLayerAlias(layer))) shapeIndexes.set(physicalLayerAlias(layer), index);
+    });
+    const hdiByNet = new Map();
+    vias.forEach(via => {
+      if (!String(via.padstack || '').toLowerCase().includes('hdi')) return;
+      const net = String(via.net || '').trim().toLowerCase();
+      if (!hdiByNet.has(net)) hdiByNet.set(net, []); hdiByNet.get(net).push(via);
+    });
+    const hdiIndexes = new Map();
+    hdiByNet.forEach((netVias, net) => hdiIndexes.set(net, buildPointGrid(netVias, 20)));
     templates.forEach((tmpl, tIdx) => {
       const padPattern = (tmpl.padstack || '').trim().toLowerCase();
       const targetLayers = [...new Set(expandLayerRange(tmpl.layer, [...shapesByLayer.keys()])
@@ -135,10 +138,11 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
       const matchedVias = vias.filter(via => !padPattern || padPattern === '*' ||
         via.padstack.toLowerCase().includes(padPattern));
       matchedVias.forEach(via => {
-        const nearbyHdi = findNearbySameNetHdi(via, vias, hdiSearchRadiusMil);
+        const netKey = String(via.net || '').trim().toLowerCase();
+        const nearbyHdi = findNearbySameNetHdi(via, hdiIndexes.get(netKey), hdiSearchRadiusMil);
         if (!nearbyHdi || Math.abs(nearbyHdi.distance - expectedCenterDistance) > SPECIAL_SHAPE_CENTER_DISTANCE_TOLERANCE) return;
         targetLayers.forEach(targetLayer => {
-          const bestShape = findAssociatedShape(via, shapesByLayer.get(targetLayer) || []);
+          const bestShape = findAssociatedShape(via, shapeIndexes.get(targetLayer));
           let isMatch = false;
           let failReason = '';
           if (!bestShape) {
@@ -180,6 +184,12 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
       if (!shapesByLayer.has(l)) shapesByLayer.set(l, []);
       shapesByLayer.get(l).push(s);
     });
+    const shapeIndexes = new Map();
+    shapesByLayer.forEach((layerShapes, layer) => {
+      const index = buildBBoxGrid(layerShapes, 100);
+      shapeIndexes.set(layer, index);
+      if (!shapeIndexes.has(physicalLayerAlias(layer))) shapeIndexes.set(physicalLayerAlias(layer), index);
+    });
     for (let rIdx = 0; rIdx < rules.length; rIdx++) {
       const rule = rules[rIdx];
       const traceLayer = (rule.traceLayer || '').trim().toUpperCase();
@@ -192,8 +202,8 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
         if (upperRef) refsToCheck.push({ name: upperRef, type: '上参考层' });
         if (lowerRef) refsToCheck.push({ name: lowerRef, type: '下参考层' });
         for (const ref of refsToCheck) {
-          const refShapes = shapesByLayer.get(ref.name) || [];
-          if (refShapes.length === 0) {
+          const refIndex = shapeIndexes.get(ref.name) || shapeIndexes.get(physicalLayerAlias(ref.name));
+          if (!refIndex) {
             results.push({
               checkCategory: 'trace_ref_margin',
               checkCategoryName: '③ 走线参考层超宽检查',
@@ -213,23 +223,6 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
           let minObservedMargin = Infinity;
           let coveredCount = 0;
           let totalSamples = 0;
-          if (refShapes.length === 0) {
-            results.push({
-              checkCategory: 'trace_ref_margin',
-              checkCategoryName: '③ 走线参考层超宽检查',
-              ruleIndex: rIdx + 1,
-              traceId: trace.id,
-              traceNet: trace.net,
-              traceLayer: trace.layer,
-              refLayer: ref.name,
-              refType: ref.type,
-              minMargin: marginThresh,
-              actualMargin: 0,
-              pass: false,
-              message: `❌ 不符合：走线【${trace.net}】在 ${ref.type}【${ref.name}】无任何铺铜覆盖（实测外延 0 mil < 规则阈值 ${marginThresh} mil）`
-            });
-            continue;
-          }
           for (const seg of trace.segments) {
             const samplePts = [];
             if (seg.type === 'line') {
@@ -258,7 +251,8 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
             for (const pt of samplePts) {
               totalSamples++;
               let ptMargin = -1;
-              for (const shape of refShapes) {
+              const nearbyShapes = queryBBoxGrid(refIndex, pt.x, pt.y, pt.x, pt.y);
+              for (const shape of nearbyShapes) {
                 const hasOutline = !!(shape.boundary && shape.boundary.length);
                 const isCovered = hasOutline
                   ? pointInShape(pt.x, pt.y, shape)
@@ -311,11 +305,17 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
   }
   function checkIsolatedSmallCopper(shapes, vias, maxAreaThreshold = 500.0) {
     const results = [];
+    const viaIndex = buildPointGrid(vias, 100);
     for (const shape of shapes) {
       if (shape.area > 0 && shape.area < maxAreaThreshold) {
         const ring = shapeRing(shape);
         const hasRing = ring.length >= 3;
-        const layerVias = vias.filter(v => !v.layer || !shape.layer || v.layer === shape.layer);
+        const b = hasRing && shape.bbox ? shape.bbox : {
+          minX: shape.centroid.x - 30, minY: shape.centroid.y - 30,
+          maxX: shape.centroid.x + 30, maxY: shape.centroid.y + 30
+        };
+        const layerVias = queryPointGrid(viaIndex, b.minX, b.minY, b.maxX, b.maxY)
+          .filter(v => !v.layer || !shape.layer || physicalLayerAlias(v.layer) === physicalLayerAlias(shape.layer));
         let containsVia = false;
         let viaInsideId = null;
         for (const via of layerVias) {
