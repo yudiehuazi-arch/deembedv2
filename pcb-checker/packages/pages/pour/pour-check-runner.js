@@ -6,7 +6,7 @@
   if (typeof document === 'undefined') return;
 
   var State = root.State;
-  var WORKER_URL = 'packages/pages/pour/pour-check-worker.js?v=42';
+  var WORKER_URL = 'packages/pages/pour/pour-check-worker.js?v=43';
   var LARGE_FILE_LIMIT = 2 * 1024 * 1024;
   var PREVIEW_CHARS = 200000;
   var IDLE_BUTTON_TEXT = '▶ 运行铜皮五项检查';
@@ -149,11 +149,13 @@
     State.canvas.hasInitialFit = false;
     State.canvas.highlightShapeIds = [];
     State.canvas.activeProblem = null;
+    State.canvas.defectFilter = 'all';
     State.canvas.shapeLayerMode = 'all';
     State.canvas.visibleShapeLayers = [];
     State.canvas.problemShapeLayers = [];
     State.canvas.returnPosition = null;
     if (typeof root.refreshCanvasShapeLayerOptions === 'function') root.refreshCanvasShapeLayerOptions();
+    if (typeof root.refreshCanvasDefectButtons === 'function') root.refreshCanvasDefectButtons();
     var returnButton = document.getElementById('btnReturnPourResults');
     if (returnButton) returnButton.style.display = 'none';
     if (typeof root.updateTopKPIs === 'function') root.updateTopKPIs();

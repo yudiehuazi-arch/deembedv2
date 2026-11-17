@@ -95,6 +95,7 @@
       showTraces: true,
       showPorts: true,
       showDefects: true,
+      defectFilter: 'all',
       measureMode: false,
       measurePoints: [],
       highlightShapeIds: [],

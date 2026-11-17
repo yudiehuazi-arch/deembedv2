@@ -439,29 +439,9 @@
         }
       });
     }
-    /* 5. 缺陷信标 */
-    if (State.canvas.showDefects && State.summary) {
-      (State.rawResults || []).filter(function (r) { return !r.pass; }).forEach(function (d) {
-        var dx = 0, dy = 0;
-        if (d.viaCoord) { dx = d.viaCoord[0]; dy = d.viaCoord[1]; }
-        else if (d.centroid) { dx = d.centroid.x; dy = d.centroid.y; }
-        else if (d.centerCoord) { dx = d.centerCoord[0]; dy = d.centerCoord[1]; }
-        if (dx !== 0 || dy !== 0) {
-          var sp = worldToScreen(dx, dy);
-          ctx.save();
-          ctx.strokeStyle = '#ef4444';
-          ctx.lineWidth = 2;
-          ctx.setLineDash([3, 2]);
-          ctx.beginPath();
-          ctx.arc(sp.x, sp.y, Math.max(12, 15 * State.canvas.zoom), 0, Math.PI * 2);
-          ctx.stroke();
-          ctx.fillStyle = '#ef4444';
-          ctx.beginPath();
-          ctx.arc(sp.x, sp.y, 4, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.restore();
-        }
-      });
+    /* 5. 五类异常位置标记 */
+    if (State.canvas.showDefects && State.summary && typeof root.drawPourDefectMarkers === 'function') {
+      root.drawPourDefectMarkers(ctx, worldToScreen);
     }
     /* 6. 两点测距标尺 */
     if (State.canvas.measurePoints.length > 0) {

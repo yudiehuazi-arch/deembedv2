@@ -422,7 +422,8 @@
       }
     });
 
-    var h = '<div class="card">';
+    var h = root.PourDefectSummary ? root.PourDefectSummary.render(defects, State) : '';
+    h += '<div class="card">';
     h += '<h3 style="margin-top:0;color:var(--heading)">各规则不符合原因与目标网络映射明细' +
       (badTotal ? (' · 共 <span style="color:var(--bad)">' + badTotal + '</span> 条') : '') + '</h3>';
 

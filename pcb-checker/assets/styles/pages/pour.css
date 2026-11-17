@@ -203,6 +203,14 @@ canvas#mainCanvas:active {
   color: #f8fafc;
 }
 
+.canvas-defect-filters {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-left: 6px;
+  border-left: 1px solid rgba(148, 163, 184, 0.35);
+}
+
 .canvas-toolbar button:hover,
 .canvas-toolbar select:hover {
   background: rgba(255, 255, 255, 0.2);
@@ -301,6 +309,79 @@ canvas#mainCanvas:active {
   font-size: 12px;
   line-height: 1.65;
   color: #374151;
+}
+
+/* 缺陷总结表 */
+.pour-defect-summary {
+  margin-bottom: 14px;
+}
+
+.pour-defect-summary-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.pour-defect-summary-head h3 {
+  margin: 0 0 3px;
+  color: var(--heading);
+  font-size: 15px;
+}
+
+.pour-defect-summary-table {
+  table-layout: fixed;
+  min-width: 980px;
+}
+
+.pour-defect-summary-table th:nth-child(1) { width: 18%; }
+.pour-defect-summary-table th:nth-child(2) { width: 13%; }
+.pour-defect-summary-table th:nth-child(3) { width: 18%; }
+.pour-defect-summary-table th:nth-child(4) { width: 23%; }
+.pour-defect-summary-table th:nth-child(5) { width: 28%; }
+
+.pour-defect-summary-table td {
+  vertical-align: top;
+  line-height: 1.5;
+}
+
+.pour-defect-type {
+  display: inline-flex;
+  padding: 3px 7px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--defect-color);
+  border-radius: 5px;
+  background: var(--surface-subtle);
+  color: var(--heading);
+  font-weight: 700;
+}
+
+.pour-defect-fix {
+  color: #374151;
+  font-weight: 600;
+}
+
+.pour-defect-board img {
+  display: block;
+  width: 100%;
+  max-width: 230px;
+  height: 112px;
+  object-fit: cover;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  background: #07111f;
+}
+
+.pour-defect-board div {
+  margin-top: 5px;
+  color: var(--sub);
+  font-family: var(--mono);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.pour-defect-summary-empty {
+  padding: 14px 0;
 }
 
 /* 异型铜皮预览小窗 */

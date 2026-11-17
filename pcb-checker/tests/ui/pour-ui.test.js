@@ -34,6 +34,15 @@ test('三栏 EDA 壳层完整、悬浮 Tips 正常、静态标题/标签无括�
   if (!d.querySelector('aside.eda-right-dock .global-display-ctrl')) throw new Error('显示控制区不在右工具栏');
   const tabs = d.querySelectorAll('nav#tabs button');
   if (tabs.length !== 5) throw new Error('页签数量应为 5，实际 ' + tabs.length);
+  ['btnToggleVias', 'btnToggleTraces', 'btnTogglePorts'].forEach(id => {
+    if ($(id)) throw new Error('几何工具栏仍显示已移除的选项：' + id);
+  });
+  if (!w.State.canvas.showVias || !w.State.canvas.showTraces || !w.State.canvas.showPorts) {
+    throw new Error('过孔、走线和端口未保持默认显示');
+  }
+  ['btnCanvasDefectCov', 'btnCanvasDefectSpecial', 'btnCanvasDefectMargin', 'btnCanvasDefectSmall', 'btnCanvasDefectArc'].forEach(id => {
+    if (!$(id)) throw new Error('几何工具栏缺少五类异常按钮：' + id);
+  });
 
   [...d.querySelectorAll('h1, h2, h3, nav#tabs button, .form-item label, th')].forEach(el => {
     if (/[（(].+[)）]/.test(el.textContent)) {
@@ -384,13 +393,19 @@ Item 3 < Via >
   if ($('selCanvasShapeLayer').value !== '__PROBLEM__' || !$('pourCanvasRevBody').textContent.includes('当前仅显示问题层铜皮：Top')) {
     throw new Error('问题层选择状态或定位提示未同步');
   }
+  w.setCanvasDefectFilter('via_coverage');
+  if (w.State.canvas.defectFilter !== 'via_coverage' || !$('btnCanvasDefectCov').classList.contains('active')) {
+    throw new Error('几何视图未切换到孔层铺铜异常结果');
+  }
   const originalShapeRings = w.PourChecker.shapeRings;
   const renderedShapeLayers = [];
+  const markerTexts = [];
   const canvas = $('mainCanvas');
   const originalGetContext = canvas.getContext;
   canvas.getContext = () => ({
     clearRect() {}, fillRect() {}, save() {}, restore() {}, beginPath() {}, moveTo() {}, lineTo() {},
-    closePath() {}, fill() {}, stroke() {}, arc() {}, fillText() {}, setLineDash() {},
+    closePath() {}, fill() {}, stroke() {}, arc() {}, setLineDash() {},
+    fillText(text) { markerTexts.push(String(text)); },
     measureText() { return { width: 0 }; }
   });
   w.PourChecker.shapeRings = shape => {
@@ -403,6 +418,7 @@ Item 3 < Via >
   if (renderedShapeLayers.join(',') !== 'Top') {
     throw new Error('定位画布仍绘制了非问题层铜皮：' + renderedShapeLayers.join(','));
   }
+  if (!markerTexts.includes('1')) throw new Error('孔所在位置未绘制第 1 类特殊异常标记');
   if ($('btnReturnPourResults').style.display === 'none') throw new Error('定位后未显示返回结果明细按钮');
 
   w.returnToPourResults();
@@ -413,6 +429,21 @@ Item 3 < Via >
   if (!returnedRow || !returnedRow.classList.contains('pour-located-flash')) {
     throw new Error('返回后未恢复并框选原定位条目');
   }
+
+  w.switchTab('tabAnalysis');
+  const summaryTable = d.querySelector('.pour-defect-summary-table');
+  const summaryHeads = [...summaryTable.querySelectorAll('th')].map(th => th.textContent.trim());
+  if (summaryHeads.join('/') !== '孔 Padstack/网络/异常类型/如何修改/板上位置') {
+    throw new Error('缺陷总结表列异常：' + summaryHeads.join('/'));
+  }
+  const summaryText = summaryTable.textContent;
+  if (!summaryText.includes('PROBE_STACK') || !summaryText.includes('TEST_N') ||
+      !summaryText.includes('孔层铺铜缺失') || !summaryText.includes('在异常层补铺铜') ||
+      !summaryText.includes('Via #3')) {
+    throw new Error('缺陷总结表未完整显示 Padstack、网络、异常类型、修改建议与板上位置');
+  }
+  const boardImage = summaryTable.querySelector('.pour-defect-board img');
+  if (!boardImage || !boardImage.src.startsWith('data:image/svg+xml')) throw new Error('缺陷总结表缺少板上位置缩略图');
 });
 
 test('走线导入、参考层超宽判定、2D 画布视口定位复核、规律分析与 CSV 导出', () => {

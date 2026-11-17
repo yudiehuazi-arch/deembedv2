@@ -4,11 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PCB 铜皮检查工具</title>
-<link rel="stylesheet" href="assets/styles/tokens.css?v=42">
-<link rel="stylesheet" href="assets/styles/eda-shell.css?v=42">
-<link rel="stylesheet" href="assets/styles/eda-dock.css?v=42">
-<link rel="stylesheet" href="assets/styles/components.css?v=42">
-<link rel="stylesheet" href="assets/styles/pages/pour.css?v=42">
+<link rel="stylesheet" href="assets/styles/tokens.css?v=43">
+<link rel="stylesheet" href="assets/styles/eda-shell.css?v=43">
+<link rel="stylesheet" href="assets/styles/eda-dock.css?v=43">
+<link rel="stylesheet" href="assets/styles/components.css?v=43">
+<link rel="stylesheet" href="assets/styles/pages/pour.css?v=43">
 </head>
 <body class="eda-workbench">
 
@@ -303,10 +303,14 @@
             <select id="selCanvasShapeLayer" data-no-persist onchange="setCanvasShapeLayer(this.value)" data-tip="选择全部层、当前定位的问题层或某一层，仅控制铜皮轮廓显示">
               <option value="__ALL__">铜皮层：全部层</option>
             </select>
-            <button type="button" id="btnToggleVias" class="active" onclick="toggleCanvasLayer('vias')" data-tip="显示或隐藏信号过孔与 GND 接地孔">过孔</button>
-            <button type="button" id="btnToggleTraces" class="active" onclick="toggleCanvasLayer('traces')" data-tip="显示或隐藏直线与圆弧走线段">走线</button>
-            <button type="button" id="btnTogglePorts" class="active" onclick="toggleCanvasLayer('ports')" data-tip="显示或隐藏外围 P1–P4 端口标记">端口</button>
-            <button type="button" id="btnToggleDefects" class="active" onclick="toggleCanvasLayer('defects')" data-tip="显示或隐藏超标位置红色虚线信标">缺陷信标</button>
+            <span class="canvas-defect-filters" data-tip="按五类检查筛选画布上的异常位置标记">
+              <button type="button" id="btnCanvasDefectAll" class="active" onclick="setCanvasDefectFilter('all')">全部异常</button>
+              <button type="button" id="btnCanvasDefectCov" onclick="setCanvasDefectFilter('via_coverage')">① 孔层铺铜</button>
+              <button type="button" id="btnCanvasDefectSpecial" onclick="setCanvasDefectFilter('special_shape')">② 异型铜皮</button>
+              <button type="button" id="btnCanvasDefectMargin" onclick="setCanvasDefectFilter('trace_ref_margin')">③ 参考层超宽</button>
+              <button type="button" id="btnCanvasDefectSmall" onclick="setCanvasDefectFilter('isolated_copper')">④ 孤立小铜皮</button>
+              <button type="button" id="btnCanvasDefectArc" onclick="setCanvasDefectFilter('arc_radius')">⑤ 圆弧半径</button>
+            </span>
             <button type="button" id="btnMeasureMode" onclick="toggleMeasureMode()" data-tip="激活后依次点击画布任意两点测量欧氏距离">测距标尺</button>
             <button type="button" id="btnReturnPourResults" onclick="returnToPourResults()" style="display:none" data-tip="返回检查结果明细，并恢复定位前的条目位置">返回结果明细</button>
           </div>
@@ -343,8 +347,8 @@
               <span>26_P</span>
             </div>
             <div class="legend-item">
-              <div class="legend-color" style="background:#ef4444"></div>
-              <span>缺陷信标</span>
+              <div class="legend-color" style="background:linear-gradient(135deg,#ef4444 0 20%,#a855f7 20% 40%,#f59e0b 40% 60%,#06b6d4 60% 80%,#ec4899 80%)"></div>
+              <span>五类异常位置</span>
             </div>
             <div class="legend-item">
               <div class="legend-color" style="background:rgba(239,68,68,0.45);border:2px solid #f87171"></div>
@@ -566,18 +570,20 @@
   </div>
 </div>
 
-<script src="packages/shared/dom-utils.js?v=42"></script>
-<script src="packages/shared/shape-preview-canvas.js?v=42"></script>
-<script src="packages/engines/pour/pour-geom.js?v=42"></script>
-<script src="packages/engines/pour/pour-parser.js?v=42"></script>
-<script src="packages/engines/pour/pour-engine.js?v=42"></script>
-<script src="packages/pages/pour/pour-state.js?v=42"></script><script src="packages/pages/pour/pour-check-runner.js?v=42"></script>
-<script src="packages/pages/pour/pour-rules-ui.js?v=42"></script>
-<script src="packages/pages/pour/pour-results-ui.js?v=42"></script>
-<script src="packages/pages/pour/pour-canvas-viewer.js?v=42"></script>
-<script src="packages/pages/pour/pour-canvas-navigation.js?v=42"></script>
-<script src="packages/shared/eda-tooltip.js?v=42"></script>
-<script src="packages/shared/eda-shell.js?v=42"></script>
-<script src="packages/shared/ui-prefs.js?v=42"></script>
+<script src="packages/shared/dom-utils.js?v=43"></script>
+<script src="packages/shared/shape-preview-canvas.js?v=43"></script>
+<script src="packages/engines/pour/pour-geom.js?v=43"></script>
+<script src="packages/engines/pour/pour-parser.js?v=43"></script>
+<script src="packages/engines/pour/pour-engine.js?v=43"></script>
+<script src="packages/pages/pour/pour-state.js?v=43"></script><script src="packages/pages/pour/pour-check-runner.js?v=43"></script>
+<script src="packages/pages/pour/pour-rules-ui.js?v=43"></script>
+<script src="packages/pages/pour/pour-results-ui.js?v=43"></script>
+<script src="packages/pages/pour/pour-canvas-viewer.js?v=43"></script>
+<script src="packages/pages/pour/pour-canvas-defects.js?v=43"></script>
+<script src="packages/pages/pour/pour-canvas-navigation.js?v=43"></script>
+<script src="packages/pages/pour/pour-defect-summary.js?v=43"></script>
+<script src="packages/shared/eda-tooltip.js?v=43"></script>
+<script src="packages/shared/eda-shell.js?v=43"></script>
+<script src="packages/shared/ui-prefs.js?v=43"></script>
 </body>
 </html>
