@@ -42,6 +42,14 @@ test('三栏 EDA 壳层完整、悬浮 Tips 正常、静态标题/标签无括�
   w.EdaTooltip.hide();
 });
 
+test('视图一和视图二共用任意关键词全文搜索栏', () => {
+  const search = $('inpSearch');
+  if (!search || !search.placeholder.includes('任意关键词')) throw new Error('结果搜索栏未提示任意关键词搜索');
+  if (!search.dataset.tip.includes('全部字段') || !search.dataset.tip.includes('不区分大小写')) {
+    throw new Error('结果搜索栏未说明两种视图的全文匹配范围');
+  }
+});
+
 test('空间几何视图可按不显示、全显示、线到孔和孔到孔筛选不满足位置', () => {
   const mode = $('selDfmDefectMode');
   if (!mode) throw new Error('缺少不满足位置显示模式');

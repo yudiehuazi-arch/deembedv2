@@ -41,9 +41,47 @@
     return '<tr><td colspan="' + COLS + '" class="empty-cell">' + text + '</td></tr>';
   }
 
-  /** 线到孔对偶过滤：filter 取 all / bad / bad_unreviewed / ok / gnd / signal，query 为小写搜索词。 */
+  function rawObjectText(value) {
+    try { return JSON.stringify(value); } catch (e) { return ''; }
+  }
+
+  function matchesKeyword(text, query) {
+    if (!query) return true;
+    text = String(text || '').toLowerCase();
+    if (/^via\s*/i.test(query)) {
+      var viaId = query.replace(/^via\s*/i, '').trim();
+      return text.indexOf(query) >= 0 || (!!viaId && text.indexOf('via ' + viaId) >= 0);
+    }
+    return text.indexOf(query) >= 0;
+  }
+
+  /** 与视图二实际行内容一致的全文索引，包含状态、类型、属性、数值、单位、说明与操作文字。 */
+  function pairSearchText(p, reviewed) {
+    var v = p.via, t = p.trace;
+    var shape = v.padShape || {};
+    return [rawObjectText(p), p.status, p.targetType,
+      p.isGndVia ? '线到 GND 孔 GND 孔超标' : '线到信号孔 信号孔超标',
+      'Via ' + v.id, v.padstack, v.padstackName, v.net || '未命名网络', v.spanLabel || '通孔', v.definedRaw || 'Top to Bottom',
+      PAD_SHAPE_LABEL[shape.kind] || shape.kind, shape.w, shape.h, shape.corner, shape.rot,
+      'Trace ' + t.id, t.subset, t.net || '未命名网络', '线宽 ' + t.width + ' mil',
+      Number(p.evalDist).toFixed(2) + ' mil', modeLabel(p.mode), '≥ ' + Number(p.threshold).toFixed(2) + ' mil',
+      (p.diff >= 0 ? '+' : '') + Number(p.diff).toFixed(2) + ' mil', reviewed ? '已复核' : '', '定位图'].join(' ');
+  }
+
+  function padPairSearchText(d, reviewed) {
+    var g = d.gndVia, s = d.sigVia;
+    var gap = Number(d.padAirgap) || 0, threshold = Number(d.threshold) || 0;
+    var deficit = Number(d.diff) || gap - threshold;
+    return [rawObjectText(d), d.status || '不满足', d.targetType, '孔到孔 孔盘到孔盘',
+      g.padstack, g.padstackName, g.net || 'GND', 'Via ' + g.id, 'GND 孔盘',
+      s.padstack, s.padstackName, s.net || '未命名网络', 'Via ' + s.id, '信号孔盘', d.spanSig || s.viaTypeLabel || '孔盘对',
+      gap.toFixed(2) + ' mil', '孔盘 Airgap', '中心距 ' + Number(d.centerDist).toFixed(2) + ' mil',
+      '≥ ' + threshold.toFixed(2) + ' mil', d.ruleLayers || '全部层', deficit.toFixed(2) + ' mil',
+      reviewed ? '已复核' : '', '定位孔对'].join(' ');
+  }
+
+  /** 线到孔对偶过滤：filter 取 all / bad / bad_unreviewed / ok / gnd / signal，query 全文匹配明细行。 */
   function filterPairs(pairs, filter, query, reviewed) {
-    var qNorm = query.replace(/^via\s*/i, '').trim();
     return pairs.filter(function (p) {
       if ((filter === 'bad' || filter === 'bad_unreviewed') && p.status !== '不满足') return false;
       if (filter === 'bad_unreviewed' && reviewed[pairKey(p)]) return false;
@@ -51,28 +89,17 @@
       if (filter === 'gnd' && !p.isGndVia) return false;
       if (filter === 'signal' && p.isGndVia) return false;
       if (!query) return true;
-      var v = p.via, t = p.trace;
-      var text = ('via ' + v.id + ' ' + v.id + ' ' + (v.net || '') + ' ' + (v.padstack || '') + ' ' + (v.padstackName || '') + ' ' +
-        (v.spanLabel || '') + ' ' + (v.definedRaw || '') + ' ' + p.targetType + ' trace ' + t.id + ' ' + t.id + ' ' +
-        (t.subset || '') + ' ' + (t.net || '') + ' ' + (t.width == null ? '' : t.width)).toLowerCase();
-      return text.indexOf(query) >= 0 || text.indexOf(qNorm) >= 0;
+      return matchesKeyword(pairSearchText(p, reviewed[pairKey(p)]), query);
     });
   }
 
   /** 孔到孔超标对过滤：只含不满足项，故「只看满足」为空；GND / 信号筛选下都保留（每对同时含两种孔）。 */
   function filterPadPairs(defects, filter, query, reviewed) {
-    var qNorm = query.replace(/^via\s*/i, '').trim();
     return defects.filter(function (d) {
       if (filter === 'ok') return false;
       if (filter === 'bad_unreviewed' && reviewed[padPairKey(d)]) return false;
       if (!query) return true;
-      var g = d.gndVia, s = d.sigVia;
-      var text = ('via ' + g.id + ' ' + s.id + ' ' + (g.net || '') + ' ' + (s.net || '') + ' ' +
-        (g.padstack || g.padstackName || '') + ' ' + (s.padstack || s.padstackName || '') + ' ' +
-        (d.spanSig || '') + ' ' + (d.ruleLayers || '') + ' ' + (d.padAirgap == null ? '' : d.padAirgap) + ' ' +
-        (d.centerDist == null ? '' : d.centerDist) + ' ' + (d.threshold == null ? '' : d.threshold) + ' ' +
-        (d.diff == null ? '' : d.diff) + ' 孔盘到孔盘').toLowerCase();
-      return text.indexOf(query) >= 0 || text.indexOf(qNorm) >= 0;
+      return matchesKeyword(padPairSearchText(d, reviewed[padPairKey(d)]), query);
     });
   }
 
