@@ -4,11 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PCB 铜皮检查工具</title>
-<link rel="stylesheet" href="assets/styles/tokens.css?v=39">
-<link rel="stylesheet" href="assets/styles/eda-shell.css?v=39">
-<link rel="stylesheet" href="assets/styles/eda-dock.css?v=39">
-<link rel="stylesheet" href="assets/styles/components.css?v=39">
-<link rel="stylesheet" href="assets/styles/pages/pour.css?v=39">
+<link rel="stylesheet" href="assets/styles/tokens.css?v=40">
+<link rel="stylesheet" href="assets/styles/eda-shell.css?v=40">
+<link rel="stylesheet" href="assets/styles/eda-dock.css?v=40">
+<link rel="stylesheet" href="assets/styles/components.css?v=40">
+<link rel="stylesheet" href="assets/styles/pages/pour.css?v=40">
 </head>
 <body class="eda-workbench">
 
@@ -263,7 +263,7 @@
               <tr>
                 <th style="width:38px"><input type="checkbox" id="chkSelectAll" onclick="toggleSelectAll(this)" data-no-persist data-tip="全选或取消当前筛选列表复核状态"></th>
                 <th>检查分类</th>
-                <th>目标对象 / 网络</th>
+                <th>Padstack / 网络 / 目标对象</th>
                 <th>涉及层别</th>
                 <th>实测值与规则阈值</th>
                 <th>判定</th>
@@ -305,6 +305,7 @@
             <button type="button" id="btnTogglePorts" class="active" onclick="toggleCanvasLayer('ports')" data-tip="显示或隐藏外围 P1–P4 端口标记">端口</button>
             <button type="button" id="btnToggleDefects" class="active" onclick="toggleCanvasLayer('defects')" data-tip="显示或隐藏超标位置红色虚线信标">缺陷信标</button>
             <button type="button" id="btnMeasureMode" onclick="toggleMeasureMode()" data-tip="激活后依次点击画布任意两点测量欧氏距离">测距标尺</button>
+            <button type="button" id="btnReturnPourResults" onclick="returnToPourResults()" style="display:none" data-tip="返回检查结果明细，并恢复定位前的条目位置">返回结果明细</button>
           </div>
 
           <canvas id="mainCanvas"></canvas>
@@ -341,6 +342,10 @@
             <div class="legend-item">
               <div class="legend-color" style="background:#ef4444"></div>
               <span>缺陷信标</span>
+            </div>
+            <div class="legend-item">
+              <div class="legend-color" style="background:rgba(239,68,68,0.45);border:2px solid #f87171"></div>
+              <span>当前问题铜皮</span>
             </div>
           </div>
 
@@ -558,17 +563,18 @@
   </div>
 </div>
 
-<script src="packages/shared/dom-utils.js?v=39"></script>
-<script src="packages/shared/shape-preview-canvas.js?v=39"></script>
-<script src="packages/engines/pour/pour-geom.js?v=39"></script>
-<script src="packages/engines/pour/pour-parser.js?v=39"></script>
-<script src="packages/engines/pour/pour-engine.js?v=39"></script>
-<script src="packages/pages/pour/pour-state.js?v=39"></script><script src="packages/pages/pour/pour-check-runner.js?v=39"></script>
-<script src="packages/pages/pour/pour-rules-ui.js?v=39"></script>
-<script src="packages/pages/pour/pour-results-ui.js?v=39"></script>
-<script src="packages/pages/pour/pour-canvas-viewer.js?v=39"></script>
-<script src="packages/shared/eda-tooltip.js?v=39"></script>
-<script src="packages/shared/eda-shell.js?v=39"></script>
-<script src="packages/shared/ui-prefs.js?v=39"></script>
+<script src="packages/shared/dom-utils.js?v=40"></script>
+<script src="packages/shared/shape-preview-canvas.js?v=40"></script>
+<script src="packages/engines/pour/pour-geom.js?v=40"></script>
+<script src="packages/engines/pour/pour-parser.js?v=40"></script>
+<script src="packages/engines/pour/pour-engine.js?v=40"></script>
+<script src="packages/pages/pour/pour-state.js?v=40"></script><script src="packages/pages/pour/pour-check-runner.js?v=40"></script>
+<script src="packages/pages/pour/pour-rules-ui.js?v=40"></script>
+<script src="packages/pages/pour/pour-results-ui.js?v=40"></script>
+<script src="packages/pages/pour/pour-canvas-viewer.js?v=40"></script>
+<script src="packages/pages/pour/pour-canvas-navigation.js?v=40"></script>
+<script src="packages/shared/eda-tooltip.js?v=40"></script>
+<script src="packages/shared/eda-shell.js?v=40"></script>
+<script src="packages/shared/ui-prefs.js?v=40"></script>
 </body>
 </html>

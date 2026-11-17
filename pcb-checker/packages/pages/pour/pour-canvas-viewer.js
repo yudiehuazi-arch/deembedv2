@@ -4,22 +4,6 @@
 (function (root) {
 'use strict';
   if (typeof document === 'undefined') return;
-  var esc = root.escHtml || function (str) {
-    if (!str) return '';
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
-  };
-  var cleanMsg = root.PourCleanMsg || function (s) {
-    return String(s == null ? '' : s).replace(/^[\s✅❌⚠️]+/u, '').trim();
-  };
-  var safeRAF = root.PourSafeRAF || function (fn) {
-    if (typeof root.requestAnimationFrame === 'function') root.requestAnimationFrame(fn);
-    else setTimeout(fn, 0);
-  };
   var NET_COLORS = {
     GND: '#475569',
     '25_N': '#c084fc',
@@ -167,10 +151,13 @@
     /* 1. 铜皮轮廓 */
     if (State.canvas.showShapes && State.shapes) {
       State.shapes.forEach(function (shape) {
+        var isProblemShape = (State.canvas.highlightShapeIds || []).some(function (id) {
+          return String(id) === String(shape.id);
+        });
         ctx.save();
-        ctx.fillStyle = 'rgba(180, 83, 9, 0.22)';
-        ctx.strokeStyle = '#d97706';
-        ctx.lineWidth = Math.max(1.0, 1.2 * State.canvas.zoom);
+        ctx.fillStyle = isProblemShape ? 'rgba(239, 68, 68, 0.42)' : 'rgba(180, 83, 9, 0.22)';
+        ctx.strokeStyle = isProblemShape ? '#f87171' : '#d97706';
+        ctx.lineWidth = isProblemShape ? Math.max(3, 2.4 * State.canvas.zoom) : Math.max(1.0, 1.2 * State.canvas.zoom);
         var rings = PC && PC.shapeRings ? PC.shapeRings(shape) : [];
         if (!rings.length && PC && PC.flattenBoundary) {
           var exteriorRing = PC.flattenBoundary(shape);
@@ -190,15 +177,40 @@
           ctx.fill('evenodd');
           ctx.stroke();
         }
-        if (State.canvas.zoom > 1.5 && shape.centroid) {
+        if ((State.canvas.zoom > 1.5 || isProblemShape) && shape.centroid) {
           var cent = worldToScreen(shape.centroid.x, shape.centroid.y);
-          ctx.fillStyle = '#fde68a';
-          ctx.font = '10px monospace';
+          ctx.fillStyle = isProblemShape ? '#fecaca' : '#fde68a';
+          ctx.font = isProblemShape ? 'bold 12px monospace' : '10px monospace';
           ctx.textAlign = 'center';
-          ctx.fillText('Shape #' + shape.id + ' · ' + shape.layer, cent.x, cent.y);
+          ctx.fillText((isProblemShape ? '问题铜皮 · ' : '') + 'Shape #' + shape.id + ' · ' + shape.layer, cent.x, cent.y);
         }
         ctx.restore();
       });
+    }
+    /* 当前孔铺铜问题：明确画出“孔心阈值范围”，范围内出现任意铜皮即达标。 */
+    var activeProblem = State.canvas.activeProblem;
+    if (activeProblem && activeProblem.checkCategory === 'via_coverage' && activeProblem.x != null && activeProblem.y != null) {
+      var problemCenter = worldToScreen(activeProblem.x, activeProblem.y);
+      var searchRadius = Math.max(1, Number(activeProblem.requiredDist || 0) * State.canvas.zoom);
+      ctx.save();
+      ctx.strokeStyle = '#fb7185';
+      ctx.fillStyle = '#fecdd3';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([7, 4]);
+      ctx.beginPath();
+      ctx.arc(problemCenter.x, problemCenter.y, searchRadius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(problemCenter.x - 7, problemCenter.y);
+      ctx.lineTo(problemCenter.x + 7, problemCenter.y);
+      ctx.moveTo(problemCenter.x, problemCenter.y - 7);
+      ctx.lineTo(problemCenter.x, problemCenter.y + 7);
+      ctx.stroke();
+      ctx.font = 'bold 12px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('铜皮搜索范围 ≤ ' + activeProblem.requiredDist + ' mil', problemCenter.x, problemCenter.y - searchRadius - 8);
+      ctx.restore();
     }
     /* 2. 过孔 */
     if (State.canvas.showVias && State.vias) {
@@ -403,83 +415,6 @@
       ctx.restore();
     }
   }
-  function renderPourCanvasReviewBox(itemKey) {
-    var State = root.State;
-    var box = document.getElementById('pourCanvasReviewBox');
-    var titleEl = document.getElementById('pourCanvasRevTitle');
-    var bodyEl = document.getElementById('pourCanvasRevBody');
-    if (!box || !bodyEl) return;
-    State.activeReviewKey = itemKey;
-    var findMatch = function (arr) {
-      return (arr || []).find(function (x, idx) {
-        var k = x.groupKey || x._rawKey || (x.checkCategory + '_' + (x.viaId || x.traceId || x.shapeId) + '_' + x.layer + '_' + idx);
-        return k === itemKey;
-      });
-    };
-    var r = findMatch(State.filteredResults) || findMatch(State.groupedResults) || findMatch(State.rawResults);
-    var isReviewed = State.reviewedItems.has(itemKey);
-    if (titleEl && r) {
-      titleEl.textContent = (r.checkCategoryName || '铜皮检查') + ' · ' + (r.targetLabel || itemKey);
-    }
-    var barStyle = isReviewed
-      ? 'background:rgba(16,185,129,0.18);border:1px solid rgba(52,211,153,0.55);'
-      : 'background:rgba(245,158,11,0.15);border:1px solid rgba(251,191,36,0.45);';
-    var safeKey = esc(itemKey);
-    bodyEl.innerHTML =
-      '<div style="' + barStyle + 'border-radius:6px;padding:8px 10px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px">' +
-        '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;font-weight:700;color:' + (isReviewed ? '#6ee7b7' : '#fde68a') + ';margin:0">' +
-          '<input type="checkbox" id="chkPourSpatialReview" data-no-persist ' + (isReviewed ? 'checked' : '') + ' onchange="toggleReviewItem(\'' + safeKey + '\', this.checked)" style="width:15px;height:15px;cursor:pointer;accent-color:#10b981">' +
-          '<span>' + (isReviewed ? '已复核 · 明细已同步' : '勾选复核此项') + '</span>' +
-        '</label>' +
-        '<button type="button" class="btn small" onclick="toggleReviewItem(\'' + safeKey + '\', ' + (!isReviewed) + ')" style="padding:3px 9px;font-size:11px;border:none;background:' + (isReviewed ? '#334155' : '#10b981') + ';color:#ffffff">' +
-          (isReviewed ? '取消复核' : '确认复核') +
-        '</button>' +
-      '</div>' +
-      (r ? '<div style="font-size:11px;color:#cbd5e1;line-height:1.5;margin-bottom:8px">' + esc(cleanMsg(r.message)) + '</div>' : '') +
-      '<div style="display:flex;justify-content:flex-end">' +
-        '<button type="button" class="btn sec small" onclick="switchTab(\'tabResults\')">返回结果明细</button>' +
-      '</div>';
-    box.style.display = 'block';
-  }
-  function closePourReviewBox() {
-    var box = document.getElementById('pourCanvasReviewBox');
-    if (box) box.style.display = 'none';
-    root.State.activeReviewKey = null;
-  }
-  function locateElementInCanvas(checkCategory, targetId, itemKey) {
-    root.switchTab('tabCanvas');
-    safeRAF(function () {
-      resizeCanvas();
-      var canvas = document.getElementById('mainCanvas');
-      var w = canvas ? (canvas.width || 900) : 900;
-      var h = canvas ? (canvas.height || 600) : 600;
-      var tx = null, ty = null;
-      var findVia = function () { return (root.State.vias || []).find(function (v) { return String(v.id) === String(targetId); }); };
-      var findTrace = function () { return (root.State.traces || []).find(function (t) { return String(t.id) === String(targetId); }); };
-      var findShape = function () { return (root.State.shapes || []).find(function (s) { return String(s.id) === String(targetId); }); };
-      var via = (checkCategory === 'via_coverage' || checkCategory === 'special_shape') ? findVia() : null;
-      var tr = (checkCategory === 'trace_ref_margin') ? findTrace() : null;
-      var sh = (checkCategory === 'isolated_copper' || checkCategory === 'arc_radius') ? findShape() : null;
-      if (!via && !tr && !sh) { via = findVia(); tr = !via ? findTrace() : null; sh = (!via && !tr) ? findShape() : null; }
-      if (via) {
-        tx = via.x;
-        ty = via.y;
-      } else if (tr && tr.bbox) {
-        tx = (tr.bbox.minX + tr.bbox.maxX) / 2;
-        ty = (tr.bbox.minY + tr.bbox.maxY) / 2;
-      } else if (sh && sh.bbox) {
-        tx = (sh.bbox.minX + sh.bbox.maxX) / 2;
-        ty = (sh.bbox.minY + sh.bbox.maxY) / 2;
-      }
-      if (tx != null && ty != null) {
-        root.State.canvas.zoom = 5.5;
-        root.State.canvas.panX = w / 2 - tx * root.State.canvas.zoom;
-        root.State.canvas.panY = h / 2 + ty * root.State.canvas.zoom;
-      }
-      if (itemKey) renderPourCanvasReviewBox(itemKey);
-      renderCanvas();
-    });
-  }
   function initCanvas() {
     var canvas = document.getElementById('mainCanvas');
     if (!canvas || canvas.__pourBound) return;
@@ -537,9 +472,6 @@
   root.toggleCanvasLayer = toggleCanvasLayer;
   root.toggleMeasureMode = toggleMeasureMode;
   root.renderCanvas = renderCanvas;
-  root.renderPourCanvasReviewBox = renderPourCanvasReviewBox;
-  root.closePourReviewBox = closePourReviewBox;
-  root.locateElementInCanvas = locateElementInCanvas;
   if (typeof root.initApp === 'function') {
     root.initApp();
   }

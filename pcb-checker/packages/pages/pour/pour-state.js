@@ -96,7 +96,10 @@
       showPorts: true,
       showDefects: true,
       measureMode: false,
-      measurePoints: []
+      measurePoints: [],
+      highlightShapeIds: [],
+      activeProblem: null,
+      returnPosition: null
     },
 
     editingIndex: -1,

@@ -100,7 +100,29 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
 
   const via1L2 = res.find(r => r.viaId === 1 && r.layer === 'L2');
   assert.strictEqual(via1L2.pass, false, 'Via 1 在 L2 无铜皮应判定为不通过');
-  console.log('  PASS  第一项：孔经过层铺铜覆盖检查 (50mil 阈值与多层校验)');
+
+  const rectangle = (id, layer, minX, maxX) => ({
+    id, layer, arcs: [], centroid: { x: (minX + maxX) / 2, y: 0 },
+    bbox: { minX, minY: -5, maxX, maxY: 5, spanX: maxX - minX, spanY: 10 },
+    boundary: [
+      { type: 'line', x1: minX, y1: -5, x2: maxX, y2: -5 },
+      { type: 'line', x1: maxX, y1: -5, x2: maxX, y2: 5 },
+      { type: 'line', x1: maxX, y1: 5, x2: minX, y2: 5 },
+      { type: 'line', x1: minX, y1: 5, x2: minX, y2: -5 }
+    ]
+  });
+  const probeVia = [{ id: 3, x: 0, y: 0, padstack: 'PROBE', net: 'N1' }];
+  const near = checkViaLayerCoverage(probeVia, [rectangle(201, '02G01P', 54, 64)],
+    [{ padstack: 'PROBE', layers: ['L2'], coverageRadius: 55 }]);
+  assert.strictEqual(near[0].pass, true, '过孔无需被铜覆盖；孔心 55mil 范围内任意铜皮即达标');
+  assert.strictEqual(near[0].actualDist, 54);
+  assert.strictEqual(near[0].nearestShapeLayer, '02G01P', '规则 L2 应匹配 Allegro 物理层名 02G01P');
+  const far = checkViaLayerCoverage(probeVia, [rectangle(202, '02G01P', 56, 66)],
+    [{ padstack: 'PROBE', layers: ['L2'], coverageRadius: 55 }]);
+  assert.strictEqual(far[0].pass, false, '最近铜皮距离 56mil 超过 55mil 搜索范围应不达标');
+  assert.strictEqual(PourChecker.physicalLayerAlias('Top'), 'L1');
+  assert.strictEqual(PourChecker.physicalLayerAlias('08IS03'), 'L8');
+  console.log('  PASS  第一项：孔心阈值范围内任意铜皮即达标，并兼容 Lx / Allegro 物理层名');
 }
 
 // 3. 第二项：特定异型铜皮比对检查 (Special Shaped Copper Check)

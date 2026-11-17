@@ -100,6 +100,7 @@
       if (query) {
         var str = [
           r.checkCategoryName || '',
+          r.targetLabel || '',
           r.viaId || '',
           r.viaPadstack || '',
           r.viaNet || '',
@@ -133,12 +134,22 @@
     return r.groupKey || r._rawKey || (r.checkCategory + '_' + (r.viaId || r.traceId || r.shapeId) + '_' + r.layer + '_' + idx);
   }
 
+  function formatTargetIdentity(r) {
+    if (r.targetLabel && String(r.targetLabel).split('/').length >= 3) return String(r.targetLabel);
+    var padstack = r.viaPadstack || '-';
+    var network = r.viaNet || r.traceNet || '-';
+    var target = r.viaId != null
+      ? ('孔 #' + r.viaId)
+      : (r.traceId != null ? ('走线 #' + r.traceId) : (r.shapeId != null ? ('铜皮 Shape #' + r.shapeId) : '-'));
+    return padstack + ' / ' + network + ' / ' + target;
+  }
+
   function formatRowMetrics(r) {
     var PC = root.PourChecker;
     var rn = PC && PC.roundN ? PC.roundN : function (v, n) { return Number(v || 0).toFixed(n || 1); };
     if (r.metricsStr) return esc(r.metricsStr);
     if (r.checkCategory === 'via_coverage') {
-      return '实测距铜皮: <strong>' + esc(r.actualDistStr) + '</strong> / 要求 ≤ ' + esc(r.requiredDist) + ' mil';
+      return '最近铜皮距离: <strong>' + esc(r.actualDistStr) + '</strong> / 孔心搜索范围 ≤ ' + esc(r.requiredDist) + ' mil；范围内检出任意铜皮即达标';
     }
     if (r.checkCategory === 'special_shape') {
       return '差分孔中心距: <strong>' + esc(rn(r.actualDifferentialCenterDistance, 2)) + ' mil</strong> / 规则 ' + esc(r.expectedDifferentialCenterDistance) + ' mil；目标孔 → HDI #' + esc(r.actualHdiViaId) + '；搜索距离 ≤ ' + esc(r.hdiSearchRadiusMm || 0.175) + ' mm；实测面积 ' + esc(rn(r.actualArea, 1)) + ' sq mil / 期望 ' + esc(r.expectedArea);
@@ -196,19 +207,12 @@
       var rowClass = isReviewed ? 'reviewed' : (r.pass ? 'row-pass' : 'row-fail');
       var isExpanded = State.expandedRows.has(itemKey);
 
-      var targetStr = r.targetLabel;
-      if (!targetStr) {
-        if (r.viaId) targetStr = '孔 #' + r.viaId + ' · ' + (r.viaNet || 'GND');
-        else if (r.traceId) targetStr = '走线 #' + r.traceId + ' · ' + (r.traceNet || '-');
-        else if (r.shapeId) targetStr = '铜皮 Shape #' + r.shapeId;
-        else targetStr = '-';
-      }
-
+      var targetStr = formatTargetIdentity(r);
       var hasSub = r.subRecords && r.subRecords.length > 1;
       var targetId = r.viaId || r.traceId || r.shapeId || '';
-      var statusText = r.pass ? '符合' : ('不符合' + (r.failCount ? ' · ' + r.failCount + ' 层超标' : ''));
+      var statusText = r.pass ? '符合' : ('不符合' + (r.failCount ? ' · ' + r.failCount + ' 层未检出' : ''));
 
-      htmlRows += '<tr class="' + rowClass + '">' +
+      htmlRows += '<tr class="' + rowClass + '" data-result-key="' + safeKey + '">' +
         '<td><input type="checkbox" data-no-persist ' + (isReviewed ? 'checked' : '') + ' onchange="toggleReviewItem(\'' + safeKey + '\', this.checked)"></td>' +
         '<td><span class="badge-tag copper">' + esc(r.checkCategoryName) + '</span></td>' +
         '<td><strong>' + esc(targetStr) + '</strong></td>' +
@@ -296,11 +300,11 @@
       return;
     }
 
-    var csv = '\uFEFF检查分类,目标对象,涉及层别,实测与规则说明,判定结果,详细文字表述,复核状态\n';
+    var csv = '\uFEFF检查分类,Padstack/网络/目标对象,涉及层别,实测与规则说明,判定结果,详细文字表述,复核状态\n';
     source.forEach(function (r, idx) {
       var key = buildItemKey(r, idx);
       var isRev = State.reviewedItems.has(key) ? '已复核' : '待复核';
-      var target = r.targetLabel || (r.viaId ? ('孔 #' + r.viaId) : (r.traceId ? ('走线 #' + r.traceId) : ('铜皮 #' + r.shapeId)));
+      var target = formatTargetIdentity(r);
       var metricRaw = String(r.metricsStr || r.actualDistStr || r.actualMargin || r.area || '-');
       csv += [
         '"' + String(r.checkCategoryName || '').replace(/"/g, '""') + '"',
@@ -395,7 +399,7 @@
       var reasonHtml = '';
 
       if (r.checkCategory === 'via_coverage') {
-        reasonHtml = '<b style="color:var(--bad)">无铜皮覆盖</b> · 距孔心 &gt; ' + esc(r.requiredDist || 50) + ' mil';
+        reasonHtml = '<b style="color:var(--bad)">搜索范围内未检出铜皮</b> · 孔心 ' + esc(r.requiredDist || 50) + ' mil 范围内无铜皮';
       } else if (r.checkCategory === 'special_shape') {
         reasonHtml = '<b style="color:var(--bad)">异型面积超差</b> · 实测 ' + esc(rn(r.actualArea, 1)) + ' sq mil vs 期望 ' + esc(r.expectedArea) + ' ± ' + esc(r.areaTolerance);
       } else if (r.checkCategory === 'trace_ref_margin') {

@@ -9,26 +9,35 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
   root.PourChecker = Object.assign(root.PourChecker || {}, api);
 })(typeof globalThis !== "undefined" ? globalThis : this, function (geom, parser) {
   "use strict";
-  var MM_PER_MIL = geom.MM_PER_MIL;
-  var MIL_PER_MM = geom.MIL_PER_MM;
-  var dist2D = geom.dist2D;
-  var roundN = geom.roundN;
-  var pointToShapeDistance = geom.pointToShapeDistance;
-  var isPointInsideBBox = geom.isPointInsideBBox;
-  var shapeRing = geom.shapeRing;
-  var pointInShape = geom.pointInShape;
+  var MM_PER_MIL = geom.MM_PER_MIL, MIL_PER_MM = geom.MIL_PER_MM;
+  var dist2D = geom.dist2D, roundN = geom.roundN;
+  var pointToShapeDistance = geom.pointToShapeDistance, isPointInsideBBox = geom.isPointInsideBBox;
+  var shapeRing = geom.shapeRing, pointInShape = geom.pointInShape;
   var pointToShapeBoundaryDistance = geom.pointToShapeBoundaryDistance;
-  var expandLayerRange = parser.expandLayerRange;
-  var parsePcbElements = parser.parsePcbElements;
+  var expandLayerRange = parser.expandLayerRange, parsePcbElements = parser.parsePcbElements;
   var parseShapeBlock = parser.parseShapeBlock;
   var SPECIAL_SHAPE_CENTER_DISTANCE_TOLERANCE = 0.01;
+  // 将规则里的 L1/L2… 与 Allegro 的 Top/02G01P/08IS03… 物理层名对齐。
+  function physicalLayerAlias(layer) {
+    const key = String(layer || '').trim().toUpperCase();
+    if (!key) return '';
+    if (key === 'TOP') return 'L1';
+    const logical = key.match(/^L0*(\d+)$/);
+    const allegro = key.match(/^0*(\d{1,2})(?=[A-Z])/);
+    if (logical || allegro) return `L${parseInt((logical || allegro)[1], 10)}`;
+    return key;
+  }
   function checkViaLayerCoverage(vias, shapes, rules = [], availableLayers = []) {
     const results = [];
     const shapesByLayer = new Map();
     shapes.forEach(s => {
-      const l = s.layer.toUpperCase();
-      if (!shapesByLayer.has(l)) shapesByLayer.set(l, []);
-      shapesByLayer.get(l).push(s);
+      const actualLayer = String(s.layer || '').trim().toUpperCase();
+      const lookupKeys = new Set([actualLayer, physicalLayerAlias(actualLayer)]);
+      lookupKeys.forEach(l => {
+        if (!l) return;
+        if (!shapesByLayer.has(l)) shapesByLayer.set(l, []);
+        shapesByLayer.get(l).push(s);
+      });
     });
     for (let rIdx = 0; rIdx < rules.length; rIdx++) {
       const rule = rules[rIdx];
@@ -42,7 +51,7 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
       for (const via of matchedVias) {
         for (const layer of targetLayers) {
           const lKey = layer.trim().toUpperCase();
-          const layerShapes = shapesByLayer.get(lKey) || [];
+          const layerShapes = shapesByLayer.get(lKey) || shapesByLayer.get(physicalLayerAlias(lKey)) || [];
           let minCopperDist = Infinity;
           let nearestShape = null;
           for (const shape of layerShapes) {
@@ -55,24 +64,17 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
           const hasCopper = minCopperDist <= radiusThresh;
           const distStr = minCopperDist === Infinity ? '无铜皮' : `${roundN(minCopperDist, 2)} mil`;
           results.push({
-            checkCategory: 'via_coverage',
-            checkCategoryName: '① 孔经过层铺铜覆盖检查',
-            ruleIndex: rIdx + 1,
-            ruleId: rule.id || `rule_via_cov_${rIdx + 1}`,
+            checkCategory: 'via_coverage', checkCategoryName: '① 孔经过层铺铜覆盖检查',
+            ruleIndex: rIdx + 1, ruleId: rule.id || `rule_via_cov_${rIdx + 1}`,
             ruleDesc: `孔【${rule.padstack || '所有孔'}】在【${layer}】距离孔心 ≤ ${radiusThresh} mil 存在铜皮`,
-            viaId: via.id,
-            viaPadstack: via.padstack,
-            viaNet: via.net,
-            viaCoord: [via.x, via.y],
-            layer,
-            requiredDist: radiusThresh,
-            actualDist: minCopperDist === Infinity ? 999999 : minCopperDist,
-            actualDistStr: distStr,
+            viaId: via.id, viaPadstack: via.padstack, viaNet: via.net, viaCoord: [via.x, via.y],
+            layer, requiredDist: radiusThresh,
+            actualDist: minCopperDist === Infinity ? 999999 : minCopperDist, actualDistStr: distStr,
             nearestShapeId: nearestShape ? nearestShape.id : null,
-            pass: hasCopper,
+            nearestShapeLayer: nearestShape ? nearestShape.layer : null, pass: hasCopper,
             message: hasCopper
-              ? `✅ 符合：孔 #${via.id} 在 ${layer} 层实测距铜皮 ${distStr} (≤ 阈值 ${radiusThresh} mil)`
-              : `❌ 不符合：孔 #${via.id} 在 ${layer} 层未检测到满足要求的铜皮 (实测距铜皮 ${distStr} > 阈值 ${radiusThresh} mil)`
+              ? `✅ 符合：孔 #${via.id} 在 ${layer} 层孔心 ${radiusThresh} mil 搜索范围内检测到铜皮（最近距离 ${distStr}）`
+              : `❌ 不符合：孔 #${via.id} 在 ${layer} 层孔心 ${radiusThresh} mil 搜索范围内未检测到铜皮（最近距离 ${distStr}）`
           });
         }
       }
@@ -91,7 +93,6 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
     });
     return bestShape;
   }
-
   function findNearbySameNetHdi(via, vias, maxDistanceMil) {
     const net = String(via.net || '').trim().toLowerCase();
     let nearest = null;
@@ -111,7 +112,6 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
     });
     return nearest ? { via: nearest, distance: nearestDistance } : null;
   }
-
   function checkSpecialShapedCopper(vias, shapes, templates = []) {
     const results = [];
     const shapesByLayer = new Map();
@@ -383,23 +383,23 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
       if (r.checkCategory === 'via_coverage') {
         key = `via_coverage_${r.viaId}_${r.ruleIndex || 1}`;
         targetType = 'via';
-        targetLabel = `孔 #${r.viaId} (${r.viaNet || 'GND'})`;
+        targetLabel = `${r.viaPadstack || '-'} / ${r.viaNet || 'GND'} / 孔 #${r.viaId}`;
       } else if (r.checkCategory === 'special_shape') {
         key = `special_shape_${r.viaId}_${r.templateId || r.layer}`;
         targetType = 'via';
-        targetLabel = `孔 #${r.viaId} (${r.viaNet || 'GND'})`;
+        targetLabel = `${r.viaPadstack || '-'} / ${r.viaNet || 'GND'} / 孔 #${r.viaId}`;
       } else if (r.checkCategory === 'trace_ref_margin') {
         key = `trace_ref_margin_${r.traceId}_${r.ruleIndex || 1}`;
         targetType = 'trace';
-        targetLabel = `走线 #${r.traceId} (${r.traceNet})`;
+        targetLabel = `- / ${r.traceNet || '-'} / 走线 #${r.traceId}`;
       } else if (r.checkCategory === 'isolated_copper') {
         key = `isolated_copper_${r.shapeId}`;
         targetType = 'shape';
-        targetLabel = `铜皮 Shape #${r.shapeId}`;
+        targetLabel = `- / - / 铜皮 Shape #${r.shapeId}`;
       } else if (r.checkCategory === 'arc_radius') {
         key = `arc_radius_${r.shapeId}`;
         targetType = 'shape';
-        targetLabel = `铜皮 Shape #${r.shapeId}`;
+        targetLabel = `- / - / 铜皮 Shape #${r.shapeId}`;
       } else {
         key = `misc_${Math.random()}`;
         targetLabel = '未知目标';
@@ -442,15 +442,16 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
         g.failCount = failedSubs.length;
         g.passCount = passedSubs.length;
         g.requiredDist = subs[0].requiredDist || 50.0;
+        const layerDistances = subs.map(s => `${s.layer}: ${s.actualDistStr}`).join('；');
         if (allPass) {
-          g.actualDistStr = '全部经过层均覆盖';
-          g.metricsStr = `经过层全覆盖 (≤ ${g.requiredDist} mil)`;
-          g.message = `✅ 符合：孔 #${g.viaId} (${g.viaNet || 'GND'}) 在全部 ${g.layerCount} 个经过层【${g.layerListStr}】周围均检测到有效铺铜 (≤ ${g.requiredDist} mil)`;
+          g.actualDistStr = '全部目标层在搜索范围内检出铜皮';
+          g.metricsStr = `${layerDistances}（每层孔心 ≤ ${g.requiredDist} mil 检出任意铜皮即达标）`;
+          g.message = `✅ 符合：孔 #${g.viaId} (${g.viaNet || 'GND'}) 在全部 ${g.layerCount} 个目标层【${g.layerListStr}】的孔心 ${g.requiredDist} mil 搜索范围内均检测到铜皮`;
         } else {
           const failLayers = failedSubs.map(s => s.layer).join(', ');
-          g.actualDistStr = `${failLayers} 等 ${g.failCount} 层无铜皮`;
-          g.metricsStr = `${failLayers} 等 ${g.failCount} 层无铜皮/超标 (要求 ≤ ${g.requiredDist} mil)`;
-          g.message = `❌ 不符合：孔 #${g.viaId} (${g.viaNet || 'GND'}) 在 ${g.failCount} 个经过层【${failLayers}】未检测到铺铜（距孔心 > ${g.requiredDist} mil）`;
+          g.actualDistStr = `${failLayers} 等 ${g.failCount} 层在搜索范围内未检出铜皮`;
+          g.metricsStr = `${layerDistances}（每层孔心 ≤ ${g.requiredDist} mil 检出任意铜皮即达标）`;
+          g.message = `❌ 不符合：孔 #${g.viaId} (${g.viaNet || 'GND'}) 在 ${g.failCount} 个目标层【${failLayers}】的孔心 ${g.requiredDist} mil 搜索范围内未检测到铜皮`;
         }
       } else if (g.checkCategory === 'special_shape') {
         const s0 = subs[0];
@@ -586,6 +587,7 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
     };
   }
   return {
+    physicalLayerAlias: physicalLayerAlias,
     checkViaLayerCoverage: checkViaLayerCoverage,
     checkSpecialShapedCopper: checkSpecialShapedCopper,
     checkTraceReferenceMargin: checkTraceReferenceMargin,

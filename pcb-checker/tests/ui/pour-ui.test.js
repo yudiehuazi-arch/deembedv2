@@ -309,8 +309,67 @@ Item 55  < Via >
 
   w.setViewMode('grouped');
   if (d.querySelectorAll('#tblResultsBody tr').length !== 3) throw new Error('汇总视图行数应为 3');
+  const headers = [...d.querySelectorAll('#tabResults thead th')].map(th => th.textContent.trim());
+  if (!headers.includes('Padstack / 网络 / 目标对象')) throw new Error('结果表目标列标题未按新顺序显示');
+  const firstTarget = d.querySelector('#tblResultsBody tr td:nth-child(3)').textContent;
+  if (!firstTarget.includes('HDI_045drill_ring3_1_4') || !firstTarget.includes('21_N') || !firstTarget.includes('孔 #53')) {
+    throw new Error('目标列未按 Padstack / 网络 / 目标对象显示：' + firstTarget);
+  }
+  const firstMetric = d.querySelector('#tblResultsBody tr td:nth-child(5)').textContent;
+  if (!firstMetric.includes('检出任意铜皮即达标') || firstMetric.includes('无铜皮/超标')) {
+    throw new Error('孔铺铜规则说明仍未表达“阈值范围内任意铜皮即达标”');
+  }
   w.toggleRowExpand(via53Group.groupKey);
   if (d.querySelectorAll('#tblResultsBody tr.subrow').length !== 1) throw new Error('展开后应出现 1 个子表行');
+});
+
+test('结果定位突出问题铜皮，返回时恢复原条目并播放边框动画', () => {
+  const locateTxt = `
+Total 2 Items
+Item 1 < Shape >
+  Set: Etch
+  Subset: L1
+  Area: 100
+Exterior Boundary:
+  Seg: xy [56, -5] xy [66, -5]
+  Seg: xy [66, -5] xy [66, 5]
+  Seg: xy [66, 5] xy [56, 5]
+  Seg: xy [56, 5] xy [56, -5]
+Item 2 < Via >
+  Origin-xy: [0, 0]
+  Net: TEST_N
+  Padstack Name: PROBE_STACK
+`;
+  w.State.viaCoverageRules = [{ id: 'cov_probe', padstack: 'PROBE_STACK', layers: 'L1', coverageRadius: 55 }];
+  w.State.specialShapeTemplates = [];
+  w.State.traceMarginRules = [];
+  w.State.smallCopperAreaThreshold = 0;
+  $('txtDataInput').value = locateTxt;
+  w.executeCopperChecks();
+  w.setViewMode('grouped');
+  const result = w.State.groupedResults.find(r => r.checkCategory === 'via_coverage');
+  if (!result || result.pass) throw new Error('定位夹具应产生 56mil > 55mil 的孔铺铜问题');
+
+  const oldRAF = w.requestAnimationFrame;
+  w.requestAnimationFrame = callback => callback();
+  w.locateElementInCanvas('via_coverage', '2', result.groupKey);
+  if (w.State.activeTab !== 'tabCanvas') throw new Error('定位后未切换到几何视口');
+  if (JSON.stringify(w.State.canvas.highlightShapeIds) !== '["1"]') {
+    throw new Error('未将最近的问题铜皮 Shape #1 设置为红色突出对象');
+  }
+  if (!w.State.canvas.activeProblem || w.State.canvas.activeProblem.requiredDist !== 55) {
+    throw new Error('几何视口未保存 55mil 孔心搜索范围');
+  }
+  if ($('btnReturnPourResults').style.display === 'none') throw new Error('定位后未显示返回结果明细按钮');
+
+  w.returnToPourResults();
+  w.requestAnimationFrame = oldRAF;
+  if (w.State.activeTab !== 'tabResults') throw new Error('返回后未切回检查结果明细');
+  const returnedRow = [...d.querySelectorAll('#tblResultsBody tr[data-result-key]')]
+    .find(row => row.getAttribute('data-result-key') === result.groupKey);
+  if (!returnedRow || !returnedRow.classList.contains('pour-located-flash')) {
+    throw new Error('返回后未恢复并框选原定位条目');
+  }
 });
 
 test('走线导入、参考层超宽判定、2D 画布视口定位复核、规律分析与 CSV 导出', () => {
