@@ -46,30 +46,10 @@
     }).join('');
   }
 
-  function drawShapeThumb(canvasId) {
-    var canvas = document.getElementById(canvasId);
-    if (!canvas || !canvas.getContext) return;
-    var ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    var w = canvas.width;
-    var h = canvas.height;
-    ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = '#0b1220';
-    ctx.fillRect(0, 0, w, h);
-
-    ctx.fillStyle = 'rgba(180, 83, 9, 0.4)';
-    ctx.strokeStyle = '#f59e0b';
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.arc(w / 2, h / 2, w * 0.35, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.fillStyle = '#10b981';
-    ctx.beginPath();
-    ctx.arc(w / 2, h / 2, 3, 0, Math.PI * 2);
-    ctx.fill();
+  function drawShapeThumb(canvasId, template) {
+    if (!root.drawShapePreviewCanvas) return;
+    var shape = root.resolveShapePreview ? root.resolveShapePreview(template) : template.shape;
+    root.drawShapePreviewCanvas(document.getElementById(canvasId), shape);
   }
 
   function renderRule2Table() {
@@ -88,6 +68,8 @@
         '</div></td>' +
         '<td><strong>' + esc(t.name) + '</strong></td>' +
         '<td><span class="badge-tag copper">' + esc(t.padstack) + '</span></td>' +
+        '<td><strong>' + esc(t.differentialCenterDistance) + ' mil</strong></td>' +
+        '<td><strong>' + esc(t.hdiSearchRadiusMm || 0.175) + ' mm</strong></td>' +
         '<td><span class="badge-tag gray">' + esc(t.layer) + '</span></td>' +
         '<td><strong>' + esc(areaNum) + ' sq mil</strong> ±' + esc(t.areaTolerance) + '</td>' +
         '<td><div class="row" style="gap:4px">' +
@@ -98,8 +80,8 @@
     }).join('');
 
     safeRAF(function () {
-      State.specialShapeTemplates.forEach(function (_, idx) {
-        drawShapeThumb('r2Thumb_' + idx);
+      State.specialShapeTemplates.forEach(function (template, idx) {
+        drawShapeThumb('r2Thumb_' + idx, template);
       });
     });
   }
@@ -182,21 +164,24 @@
     renderRule1Table();
   }
 
-  function setRule2InputsLocked(locked) {
-    ['modalR2InpPadstack', 'modalR2InpLayer', 'modalR2TxtShape'].forEach(function (id) {
+  function enableRule2Inputs() {
+    ['modalR2InpName', 'modalR2InpPadstack', 'modalR2InpDiffDist', 'modalR2InpHdiRadius',
+      'modalR2InpLayer', 'modalR2InpTol', 'modalR2TxtShape'].forEach(function (id) {
       var el = document.getElementById(id);
       if (!el) return;
-      el.disabled = !!locked;
-      el.style.background = locked ? '#f8fafc' : '#ffffff';
+      el.disabled = false;
+      el.style.background = '#ffffff';
     });
   }
 
   function openAddRule2Modal() {
     State.editingIndex = -1;
     document.getElementById('modalR2Title').textContent = '新增特定异型铜皮模板';
-    setRule2InputsLocked(false);
+    enableRule2Inputs();
     document.getElementById('modalR2InpName').value = 'L2特定异型铜皮_' + (State.specialShapeTemplates.length + 1);
     document.getElementById('modalR2InpPadstack').value = 'BGA_3510';
+    document.getElementById('modalR2InpDiffDist').value = '10.0';
+    document.getElementById('modalR2InpHdiRadius').value = '0.175';
     document.getElementById('modalR2InpLayer').value = '02G01P';
     document.getElementById('modalR2InpTol').value = '30.0';
     document.getElementById('modalR2TxtShape').value =
@@ -211,54 +196,19 @@
     var t = State.specialShapeTemplates[idx];
     if (!t) return;
     document.getElementById('modalR2Title').textContent = '编辑特定异型铜皮模板';
-    setRule2InputsLocked(true);
+    enableRule2Inputs();
     document.getElementById('modalR2InpName').value = t.name;
     document.getElementById('modalR2InpPadstack').value = t.padstack;
+    document.getElementById('modalR2InpDiffDist').value = t.differentialCenterDistance || 10.0;
+    document.getElementById('modalR2InpHdiRadius').value = t.hdiSearchRadiusMm || 0.175;
     document.getElementById('modalR2InpLayer').value = t.layer;
     document.getElementById('modalR2InpTol').value = t.areaTolerance;
-    document.getElementById('modalR2TxtShape').value = t.rawShapeText || ('Item 1  < Shape >\n  Subset: ' + t.layer + '\n  Area: ' + t.expectedArea + ' (sq mil)');
+    document.getElementById('modalR2TxtShape').value = typeof t.rawShapeText === 'string'
+      ? t.rawShapeText
+      : ('Item 1  < Shape >\n  Subset: ' + t.layer + '\n  Area: ' + t.expectedArea + ' (sq mil)');
     previewModalShape();
     renderHistoryChips();
     openModal('modalRule2');
-  }
-
-  function drawModalShapeCanvas(shape) {
-    var canvas = document.getElementById('modalR2Canvas');
-    if (!canvas || !canvas.getContext) return;
-    var ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    var w = canvas.width;
-    var h = canvas.height;
-    ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = '#0b1220';
-    ctx.fillRect(0, 0, w, h);
-
-    var span = Math.max(shape.bbox.spanX, shape.bbox.spanY, 10);
-    var scale = (w * 0.75) / span;
-    var cx = w / 2;
-    var cy = h / 2;
-
-    ctx.fillStyle = 'rgba(180, 83, 9, 0.35)';
-    ctx.strokeStyle = '#f59e0b';
-    ctx.lineWidth = 1.5;
-
-    ctx.beginPath();
-    shape.boundary.forEach(function (seg) {
-      if (seg.type === 'line') {
-        ctx.moveTo(cx + (seg.x1 - shape.centroid.x) * scale, cy - (seg.y1 - shape.centroid.y) * scale);
-        ctx.lineTo(cx + (seg.x2 - shape.centroid.x) * scale, cy - (seg.y2 - shape.centroid.y) * scale);
-      } else if (seg.type === 'arc') {
-        ctx.arc(cx + (seg.cx - shape.centroid.x) * scale, cy - (seg.cy - shape.centroid.y) * scale, seg.radius * scale, 0, Math.PI * 2);
-      }
-    });
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.fillStyle = '#10b981';
-    ctx.beginPath();
-    ctx.arc(cx, cy, 3, 0, Math.PI * 2);
-    ctx.fill();
   }
 
   function previewModalShape() {
@@ -277,9 +227,14 @@
       desc.innerHTML =
         '<div>实测面积: <strong>' + PC.roundN(s.area, 2) + ' sq mil</strong> · ' + PC.roundN(s.areaMm2, 4) + ' mm²</div>' +
         '<div>边界段数: ' + s.boundary.length + ' 段 · 直线 ' + lineCnt + ' / 圆弧 ' + s.arcs.length + '</div>';
-      drawModalShapeCanvas(s);
+      if (root.drawShapePreviewCanvas) {
+        root.drawShapePreviewCanvas(document.getElementById('modalR2Canvas'), s);
+      }
     } else {
       State.modalShapeParsed = null;
+      if (root.drawShapePreviewCanvas) {
+        root.drawShapePreviewCanvas(document.getElementById('modalR2Canvas'), null);
+      }
       title.textContent = '未识别到有效 Shape 块';
       desc.textContent = '请粘贴包含 < Shape > 与 Area 字段的 EDA 报告片段。';
     }
@@ -288,16 +243,22 @@
   function saveRule2FromModal() {
     var name = document.getElementById('modalR2InpName').value.trim();
     var pad = document.getElementById('modalR2InpPadstack').value.trim();
+    var diffDist = parseFloat(document.getElementById('modalR2InpDiffDist').value) || 10.0;
+    var hdiRadiusInput = parseFloat(document.getElementById('modalR2InpHdiRadius').value);
+    var hdiSearchRadiusMm = hdiRadiusInput > 0 ? hdiRadiusInput : 0.175;
     var layer = document.getElementById('modalR2InpLayer').value.trim();
     var tol = parseFloat(document.getElementById('modalR2InpTol').value) || 30.0;
     var rawTxt = document.getElementById('modalR2TxtShape').value;
+    previewModalShape();
 
     recordHistory('r2_name', name);
     recordHistory('r2_padstack', pad);
+    recordHistory('r2_diff_dist', String(diffDist));
+    recordHistory('r2_hdi_radius', String(hdiSearchRadiusMm));
     recordHistory('r2_layer', layer);
     recordHistory('r2_tol', String(tol));
 
-    var expectedArea = 452.38;
+    var expectedArea = 0;
     if (State.modalShapeParsed && State.modalShapeParsed.area > 0) {
       expectedArea = State.modalShapeParsed.area;
     }
@@ -306,6 +267,8 @@
       id: 'tmpl_' + Date.now(),
       name: name,
       padstack: pad,
+      differentialCenterDistance: diffDist,
+      hdiSearchRadiusMm: hdiSearchRadiusMm,
       layer: layer,
       expectedArea: expectedArea,
       areaTolerance: tol,
@@ -394,7 +357,7 @@
     State.minArcRadius = inp5 ? (parseFloat(inp5.value) || 10.0) : 10.0;
 
     return {
-      version: '1.0',
+      version: '1.1',
       tool: 'pcb_pour_checker',
       exportTime: new Date().toLocaleString(),
       viaCoverageRules: JSON.parse(JSON.stringify(State.viaCoverageRules)),
@@ -436,6 +399,10 @@
     if (Array.isArray(data.specialShapeTemplates)) {
       State.specialShapeTemplates = data.specialShapeTemplates;
       State.specialShapeTemplates.forEach(function (t) {
+        var centerDistance = parseFloat(t.differentialCenterDistance);
+        var hdiRadius = parseFloat(t.hdiSearchRadiusMm);
+        t.differentialCenterDistance = centerDistance > 0 ? centerDistance : 10.0;
+        t.hdiSearchRadiusMm = hdiRadius > 0 ? hdiRadius : 0.175;
         if (t.rawShapeText && !t.shape && root.PourChecker && root.PourChecker.parsePcbElements) {
           try {
             var parsed = root.PourChecker.parsePcbElements(t.rawShapeText);
@@ -520,8 +487,8 @@
       { id: 'cov_2', padstack: 'BGA_GND_pad1mil_0902', layers: '02G01P, 19IS08', coverageRadius: 30.0 }
     ];
     State.specialShapeTemplates = [
-      { id: 'tmpl_1', name: 'L2特定异型泪滴铜皮', padstack: 'BGA_3510', layer: '02G01P', expectedArea: 452.38, areaTolerance: 30.0, rawShapeText: '' },
-      { id: 'tmpl_2', name: 'L19特定异型铜皮', padstack: 'BGA_3510', layer: '19IS08', expectedArea: 113.10, areaTolerance: 20.0, rawShapeText: '' }
+      { id: 'tmpl_1', name: 'L2特定异型泪滴铜皮', padstack: 'BGA_3510', differentialCenterDistance: 10.0, hdiSearchRadiusMm: 0.175, layer: '02G01P', expectedArea: 452.38, areaTolerance: 30.0, rawShapeText: '' },
+      { id: 'tmpl_2', name: 'L19特定异型铜皮', padstack: 'BGA_3510', differentialCenterDistance: 10.0, hdiSearchRadiusMm: 0.175, layer: '19IS08', expectedArea: 113.10, areaTolerance: 20.0, rawShapeText: '' }
     ];
     State.traceMarginRules = [
       { id: 'margin_1', traceLayer: '19IS08', upperRefLayer: '08IS03', lowerRefLayer: 'Bottom', minMargin: 50.0 },

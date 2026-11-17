@@ -42,6 +42,30 @@ test('三栏 EDA 壳层完整、悬浮 Tips 正常、静态标题/标签无括�
   w.EdaTooltip.hide();
 });
 
+test('空间几何视图可按不显示、全显示、线到孔和孔到孔筛选不满足位置', () => {
+  const mode = $('selDfmDefectMode');
+  if (!mode) throw new Error('缺少不满足位置显示模式');
+  const values = [...mode.options].map(option => option.value);
+  if (values.join(',') !== 'none,all,line,pad') throw new Error('显示模式不完整：' + values.join(','));
+  if (!$('ckDfmLineToGnd') || !$('ckDfmLineToSignal')) throw new Error('线到孔缺少 GND / 信号孔子类型');
+  if (!$('inpDfmPadPairSearch') || $('inpDfmPadPairSearch').getAttribute('placeholder') !== 'Padstack / 网络名') {
+    throw new Error('孔到孔缺少 Padstack / 网络名搜索栏');
+  }
+  ['线到 GND 孔不满足', '线到信号孔不满足', '孔到孔不满足'].forEach(label => {
+    if (!$('canvasLegend').textContent.includes(label)) throw new Error('图例缺少：' + label);
+  });
+});
+
+test('空间几何视图图例位于画布下方，不覆盖工具栏或画布内容', () => {
+  const stage = d.querySelector('.dfm-canvas-stage');
+  const legend = $('canvasLegend');
+  if (!stage || !legend || stage.nextElementSibling !== legend) throw new Error('图例应紧随画布区域并位于视图最下方');
+  if (!stage.contains($('pcbCanvas')) || !stage.contains($('canvasHud')) || !stage.contains($('measureCard'))) {
+    throw new Error('画布浮层应保留在画布定位区域内');
+  }
+  if (w.getComputedStyle(legend).position === 'absolute') throw new Error('图例仍覆盖在画布或工具栏上');
+});
+
 test('加载 97 项坐标样本并验证双阈值计算（5.94 / 9.94 焊盘下 23 处超标）', () => {
   const sampleTxt = fs.readFileSync(path.join(CHECKER_DIR, 'sample/via_trace_airgap_sample.txt'), 'utf8');
   $('inpGndPadDiam').value = '5.94';

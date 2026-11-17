@@ -3,6 +3,8 @@
  * ========================================================================== */
 (function (root) {
   'use strict';
+  var VI = root && root.CopperViaInference;
+  if (!VI && typeof require === 'function') VI = require('./via-constraint-inference.js');
   var FIELD_RE = {};
   function fieldRe(name) {
     if (!FIELD_RE[name]) FIELD_RE[name] = new RegExp('(?:^|\\n)\\s*' + name + '\\s*:\\s*([^\\n]+)', 'i');
@@ -66,6 +68,8 @@
       item.traceLayers = traceLayers;
       var conn = body.match(/Connections:\s*([\s\S]*?)(?:\n\s*Backdrill:|\n\s*BackDrill|$)/i);
       if (conn) item.connections = conn[1].replace(/\s+/g, ' ').trim();
+      var defined = body.match(/Padstack\s+Defined\s*(?:from|:)?\s*<?([^>\s\r\n~-]+)>?\s*(?:to|[-~])\s*<?([^>\s\r\n]+)>?/i);
+      if (defined) { item.padstackStart = defined[1]; item.padstackEnd = defined[2]; }
       items.push(item);
     });
     return items;
@@ -122,7 +126,10 @@
     };
     var re = /(?:^|[^A-Za-z0-9])[Ll](\d{1,2})(?![0-9])/g;
     var m;
-    while ((m = re.exec(s))) push(+m[1]);
+    while ((m = re.exec(s))) {
+      if (isPadWord(s, re.lastIndex)) continue;
+      push(+m[1]);
+    }
     var subRe = /(?:^|[^A-Za-z0-9])(\d{2})[A-Za-z][A-Za-z0-9]*(?![0-9])/g;
     while ((m = subRe.exec(s))) push(+m[1]);
     if (/(?:^|[^A-Za-z])TOP(?![A-Za-z])/i.test(s) || /TOP(?=L\d|SMA|BGA)/i.test(s) || /表层/.test(s)) push(1);
@@ -213,6 +220,14 @@
     return '反焊盘尺寸';
   }
 
+  function constraintCheckType(c) {
+    var blob = ((c && c.cat || '') + ' ' + (c && c.name || '')).toLowerCase();
+    if (/非功能/.test(blob)) return '非功能焊盘尺寸';
+    if (/反焊盘/.test(blob)) return '反焊盘尺寸';
+    if (/焊盘/.test(blob)) return '焊盘尺寸';
+    return '';
+  }
+
   function dist(a, b) {
     var dx = a[0] - b[0], dy = a[1] - b[1];
     return Math.sqrt(dx * dx + dy * dy);
@@ -254,6 +269,8 @@
     var vias = items.filter(function (it) { return it.type === 'via' && it.origin; });
     var circles = items.filter(function (it) { return it.circle; });
     var polygons = items.filter(function (it) { return it.type === 'shape' && !it.circle; });
+    var viaUnits = VI.groupVias(vias, n);
+    VI.attachDifferentialPitch(viaUnits);
 
     var circleGrid = {}, traceGrid = {};
     circles.forEach(function (sh) {
@@ -275,60 +292,60 @@
     });
 
     var used = {};
-    var groups = vias.map(function (via) {
-      var near = [];
-      var b = neighborBounds(via.origin[0], via.origin[1], posTol);
-      for (var cx = b.x0; cx <= b.x1; cx++) {
-        for (var cy = b.y0; cy <= b.y1; cy++) {
-          var list = circleGrid[cx + ',' + cy];
-          if (!list) continue;
-          for (var i = 0; i < list.length; i++) {
-            var sh = list[i];
-            if (dist(via.origin, sh.center) <= posTol) {
-              near.push(sh);
-              used[sh.id] = 1;
-            }
+    var groups = viaUnits.map(function (unit) {
+      var via = unit.via, near = [], nearSeen = {}, nearOwners = {}, traceNums = {};
+      unit.vias.forEach(function (part) {
+        (part.traceLayers || []).forEach(function (name) {
+          var ln = subsetToLayer(name, n);
+          if (ln) traceNums[ln] = name;
+        });
+        var b = neighborBounds(part.origin[0], part.origin[1], posTol);
+        for (var cx = b.x0; cx <= b.x1; cx++) {
+          for (var cy = b.y0; cy <= b.y1; cy++) {
+            var list = circleGrid[cx + ',' + cy];
+            if (list) list.forEach(function (sh) {
+              if (dist(part.origin, sh.center) > posTol) return;
+              if (!nearSeen[sh.id]) { nearSeen[sh.id] = 1; near.push(sh); used[sh.id] = 1; }
+              var owners = nearOwners[sh.id] || (nearOwners[sh.id] = []);
+              if (!owners.some(function (v) { return String(v.id) === String(part.id); })) owners.push(part);
+            });
+            var tlist = traceGrid[cx + ',' + cy];
+            if (tlist) tlist.forEach(function (tk) {
+              if (!traceNums[tk.layer]) traceNums[tk.layer] = tk.subset;
+            });
           }
         }
-      }
-
-      var traceNums = {};
-      (via.traceLayers || []).forEach(function (name) {
-        var ln = subsetToLayer(name, n);
-        if (ln) traceNums[ln] = name;
       });
-      for (var cx2 = b.x0; cx2 <= b.x1; cx2++) {
-        for (var cy2 = b.y0; cy2 <= b.y1; cy2++) {
-          var tlist = traceGrid[cx2 + ',' + cy2];
-          if (!tlist) continue;
-          for (var ti = 0; ti < tlist.length; ti++) {
-            var tk = tlist[ti];
-            if (!traceNums[tk.layer]) traceNums[tk.layer] = tk.subset;
-          }
-        }
-      }
 
       var keys = padKeys(via.padstack);
-      var sel = selectRule(sets, keys);
-      if (sel.fan) keys.fan = sel.fan;
+      keys.signal = unit.signal;
+      keys.kind = unit.kind || keys.kind;
+      keys.startLayer = unit.startLayer;
+      keys.endLayer = unit.endLayer;
+      keys.fan = unit.endLayer;
+      keys.fans = unit.segmentLayers.slice();
+      keys.pitchMm = unit.pitchMm;
+      keys.pitchMode = unit.pitchMode;
+      keys.mateNet = unit.mateNet;
+      var sel = unit.signal ? VI.selectConstraint(sets, unit, n) : { rule: null, candidates: [] };
       var traceList = Object.keys(traceNums).map(function (k) { return +k; });
-      var note = '';
-      if (keys.fan && traceList.length) {
-        note = traceList.indexOf(keys.fan) >= 0
-          ? ('出线层 L' + keys.fan + ' 与走线一致')
-          : ('Padstack 为 L' + keys.fan + '，走线在 ' + traceList.map(function (x) { return 'L' + x; }).join('、'));
-      } else if (keys.fan) {
-        note = 'Padstack 出线层 L' + keys.fan + '，此过孔没有走线记录';
-      } else if (traceList.length) {
-        note = 'Padstack 名字里没有出线层号，走线在 ' + traceList.map(function (x) { return 'L' + x; }).join('、');
-      }
+      var spanText = unit.startLayer && unit.endLayer ? ('L' + unit.startLayer + '-L' + unit.endLayer) : '层跨未识别';
+      var pitchMembers = unit.pitchMode === 'HDI' ? ('，参与 Via ' + unit.pitchViaIds.join('、') + ' ↔ Via ' + unit.matePitchViaIds.join('、')) : '';
+      var namingIssues = VI.padstackNamingIssues(unit.vias);
+      var namingReason = namingIssues.map(function (x) { return 'Via ' + x.via.id + '：' + x.reason; }).join('；');
+      var groundNet = String(unit.via.net || '').trim().toUpperCase() === 'GND';
+      var note = unit.signal
+        ? ('SIG 完整孔组 ' + unit.memberIds.length + ' 段（Via ' + unit.memberIds.join('、') + '），连接 ' + spanText +
+          (unit.pitchMm != null ? ('，' + (unit.pitchMode === 'HDI' ? 'HDI 激光孔中心距 ' : '差分孔中心距 ') + unit.pitchMm.toFixed(3) + ' mm' + pitchMembers + '，匹配最近约束值') : '，未找到差分配对孔'))
+        : (groundNet ? 'GND 网络：仅显示，不推算信号约束，不执行核查' : 'Padstack 不含 SIG：仅显示，不推算约束，不执行核查');
+      if (namingReason) note += '；Padstack 信号命名不符合：' + namingReason;
 
       var rows = near.map(function (sh) {
         var ctype = checkTypeOf(sh);
         var layer = subsetToLayer(sh.subset, n);
-        var on = enabled[ctype] !== false;
+        var on = unit.signal && enabled[ctype] !== false;
         var status = '未检查', expect = '', constraint = '';
-        if (!on) status = '未检查';
+        if (!unit.signal || !on) status = '未检查';
         else if (!sel.rule) status = '未选规则';
         else if (!layer) status = '层未识别';
         else {
@@ -345,19 +362,23 @@
           actual: sh.radius, expect: expect, status: status, constraint: constraint, enabled: on
         };
       });
-
+      if (namingIssues.length) rows = namingIssues.map(function (issue) {
+        var part = issue.via, partPad = String(part.padstack || '').trim();
+        return {
+          shapeId: 'via-' + part.id, namingViaId: part.id, subset: '—', layer: '—', checkType: 'Padstack信号命名',
+          actual: partPad || '无 Padstack', expect: '包含 SIG 且不包含 GND', status: '不符合',
+          constraint: '非 GND 网络命名规则', reason: '网络 ' + (part.net || '') + ' 不是 GND，Padstack Name ' + issue.reason,
+          enabled: true, isPadstackCheck: true
+        };
+      }).concat(rows);
       if (sel.rule && sel.rule.constraints) {
         var present = {};
         rows.forEach(function (r) {
           if (r.layer && r.checkType) present[r.layer + ':' + r.checkType] = 1;
         });
         sel.rule.constraints.forEach(function (c) {
-          var blob = ((c.cat || '') + ' ' + (c.name || '')).toLowerCase();
-          var ctype = '反焊盘尺寸';
-          if (/非功能/.test(blob)) ctype = '非功能焊盘尺寸';
-          else if (/反焊盘/.test(blob)) ctype = '反焊盘尺寸';
-          else if (/焊盘/.test(blob)) ctype = '焊盘尺寸';
-          if (enabled[ctype] === false) return;
+          var ctype = constraintCheckType(c);
+          if (!ctype || enabled[ctype] === false) return;
           var vals = c.values || {};
           Object.keys(vals).forEach(function (k) {
             var lm = k.match(/^L(\d+)$/i);
@@ -379,6 +400,48 @@
         });
       }
 
+      // 结果表始终覆盖完整孔经过的每一层。规则有数值但没有铜皮数据时
+      // 仍按缺失判定；该层没有规则值时保留一条“未检查”占位行，避免
+      // 稀疏 Shape 数据让 L2-L12 完整孔只显示 L5/L10 等少数层。
+      if (unit.signal && unit.startLayer && unit.endLayer) {
+        var spanTypes = {}, spanPresent = {};
+        rows.forEach(function (r) {
+          if (r.isPadstackCheck || !r.checkType || typeof r.layer !== 'number' || r.layer <= 0) return;
+          spanPresent[r.layer + ':' + r.checkType] = 1;
+          if (enabled[r.checkType] !== false) spanTypes[r.checkType] = 1;
+        });
+        if (sel.rule && sel.rule.constraints) {
+          sel.rule.constraints.forEach(function (c) {
+            var ctype = constraintCheckType(c);
+            if (ctype && enabled[ctype] !== false) spanTypes[ctype] = 1;
+          });
+        }
+        for (var spanLayer = unit.startLayer; spanLayer <= unit.endLayer; spanLayer++) {
+          Object.keys(spanTypes).forEach(function (ctype) {
+            var spanKey = spanLayer + ':' + ctype;
+            if (spanPresent[spanKey]) return;
+            var rv = sel.rule ? ruleValue(sel.rule, ctype, spanLayer) : { missing: '未推算到约束' };
+            var checked = !rv.missing;
+            rows.push({
+              shapeId: 'span-' + spanLayer + '-' + ctype,
+              subset: '—',
+              layer: spanLayer,
+              checkType: ctype,
+              actual: '无铜皮',
+              expect: checked ? rv.text : rv.missing,
+              status: checked ? '不符合' : '未检查',
+              constraint: rv.constraint || '',
+              reason: checked ? '完整孔经过该层，但没有匹配到铜皮数据' : rv.missing,
+              missing: true,
+              spanPlaceholder: true,
+              enabled: true
+            });
+            spanPresent[spanKey] = 1;
+          });
+        }
+      }
+
+      if (unit.signal) {
       var padOn = enabled['Padstack层名'] !== false;
       var connLayerNums = [];
       var connLayerSeen = {};
@@ -390,6 +453,7 @@
 
       var padLayers = layersOfPadstack(via.padstack, n);
       var missingLayers = connLayerNums.filter(function (l) {
+        if (unit.startLayer && unit.endLayer && l >= unit.startLayer && l <= unit.endLayer) return false;
         if (padLayers.indexOf(l) >= 0) return false;
         if (new RegExp('\\bL0*' + l + '\\b', 'i').test(via.padstack || '')) return false;
         var subsets = (via.traceLayers || []).filter(function (sub) { return subsetToLayer(sub, n) === l; });
@@ -436,6 +500,16 @@
         enabled: padOn,
         isPadstackCheck: true
       });
+      }
+
+      rows.forEach(function (row) {
+        var owners = nearOwners[row.shapeId] || unit.vias;
+        if (row.namingViaId != null) owners = unit.vias.filter(function (part) { return String(part.id) === String(row.namingViaId); });
+        else if (!row.isPadstackCheck) owners = VI.sourceOwnersForLayer(owners, row.layer, n);
+        row.sourceViaIds = owners.map(function (part) { return part.id; });
+        row.sourcePadstack = owners.map(function (part) { return part.padstack || '无 Padstack'; })
+          .filter(function (name, idx, all) { return all.indexOf(name) === idx; }).join(' + ');
+      });
 
       rows.sort(function (a, b) {
         if (a.isPadstackCheck) return -1;
@@ -448,7 +522,11 @@
       var failRows = [];
       for (var fi = 0; fi < rows.length; fi++) if (rows[fi].status === '不符合') failRows.push(rows[fi]);
       return {
-        via: via, keys: keys, rule: sel.rule, candidates: sel.candidates, note: note,
+        via: via, vias: unit.vias, signal: unit.signal, keys: keys,
+        rule: sel.rule, candidates: sel.candidates, note: note, namingError: namingReason,
+        startLayer: unit.startLayer, endLayer: unit.endLayer,
+        pitchMm: unit.pitchMm, pitchMode: unit.pitchMode, pitchViaIds: unit.pitchViaIds,
+        matePitchViaIds: unit.matePitchViaIds, mateNet: unit.mateNet,
         traceLayers: traceList, rows: rows, failRows: failRows, failCount: failRows.length
       };
     });
@@ -495,6 +573,7 @@
 
     return {
       groups: groups,
+      signalGroupCount: groups.filter(function (g) { return g.signal; }).length,
       unmatchedCircles: unmatchedCircles,
       nearestViaOf: nearestViaOf,
       polygons: polygons,

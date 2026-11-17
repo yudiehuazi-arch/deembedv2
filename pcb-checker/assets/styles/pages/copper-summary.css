@@ -1,0 +1,177 @@
+/* ⑥ 规律分析页：只看不符合归纳表 */
+.bad-summary-card {
+  padding: 14px;
+}
+
+.bad-summary-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.bad-summary-head h2 {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
+
+.bad-summary-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bad-summary-copy-status {
+  max-width: 220px;
+  text-align: right;
+}
+
+.bad-summary-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.bad-summary-table {
+  width: 100%;
+  min-width: 920px;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.bad-summary-table th,
+.bad-summary-table td {
+  border: 1px solid var(--line);
+  padding: 10px;
+  vertical-align: middle;
+  text-align: left;
+}
+
+.bad-summary-table th {
+  background: var(--surface-subtle);
+  color: var(--heading);
+  font-size: 15px;
+  text-align: center;
+}
+
+.bad-summary-table th:nth-child(1),
+.bad-summary-table td:nth-child(1) {
+  width: 18%;
+}
+
+.bad-summary-table th:nth-child(2),
+.bad-summary-table td:nth-child(2) {
+  width: 15%;
+}
+
+.bad-summary-table th:nth-child(3),
+.bad-summary-table td:nth-child(3) {
+  width: 34%;
+}
+
+.bad-summary-table th:nth-child(4),
+.bad-summary-table td:nth-child(4) {
+  width: 33%;
+}
+
+.bad-summary-network,
+.bad-summary-reason {
+  display: block;
+  min-width: 0;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.bad-summary-network {
+  font-weight: 700;
+}
+
+.bad-summary-board-open {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--pri);
+  font: inherit;
+  cursor: zoom-in;
+}
+
+.bad-summary-board-open span {
+  display: block;
+  margin-top: 5px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.bad-summary-board {
+  display: block;
+  width: 100%;
+  max-width: 320px;
+  height: auto;
+  margin: 0 auto;
+  border: 1px solid #334155;
+  background: #07111f;
+}
+
+.bad-summary-zoom {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(17, 24, 39, 0.82);
+}
+
+.bad-summary-zoom[hidden] {
+  display: none;
+}
+
+.bad-summary-zoom-dialog {
+  width: min(960px, 96vw);
+  max-height: 94vh;
+  padding: 12px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.bad-summary-zoom-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.bad-summary-zoom-head b {
+  overflow-wrap: anywhere;
+}
+
+.bad-summary-zoom-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid #334155;
+  background: #07111f;
+}
+
+.bad-summary-empty {
+  padding: 20px 4px;
+}
+
+@media (max-width: 760px) {
+  .bad-summary-head {
+    flex-direction: column;
+  }
+
+  .bad-summary-actions {
+    justify-content: flex-start;
+  }
+}

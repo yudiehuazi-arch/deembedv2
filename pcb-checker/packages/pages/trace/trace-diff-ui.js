@@ -225,21 +225,24 @@
         ? Array.from(x.r.widthLens.entries()).sort(function (a, b) { return a[0] - b[0]; }).map(function (kv) { return fmt(kv[0]) + ':' + fmt(kv[1]); }).join('; ')
         : '';
       var seqStr = TE.extractWidthSeq(x.r).map(fmt).join('->');
+      var expLen = typeof App.formatExpectedLength === 'function' ? App.formatExpectedLength(x.r) : '-';
+      var expW = typeof App.formatExpectedWidthCombo === 'function' ? App.formatExpectedWidthCombo(x.r) : '-';
       return [
         x.r.item || x.r.line || '',
         x.r.net,
         x.r.layer,
         fmt(x.r.length),
+        expLen,
         seqStr,
+        expW,
         wlStr,
         (x.r.radiiArr || []).map(fmt).join('/'),
-        (x.r.segCount || 0) + '/' + (x.r.arcCount || 0),
         x.v.st === 'fail' ? '不符合' : x.v.st === 'pass' ? '通过' : '未检查',
         (x.v.reasons || []).join('；')
       ];
     });
     if (!rows.length) { alert('当前筛选下没有可导出的记录'); return; }
-    App.download('走线检查_全部.csv', TE.toCSV(['Item', '网络', '层', '总线长', '线宽组合顺序', '指定线宽线长', '弧半径', '直/弧段', '判定', '原因'], rows));
+    App.download('走线检查_全部.csv', TE.toCSV(['Item', '网络', '层', '总线长', '应满足的线长', '线宽组合顺序', '应满足的线宽组合变化', '指定线宽线长', '弧半径', '判定', '原因'], rows));
   }
 
   function exportFail() {
@@ -253,18 +256,22 @@
         ? Array.from(r.widthLens.entries()).sort(function (a, b) { return a[0] - b[0]; }).map(function (kv) { return fmt(kv[0]) + ':' + fmt(kv[1]); }).join('; ')
         : '';
       var seqStr = TE.extractWidthSeq(r).map(fmt).join('->');
+      var expLen = typeof App.formatExpectedLength === 'function' ? App.formatExpectedLength(r) : '-';
+      var expW = typeof App.formatExpectedWidthCombo === 'function' ? App.formatExpectedWidthCombo(r) : '-';
       rows.push([
         r.item || r.line || '',
         r.net,
         r.layer,
         fmt(r.length),
+        expLen,
         seqStr,
+        expW,
         wlStr,
         (r.radiiArr || []).map(fmt).join('/'),
         reasons.join('；')
       ]);
     });
-    App.download('走线检查_不符合项.csv', TE.toCSV(['Item', '网络', '层', '总线长', '线宽组合顺序', '指定线宽线长', '弧半径', '不符合原因'], rows));
+    App.download('走线检查_不符合项.csv', TE.toCSV(['Item', '网络', '层', '总线长', '应满足的线长', '线宽组合顺序', '应满足的线宽组合变化', '指定线宽线长', '弧半径', '不符合原因'], rows));
   }
 
   function exportDiff() {
@@ -399,8 +406,9 @@
     };
     $('btnRunCheck').onclick = runCheck;
     if ($('btnRunCheckBottom')) $('btnRunCheckBottom').onclick = runCheck;
-    ['fltQ', 'fltLayer', 'fltStatus'].forEach(function (id) {
+    ['fltQ', 'fltLayer', 'fltStatus', 'fltType'].forEach(function (id) {
       var el = $(id);
+      if (!el) return;
       el.oninput = function () { S.page = 0; renderResults(); };
       el.onchange = el.oninput;
     });
@@ -430,6 +438,7 @@
       var tr = cb.closest('tr');
       if (tr) tr.classList.toggle('reviewed', cb.checked);
       updateTraceRevHint();
+      if (typeof App.syncSpatialReviewCard === 'function') App.syncSpatialReviewCard();
     });
 
     if ($('btnClearDiffRev')) {
@@ -444,6 +453,7 @@
         if (S.traceReviewed) S.traceReviewed.clear();
         renderResults();
         updateTraceRevHint();
+        if (typeof App.syncSpatialReviewCard === 'function') App.syncSpatialReviewCard();
       };
     }
     $('chkDiffOnlyFail').onchange = function () { renderDiff(); updateDiffRevHint(); };
@@ -484,6 +494,12 @@
       if (jb) {
         var target = document.getElementById('resLayer' + jb.dataset.jump);
         if (target && target.scrollIntoView) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
+      var lb = e.target.closest('.btn-locate-trace');
+      if (lb) {
+        if (typeof root.rememberTraceResultPosition === 'function') root.rememberTraceResultPosition(lb);
+        if (typeof root.locateTraceInCanvas === 'function') root.locateTraceInCanvas(parseInt(lb.dataset.idx, 10));
       }
     });
 
@@ -496,6 +512,9 @@
     bindDockClick('dockTraceRun', 'btnRunCheck');
     bindDockClick('dockTraceDiff', 'btnDiffRun');
     bindDockClick('dockTraceExport', 'btnExpReport');
+    if ($('dockTraceCanvas')) {
+      $('dockTraceCanvas').onclick = function () { App.switchTab('canvas'); };
+    }
   }
 
   root.runDiff = runDiff;

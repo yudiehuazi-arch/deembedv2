@@ -4,11 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PCB 约束检查 · 规则</title>
-<link rel="stylesheet" href="assets/styles/tokens.css?v=12">
-<link rel="stylesheet" href="assets/styles/eda-shell.css?v=12">
-<link rel="stylesheet" href="assets/styles/eda-dock.css?v=12">
-<link rel="stylesheet" href="assets/styles/components.css?v=12">
-<link rel="stylesheet" href="assets/styles/pages/copper.css?v=12">
+<link rel="stylesheet" href="assets/styles/tokens.css?v=36">
+<link rel="stylesheet" href="assets/styles/eda-shell.css?v=36">
+<link rel="stylesheet" href="assets/styles/eda-dock.css?v=36">
+<link rel="stylesheet" href="assets/styles/components.css?v=36">
+<link rel="stylesheet" href="assets/styles/pages/copper.css?v=36">
+<link rel="stylesheet" href="assets/styles/pages/copper-canvas.css?v=36">
+<link rel="stylesheet" href="assets/styles/pages/copper-summary.css?v=36">
 </head>
 <body class="eda-workbench">
 
@@ -35,13 +37,14 @@
   </div>
 
   <div class="eda-rail-section">
-    <div class="eda-rail-label">工序流程 <span data-tip="支持快捷键 Alt+1..5 快速切换工序">Alt+1..5</span></div>
+    <div class="eda-rail-label">工序流程 <span data-tip="支持快捷键 Alt+1..6 快速切换工序">Alt+1..6</span></div>
     <nav id="tabs">
       <button type="button" data-tab="rules" class="active" data-tip="设定叠层总层数并导入参数行或三列表格约束 TXT">① 规则约束</button>
       <button type="button" data-tab="sets" data-tip="核对并微调按叠层展开的反焊盘与焊盘约束矩阵">② 生成的约束</button>
       <button type="button" data-tab="data" data-tip="导入含 Shape / Via / Trace 的板级 Item TXT 并查看配对">③ 导入数据</button>
       <button type="button" data-tab="result" data-tip="逐孔逐层核对半径偏差、定位过孔并执行人工复核">④ 检查结果</button>
-      <button type="button" data-tab="legend" data-tip="查看各约束不符合原因明细、未匹配过孔与未配对铜皮分布">⑤ 规律分析</button>
+      <button type="button" data-tab="canvas" data-tip="查看过孔、圆形铜皮与走线的空间位置，并执行两点距离测量">⑤ 空间几何视口与测量</button>
+      <button type="button" data-tab="legend" data-tip="查看各约束不符合原因明细、未匹配过孔与未配对铜皮分布">⑥ 规律分析</button>
     </nav>
   </div>
 
@@ -130,7 +133,7 @@
     <!-- ================= ③ 导入数据 ================= -->
     <section class="tab" id="tab-data">
       <div class="card">
-        <h2>导入板级 Item 数据 <span class="eda-tip" tabindex="0" data-tip="解析 Shape / Via / Trace 数据块：按位置容差配对圆形铜皮与过孔，由 Padstack 关键字推算适用约束并逐层核对半径">?</span></h2>
+        <h2>导入板级 Item 数据 <span class="eda-tip" tabindex="0" data-tip="仅对含 SIG 的信号孔推算约束：先将同网络相邻盲埋孔段合并为完整孔，再按完整层跨和差分孔中心距匹配约束并核对 Route Keepout">?</span></h2>
         <div id="dataDrop" tabindex="0" data-tip="支持包含 Shape、Via、Trace 的 EDA 导出 TXT">
           <div class="t1">点击选择板级数据 TXT，或拖拽至此处</div>
           <div class="t2">含圆形 Route Keepout / 焊盘 Shape 与过孔 Via 记录</div>
@@ -153,7 +156,7 @@
       </div>
 
       <div class="card" id="matchCard">
-        <h2>铜皮 × 过孔空间配对与约束推算 <span class="eda-tip" tabindex="0" data-tip="点击上方统计卡可按类别单独筛选，再次点击恢复全部显示">?</span></h2>
+        <h2>Route Keepout × 完整信号孔配对与约束推算 <span class="eda-tip" tabindex="0" data-tip="非 SIG 过孔仅显示不检查；同网络相邻 SIG 孔段先合并，孔组每个坐标处的全部 Route Keepout 使用同一推算约束">?</span></h2>
         <div id="matchOut"><div class="hint">尚未导入数据。</div></div>
       </div>
     </section>
@@ -163,7 +166,7 @@
       <div class="card">
         <div class="row" id="resStats"></div>
         <div class="row" style="margin-top:10px">
-          <button type="button" class="btn gray" id="btnOnlyBad">只看不符合</button>
+          <button type="button" class="btn gray" id="btnOnlyBad" data-tip="筛出含不符合项的完整信号孔，并保留孔内所有层供上下文对照">只看不符合</button>
           <button type="button" class="btn gray" id="btnOnlyMatched">只看已配对过孔</button>
           <button type="button" class="btn gray" id="btnOnlyNoRule">只看没推算到约束</button>
           <button type="button" class="btn gray" id="btnAllRows">全部</button>
@@ -172,6 +175,8 @@
           <button type="button" class="btn gray" id="btnCsv">导出 CSV</button>
           <span class="hint" id="resHint">尚未产生检查结果。</span>
         </div>
+        <div class="row no-rule-net-filter" id="noRuleNetFilters" hidden></div>
+        <div class="row no-rule-net-filter" id="badTypeFilters" hidden></div>
         <div class="row searchbar" style="margin-top:10px">
           <div style="position:relative;flex:1;min-width:260px;max-width:520px">
             <input type="text" id="inpResSearch" class="search-inp" placeholder="搜索孔号、网络名、Padstack 或约束名称…" autocomplete="off" data-no-persist data-tip="支持输入孔号如 19371 或 Via 19371、网络如 GND、Padstack 片段，按 Enter 立即定位">
@@ -188,11 +193,55 @@
       <div id="checkOut"></div>
     </section>
 
-    <!-- ================= ⑤ 规律分析 ================= -->
+    <!-- ================= ⑤ 空间几何视口与测量 ================= -->
+    <section class="tab" id="tab-canvas">
+      <div class="card copper-geometry-card">
+        <div class="copper-viewer-toolbar">
+          <div class="copper-tool-group">
+            <button type="button" class="btn gray small" id="btnCopperFit">适应全板</button>
+            <button type="button" class="btn gray small" id="btnCopperFocus">聚焦定位孔</button>
+            <button type="button" class="btn gray small" id="btnCopperZoomIn">放大</button>
+            <button type="button" class="btn gray small" id="btnCopperZoomOut">缩小</button>
+            <button type="button" class="btn gray small" id="btnCopperMeasure">测量标尺</button>
+            <button type="button" class="btn gray small" id="btnCopperClearMeasure">清除测量</button>
+            <button type="button" class="btn gray small" id="btnReturnCopperResults">返回检查结果明细</button>
+          </div>
+          <div class="copper-tool-group">
+            <label class="fld" data-tip="可关闭类别标注，或标注含不符合项、没推算到约束的完整孔">显示类别 <select id="selCopperCanvasIssueMode" data-no-persist><option value="none">不显示</option><option value="bad">只看不符合</option><option value="norule">只看没推算到约束</option></select></label>
+            <label class="fld" id="copperCanvasIssueDetailLabel"><span id="copperCanvasIssueDetailTitle">扇出方案</span> <select id="selCopperCanvasIssueDetail" data-no-persist><option value="">全部扇出方案</option></select></label>
+            <label class="fld" data-tip="定位结果默认显示全部层，避免隐藏其他孔群；需要时可手动只看单层">显示层 <select id="selCopperCanvasLayer" data-no-persist><option value="">全部层</option></select></label>
+            <label class="chk"><input type="checkbox" id="ckCopperCanvasVias" checked>过孔</label>
+            <label class="chk"><input type="checkbox" id="ckCopperCanvasShapes" checked>圆形铜皮</label>
+            <label class="chk"><input type="checkbox" id="ckCopperCanvasTraces" checked>走线</label>
+            <label class="chk"><input type="checkbox" id="ckCopperCanvasGrid" checked>网格</label>
+          </div>
+        </div>
+        <div class="copper-spatial-review" id="copperSpatialReview">
+          <strong>定位复核</strong><span id="copperSpatialReviewText">尚未从检查结果定位信号孔。</span>
+        </div>
+        <div class="copper-canvas-stage">
+          <canvas id="copperCanvas" width="1200" height="620"></canvas>
+          <div class="copper-canvas-hud" id="copperCanvasHud">缩放 100%</div>
+          <div class="copper-measure-readout" id="copperMeasureReadout">开启测量标尺后，在画布中依次点击两点。</div>
+        </div>
+        <div class="copper-canvas-legend" id="copperCanvasLegend">
+          <strong>图例</strong>
+          <span><i class="via"></i>过孔</span>
+          <span><i class="shape"></i>圆形铜皮</span>
+          <span><i class="trace"></i>走线</span>
+          <span><i class="located"></i>当前定位完整孔</span>
+          <span><i class="all-fail"></i>类别筛选标注</span>
+          <span><i class="measure"></i>测量标尺</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= ⑥ 规律分析 ================= -->
     <section class="tab" id="tab-legend">
       <div class="card">
         <h2>判定规律与当前分布 <span class="eda-tip" tabindex="0" data-tip="汇总各约束分层不符合原因及对应网络孔号、未匹配规则过孔与孤立圆形铜皮">?</span></h2>
       </div>
+      <div id="copperBadSummary"></div>
       <div id="legendOut"></div>
     </section>
   </main>
@@ -233,14 +282,16 @@
 
 <div id="expMask"></div>
 
-<script src="packages/engines/copper/copper-engine.js?v=12"></script>
-<script src="packages/engines/copper/constraint-parser.js?v=12"></script>
-<script src="packages/pages/copper/copper-state.js?v=12"></script>
-<script src="packages/pages/copper/copper-sets-ui.js?v=12"></script>
-<script src="packages/pages/copper/copper-results-ui.js?v=12"></script>
-<script src="packages/pages/copper/copper-legend-ui.js?v=12"></script>
-<script src="packages/shared/eda-tooltip.js?v=12"></script>
-<script src="packages/shared/eda-shell.js?v=12"></script>
-<script src="packages/shared/ui-prefs.js?v=12"></script>
+<script src="packages/engines/copper/via-constraint-inference.js?v=36"></script><script src="packages/engines/copper/copper-engine.js?v=36"></script>
+<script src="packages/engines/copper/constraint-parser.js?v=36"></script>
+<script src="packages/pages/copper/copper-state.js?v=36"></script>
+<script src="packages/pages/copper/copper-sets-ui.js?v=36"></script>
+<script src="packages/pages/copper/copper-canvas-viewer.js?v=36"></script>
+<script src="packages/pages/copper/copper-results-ui.js?v=36"></script>
+<script src="packages/pages/copper/copper-bad-summary-ui.js?v=36"></script>
+<script src="packages/pages/copper/copper-legend-ui.js?v=36"></script>
+<script src="packages/shared/eda-tooltip.js?v=36"></script>
+<script src="packages/shared/eda-shell.js?v=36"></script>
+<script src="packages/shared/ui-prefs.js?v=36"></script>
 </body>
 </html>

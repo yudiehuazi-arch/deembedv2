@@ -3,8 +3,11 @@
  * ========================================================================== */
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
 const { openPage } = require('../helpers/open-page');
 
+const SPECIAL_SHAPE_TXT = fs.readFileSync(path.join(__dirname, '../../sample/special-shape-seg-arc.txt'), 'utf8');
 const ctx = openPage('pour.html', { syncCheck: true });
 const { w, d } = ctx;
 const $ = id => d.getElementById(id);
@@ -48,10 +51,16 @@ test('规则 1/2/3 多规则配置表格与历史快捷标签初始化正常', (
   if (w.State.viaCoverageRules.length < 2) throw new Error('Rule 1 初始规则应至少有 2 条');
   if (w.State.specialShapeTemplates.length < 2) throw new Error('Rule 2 初始模板应至少有 2 条');
   if (w.State.traceMarginRules.length < 2) throw new Error('Rule 3 初始规则应至少有 2 条');
+  const rule2Headers = [...$('tblRule2Body').parentElement.querySelectorAll('th')].map(th => th.textContent.trim());
+  const viaTypeIndex = rule2Headers.indexOf('过孔类型');
+  if (viaTypeIndex < 0 || rule2Headers[viaTypeIndex + 1] !== '差分孔中心距') {
+    throw new Error('规则 2 的“差分孔中心距”未紧邻“过孔类型”右侧');
+  }
+  if (!rule2Headers.includes('HDI 搜索距离 mm')) throw new Error('规则 2 缺少可修改的 HDI 搜索距离');
 
   const chipBars = [
     'chipsModalR1Padstack', 'chipsModalR1Layers', 'chipsModalR1Dist',
-    'chipsModalR2Name', 'chipsModalR2Padstack', 'chipsModalR2Layer', 'chipsModalR2Tol',
+    'chipsModalR2Name', 'chipsModalR2Padstack', 'chipsModalR2DiffDist', 'chipsModalR2HdiRadius', 'chipsModalR2Layer', 'chipsModalR2Tol',
     'chipsModalR3TraceLayer', 'chipsModalR3UpperRef', 'chipsModalR3LowerRef', 'chipsModalR3Margin',
     'chipsRule4Area', 'chipsRule5Radius'
   ];
@@ -66,6 +75,19 @@ test('规则 1/2/3 多规则配置表格与历史快捷标签初始化正常', (
   if ($('rule4InpArea').value !== chipText) {
     throw new Error(`回填失败: 预期 ${chipText}, 实际 ${$('rule4InpArea').value}`);
   }
+});
+
+test('异型铜皮预览按离散轮廓绘制，不把圆弧画成整圆', () => {
+  const shape = w.PourChecker.parsePcbElements(SPECIAL_SHAPE_TXT).shapes[0];
+  const calls = { lineTo: 0, arc: 0 };
+  const context = {
+    clearRect() {}, fillRect() {}, beginPath() {}, moveTo() {}, closePath() {}, fill() {}, stroke() {},
+    lineTo() { calls.lineTo++; },
+    arc() { calls.arc++; }
+  };
+  const drawn = w.drawShapePreviewCanvas({ width: 110, height: 110, getContext: () => context }, shape);
+  if (!drawn || calls.lineTo !== shape._ring.length - 1) throw new Error('预览未按完整离散轮廓连续绘制');
+  if (calls.arc !== 1) throw new Error('预览仍把扫掠圆弧错误绘制为整圆');
 });
 
 test('弹窗新增规则 1/2/3 与异型铜皮 Shape TXT 几何解析保存', () => {
@@ -83,17 +105,65 @@ test('弹窗新增规则 1/2/3 与异型铜皮 Shape TXT 几何解析保存', ()
   w.openAddRule2Modal();
   if (!$('modalRule2').classList.contains('open')) throw new Error('Modal 2 未打开');
   $('modalR2InpPadstack').value = 'BGA_GND_pad1mil_0902';
-  $('modalR2InpLayer').value = '02G01P';
-  $('modalR2TxtShape').value = `Item 1  < Shape >\n  Subset: 02G01P\n  Area: 907.92028 (sq mil)\nExterior Boundary:\n  Arc seg: xy [21208.94, 35522.46]  xy [21208.94, 35522.46]\n    Center-xy: [21220.94, 35522.46] Radius (12.0000) CCW`;
+  $('modalR2InpDiffDist').value = '19.68';
+  $('modalR2InpHdiRadius').value = '0.175';
+  $('modalR2InpLayer').value = '05G02P';
+  $('modalR2TxtShape').value = SPECIAL_SHAPE_TXT;
   w.previewModalShape();
-  if (!w.State.modalShapeParsed || Math.abs(w.State.modalShapeParsed.area - 907.92028) > 0.001) {
-    throw new Error('异型 Shape 面积解析异常');
+  const parsedShape = w.State.modalShapeParsed;
+  if (!parsedShape || Math.abs(parsedShape.area - 97.38256) > 0.001 || parsedShape.boundary.length !== 11 || parsedShape.arcs.length !== 6) {
+    throw new Error('异型 Shape 的 Seg 与 Arc seg 真实轮廓解析异常');
   }
   w.saveRule2FromModal();
   if ($('modalRule2').classList.contains('open')) throw new Error('Modal 2 未关闭');
-  if (!w.State.specialShapeTemplates.some(t => Math.abs(t.expectedArea - 907.92028) < 0.1)) {
-    throw new Error('规则 2 模板未保存');
+  const savedTemplateIndex = w.State.specialShapeTemplates.findIndex(t => Math.abs(t.expectedArea - 97.38256) < 0.1 && t.differentialCenterDistance === 19.68);
+  if (savedTemplateIndex < 0) throw new Error('规则 2 模板与差分孔中心距未保存');
+  const originalDrawPreview = w.drawShapePreviewCanvas;
+  const originalRAF = w.requestAnimationFrame;
+  let thumbnailShape = null;
+  w.requestAnimationFrame = callback => callback();
+  w.drawShapePreviewCanvas = (canvas, shape) => {
+    if (canvas && canvas.id === `r2Thumb_${savedTemplateIndex}`) thumbnailShape = shape;
+    return true;
+  };
+  w.renderRule2Table();
+  w.drawShapePreviewCanvas = originalDrawPreview;
+  w.requestAnimationFrame = originalRAF;
+  if (!thumbnailShape || thumbnailShape.boundary.length !== 11 || thumbnailShape.arcs.length !== 6) {
+    throw new Error('规则表缩略图未使用导入的异型铜皮真实轮廓');
   }
+  w.openEditRule2Modal(savedTemplateIndex);
+  if ($('modalR2InpDiffDist').value !== '19.68') throw new Error('规则 2 编辑弹窗未回填差分孔中心距');
+  ['modalR2InpPadstack', 'modalR2InpDiffDist', 'modalR2InpHdiRadius', 'modalR2InpLayer', 'modalR2TxtShape'].forEach(id => {
+    if ($(id).disabled) throw new Error('规则 2 编辑弹窗字段不可手动输入：' + id);
+  });
+  const editedShapeTxt = `Item 1  < Shape >\n  Subset: 19IS08\n  Area: 321.12345 (sq mil)\nExterior Boundary:\n  Arc seg: xy [21208.94, 35522.46]  xy [21208.94, 35522.46]\n    Center-xy: [21220.94, 35522.46] Radius (12.0000) CCW`;
+  $('modalR2InpPadstack').value = 'BGA_EDITABLE';
+  $('modalR2InpDiffDist').value = '23.62';
+  $('modalR2InpHdiRadius').value = '0.125';
+  $('modalR2InpLayer').value = '19IS08, L5';
+  $('modalR2TxtShape').value = editedShapeTxt;
+  w.saveRule2FromModal();
+  const editedTemplate = w.State.specialShapeTemplates[savedTemplateIndex];
+  if (editedTemplate.padstack !== 'BGA_EDITABLE' || editedTemplate.differentialCenterDistance !== 23.62 || editedTemplate.hdiSearchRadiusMm !== 0.125 || editedTemplate.layer !== '19IS08, L5') {
+    throw new Error('规则 2 编辑弹窗未保存过孔、中心距、HDI 搜索距离与目标层');
+  }
+  if (editedTemplate.rawShapeText !== editedShapeTxt || Math.abs(editedTemplate.expectedArea - 321.12345) > 0.001 || !editedTemplate.shape) {
+    throw new Error('规则 2 编辑弹窗未保存修改后的 Shape TXT 数据');
+  }
+  w.openEditRule2Modal(savedTemplateIndex);
+  if ($('modalR2TxtShape').value !== editedShapeTxt) throw new Error('规则 2 编辑弹窗未回填修改后的 Shape TXT 数据');
+  $('modalR2TxtShape').value = '';
+  w.previewModalShape();
+  w.saveRule2FromModal();
+  const clearedTemplate = w.State.specialShapeTemplates[savedTemplateIndex];
+  if (clearedTemplate.rawShapeText !== '' || clearedTemplate.expectedArea !== 0 || clearedTemplate.shape !== null) {
+    throw new Error('规则 2 编辑弹窗未删除已清空的 Shape TXT 数据');
+  }
+  w.openEditRule2Modal(savedTemplateIndex);
+  if ($('modalR2TxtShape').value !== '' || $('modalR2TxtShape').disabled) throw new Error('清空后的 Shape TXT 数据未保持可编辑空值');
+  w.closeModal('modalRule2');
+  if (!$('tblRule2Body').textContent.includes('19IS08, L5')) throw new Error('规则 2 表格未显示多个目标层');
 
   w.openAddRule3Modal();
   if (!$('modalRule3').classList.contains('open')) throw new Error('Modal 3 未打开');
@@ -121,13 +191,16 @@ test('规则 JSON 快照导出、本地恢复与导出复制兜底验证', () =>
   if (!json.viaCoverageRules.length || !json.specialShapeTemplates.length || !json.traceMarginRules.length) {
     throw new Error('导出 JSON 内容不完整');
   }
+  if (!json.specialShapeTemplates.every(t => t.differentialCenterDistance > 0 && t.hdiSearchRadiusMm > 0)) {
+    throw new Error('导出 JSON 缺少差分孔中心距或 HDI 搜索距离');
+  }
   if ($('lblRuleFileStatus').style.display === 'none') throw new Error('状态提示未显示');
 
   w.applyRuleSnapshot({
     version: '1.0',
     tool: 'pcb_pour_checker',
     viaCoverageRules: [{ id: 'custom_cov_1', padstack: 'TEST_CUSTOM_VIA_STACK', layers: 'L1-L12', coverageRadius: 60.0 }],
-    specialShapeTemplates: [{ id: 'custom_tmpl_1', name: '测试专用异型铜皮模板', padstack: 'TEST_CUSTOM_VIA_STACK', layer: '19IS08', expectedArea: 320.0, areaTolerance: 15.0, rawShapeText: '' }],
+    specialShapeTemplates: [{ id: 'custom_tmpl_1', name: '测试专用异型铜皮模板', padstack: 'TEST_CUSTOM_VIA_STACK', differentialCenterDistance: 23.62, hdiSearchRadiusMm: 0.15, layer: '19IS08', expectedArea: 320.0, areaTolerance: 15.0, rawShapeText: '' }],
     traceMarginRules: [{ id: 'custom_margin_1', traceLayer: '08IS03', upperRefLayer: 'Top', lowerRefLayer: 'Bottom', minMargin: 55.0 }],
     smallCopperAreaThreshold: 350.0,
     minArcRadius: 8.5,
@@ -135,7 +208,12 @@ test('规则 JSON 快照导出、本地恢复与导出复制兜底验证', () =>
   }, true);
 
   if (w.State.viaCoverageRules[0].padstack !== 'TEST_CUSTOM_VIA_STACK') throw new Error('规则 1 恢复失败');
-  if (w.State.specialShapeTemplates[0].name !== '测试专用异型铜皮模板') throw new Error('规则 2 恢复失败');
+  if (w.State.specialShapeTemplates[0].name !== '测试专用异型铜皮模板' || w.State.specialShapeTemplates[0].differentialCenterDistance !== 23.62 || w.State.specialShapeTemplates[0].hdiSearchRadiusMm !== 0.15) throw new Error('规则 2 的中心距与 HDI 搜索距离恢复失败');
+  const restoredTemplates = w.State.specialShapeTemplates;
+  w.applyRuleSnapshot({ specialShapeTemplates: [{ id: 'legacy', name: '旧规则', padstack: 'BGA', differentialCenterDistance: 10, layer: 'L2' }] }, false);
+  if (w.State.specialShapeTemplates[0].hdiSearchRadiusMm !== 0.175) throw new Error('旧规则缺少的 HDI 搜索距离未归一化为 0.175 mm');
+  w.State.specialShapeTemplates = restoredTemplates;
+  w.renderRule2Table();
   if (w.State.traceMarginRules[0].minMargin !== 55.0) throw new Error('规则 3 恢复失败');
   if ($('rule4InpArea').value !== '350' || $('rule5InpRadius').value !== '8.5') throw new Error('阈值输入框未同步');
 

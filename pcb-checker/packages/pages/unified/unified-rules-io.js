@@ -140,7 +140,7 @@ function handleRulesFile(e) {
         UnifiedDfmLayerRules.saveDefaults();
       }
       if (r.pourRule1) State.rules.pourRule1 = r.pourRule1;
-      if (r.specialShapeTemplates) State.rules.specialShapeTemplates = r.specialShapeTemplates;
+      if (r.specialShapeTemplates) State.rules.specialShapeTemplates = normalizeSpecialShapeTemplates(r.specialShapeTemplates);
       if (r.pourRule3) State.rules.pourRule3 = r.pourRule3;
       renderRulesUI();
       if (State.rawText) runMasterInspection();
@@ -384,7 +384,7 @@ function importPourRulesPrompt() { const input = $('filePourRules'); if (input) 
 function exportPourRulesPrompt() {
   const data = {
     kind: 'pcb-pour-rules',
-    version: 1,
+    version: 2,
     viaCoverageRules: State.rules.pourRule1.map(r => ({
       id: r.id,
       padstack: r.padstack,
@@ -425,7 +425,7 @@ function handlePourRulesFile(e) {
       }
 
       if (r.specialShapeTemplates && Array.isArray(r.specialShapeTemplates)) {
-        State.rules.specialShapeTemplates = r.specialShapeTemplates;
+        State.rules.specialShapeTemplates = normalizeSpecialShapeTemplates(r.specialShapeTemplates);
       }
 
       if (r.traceMarginRules && Array.isArray(r.traceMarginRules)) {
@@ -473,9 +473,13 @@ function handlePourShapeTxtFile(e) {
             id: `tmpl_txt_${Date.now()}_${idx}`,
             name: `${sh.layer || 'L2'}导入异型铜皮_${State.rules.specialShapeTemplates.length + 1}`,
             padstack: 'BGA_3510',
+            differentialCenterDistance: 10.0,
+            hdiSearchRadiusMm: 0.175,
             layer: sh.layer || '02G01P',
             expectedArea: parseFloat((sh.area || 452.4).toFixed(1)),
-            areaTolerance: 30.0
+            areaTolerance: 30.0,
+            rawTxt: sh.rawText || text,
+            shape: sh
           });
         });
         renderRulesUI();
@@ -487,6 +491,8 @@ function handlePourShapeTxtFile(e) {
           id: `tmpl_txt_${Date.now()}`,
           name: `${file.name.replace(/\.[^.]+$/, '')}`,
           padstack: 'BGA_3510',
+          differentialCenterDistance: 10.0,
+          hdiSearchRadiusMm: 0.175,
           layer: '02G01P',
           expectedArea: 452.4,
           areaTolerance: 30.0

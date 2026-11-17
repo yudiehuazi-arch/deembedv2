@@ -92,15 +92,49 @@ t('重跑: 不符合网络=4, 未检查=1', () => {
   if (!s.includes('4不符合网络')) throw new Error(s);
   if (!s.includes('1未设规则网络')) throw new Error(s);
 });
-t('结果按出线层分表, 表头包含「线宽组合变化顺序」', () => {
+t('结果按出线层分表, 表头包含「应满足的线长」「线宽组合变化顺序」「应满足的线宽组合变化」, 且已移除「直/弧段」列', () => {
   const cards = [...d.querySelectorAll('#resLayers .layer-res')];
   const titles = cards.map(c => c.querySelector('h2').textContent);
   if (!titles.some(t => t.includes('02G01P'))) throw new Error(titles.join(' | '));
   if (!titles.some(t => t.includes('02G03P'))) throw new Error(titles.join(' | '));
-  const ths = [...d.querySelectorAll('#resLayers th')].map(th => th.textContent);
-  if (!ths.some(txt => txt.includes('线宽组合变化顺序'))) throw new Error('缺少「线宽组合变化顺序」表头: ' + ths.join(', '));
+  const ths = [...d.querySelectorAll('#resLayers .layer-res:first-child th')].map(th => th.textContent.trim());
+  const lenIdx = ths.findIndex(txt => txt.includes('总线长'));
+  if (lenIdx < 0 || ths[lenIdx + 1] !== '应满足的线长') throw new Error('总线长右侧应为「应满足的线长」: ' + ths.join(', '));
+  const widIdx = ths.findIndex(txt => txt.includes('线宽组合变化顺序'));
+  if (widIdx < 0 || ths[widIdx + 1] !== '应满足的线宽组合变化') throw new Error('线宽组合变化顺序右侧应为「应满足的线宽组合变化」: ' + ths.join(', '));
+  if (ths.some(txt => txt.includes('直/弧段'))) throw new Error('直/弧段列未删除: ' + ths.join(', '));
   if (ths.some(txt => txt.includes('不符合原因'))) throw new Error('旧原因列还在');
   if (d.getElementById('netSumTbl')) throw new Error('旧汇总表还在');
+
+  // 验证查看类型下拉筛选与应满足的线长匹配最近目标值（如 1050.0778 -> 1050mil）
+  const fltType = d.getElementById('fltType');
+  if (!fltType) throw new Error('缺少查看类型下拉框 #fltType');
+  const optLabels = [...fltType.options].map(o => o.textContent.trim());
+  if (optLabels.join(',') !== '全部,总线长,线宽组合变化,弧半径') throw new Error('查看类型选项不符: ' + optLabels.join(','));
+
+  fltType.value = 'width';
+  fltType.dispatchEvent(new dom.window.Event('change'));
+  const widthRows = [...d.querySelectorAll('#resLayers tbody tr')];
+  if (widthRows.length !== 1 || !widthRows[0].textContent.includes('106_P')) throw new Error('按线宽组合变化筛选结果错误');
+
+  fltType.value = 'length';
+  fltType.dispatchEvent(new dom.window.Event('change'));
+  const lenRows = [...d.querySelectorAll('#resLayers tbody tr')];
+  if (lenRows.length !== 3 || !lenRows.some(r => r.textContent.includes('301_P'))) throw new Error('按总线长筛选结果错误');
+
+  fltType.value = '';
+  fltType.dispatchEvent(new dom.window.Event('change'));
+
+  // 验证列表模式下 1050.0778 对应应满足的线长为 1050mil
+  const fakeRec = { layer: '02G01P', length: 1050.0778, widthsArr: [4.5, 7], widthSeq: [4.5, 7] };
+  dom.window.TraceApp.S.rules = [{ layer: '02G01P', enabled: true, checkLen: true, lenMode: 'list', lengths: [800, 1050, 1500], checkWidth: true, widthsText: '4.5-6.8, 5.6' }];
+  if (dom.window.TraceApp.formatExpectedLength(fakeRec) !== '1050mil') {
+    throw new Error('应满足的线长计算错误: ' + dom.window.TraceApp.formatExpectedLength(fakeRec));
+  }
+  if (dom.window.TraceApp.formatExpectedWidthCombo(fakeRec) !== '4.5 → 6.8') {
+    throw new Error('应满足的线宽组合变化计算错误: ' + dom.window.TraceApp.formatExpectedWidthCombo(fakeRec));
+  }
+  click('btnRunCheck');
 });
 t('02G01P 表中 106_P 整行标红, 线宽组合「5.6 → 6」标红高亮并给出原因提示', () => {
   const card = [...d.querySelectorAll('#resLayers .layer-res')].find(c => c.querySelector('h2').textContent.includes('02G01P'));
@@ -128,6 +162,62 @@ t('走线检查结果不符合行带复验勾选框，勾选后该行变灰', ()
   chk.checked = false;
   chk.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
   if (failTr.classList.contains('reviewed')) throw new Error('取消勾选后应恢复原状');
+});
+
+t('走线检查结果每一条不满足项均提供「定位」按钮，点击后切换到⑤空间几何视口与测量并支持空间复验与返回', () => {
+  const failRows = [...d.querySelectorAll('#resLayers tr.fail')];
+  if (failRows.length < 1) throw new Error('缺少不满足行');
+  failRows.forEach(tr => {
+    const btn = tr.querySelector('.btn-locate-trace');
+    if (!btn || btn.textContent.trim() !== '定位') throw new Error('不满足行缺少定位按钮');
+  });
+
+  const targetRow = failRows.find(tr => tr.textContent.includes('106_P')) || failRows[0];
+  const locBtn = targetRow.querySelector('.btn-locate-trace');
+  locBtn.click();
+
+  if (activeTab() !== 'tab-canvas') throw new Error('点击定位后未切换到 tab-canvas，当前=' + activeTab());
+  const vp = dom.window.TraceApp.S.canvas.viewport;
+  const cvs = d.getElementById('traceCanvas');
+  const screenSpanW = (vp.maxX - vp.minX) * vp.zoom;
+  const screenSpanH = (vp.maxY - vp.minY) * vp.zoom;
+  const fillRatio = Math.max(screenSpanW / cvs.width, screenSpanH / cvs.height);
+  if (fillRatio < 0.8) throw new Error('定位走线未放大填满视口，fillRatio=' + fillRatio.toFixed(3));
+  const revCard = d.getElementById('traceSpatialReviewCard');
+  if (!revCard || revCard.style.display === 'none') throw new Error('空间复核浮窗未显示');
+  if (!revCard.textContent.includes('106_P')) throw new Error('空间复核浮窗未显示目标网络 106_P');
+  const retBtn = d.getElementById('btnReturnTraceResults');
+  if (!retBtn || retBtn.style.display === 'none') throw new Error('工具栏「返回检查结果明细」按钮未显示');
+
+  // 定位态不再降低其他走线透明度，图例位于画布下方且不覆盖工具栏/画布
+  const viewerSource = require('fs').readFileSync(require('path').join(__dirname, '../../packages/pages/trace/trace-canvas-viewer.js'), 'utf8');
+  if (/locatedRec\)\s*ctx\.globalAlpha\s*=/.test(viewerSource)) throw new Error('定位态仍在透明处理其他走线');
+  const canvasStage = d.querySelector('.trace-canvas-stage');
+  const legend = d.getElementById('traceCanvasLegend');
+  if (!canvasStage || !legend || canvasStage.nextElementSibling !== legend) throw new Error('图例应紧随画布区域并位于视图最下方');
+  if (dom.window.getComputedStyle(legend).position === 'absolute') throw new Error('图例仍覆盖在画布或按钮上');
+
+  // 在空间视图中勾选复验，应同步更新结果表对应行
+  const spChk = d.getElementById('chkTraceSpatialReview');
+  if (!spChk) throw new Error('空间复核浮窗缺少复验勾选框');
+  spChk.checked = true;
+  spChk.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+
+  // 点击测量标尺按钮切换标尺模式
+  click('btnTraceMeasureMode');
+  if (!d.getElementById('traceCanvasHud').textContent.includes('标尺测量已开启')) throw new Error('标尺模式未开启');
+  click('btnTraceMeasureMode');
+
+  // 点击返回检查结果明细
+  retBtn.click();
+  if (activeTab() !== 'tab-result') throw new Error('点击返回检查结果明细后未回到 tab-result');
+  const updatedRow = [...d.querySelectorAll('#resLayers tr.fail')].find(tr => tr.textContent.includes('106_P'));
+  if (!updatedRow || !updatedRow.classList.contains('reviewed')) throw new Error('空间复验状态未同步到结果明细表');
+
+  // 恢复未复验状态以便后续测试
+  const rowChk = updatedRow.querySelector('.chk-trace-rev');
+  rowChk.checked = false;
+  rowChk.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
 });
 
 t('规则行带线宽组合/总线长/指定线宽线长/弧半径各自的检查输入与勾选', () => {

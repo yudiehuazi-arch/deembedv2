@@ -6,6 +6,14 @@
  * 渲染全套规则配置 UI
  */
 
+function renderPourShapeThumbnails(templates) {
+  if (typeof drawShapePreviewCanvas !== 'function') return;
+  templates.forEach((template, index) => {
+    const shape = typeof resolveShapePreview === 'function' ? resolveShapePreview(template) : template.shape;
+    drawShapePreviewCanvas($(`unifiedR2Thumb_${index}`), shape);
+  });
+}
+
 function renderRulesUI() {
   renderFanoutSchemesGrid();
   // 1. Trace Layer Rules Table
@@ -72,6 +80,8 @@ function renderRulesUI() {
       id: 'tmpl_1',
       name: 'L2特定异型铜皮_1',
       padstack: 'BGA_3510',
+      differentialCenterDistance: 10.0,
+      hdiSearchRadiusMm: 0.175,
       layer: '02G01P',
       expectedArea: 452.4,
       areaTolerance: 30.0
@@ -80,17 +90,14 @@ function renderRulesUI() {
   if (badgePour2) badgePour2.textContent = `${r2List.length} 条规则`;
   if (tbodyPour2) {
     if (r2List.length === 0) {
-      tbodyPour2.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:16px;color:#6b7280">暂未配置异型铜皮模板。可点击上方「导入异型铜皮模板」或下方「新增模板规则」。</td></tr>`;
+      tbodyPour2.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:16px;color:#6b7280">暂未配置异型铜皮模板。可点击上方「导入异型铜皮模板」或下方「新增模板规则」。</td></tr>`;
     } else {
       tbodyPour2.innerHTML = r2List.map((r, i) => `
         <tr>
           <td style="font-weight:700;color:#6b7280">#${i + 1}</td>
           <td>
-            <div style="width:48px;height:48px;background:#0b1120;border-radius:6px;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 4px rgba(0,0,0,0.5)">
-              <svg width="34" height="34" viewBox="0 0 34 34">
-                <circle cx="17" cy="17" r="13" fill="none" stroke="#d97706" stroke-width="2"/>
-                <circle cx="17" cy="17" r="3.5" fill="#10b981"/>
-              </svg>
+            <div style="width:48px;height:48px;background:#0b1120;border-radius:6px;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 4px rgba(0,0,0,0.5);overflow:hidden">
+              <canvas id="unifiedR2Thumb_${i}" width="48" height="48"></canvas>
             </div>
           </td>
           <td>
@@ -102,12 +109,18 @@ function renderRulesUI() {
             </span>
           </td>
           <td>
+            <input type="number" min="0.01" step="0.01" value="${r.differentialCenterDistance || 10}" onchange="State.rules.specialShapeTemplates[${i}].differentialCenterDistance=parseFloat(this.value)" style="width:72px"> mil
+          </td>
+          <td>
+            <input type="number" min="0.001" step="0.001" value="${r.hdiSearchRadiusMm || 0.175}" onchange="State.rules.specialShapeTemplates[${i}].hdiSearchRadiusMm=parseFloat(this.value)" style="width:66px"> mm
+          </td>
+          <td>
             <span style="background:#f1f5f9;color:#374151;border:1px solid #cbd5e1;padding:2px 8px;border-radius:4px;font-weight:600;font-family:var(--mono);display:inline-block">
               <input type="text" value="${escHtml(r.layer || '02G01P')}" onchange="State.rules.specialShapeTemplates[${i}].layer=this.value" style="background:transparent;border:none;color:#374151;font-weight:700;width:65px;font-family:var(--mono)">
             </span>
           </td>
           <td style="font-family:var(--mono);font-size:12px;font-weight:600;color:#111827">
-            <input type="number" step="0.1" value="${r.expectedArea || 452.4}" onchange="State.rules.specialShapeTemplates[${i}].expectedArea=parseFloat(this.value)" style="width:65px"> sq mil (±<input type="number" step="1" value="${r.areaTolerance || 30}" onchange="State.rules.specialShapeTemplates[${i}].areaTolerance=parseFloat(this.value)" style="width:40px">)
+            <input type="number" step="0.1" value="${r.expectedArea != null ? r.expectedArea : 452.4}" onchange="State.rules.specialShapeTemplates[${i}].expectedArea=parseFloat(this.value)" style="width:65px"> sq mil (±<input type="number" step="1" value="${r.areaTolerance || 30}" onchange="State.rules.specialShapeTemplates[${i}].areaTolerance=parseFloat(this.value)" style="width:40px">)
           </td>
           <td style="text-align:right">
             <button class="btn sec small" style="padding:2px 6px;font-size:11px" onclick="editPourShapeTemplate(${i})">编辑</button>
@@ -116,6 +129,7 @@ function renderRulesUI() {
         </tr>
       `).join('');
     }
+    renderPourShapeThumbnails(r2List);
   }
 
   // Rule 3: Trace Margin
@@ -165,6 +179,8 @@ function addPourRule2Row() {
     id: `tmpl_${Date.now()}`,
     name: `新增异型铜皮_${State.rules.specialShapeTemplates.length + 1}`,
     padstack: 'BGA_3510',
+    differentialCenterDistance: 10.0,
+    hdiSearchRadiusMm: 0.175,
     layer: '02G01P',
     expectedArea: 452.4,
     areaTolerance: 30.0

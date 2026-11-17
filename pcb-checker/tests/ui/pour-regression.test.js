@@ -45,7 +45,7 @@ test('规则 1、规则 2、规则 3 多规则配置表格与卡片存在', () =
 test('每个输入框下方均存在历史快捷选项栏 (History Chips)', () => {
   const chipBars = [
     'chipsModalR1Padstack', 'chipsModalR1Layers', 'chipsModalR1Dist',
-    'chipsModalR2Name', 'chipsModalR2Padstack', 'chipsModalR2Layer', 'chipsModalR2Tol',
+    'chipsModalR2Name', 'chipsModalR2Padstack', 'chipsModalR2DiffDist', 'chipsModalR2HdiRadius', 'chipsModalR2Layer', 'chipsModalR2Tol',
     'chipsModalR3TraceLayer', 'chipsModalR3UpperRef', 'chipsModalR3LowerRef', 'chipsModalR3Margin',
     'chipsRule4Area', 'chipsRule5Radius'
   ];
@@ -85,6 +85,8 @@ test('弹窗导入 Shape TXT 并解析异型铜皮几何与面积 (规则 2)', (
   w.openAddRule2Modal();
   if (!$('modalRule2').classList.contains('open')) throw new Error('Modal 2 未打开');
   $('modalR2InpPadstack').value = 'BGA_GND_pad1mil_0902';
+  $('modalR2InpDiffDist').value = '19.68';
+  $('modalR2InpHdiRadius').value = '0.15';
   $('modalR2InpLayer').value = '02G01P';
   $('modalR2TxtShape').value = `Item 1  < Shape >\n  Subset: 02G01P\n  Area: 907.92028 (sq mil)\nExterior Boundary:\n  Arc seg: xy [21208.94, 35522.46]  xy [21208.94, 35522.46]\n    Center-xy: [21220.94, 35522.46] Radius (12.0000) CCW`;
   w.previewModalShape();
@@ -92,8 +94,8 @@ test('弹窗导入 Shape TXT 并解析异型铜皮几何与面积 (规则 2)', (
   if (Math.abs(w.State.modalShapeParsed.area - 907.92028) > 0.001) throw new Error('解析的面积不符合预期');
   w.saveRule2FromModal();
   if ($('modalRule2').classList.contains('open')) throw new Error('Modal 2 未在保存后关闭');
-  const found = w.State.specialShapeTemplates.some(t => Math.abs(t.expectedArea - 907.92028) < 0.1);
-  if (!found) throw new Error('新增的规则 2 模板未存入 State');
+  const found = w.State.specialShapeTemplates.some(t => Math.abs(t.expectedArea - 907.92028) < 0.1 && t.differentialCenterDistance === 19.68 && t.hdiSearchRadiusMm === 0.15);
+  if (!found) throw new Error('新增的规则 2 模板、差分孔中心距与 HDI 搜索距离未存入 State');
 });
 
 test('弹窗新增规则 3 (走线参考层超宽规则) 并保存', () => {
@@ -122,6 +124,7 @@ test('【保存规则到本地 (JSON)】整页规则导出功能验证', () => {
   const json = JSON.parse(exportCaptured.text);
   if (!json.viaCoverageRules || json.viaCoverageRules.length === 0) throw new Error('导出 JSON 缺少 viaCoverageRules');
   if (!json.specialShapeTemplates || json.specialShapeTemplates.length === 0) throw new Error('导出 JSON 缺少 specialShapeTemplates');
+  if (!json.specialShapeTemplates.every(t => t.differentialCenterDistance > 0 && t.hdiSearchRadiusMm > 0)) throw new Error('导出 JSON 缺少差分孔中心距或 HDI 搜索距离');
   if (!json.traceMarginRules || json.traceMarginRules.length === 0) throw new Error('导出 JSON 缺少 traceMarginRules');
   if (typeof json.smallCopperAreaThreshold !== 'number') throw new Error('导出 JSON 缺少 smallCopperAreaThreshold');
   if (typeof json.minArcRadius !== 'number') throw new Error('导出 JSON 缺少 minArcRadius');
@@ -139,7 +142,7 @@ test('【从本地文件读取约束 (JSON)】规则导入与一键恢复验证'
       { id: 'custom_cov_1', padstack: 'TEST_CUSTOM_VIA_STACK', layers: 'L1-L12', coverageRadius: 60.0 }
     ],
     specialShapeTemplates: [
-      { id: 'custom_tmpl_1', name: '测试专用异型铜皮模板', padstack: 'TEST_CUSTOM_VIA_STACK', layer: '19IS08', expectedArea: 320.0, areaTolerance: 15.0, rawShapeText: '' }
+      { id: 'custom_tmpl_1', name: '测试专用异型铜皮模板', padstack: 'TEST_CUSTOM_VIA_STACK', differentialCenterDistance: 23.62, hdiSearchRadiusMm: 0.15, layer: '19IS08', expectedArea: 320.0, areaTolerance: 15.0, rawShapeText: '' }
     ],
     traceMarginRules: [
       { id: 'custom_margin_1', traceLayer: '08IS03', upperRefLayer: 'Top', lowerRefLayer: 'Bottom', minMargin: 55.0 }
@@ -156,8 +159,8 @@ test('【从本地文件读取约束 (JSON)】规则导入与一键恢复验证'
   if (w.State.viaCoverageRules.length !== 1 || w.State.viaCoverageRules[0].padstack !== 'TEST_CUSTOM_VIA_STACK') {
     throw new Error('规则 1 未正确恢复');
   }
-  if (w.State.specialShapeTemplates.length !== 1 || w.State.specialShapeTemplates[0].name !== '测试专用异型铜皮模板') {
-    throw new Error('规则 2 模板未正确恢复');
+  if (w.State.specialShapeTemplates.length !== 1 || w.State.specialShapeTemplates[0].name !== '测试专用异型铜皮模板' || w.State.specialShapeTemplates[0].differentialCenterDistance !== 23.62 || w.State.specialShapeTemplates[0].hdiSearchRadiusMm !== 0.15) {
+    throw new Error('规则 2 模板、差分孔中心距与 HDI 搜索距离未正确恢复');
   }
   if (w.State.traceMarginRules.length !== 1 || w.State.traceMarginRules[0].minMargin !== 55.0) {
     throw new Error('规则 3 未正确恢复');

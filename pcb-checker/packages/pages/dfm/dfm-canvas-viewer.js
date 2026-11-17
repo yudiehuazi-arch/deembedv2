@@ -14,6 +14,36 @@
   var canvas = $('pcbCanvas');
   var ctx = (canvas && canvas.getContext) ? canvas.getContext('2d') : null;
 
+  function currentDefectOptions() {
+    State.lineDefectKinds = State.lineDefectKinds || { gnd: true, signal: true };
+    var modeEl = $('selDfmDefectMode');
+    var gndEl = $('ckDfmLineToGnd');
+    var signalEl = $('ckDfmLineToSignal');
+    var searchEl = $('inpDfmPadPairSearch');
+    State.defectDisplayMode = modeEl ? modeEl.value : (State.defectDisplayMode || 'all');
+    State.lineDefectKinds.gnd = gndEl ? gndEl.checked : State.lineDefectKinds.gnd;
+    State.lineDefectKinds.signal = signalEl ? signalEl.checked : State.lineDefectKinds.signal;
+    State.viaPairSearch = searchEl ? searchEl.value : State.viaPairSearch;
+    return {
+      mode: State.defectDisplayMode,
+      lineGnd: State.lineDefectKinds.gnd,
+      lineSignal: State.lineDefectKinds.signal,
+      query: State.viaPairSearch
+    };
+  }
+
+  function getVisibleDfmDefects() {
+    if (!App.CanvasDefects) return { line: [], pad: [], total: 0 };
+    return App.CanvasDefects.select(State.checkResult, currentDefectOptions());
+  }
+
+  function syncDefectFilterControls() {
+    var mode = $('selDfmDefectMode') ? $('selDfmDefectMode').value : 'all';
+    if ($('dfmLineDefectOptions')) $('dfmLineDefectOptions').style.display = mode === 'line' ? 'inline-flex' : 'none';
+    if ($('dfmPadPairSearchWrap')) $('dfmPadPairSearchWrap').style.display = mode === 'pad' ? 'inline-flex' : 'none';
+    renderCanvas();
+  }
+
   function worldToScreen(wx, wy) {
     var vp = State.viewport;
     var ch = canvas ? canvas.height : 620;
@@ -42,15 +72,21 @@
   function zoomToDefects() {
     if (!canvas) return;
     if (!State.checkResult) return fitCanvasView();
-    var fails = State.checkResult.pairs.filter(function (p) { return p.status === '不满足'; });
-    if (!fails.length) return fitCanvasView();
+    var visible = getVisibleDfmDefects();
+    if (!visible.total) return fitCanvasView();
 
     var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    fails.forEach(function (p) {
+    visible.line.forEach(function (p) {
       minX = Math.min(minX, p.via.origin[0], p.proj[0]);
       maxX = Math.max(maxX, p.via.origin[0], p.proj[0]);
       minY = Math.min(minY, p.via.origin[1], p.proj[1]);
       maxY = Math.max(maxY, p.via.origin[1], p.proj[1]);
+    });
+    visible.pad.forEach(function (p) {
+      minX = Math.min(minX, p.gndVia.origin[0], p.sigVia.origin[0]);
+      maxX = Math.max(maxX, p.gndVia.origin[0], p.sigVia.origin[0]);
+      minY = Math.min(minY, p.gndVia.origin[1], p.sigVia.origin[1]);
+      maxY = Math.max(maxY, p.gndVia.origin[1], p.sigVia.origin[1]);
     });
     var pad = Math.max(40, (maxX - minX) * 0.35);
     minX -= pad; maxX += pad; minY -= pad; maxY += pad;
@@ -142,10 +178,17 @@
   }
 
   function renderCanvas() {
+    var visibleDefects = getVisibleDfmDefects();
     if ($('canvasHud')) {
       $('canvasHud').textContent = '缩放: ' + (State.viewport.zoom * 100).toFixed(0) + '% | 过孔: ' +
         State.vias.length.toLocaleString() + ' | 走线: ' + State.traces.length.toLocaleString() +
+        ' | 特别标记: ' + visibleDefects.total +
         (State.measureMode ? ' | 标尺测量已开启' : '');
+      $('canvasHud').dataset.lineDefects = String(visibleDefects.line.length);
+      $('canvasHud').dataset.padDefects = String(visibleDefects.pad.length);
+    }
+    if ($('dfmDefectMarkCount')) {
+      $('dfmDefectMarkCount').textContent = '标记 ' + visibleDefects.total + ' 处 · 线到孔 ' + visibleDefects.line.length + ' / 孔到孔 ' + visibleDefects.pad.length;
     }
     if (!canvas || !ctx) return;
     var w = canvas.width, h = canvas.height;
@@ -154,7 +197,6 @@
     var vp = State.viewport;
     var showVias = $('ckShowVias') ? $('ckShowVias').checked : true;
     var showTraces = $('ckShowTraces') ? $('ckShowTraces').checked : true;
-    var showDefects = $('ckShowDefects') ? $('ckShowDefects').checked : true;
     var showLabels = $('ckShowLabels') ? $('ckShowLabels').checked : true;
     var showGrid = $('ckShowGrid') ? $('ckShowGrid').checked : true;
 
@@ -231,41 +273,13 @@
       });
     }
 
-    if (showDefects && State.checkResult) {
-      var fails = State.checkResult.defectPairs || State.checkResult.pairs.filter(function (p) { return p.status === '不满足'; });
-      fails.forEach(function (p) {
-        var vx = p.via.origin[0], vy = p.via.origin[1];
-        if (vx + 50 < vMinX || vx - 50 > vMaxX || vy + 50 < vMinY || vy - 50 > vMaxY) return;
-        var vPt = worldToScreen(vx, vy);
-        var tPt = worldToScreen(p.proj[0], p.proj[1]);
-
-        ctx.strokeStyle = 'rgba(239,68,68,0.8)';
-        ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(vPt[0], vPt[1], (p.via.padRadius * vp.zoom) + 4, 0, 2 * Math.PI); ctx.stroke();
-
-        ctx.strokeStyle = '#ef4444';
-        ctx.lineWidth = 1.5;
-        ctx.setLineDash([3, 3]);
-        ctx.beginPath(); ctx.moveTo(vPt[0], vPt[1]); ctx.lineTo(tPt[0], tPt[1]); ctx.stroke();
-        ctx.setLineDash([]);
-
-        ctx.fillStyle = '#ef4444';
-        ctx.beginPath(); ctx.arc(tPt[0], tPt[1], 3, 0, 2 * Math.PI); ctx.fill();
-
-        if (showLabels && vp.zoom > 0.8) {
-          var midX = (vPt[0] + tPt[0]) / 2, midY = (vPt[1] + tPt[1]) / 2;
-          var txt = ' ' + p.evalDist.toFixed(2) + ' mil';
-          ctx.font = 'bold 10px ui-monospace, sans-serif';
-          var txtW = ctx.measureText(txt).width;
-          ctx.fillStyle = 'rgba(220,38,38,0.9)';
-          ctx.fillRect(midX - txtW / 2 - 4, midY - 8, txtW + 8, 16);
-          ctx.fillStyle = '#ffffff';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(txt, midX, midY);
-          ctx.textAlign = 'left';
-          ctx.textBaseline = 'alphabetic';
-        }
+    if (State.checkResult && App.CanvasDefects) {
+      App.CanvasDefects.draw(ctx, {
+        selection: visibleDefects,
+        vp: vp,
+        bounds: { minX: vMinX, maxX: vMaxX, minY: vMinY, maxY: vMaxY },
+        worldToScreen: worldToScreen,
+        showLabels: showLabels
       });
     }
 
@@ -495,9 +509,12 @@
     if ($('btnZoomOut')) $('btnZoomOut').addEventListener('click', function () { State.viewport.zoom *= 0.8; renderCanvas(); });
     if ($('btnResetView')) $('btnResetView').addEventListener('click', fitCanvasView);
 
-    ['ckShowVias', 'ckShowTraces', 'ckShowDefects', 'ckShowLabels', 'ckShowGrid'].forEach(function (id) {
+    ['ckShowVias', 'ckShowTraces', 'ckShowLabels', 'ckShowGrid', 'ckDfmLineToGnd', 'ckDfmLineToSignal'].forEach(function (id) {
       if ($(id)) $(id).addEventListener('change', renderCanvas);
     });
+    if ($('selDfmDefectMode')) $('selDfmDefectMode').addEventListener('change', syncDefectFilterControls);
+    if ($('inpDfmPadPairSearch')) $('inpDfmPadPairSearch').addEventListener('input', renderCanvas);
+    syncDefectFilterControls();
 
     if ($('btnExportPng')) {
       $('btnExportPng').addEventListener('click', function () {
@@ -548,6 +565,8 @@
   root.renderCanvas = renderCanvas;
   root.fitCanvasView = fitCanvasView;
   root.zoomToDefects = zoomToDefects;
+  root.getVisibleDfmDefects = getVisibleDfmDefects;
+  root.syncDfmDefectFilterControls = syncDefectFilterControls;
   root.updateMeasurements = updateMeasurements;
   root.toggleDfmPairReview = toggleDfmPairReview;
   root.locateInCanvas = locateInCanvas;

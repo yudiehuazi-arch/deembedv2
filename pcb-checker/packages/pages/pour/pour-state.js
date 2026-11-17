@@ -33,8 +33,8 @@
       { id: 'cov_2', padstack: 'BGA_GND_pad1mil_0902', layers: '02G01P, 19IS08', coverageRadius: 30.0 }
     ],
     specialShapeTemplates: [
-      { id: 'tmpl_1', name: 'L2特定异型泪滴铜皮', padstack: 'BGA_3510', layer: '02G01P', expectedArea: 452.38, areaTolerance: 30.0, rawShapeText: '' },
-      { id: 'tmpl_2', name: 'L19特定异型铜皮', padstack: 'BGA_3510', layer: '19IS08', expectedArea: 113.10, areaTolerance: 20.0, rawShapeText: '' }
+      { id: 'tmpl_1', name: 'L2特定异型泪滴铜皮', padstack: 'BGA_3510', differentialCenterDistance: 10.0, hdiSearchRadiusMm: 0.175, layer: '02G01P', expectedArea: 452.38, areaTolerance: 30.0, rawShapeText: '' },
+      { id: 'tmpl_2', name: 'L19特定异型铜皮', padstack: 'BGA_3510', differentialCenterDistance: 10.0, hdiSearchRadiusMm: 0.175, layer: '19IS08', expectedArea: 113.10, areaTolerance: 20.0, rawShapeText: '' }
     ],
     traceMarginRules: [
       { id: 'margin_1', traceLayer: '19IS08', upperRefLayer: '08IS03', lowerRefLayer: 'Bottom', minMargin: 50.0 },
@@ -68,6 +68,8 @@
 
       r2_name: ['L2特定异型泪滴铜皮', 'L19特定异型铜皮', 'SMA专用接地异型铜皮', 'BGA局部加宽铜皮'],
       r2_padstack: ['BGA_3510', 'HDI_045drill', 'SMA_Bot-L19', 'BGA_GND'],
+      r2_diff_dist: ['10.0', '19.68', '20.0', '23.62'],
+      r2_hdi_radius: ['0.175', '0.150', '0.125', '0.100'],
       r2_layer: ['02G01P', '19IS08', 'L2', 'L4', 'L17'],
       r2_tol: ['30.0', '20.0', '10.0', '50.0'],
 
@@ -189,6 +191,8 @@
 
     renderChipBar('chipsModalR2Name', 'modalR2InpName', State.history.r2_name);
     renderChipBar('chipsModalR2Padstack', 'modalR2InpPadstack', State.history.r2_padstack);
+    renderChipBar('chipsModalR2DiffDist', 'modalR2InpDiffDist', State.history.r2_diff_dist, 'mil');
+    renderChipBar('chipsModalR2HdiRadius', 'modalR2InpHdiRadius', State.history.r2_hdi_radius, 'mm');
     renderChipBar('chipsModalR2Layer', 'modalR2InpLayer', State.history.r2_layer);
     renderChipBar('chipsModalR2Tol', 'modalR2InpTol', State.history.r2_tol, 'sq mil');
 

@@ -23,9 +23,13 @@
   }
 
   function keyTxt(g) {
-    var k = g.keys;
-    var t = [k.kind, k.side, k.fan ? ('L' + k.fan) : '', k.d2m ? ('D2M' + k.d2m) : '', k.ring ? ('ring' + k.ring + 'mil') : ''].filter(Boolean).join(' / ');
-    return t || '无关键信息';
+    var k = g.keys || {};
+    if (g.signal === false) return '非 SIG / 不推算约束';
+    var span = (g.startLayer && g.endLayer) ? ('L' + g.startLayer + '-L' + g.endLayer) : '';
+    var pitchLabel = g.pitchMode === 'HDI' ? 'HDI 激光孔中心距 ' : '差分中心距 ';
+    var pitch = g.pitchMm != null ? (pitchLabel + g.pitchMm.toFixed(3) + 'mm') : '无差分孔距';
+    var t = ['SIG', k.kind, span, pitch, k.ring ? ('ring' + k.ring + 'mil') : ''].filter(Boolean).join(' / ');
+    return t || 'SIG / 关键信息不足';
   }
 
   function updatePerf() {
@@ -76,7 +80,7 @@
     var bad = r.groups.reduce(function (n, g) { return n + (g.failCount || 0); }, 0);
     var bigNote = gcount > 800 ? (' 数据量 ' + gcount + ' 个过孔，默认渲染前 ' + UI.resLimit + ' 组。') : '';
     if ($('checkHint')) {
-      $('checkHint').textContent = '过孔 ' + r.viaCount + '，圆形铜皮 ' + r.circleCount + '，不符合 ' + bad + '。' +
+      $('checkHint').textContent = '过孔段 ' + r.viaCount + '，SIG 完整孔组 ' + (r.signalGroupCount || 0) + '，圆形铜皮 ' + r.circleCount + '，不符合 ' + bad + '。' +
         '检查耗时 ' + UI.chkMs + ' ms。' + bigNote +
         (!S.sets.length ? ' 还没有规则，请先在 ① 规则约束 导入约束 TXT。' : '') +
         (r.maxLayer > App.layerCount() ? (' 数据写到 L' + r.maxLayer + '，当前叠层按 L' + App.layerCount() + ' 比对。') : '');
@@ -107,14 +111,15 @@
   function matchTotal(c, f) { return (f && c[f] != null) ? c[f] : c.all; }
 
   function matchRowHtml(g, row) {
-    var cand = (!g.rule && g.candidates && g.candidates.length) ? ('<div class="hint">候选：' + g.candidates.map(esc).join('、') + '</div>') : '';
+    var cand = (g.signal !== false && !g.rule && g.candidates && g.candidates.length) ? ('<div class="hint">候选：' + g.candidates.map(esc).join('、') + '</div>') : '';
     var fail = row.status === '不符合';
+    var inferred = g.rule ? ('<b>' + esc(g.rule.title) + '</b>')
+      : (g.signal !== false ? '<b class="bad">未选中规则</b>' : '<b class="muted">非 SIG · 不推算</b>');
     return '<tr class="' + (fail ? 'fail' : '') + '">' +
       '<td>' + row.shapeId + '</td><td>L' + row.layer + '</td><td>' + esc(row.subset) + '</td><td>' + esc(row.actual) + '</td>' +
       '<td>Via ' + g.via.id + '</td><td>' + esc(g.via.net || '无网络') + '</td><td>' + esc(g.via.padstack || '无 Padstack') + '</td>' +
       '<td>' + esc(keyTxt(g)) + (g.note ? '<div class="hint">' + esc(g.note) + '</div>' : '') + '</td>' +
-      '<td>' + (g.rule ? ('<b>' + esc(g.rule.title) + '</b>') : '<b class="bad">未选中规则</b>') + cand +
-      '<div class="hint">' + esc(row.checkType) + '</div></td></tr>';
+      '<td>' + inferred + cand + '<div class="hint">' + esc(row.checkType) + '</div></td></tr>';
   }
 
   function viaNoShapeHtml(g) {
@@ -207,7 +212,7 @@
     if (!rawQ) return true;
     var q = rawQ.toLowerCase();
     if (q === '未推算到' || q === '未推算到约束' || q === '没推算到' || q === 'norule') {
-      if (!g.rule) return true;
+      if (g.signal !== false && !g.rule) return true;
     }
     var qNum = q.replace(/^(?:via|v|孔|#)\s*[-_:]?\s*/i, '').trim();
     var viaIdStr = String(g.via && g.via.id != null ? g.via.id : '');
@@ -235,18 +240,34 @@
     return false;
   }
 
+  function resultNetKind(g) {
+    var net = String((g.via && g.via.net) || '').trim();
+    if (!net || /^(?:无网络|not on a net)$/i.test(net)) return 'none';
+    return net.toUpperCase() === 'GND' ? 'gnd' : 'other';
+  }
+
+  function resultNetLabel(kind) {
+    return { gnd: 'GND', other: '非 GND', none: '无网络' }[kind] || '全部网络';
+  }
+
+  function groupHasBadType(g, type) {
+    if (!type) return !!g.failCount;
+    return (g.failRows || []).some(function (row) { return row.checkType === type; });
+  }
+
   function ruleCounts() {
     var r = UI.result, out = {}, order = [];
     var f = UI.resFilter || '';
     (r.groups || []).forEach(function (g) {
-      if (!g.rows.length) return;
+      if (g.signal === false || !g.rows.length) return;
       if (UI.resSearch && !viaGroupMatchSearch(g, UI.resSearch)) return;
+      if (f === 'norule' && UI.resNet && resultNetKind(g) !== UI.resNet) return;
       var title = g.rule ? g.rule.title : '';
       var key = title || '未推算到约束';
       if (!out[key]) { out[key] = { n: 0, title: title, via: 0, badVia: 0, badRec: 0 }; order.push(key); }
       out[key].via++;
       if (g.failCount) { out[key].badVia++; out[key].badRec += (g.failCount || 0); }
-      if (f === 'bad') { if (g.failCount) out[key].n++; }
+      if (f === 'bad') { if (groupHasBadType(g, UI.resBadType)) out[key].n++; }
       else if (f === 'norule') { if (!g.rule) out[key].n++; }
       else out[key].n++;
     });
@@ -312,7 +333,7 @@
       fails += g.failCount || 0;
       rowsAll += g.rows.length;
       if (g.rows.some(function (row) { return !row.missing && !row.isPadstackCheck; })) matched++;
-      if (g.rows.length && !g.rule) norule++;
+      if (g.signal !== false && g.rows.length && !g.rule) norule++;
     });
     return { bad: fails, matched: matched, norule: norule, rows: rowsAll, total: r.groups.length };
   }
@@ -322,17 +343,64 @@
     return UI.onlyBad ? 'bad' : '';
   }
 
-  function resultGroupMatch(g, f) {
+  function resultGroupMatch(g, f, ignoreNet) {
     if (UI.resSearch && !viaGroupMatchSearch(g, UI.resSearch)) return false;
     if (UI.resRule) {
       var title = g.rule ? g.rule.title : '未推算到约束';
       if (title !== UI.resRule) return false;
     }
     if (!f) return true;
-    if (f === 'bad') return !!(g.failCount);
+    if (f === 'bad') return groupHasBadType(g, UI.resBadType);
     if (f === 'matched') return g.rows.some(function (row) { return !row.missing; });
-    if (f === 'norule') return !!(g.rows.length && !g.rule);
+    if (f === 'norule') {
+      if (g.signal === false || !g.rows.length || g.rule) return false;
+      return !!(ignoreNet || !UI.resNet || resultNetKind(g) === UI.resNet);
+    }
     return true;
+  }
+
+  function noRuleNetCounts() {
+    var counts = { all: 0, gnd: 0, other: 0, none: 0 };
+    (UI.result.groups || []).forEach(function (g) {
+      if (!resultGroupMatch(g, 'norule', true)) return;
+      counts.all++;
+      counts[resultNetKind(g)]++;
+    });
+    return counts;
+  }
+
+  function renderNoRuleNetFilters(f) {
+    var box = $('noRuleNetFilters');
+    if (!box) return;
+    box.hidden = f !== 'norule';
+    if (box.hidden) { box.innerHTML = ''; return; }
+    var counts = noRuleNetCounts();
+    var options = [
+      { key: '', label: '全部网络', count: counts.all, tip: '显示全部没推算到约束的过孔' },
+      { key: 'gnd', label: 'GND', count: counts.gnd, tip: '只看网络名等于 GND 的过孔' },
+      { key: 'other', label: '非 GND', count: counts.other, tip: '只看有网络名且网络名不等于 GND 的过孔' },
+      { key: 'none', label: '无网络', count: counts.none, tip: '只看没有网络名的过孔' }
+    ];
+    box.innerHTML = '<span class="hint no-rule-net-title">按网络显示</span>' + options.map(function (o) {
+      return '<button type="button" class="chip no-rule-net-chip' + (UI.resNet === o.key ? ' on' : '') + '" data-net-kind="' + o.key + '" data-tip="' + o.tip + '">' +
+        '<span class="cl">' + o.label + '</span><span class="cn">' + o.count + '</span></button>';
+    }).join('');
+  }
+
+  function renderBadTypeFilters(f) {
+    var box = $('badTypeFilters');
+    if (!box) return;
+    box.hidden = f !== 'bad';
+    if (box.hidden) { box.innerHTML = ''; return; }
+    var options = [
+      { key: '', label: '全部不符合' },
+      { key: 'Padstack信号命名', label: 'Padstack命名不符合' },
+      { key: '反焊盘尺寸', label: '反焊盘尺寸不符合' }
+    ];
+    box.innerHTML = '<span class="hint no-rule-net-title">按不符合类型显示</span>' + options.map(function (o) {
+      var count = (UI.result.groups || []).filter(function (g) { return groupHasBadType(g, o.key); }).length;
+      return '<button type="button" class="chip bad-type-chip' + (UI.resBadType === o.key ? ' on' : '') + '" data-bad-type="' + o.key + '"><span class="cl">' + o.label + '</span><span class="cn">' + count + '</span></button>';
+    }).join('');
   }
 
   function resultGroupTotal(f) {
@@ -347,12 +415,14 @@
     var byRule = UI.resRule ? ('只看约束 ' + UI.resRule) : '';
     var bySearch = UI.resSearch ? ('搜索 "' + UI.resSearch + '"') : '';
     var base = (function () {
-      if (f === 'bad') return '只显示不符合项';
+      if (f === 'bad') return '只看含不符合项的信号孔，孔内显示所有层';
       if (f === 'matched') return '只看已配对过孔的记录';
       if (f === 'norule') return '只看没推算到约束的过孔';
       return '显示全部检查项';
     })();
     var out = byRule ? (byRule + (f ? ' + ' + base : '')) : base;
+    if (f === 'norule' && UI.resNet) out += ' · 网络类别 ' + resultNetLabel(UI.resNet);
+    if (f === 'bad' && UI.resBadType) out += ' · ' + (UI.resBadType === 'Padstack信号命名' ? 'Padstack命名不符合' : '反焊盘尺寸不符合');
     if (bySearch) out += (out ? ' · ' : '') + bySearch;
     return out;
   }
@@ -395,11 +465,13 @@
       if ($('resStats')) $('resStats').innerHTML = '';
       if ($('legendOut')) $('legendOut').innerHTML = '';
       if ($('resChips')) $('resChips').innerHTML = '';
+      if ($('noRuleNetFilters')) $('noRuleNetFilters').hidden = true;
+      if ($('badTypeFilters')) $('badTypeFilters').hidden = true;
       if ($('resHint')) $('resHint').textContent = '尚未产生检查结果。';
       return;
     }
     var rf = effectiveResFilter();
-    var ver = UI.dataVer + '-' + UI.viewVer + '-' + UI.resLimit + '-' + rf + '-' + (UI.resRule || '') + '-' + (UI.resSearch || '');
+    var ver = UI.dataVer + '-' + UI.viewVer + '-' + UI.resLimit + '-' + rf + '-' + (UI.resRule || '') + '-' + (UI.resSearch || '') + '-' + (UI.resNet || '') + '-' + (UI.resBadType || '');
     if (out.dataset.ver === ver) {
       refreshReview();
       return;
@@ -409,13 +481,15 @@
     var bad = rc.bad, rowsAll = rc.rows, noRule = rc.norule;
     if ($('resStats')) {
       $('resStats').innerHTML =
-        '<div class="stat click' + (rf === 'bad' ? ' on' : '') + '" data-res="bad" data-tip="点击切换仅看不符合项"><b class="' + (bad ? 'bad' : 'ok') + '">' + bad + '</b><span class="hint">不符合</span></div>' +
+        '<div class="stat click' + (rf === 'bad' ? ' on' : '') + '" data-res="bad" data-tip="只看含不符合项的完整孔，孔内仍显示全部层"><b class="' + (bad ? 'bad' : 'ok') + '">' + bad + '</b><span class="hint">不符合</span></div>' +
         '<div class="stat"><b>' + rowsAll + '</b><span class="hint">检查记录</span></div>' +
         '<div class="stat click' + (rf === 'matched' ? ' on' : '') + '" data-res="matched" data-tip="点击切换仅看已配对过孔"><b>' + rc.matched + '</b><span class="hint">已配对过孔</span></div>' +
         '<div class="stat"><b>' + r.unmatchedCircles.length + '</b><span class="hint">未配对铜皮</span></div>' +
         '<div class="stat click' + (rf === 'norule' ? ' on' : '') + '" data-res="norule" data-tip="点击切换仅看未推算到约束的过孔"><b>' + noRule + '</b><span class="hint">没推算到约束</span></div>' +
         '<div class="stat" id="rvStat"><b>0/0</b><span class="hint">已复核</span></div>';
     }
+    renderNoRuleNetFilters(rf);
+    renderBadTypeFilters(rf);
 
     var h = '';
     var totalGroups = resultGroupTotal(rf);
@@ -429,28 +503,35 @@
       if (!resultGroupMatch(g, rf)) continue;
       shownGroups++;
       UI.groupKeys[si] = (g.failRows || []).map(function (row) { return reviewKey(g, row); });
-      var rows = (rf === 'bad') ? g.failRows : g.rows;
+      // “只看不符合”按完整孔筛组，但组内仍展示该信号孔的全部层，
+      // 便于在同一上下文中对照符合、未检查和不符合层。
+      var rows = g.rows;
       var failCount = (g.failRows || []).length;
       h += '<div class="set ' + esc(g.keys.kind || '其他') + '" id="grp-' + si + '"><div class="hd">' +
         '<span class="badge">Via ' + g.via.id + '</span><b>' + esc(g.via.net || '无网络') + '</b>' +
         '<span>' + esc(g.via.padstack || '无 Padstack') + '</span>' +
         '<span class="badge rev" style="margin-left:auto" id="grv-' + si + '" data-tip="点击整组切换复核状态">复核 0/' + failCount + '</span>' +
         (failCount ? ('<label class="grpRvw" data-tip="将本孔所有不符合项一次标为已复核"><input type="checkbox" class="grpBox" data-no-persist data-si="' + si + '">总复核</label>') : '') +
-        '<span>约束 ' + (g.rule ? esc(g.rule.title) : '未推算到') + '</span></div><div class="body">' +
+        '<span>约束 ' + (g.rule ? esc(g.rule.title) : (g.signal !== false ? '未推算到' : '非 SIG · 不检查')) + (g.namingError ? ' · <b class="bad">Padstack命名不符合</b>' : '') + '</span>' +
+        '<button type="button" class="btn gray small copper-locate-btn" data-si="' + si + '" data-tip="在空间几何视口定位该完整孔">定位</button></div><div class="body">' +
         '<div class="srcnote">提取：' + esc(keyTxt(g)) + (g.note ? ' · ' + esc(g.note) : '') + (g.via.connections ? ' · ' + esc(g.via.connections) : '') + '</div>';
       if (!rows.length) {
         h += '<div class="hint">该过孔附近无圆形铜皮。</div>';
       } else {
-        h += '<table><thead><tr><th class="rvw">复核</th><th>层</th><th>Subset</th><th>检查项</th><th>实测</th><th>规则值</th><th>结果</th></tr></thead><tbody>';
+        h += '<table><thead><tr><th class="rvw">复核</th><th>层</th><th>Subset</th><th>来源 Padstack</th><th>检查项</th><th>实测</th><th>规则值</th><th>结果</th></tr></thead><tbody>';
         rows.forEach(function (row) {
           var fail = row.status === '不符合';
           var rk = reviewKey(g, row);
           var rvd = fail && !!UI.reviewed[rk];
           var layerDisplay = (typeof row.layer === 'number' && row.layer > 0) ? ('L' + row.layer) : (String(row.layer).startsWith('L') ? row.layer : (row.layer === '—' ? '—' : ('L' + row.layer)));
+          var sourceVia = (row.sourceViaIds || []).map(function (id) { return 'Via ' + id; }).join(' / ');
+          var sourcePadstack = row.sourcePadstack || g.via.padstack || '无 Padstack';
           var reasonTooltip = row.reason ? (' title="' + esc(row.reason) + '" data-tip="' + esc(row.reason) + '"') : '';
           h += '<tr class="' + (fail ? 'fail ' : '') + (rvd ? 'reviewed' : '') + '" data-rk="' + esc(rk) + '">' +
             '<td class="rvw">' + (fail ? ('<input type="checkbox" class="rvwBox" data-no-persist data-rk="' + esc(rk) + '"' + (rvd ? ' checked' : '') + ' data-tip="勾选标记已人工复核">') : '') + '</td>' +
-            '<td>' + esc(layerDisplay) + '</td><td>' + esc(row.subset) + '</td><td>' + esc(row.checkType) + '</td>' +
+            '<td>' + esc(layerDisplay) + '</td><td>' + esc(row.subset) + '</td>' +
+            '<td class="padstack-source" data-tip="' + esc(sourceVia + ' · ' + sourcePadstack) + '"><span>' + esc(sourcePadstack) + '</span><small>' + esc(sourceVia) + '</small></td>' +
+            '<td>' + esc(row.checkType) + '</td>' +
             '<td class="' + (fail ? 'bad' : '') + '"' + reasonTooltip + '>' + esc(row.actual) + '</td><td' + reasonTooltip + '>' + esc(row.expect || '无') + '</td>' +
             '<td class="' + (fail ? 'bad' : (row.status === '符合' ? 'ok' : 'muted')) + '"' + reasonTooltip + '><span class="resTxt">' + esc(row.status) + '</span>' +
             (fail ? '<span class="rvTag"' + (rvd ? '' : ' style="display:none"') + '>已复核</span>' : '') + '</td></tr>';
@@ -464,6 +545,11 @@
         '<button type="button" class="btn gray" id="btnMoreResAll">全部展开</button></div>';
     }
     out.innerHTML = h || '<div class="card"><div class="hint">暂无结果，请先在 ③ 导入数据 载入 Item 数据。</div></div>';
+    out.querySelectorAll('.copper-locate-btn').forEach(function (btn) {
+      btn.onclick = function () {
+        if (typeof root.locateCopperResult === 'function') root.locateCopperResult(+btn.dataset.si, -1);
+      };
+    });
     out.dataset.ver = ver;
     renderChips();
     UI.resMs = App.viewMs(t0);
@@ -492,7 +578,9 @@
     renderMatch: renderMatch,
     reviewKey: reviewKey,
     viaGroupMatchSearch: viaGroupMatchSearch,
+    resultNetKind: resultNetKind,
     renderChips: renderChips,
+    renderNoRuleNetFilters: renderNoRuleNetFilters,
     effectiveResFilter: effectiveResFilter,
     resultGroupMatch: resultGroupMatch,
     resultGroupTotal: resultGroupTotal,

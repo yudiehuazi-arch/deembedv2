@@ -215,6 +215,24 @@ td.nosrc {
   outline: 2px solid var(--pri) !important;
 }
 
+.no-rule-net-filter {
+  margin-top: 10px;
+  align-items: center;
+}
+
+.no-rule-net-filter[hidden] {
+  display: none;
+}
+
+.no-rule-net-title {
+  font-weight: 600;
+  margin-right: 2px;
+}
+
+.no-rule-net-chip {
+  font-family: inherit;
+}
+
 .chipbar {
   margin-top: 10px;
   padding-top: 10px;

@@ -282,3 +282,196 @@ pre.preview {
   min-height: 68px;
   font-family: var(--mono);
 }
+
+/* 2D 空间几何视口与测量（对齐加工能力检查） */
+.viewer-container {
+  position: relative;
+  background: #000000;
+  border-radius: 10px;
+  border: 1px solid #1e293b;
+  overflow: hidden;
+}
+
+.viewer-toolbar {
+  background: #0f172a;
+  border-bottom: 1px solid #334155;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: #e3e8ef;
+  font-size: 12px;
+}
+
+.viewer-toolbar .tb-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-right: 1px solid #334155;
+  padding-right: 8px;
+  margin-right: 4px;
+}
+
+.viewer-toolbar button {
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #f1f5f9;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.12s;
+}
+
+.viewer-toolbar button:hover {
+  background: #334155;
+  border-color: #60a5fa;
+}
+
+.viewer-toolbar button.active,
+.viewer-toolbar button.pri {
+  background: var(--pri);
+  border-color: #60a5fa;
+  color: #ffffff;
+}
+
+.viewer-toolbar label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.viewer-toolbar select {
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #f1f5f9;
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+#traceCanvas {
+  display: block;
+  width: 100%;
+  height: 620px;
+  background: #000000;
+  cursor: grab;
+}
+
+#traceCanvas:active {
+  cursor: grabbing;
+}
+
+#traceCanvas.measuring {
+  cursor: crosshair;
+}
+
+.canvas-hud {
+  position: absolute;
+  bottom: 10px;
+  left: 12px;
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid #334155;
+  padding: 4px 10px;
+  border-radius: 6px;
+  color: #9ca3af;
+  font-size: 11px;
+  font-family: var(--mono);
+  pointer-events: none;
+}
+
+.canvas-legend {
+  position: static;
+  min-height: 36px;
+  background: #0f172a;
+  border-top: 1px solid #334155;
+  padding: 7px 12px;
+  color: #cbd5e1;
+  font-size: 11px;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.canvas-legend strong {
+  color: #ffffff;
+}
+
+.canvas-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.canvas-legend-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+}
+
+.measure-card {
+  position: absolute;
+  bottom: 10px;
+  right: 12px;
+  background: rgba(15, 23, 42, 0.94);
+  border: 1px solid #38bdf8;
+  padding: 10px 14px;
+  border-radius: 8px;
+  color: #ffffff;
+  font-size: 12px;
+  z-index: 10;
+  min-width: 280px;
+  display: none;
+}
+
+.measure-card h4 {
+  font-size: 13px;
+  font-weight: 700;
+  color: #38bdf8;
+  margin: 0 0 6px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.measure-card .m-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 3px 0;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.measure-card .m-row b {
+  color: #f8fafc;
+}
+
+.tooltip {
+  position: fixed;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid #38bdf8;
+  padding: 8px 12px;
+  border-radius: 6px;
+  color: #ffffff;
+  font-size: 11px;
+  pointer-events: none;
+  z-index: 100;
+  display: none;
+  line-height: 1.45;
+}
+
+tr.located-flash td {
+  outline: 2px solid #2563eb;
+  outline-offset: -2px;
+}
