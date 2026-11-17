@@ -100,7 +100,14 @@
     },
 
     editingIndex: -1,
-    modalShapeParsed: null
+    modalShapeParsed: null,
+    importedText: '',
+    hasImportedText: false,
+    importedFileName: '',
+    checkWorker: null,
+    checkRunId: 0,
+    checkStartedAt: 0,
+    checkTimer: null
   };
 
   var TAB_ORDER = ['tabRules', 'tabImport', 'tabResults', 'tabCanvas', 'tabAnalysis'];
@@ -206,93 +213,6 @@
   }
 
 
-  /* ---------- 数据导入与检查调度 ---------- */
-  function handleFileUpload(event) {
-    var file = event && event.target && event.target.files && event.target.files[0];
-    if (!file) return;
-    var reader = new root.FileReader();
-    reader.onload = function (e) {
-      var decoded = root.decodeTxt ? root.decodeTxt(e.target.result) : String(e.target.result || '');
-      document.getElementById('txtDataInput').value = decoded;
-      executeCopperChecks();
-    };
-    if (reader.readAsArrayBuffer && root.decodeTxt) {
-      reader.readAsArrayBuffer(file);
-    } else {
-      reader.readAsText(file);
-    }
-  }
-
-  function loadSampleShapes() {
-    root.fetch('sample/铜皮数据示例.txt')
-      .then(function (r) { return r.text(); })
-      .then(function (txt) {
-        document.getElementById('txtDataInput').value = txt;
-        executeCopperChecks();
-      })
-      .catch(function () { root.alert('无法载入示例文件'); });
-  }
-
-  function executeCopperChecks() {
-    var txtEl = document.getElementById('txtDataInput');
-    var txt = txtEl ? txtEl.value.trim() : '';
-    if (!txt) {
-      switchTab('tabImport');
-      root.alert('请先上传或粘贴包含 Shape / Via / Trace 的 TXT 数据。');
-      return;
-    }
-
-    State.smallCopperAreaThreshold = parseFloat(document.getElementById('rule4InpArea').value) || 500.0;
-    State.minArcRadius = parseFloat(document.getElementById('rule5InpRadius').value) || 10.0;
-
-    var btn = document.getElementById('btnRunCheck');
-    if (btn) {
-      btn.textContent = '正在执行五项几何检查...';
-      btn.disabled = true;
-    }
-
-    var doCheck = function () {
-      var config = {
-        viaCoverageRules: State.viaCoverageRules,
-        specialShapeTemplates: State.specialShapeTemplates,
-        traceMarginRules: State.traceMarginRules,
-        smallCopperAreaThreshold: State.smallCopperAreaThreshold,
-        minArcRadius: State.minArcRadius
-      };
-
-      var res = root.PourChecker.runAllCopperChecks(txt, config);
-      if (btn) {
-        btn.textContent = '▶ 运行铜皮五项检查';
-        btn.disabled = false;
-      }
-
-      State.shapes = res.shapes;
-      State.vias = res.vias;
-      State.traces = res.traces;
-      State.layers = res.layers;
-      State.rawResults = res.results.all;
-      State.groupedResults = res.results.grouped || root.PourChecker.groupResultsByTargetObject(res.results.all);
-      State.results = State.groupedResults;
-      State.summary = res.summary;
-      State.page = 1;
-      State.expandedRows.clear();
-      State.canvas.hasInitialFit = false;
-
-      if (typeof root.updateTopKPIs === 'function') root.updateTopKPIs();
-      if (typeof root.applyFilters === 'function') root.applyFilters();
-      switchTab('tabResults');
-      if (root.EdaShell && typeof root.EdaShell.syncTelemetry === 'function') {
-        root.EdaShell.syncTelemetry();
-      }
-    };
-
-    if (root.__SYNC_CHECK__) {
-      doCheck();
-    } else {
-      setTimeout(doCheck, 30);
-    }
-  }
-
   /* ---------- 导出文件与复制兜底 ---------- */
   function showExportBox(filename, text, hint, mimeType) {
     var mime = mimeType || 'text/csv';
@@ -383,19 +303,23 @@
         e.preventDefault();
         dz.classList.remove('dragover');
         var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-        if (f) handleFileUpload({ target: { files: [f] } });
+        if (f && typeof root.handleFileUpload === 'function') root.handleFileUpload({ target: { files: [f] } });
       });
     }
 
     var dockRun = document.getElementById('dockPourRun');
     if (dockRun && !dockRun.__pourBound) {
       dockRun.__pourBound = true;
-      dockRun.addEventListener('click', function () { executeCopperChecks(); });
+      dockRun.addEventListener('click', function () {
+        if (typeof root.executeCopperChecks === 'function') root.executeCopperChecks();
+      });
     }
     var dockSample = document.getElementById('dockPourSample');
     if (dockSample && !dockSample.__pourBound) {
       dockSample.__pourBound = true;
-      dockSample.addEventListener('click', function () { loadSampleShapes(); });
+      dockSample.addEventListener('click', function () {
+        if (typeof root.loadSampleShapes === 'function') root.loadSampleShapes();
+      });
     }
     var dockCanvas = document.getElementById('dockPourCanvas');
     if (dockCanvas && !dockCanvas.__pourBound) {
@@ -431,9 +355,6 @@
   root.loadStoredHistory = loadStoredHistory;
   root.renderHistoryChips = renderHistoryChips;
   root.fillInputAndRecord = fillInputAndRecord;
-  root.handleFileUpload = handleFileUpload;
-  root.loadSampleShapes = loadSampleShapes;
-  root.executeCopperChecks = executeCopperChecks;
   root.showExportBox = showExportBox;
   root.copyExportContent = copyExportContent;
 })(typeof window !== "undefined" ? window : globalThis);

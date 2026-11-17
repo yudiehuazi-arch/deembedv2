@@ -4,11 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PCB 铜皮检查工具</title>
-<link rel="stylesheet" href="assets/styles/tokens.css?v=37">
-<link rel="stylesheet" href="assets/styles/eda-shell.css?v=37">
-<link rel="stylesheet" href="assets/styles/eda-dock.css?v=37">
-<link rel="stylesheet" href="assets/styles/components.css?v=37">
-<link rel="stylesheet" href="assets/styles/pages/pour.css?v=37">
+<link rel="stylesheet" href="assets/styles/tokens.css?v=38">
+<link rel="stylesheet" href="assets/styles/eda-shell.css?v=38">
+<link rel="stylesheet" href="assets/styles/eda-dock.css?v=38">
+<link rel="stylesheet" href="assets/styles/components.css?v=38">
+<link rel="stylesheet" href="assets/styles/pages/pour.css?v=38">
 </head>
 <body class="eda-workbench">
 
@@ -207,10 +207,10 @@
     <section id="tabImport" class="tab">
       <div class="card">
         <h2>导入铜皮、过孔与走线坐标数据 <span class="eda-tip" tabindex="0" data-tip="支持包含 Shape、Via、Trace 块的 EDA 报告 TXT，自动兼容 UTF-8 与 GB18030 编码">?</span></h2>
-        <div class="dropzone" id="dropzoneData" onclick="document.getElementById('fileDataInput').click()" data-tip="点击选择或拖拽 .txt / .csv / .dat 报告文件">
+        <div class="dropzone" id="dropzoneData" onclick="document.getElementById('fileDataInput').click()" data-tip="点击选择或拖拽 .txt / .csv / .dat 报告文件，大文件使用后台线程检查">
           <input type="file" id="fileDataInput" accept=".txt,.csv,.dat" style="display:none" onchange="handleFileUpload(event)">
           <div class="t1">点击选择或拖拽 EDA 铜皮 / 过孔 / 走线 TXT 文件至此处</div>
-          <div class="t2">自动解析 Shape 外轮廓直线/圆弧、Via 坐标及 Trace 线段</div>
+          <div class="t2">大文件仅显示截断预览，Shape / Via / Trace 完整内容在后台解析</div>
         </div>
 
         <div class="form-item" style="margin-top:12px">
@@ -558,17 +558,17 @@
   </div>
 </div>
 
-<script src="packages/shared/dom-utils.js?v=37"></script>
-<script src="packages/shared/shape-preview-canvas.js?v=37"></script>
-<script src="packages/engines/pour/pour-geom.js?v=37"></script>
-<script src="packages/engines/pour/pour-parser.js?v=37"></script>
-<script src="packages/engines/pour/pour-engine.js?v=37"></script>
-<script src="packages/pages/pour/pour-state.js?v=37"></script>
-<script src="packages/pages/pour/pour-rules-ui.js?v=37"></script>
-<script src="packages/pages/pour/pour-results-ui.js?v=37"></script>
-<script src="packages/pages/pour/pour-canvas-viewer.js?v=37"></script>
-<script src="packages/shared/eda-tooltip.js?v=37"></script>
-<script src="packages/shared/eda-shell.js?v=37"></script>
-<script src="packages/shared/ui-prefs.js?v=37"></script>
+<script src="packages/shared/dom-utils.js?v=38"></script>
+<script src="packages/shared/shape-preview-canvas.js?v=38"></script>
+<script src="packages/engines/pour/pour-geom.js?v=38"></script>
+<script src="packages/engines/pour/pour-parser.js?v=38"></script>
+<script src="packages/engines/pour/pour-engine.js?v=38"></script>
+<script src="packages/pages/pour/pour-state.js?v=38"></script><script src="packages/pages/pour/pour-check-runner.js?v=38"></script>
+<script src="packages/pages/pour/pour-rules-ui.js?v=38"></script>
+<script src="packages/pages/pour/pour-results-ui.js?v=38"></script>
+<script src="packages/pages/pour/pour-canvas-viewer.js?v=38"></script>
+<script src="packages/shared/eda-tooltip.js?v=38"></script>
+<script src="packages/shared/eda-shell.js?v=38"></script>
+<script src="packages/shared/ui-prefs.js?v=38"></script>
 </body>
 </html>

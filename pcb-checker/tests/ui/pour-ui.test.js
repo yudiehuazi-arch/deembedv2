@@ -346,6 +346,42 @@ Item 3  < Via >
   if (!csvCaptured || !csvCaptured.content.includes('检查分类')) throw new Error('CSV 导出内容异常');
 });
 
+test('大文件仅在文本框显示截断预览，并通过 Web Worker 后台执行几何检查', () => {
+  const input = $('txtDataInput');
+  const originalText = input.value;
+  const largeText = 'Total 36781 Items\n' + 'Shape data\n'.repeat(30000);
+  w.setPourImportedText(largeText, 'large-board.txt', 25905 * 1024);
+  if (w.State.importedText !== largeText) throw new Error('大文件完整内容未保留在检查状态中');
+  if (input.value.length >= largeText.length || input.dataset.largeFilePreview !== '1') throw new Error('文本框未使用大文件截断预览');
+  input.dispatchEvent(new w.Event('beforeinput', { bubbles: true }));
+  if (w.State.importedText || input.value) throw new Error('编辑大文件预览前未切回文本输入模式');
+  input.value = originalText;
+
+  const workerSource = fs.readFileSync(path.join(__dirname, '../../packages/pages/pour/pour-check-worker.js'), 'utf8');
+  if (!workerSource.includes('importScripts') || !workerSource.includes('runAllCopperChecks')) throw new Error('后台检查线程未加载铜皮引擎');
+  const OriginalWorker = w.Worker;
+  let workerUrl = '', postedText = '', terminated = false;
+  function FakeWorker(url) { workerUrl = url; }
+  FakeWorker.prototype.postMessage = function (payload) {
+    postedText = payload.text;
+    const result = w.PourChecker.runAllCopperChecks(payload.text, payload.config);
+    this.onmessage({ data: { type: 'result', runId: payload.runId, result } });
+  };
+  FakeWorker.prototype.terminate = function () { terminated = true; };
+  w.Worker = FakeWorker;
+  w.__SYNC_CHECK__ = false;
+  try {
+    w.executeCopperChecks();
+    if (!workerUrl.includes('pour-check-worker.js') || postedText !== originalText) throw new Error('检查数据未交给后台线程');
+    if (!terminated || w.State.checkWorker !== null) throw new Error('后台线程完成后未释放');
+    if ($('btnRunCheck').disabled || !$('btnRunCheck').textContent.includes('运行铜皮五项检查')) throw new Error('检查按钮未恢复');
+  } finally {
+    w.__SYNC_CHECK__ = true;
+    if (OriginalWorker) w.Worker = OriginalWorker;
+    else delete w.Worker;
+  }
+});
+
 test('页面运行期零脚本错误', () => {
   if (ctx.errors.length) throw new Error(ctx.errors.join(' | '));
 });
