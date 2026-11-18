@@ -204,6 +204,7 @@ test('弹窗新增规则 1/2/3 与异型铜皮 Shape TXT 几何解析保存', ()
 
   w.openAddRule2Modal();
   if (!$('modalRule2').classList.contains('open')) throw new Error('Modal 2 未打开');
+  if ($('modalR2InpDiffDist').value !== '' || $('modalR2InpHdiRadius').value !== '') throw new Error('规则 2 新增弹窗的可选字段不应预填默认值');
   $('modalR2InpPadstack').value = 'BGA_GND_pad1mil_0902';
   $('modalR2InpDiffDist').value = '19.68';
   $('modalR2InpHdiRadius').value = '0.175';
@@ -253,6 +254,8 @@ test('弹窗新增规则 1/2/3 与异型铜皮 Shape TXT 几何解析保存', ()
   }
   w.openEditRule2Modal(savedTemplateIndex);
   if ($('modalR2TxtShape').value !== editedShapeTxt) throw new Error('规则 2 编辑弹窗未回填修改后的 Shape TXT 数据');
+  $('modalR2InpDiffDist').value = '';
+  $('modalR2InpHdiRadius').value = '';
   $('modalR2TxtShape').value = '';
   w.previewModalShape();
   w.saveRule2FromModal();
@@ -260,10 +263,15 @@ test('弹窗新增规则 1/2/3 与异型铜皮 Shape TXT 几何解析保存', ()
   if (clearedTemplate.rawShapeText !== '' || clearedTemplate.expectedArea !== 0 || clearedTemplate.shape !== null) {
     throw new Error('规则 2 编辑弹窗未删除已清空的 Shape TXT 数据');
   }
+  if (clearedTemplate.differentialCenterDistance !== null || clearedTemplate.hdiSearchRadiusMm !== null) {
+    throw new Error('规则 2 编辑弹窗未将两个可选字段保持为空');
+  }
   w.openEditRule2Modal(savedTemplateIndex);
   if ($('modalR2TxtShape').value !== '' || $('modalR2TxtShape').disabled) throw new Error('清空后的 Shape TXT 数据未保持可编辑空值');
+  if ($('modalR2InpDiffDist').value !== '' || $('modalR2InpHdiRadius').value !== '') throw new Error('规则 2 编辑重开后恢复了可选字段默认值');
   w.closeModal('modalRule2');
   if (!$('tblRule2Body').textContent.includes('19IS08, L5')) throw new Error('规则 2 表格未显示多个目标层');
+  if (!$('tblRule2Body').textContent.includes('未启用')) throw new Error('规则 2 表格未显示可选约束为空');
 
   w.openAddRule3Modal();
   if (!$('modalRule3').classList.contains('open')) throw new Error('Modal 3 未打开');
@@ -291,8 +299,8 @@ test('规则 JSON 快照导出、本地恢复与导出复制兜底验证', () =>
   if (!json.viaCoverageRules.length || !json.specialShapeTemplates.length || !json.traceMarginRules.length) {
     throw new Error('导出 JSON 内容不完整');
   }
-  if (!json.specialShapeTemplates.every(t => t.differentialCenterDistance > 0 && t.hdiSearchRadiusMm > 0)) {
-    throw new Error('导出 JSON 缺少差分孔中心距或 HDI 搜索距离');
+  if (!json.specialShapeTemplates.some(t => t.differentialCenterDistance === null && t.hdiSearchRadiusMm === null)) {
+    throw new Error('导出 JSON 未保留规则 2 的可选字段空值');
   }
   if ($('lblRuleFileStatus').style.display === 'none') throw new Error('状态提示未显示');
 
@@ -311,7 +319,7 @@ test('规则 JSON 快照导出、本地恢复与导出复制兜底验证', () =>
   if (w.State.specialShapeTemplates[0].name !== '测试专用异型铜皮模板' || w.State.specialShapeTemplates[0].differentialCenterDistance !== 23.62 || w.State.specialShapeTemplates[0].hdiSearchRadiusMm !== 0.15) throw new Error('规则 2 的中心距与 HDI 搜索距离恢复失败');
   const restoredTemplates = w.State.specialShapeTemplates;
   w.applyRuleSnapshot({ specialShapeTemplates: [{ id: 'legacy', name: '旧规则', padstack: 'BGA', differentialCenterDistance: 10, layer: 'L2' }] }, false);
-  if (w.State.specialShapeTemplates[0].hdiSearchRadiusMm !== 0.175) throw new Error('旧规则缺少的 HDI 搜索距离未归一化为 0.175 mm');
+  if (w.State.specialShapeTemplates[0].differentialCenterDistance !== 10 || w.State.specialShapeTemplates[0].hdiSearchRadiusMm !== null) throw new Error('导入缺失的 HDI 搜索距离未保持为空');
   w.State.specialShapeTemplates = restoredTemplates;
   w.renderRule2Table();
   if (w.State.traceMarginRules[0].minMargin !== 55.0) throw new Error('规则 3 恢复失败');

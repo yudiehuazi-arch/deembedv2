@@ -6,6 +6,11 @@
  * 渲染全套规则配置 UI
  */
 
+function optionalPourPositive(value) {
+  const number = parseFloat(value);
+  return number > 0 ? number : null;
+}
+
 function renderPourShapeThumbnails(templates) {
   if (typeof drawShapePreviewCanvas !== 'function') return;
   templates.forEach((template, index) => {
@@ -80,8 +85,8 @@ function renderRulesUI() {
       id: 'tmpl_1',
       name: 'L2特定异型铜皮_1',
       padstack: 'BGA_3510',
-      differentialCenterDistance: 10.0,
-      hdiSearchRadiusMm: 0.175,
+      differentialCenterDistance: null,
+      hdiSearchRadiusMm: null,
       layer: '02G01P',
       expectedArea: 452.4,
       areaTolerance: 30.0
@@ -109,10 +114,10 @@ function renderRulesUI() {
             </span>
           </td>
           <td>
-            <input type="number" min="0.01" step="0.01" value="${r.differentialCenterDistance || 10}" onchange="State.rules.specialShapeTemplates[${i}].differentialCenterDistance=parseFloat(this.value)" style="width:72px"> mil
+            <input type="number" min="0.01" step="0.01" placeholder="未启用" value="${optionalPourPositive(r.differentialCenterDistance) || ''}" onchange="State.rules.specialShapeTemplates[${i}].differentialCenterDistance=optionalPourPositive(this.value)" style="width:72px"> mil
           </td>
           <td>
-            <input type="number" min="0.001" step="0.001" value="${r.hdiSearchRadiusMm || 0.175}" onchange="State.rules.specialShapeTemplates[${i}].hdiSearchRadiusMm=parseFloat(this.value)" style="width:66px"> mm
+            <input type="number" min="0.001" step="0.001" placeholder="未启用" value="${optionalPourPositive(r.hdiSearchRadiusMm) || ''}" onchange="State.rules.specialShapeTemplates[${i}].hdiSearchRadiusMm=optionalPourPositive(this.value)" style="width:66px"> mm
           </td>
           <td>
             <span style="background:#f1f5f9;color:#374151;border:1px solid #cbd5e1;padding:2px 8px;border-radius:4px;font-weight:600;font-family:var(--mono);display:inline-block">
@@ -179,8 +184,8 @@ function addPourRule2Row() {
     id: `tmpl_${Date.now()}`,
     name: `新增异型铜皮_${State.rules.specialShapeTemplates.length + 1}`,
     padstack: 'BGA_3510',
-    differentialCenterDistance: 10.0,
-    hdiSearchRadiusMm: 0.175,
+    differentialCenterDistance: null,
+    hdiSearchRadiusMm: null,
     layer: '02G01P',
     expectedArea: 452.4,
     areaTolerance: 30.0

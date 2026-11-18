@@ -114,11 +114,14 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
       const padPattern = (tmpl.padstack || '').trim().toLowerCase();
       const targetLayers = [...new Set(expandLayerRange(tmpl.layer, [...shapesByLayer.keys()])
         .map(layer => layer.trim().toUpperCase()))];
-      const expectedCenterDistance = parseFloat(tmpl.differentialCenterDistance);
-      const configuredHdiRadiusMm = parseFloat(tmpl.hdiSearchRadiusMm);
-      const hdiSearchRadiusMm = configuredHdiRadiusMm > 0 ? configuredHdiRadiusMm : 0.175;
-      const hdiSearchRadiusMil = hdiSearchRadiusMm * MIL_PER_MM;
-      if (!(expectedCenterDistance > 0) || !targetLayers.length) return;
+      const centerValue = parseFloat(tmpl.differentialCenterDistance);
+      const radiusValue = parseFloat(tmpl.hdiSearchRadiusMm);
+      const expectedCenterDistance = centerValue > 0 ? centerValue : null;
+      const hdiSearchRadiusMm = radiusValue > 0 ? radiusValue : null;
+      const hdiSearchRadiusMil = hdiSearchRadiusMm == null ? null : hdiSearchRadiusMm * MIL_PER_MM;
+      const hdiLookupRadiusMil = hdiSearchRadiusMil == null && expectedCenterDistance != null
+        ? expectedCenterDistance + SPECIAL_SHAPE_CENTER_DISTANCE_TOLERANCE : hdiSearchRadiusMil;
+      if (!targetLayers.length) return;
       const tmplName = tmpl.name || `异型铜皮模板_${tIdx + 1}`;
       const expectedArea = tmpl.expectedArea || (tmpl.shape ? tmpl.shape.area : 0);
       const expectedItemCount = tmpl.shapeItemCount || (tmpl.shape && tmpl.shape.itemCount) || 1;
@@ -127,11 +130,14 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
         via.padstack.toLowerCase().includes(padPattern));
       matchedVias.forEach(via => {
         const netKey = String(via.net || '').trim().toLowerCase();
-        const nearbyHdi = findNearbySameNetHdi(via, hdiIndexes.get(netKey), hdiSearchRadiusMil);
-        if (!nearbyHdi || Math.abs(nearbyHdi.distance - expectedCenterDistance) > SPECIAL_SHAPE_CENTER_DISTANCE_TOLERANCE) return;
+        const needsHdi = expectedCenterDistance != null || hdiSearchRadiusMm != null;
+        const nearbyHdi = needsHdi ? findNearbySameNetHdi(via, hdiIndexes.get(netKey), hdiLookupRadiusMil) : null;
+        if (needsHdi && !nearbyHdi) return;
+        if (expectedCenterDistance != null && Math.abs(nearbyHdi.distance - expectedCenterDistance) > SPECIAL_SHAPE_CENTER_DISTANCE_TOLERANCE) return;
         targetLayers.forEach(targetLayer => {
           const bestShape = findAssociatedShapeItems(via, shapeIndexes.get(targetLayer), expectedItemCount);
           const bestShapeIds = bestShape ? (bestShape.itemIds || [bestShape.id]) : [];
+          const targetDesc = nearbyHdi ? `孔 #${via.id} 到同网络 HDI 孔 #${nearbyHdi.via.id} 的中心距 ${roundN(nearbyHdi.distance, 2)} mil` : `孔 #${via.id}`;
           let isMatch = false;
           let failReason = '';
           if (!bestShape) {
@@ -149,16 +155,16 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
             checkCategory: 'special_shape', checkCategoryName: '② 特定异型铜皮比对检查',
             templateIndex: tIdx + 1, templateId: tmpl.id || `special_shape_${tIdx + 1}`, templateName: tmplName,
             viaId: via.id, viaPadstack: via.padstack, viaNet: via.net, viaCoord: [via.x, via.y],
-            actualHdiViaId: nearbyHdi.via.id, actualHdiViaPadstack: nearbyHdi.via.padstack,
-            hdiAssociationDistance: nearbyHdi.distance,
+            actualHdiViaId: nearbyHdi ? nearbyHdi.via.id : null, actualHdiViaPadstack: nearbyHdi ? nearbyHdi.via.padstack : null,
+            hdiAssociationDistance: nearbyHdi ? nearbyHdi.distance : null,
             hdiSearchRadiusMm,
-            actualDifferentialCenterDistance: nearbyHdi.distance,
+            actualDifferentialCenterDistance: nearbyHdi ? nearbyHdi.distance : null,
             expectedDifferentialCenterDistance: expectedCenterDistance,
             layer: targetLayer, targetShapeId: bestShape ? bestShape.id : null, targetShapeIds: bestShapeIds, actualShapeItemCount: bestShapeIds.length, expectedShapeItemCount: expectedItemCount,
             actualArea: bestShape ? bestShape.area : 0, expectedArea, areaTolerance: tolArea, pass: isMatch,
             message: isMatch
-              ? `✅ 符合：孔 #${via.id} 到同网络 HDI 孔 #${nearbyHdi.via.id} 的中心距 ${roundN(nearbyHdi.distance, 2)} mil，在 ${targetLayer} 层的铜皮与异型模板【${tmplName}】匹配 (${bestShapeIds.length} 个 Shape Item 合计面积 ${bestShape ? roundN(bestShape.area, 1) : '-'} sq mil)`
-              : `❌ 不符合：孔 #${via.id} 到同网络 HDI 孔 #${nearbyHdi.via.id} 的中心距 ${roundN(nearbyHdi.distance, 2)} mil，在 ${targetLayer} 层异型铜皮不匹配 (${failReason})`
+              ? `✅ 符合：${targetDesc}，在 ${targetLayer} 层的铜皮与异型模板【${tmplName}】匹配 (${bestShapeIds.length} 个 Shape Item 合计面积 ${bestShape ? roundN(bestShape.area, 1) : '-'} sq mil)`
+              : `❌ 不符合：${targetDesc}，在 ${targetLayer} 层异型铜皮不匹配 (${failReason})`
           });
         });
       });
@@ -452,7 +458,11 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
         g.actualArea = s0.actualArea;
         g.failCount = failedSubs.length;
         g.passCount = subs.length - failedSubs.length;
-        g.metricsStr = `差分孔中心距: ${roundN(s0.actualDifferentialCenterDistance, 2)} mil (目标孔 #${s0.viaId} → HDI #${s0.actualHdiViaId}；规则 ${s0.expectedDifferentialCenterDistance} mil；搜索距离 ≤ ${s0.hdiSearchRadiusMm} mm)；${subs.map(s => `${s.layer} 实测面积 ${roundN(s.actualArea, 1)} sq mil`).join('；')}`;
+        const hdiMetrics = [];
+        if (s0.actualHdiViaId != null) hdiMetrics.push(`目标孔 #${s0.viaId} → HDI #${s0.actualHdiViaId}，实测中心距 ${roundN(s0.actualDifferentialCenterDistance, 2)} mil`);
+        if (s0.expectedDifferentialCenterDistance != null) hdiMetrics.push(`中心距规则 ${s0.expectedDifferentialCenterDistance} mil`);
+        if (s0.hdiSearchRadiusMm != null) hdiMetrics.push(`搜索距离 ≤ ${s0.hdiSearchRadiusMm} mm`);
+        g.metricsStr = (hdiMetrics.length ? hdiMetrics.join('；') + '；' : '') + subs.map(s => `${s.layer} 实测面积 ${roundN(s.actualArea, 1)} sq mil`).join('；');
         g.message = allPass
           ? `✅ 符合：孔 #${g.viaId} 在目标层【${g.layerListStr}】的铜皮均匹配异型模板【${s0.templateName}】`
           : failedSubs.map(s => s.message).join('；');

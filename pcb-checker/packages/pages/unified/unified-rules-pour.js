@@ -17,10 +17,10 @@ function openAddPourShapeModal() {
   $('modalPourShapeInpPadstack').value = 'BGA_3510';
   $('modalPourShapeInpPadstack').disabled = false;
   $('modalPourShapeInpPadstack').style.background = '#ffffff';
-  $('modalPourShapeInpDiffDist').value = '10.0';
+  $('modalPourShapeInpDiffDist').value = '';
   $('modalPourShapeInpDiffDist').disabled = false;
   $('modalPourShapeInpDiffDist').style.background = '#ffffff';
-  $('modalPourShapeInpHdiRadius').value = '0.175';
+  $('modalPourShapeInpHdiRadius').value = '';
   $('modalPourShapeInpHdiRadius').disabled = false;
   $('modalPourShapeInpHdiRadius').style.background = '#ffffff';
   $('modalPourShapeInpLayer').value = '02G01P';
@@ -51,11 +51,11 @@ function editPourShapeTemplate(idx) {
   $('modalPourShapeInpPadstack').disabled = false;
   $('modalPourShapeInpPadstack').style.background = '#ffffff';
 
-  $('modalPourShapeInpDiffDist').value = t.differentialCenterDistance || 10.0;
+  $('modalPourShapeInpDiffDist').value = parseFloat(t.differentialCenterDistance) > 0 ? t.differentialCenterDistance : '';
   $('modalPourShapeInpDiffDist').disabled = false;
   $('modalPourShapeInpDiffDist').style.background = '#ffffff';
 
-  $('modalPourShapeInpHdiRadius').value = t.hdiSearchRadiusMm || 0.175;
+  $('modalPourShapeInpHdiRadius').value = parseFloat(t.hdiSearchRadiusMm) > 0 ? t.hdiSearchRadiusMm : '';
   $('modalPourShapeInpHdiRadius').disabled = false;
   $('modalPourShapeInpHdiRadius').style.background = '#ffffff';
 
@@ -129,9 +129,10 @@ function savePourShapeFromModal() {
   }
 
   const padstack = $('modalPourShapeInpPadstack').value.trim() || 'BGA_3510';
-  const diffCenterDistance = parseFloat($('modalPourShapeInpDiffDist').value) || 10.0;
+  const centerInput = parseFloat($('modalPourShapeInpDiffDist').value);
+  const diffCenterDistance = centerInput > 0 ? centerInput : null;
   const hdiRadiusInput = parseFloat($('modalPourShapeInpHdiRadius').value);
-  const hdiSearchRadiusMm = hdiRadiusInput > 0 ? hdiRadiusInput : 0.175;
+  const hdiSearchRadiusMm = hdiRadiusInput > 0 ? hdiRadiusInput : null;
   const layer = $('modalPourShapeInpLayer').value.trim() || '02G01P';
   const tol = parseFloat($('modalPourShapeInpTol').value) || 30.0;
   const rawTxt = $('modalPourShapeTxt').value;

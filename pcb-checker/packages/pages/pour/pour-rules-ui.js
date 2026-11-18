@@ -19,6 +19,11 @@
   var switchTab = function (id) { if (root.switchTab) root.switchTab(id); };
   var showExportBox = function (f, t, h, m) { if (root.showExportBox) root.showExportBox(f, t, h, m); };
 
+  function optionalPositive(value) {
+    var number = parseFloat(value);
+    return number > 0 ? number : null;
+  }
+
   /* ---------- 规则 1 / 2 / 3 列表与缩略图 ---------- */
   function renderAllRuleTables() {
     renderRule1Table();
@@ -61,6 +66,8 @@
     var PC = root.PourChecker;
     tbody.innerHTML = State.specialShapeTemplates.map(function (t, idx) {
       var areaNum = PC && PC.roundN ? PC.roundN(t.expectedArea, 1) : Number(t.expectedArea || 0).toFixed(1);
+      var centerText = optionalPositive(t.differentialCenterDistance);
+      var radiusText = optionalPositive(t.hdiSearchRadiusMm);
       return '<tr>' +
         '<td><strong>#' + (idx + 1) + '</strong></td>' +
         '<td><div style="width:48px;height:48px;background:#0b1220;border-radius:4px;overflow:hidden">' +
@@ -68,8 +75,8 @@
         '</div></td>' +
         '<td><strong>' + esc(t.name) + '</strong></td>' +
         '<td><span class="badge-tag copper">' + esc(t.padstack) + '</span></td>' +
-        '<td><strong>' + esc(t.differentialCenterDistance) + ' mil</strong></td>' +
-        '<td><strong>' + esc(t.hdiSearchRadiusMm || 0.175) + ' mm</strong></td>' +
+        '<td><strong>' + (centerText == null ? '<span class="hint">未启用</span>' : esc(centerText) + ' mil') + '</strong></td>' +
+        '<td><strong>' + (radiusText == null ? '<span class="hint">未启用</span>' : esc(radiusText) + ' mm') + '</strong></td>' +
         '<td><span class="badge-tag gray">' + esc(t.layer) + '</span></td>' +
         '<td><strong>' + esc(areaNum) + ' sq mil</strong> ±' + esc(t.areaTolerance) + '</td>' +
         '<td><div class="row" style="gap:4px">' +
@@ -180,8 +187,8 @@
     enableRule2Inputs();
     document.getElementById('modalR2InpName').value = 'L2特定异型铜皮_' + (State.specialShapeTemplates.length + 1);
     document.getElementById('modalR2InpPadstack').value = 'BGA_3510';
-    document.getElementById('modalR2InpDiffDist').value = '10.0';
-    document.getElementById('modalR2InpHdiRadius').value = '0.175';
+    document.getElementById('modalR2InpDiffDist').value = '';
+    document.getElementById('modalR2InpHdiRadius').value = '';
     document.getElementById('modalR2InpLayer').value = '02G01P';
     document.getElementById('modalR2InpTol').value = '30.0';
     document.getElementById('modalR2TxtShape').value =
@@ -199,8 +206,8 @@
     enableRule2Inputs();
     document.getElementById('modalR2InpName').value = t.name;
     document.getElementById('modalR2InpPadstack').value = t.padstack;
-    document.getElementById('modalR2InpDiffDist').value = t.differentialCenterDistance || 10.0;
-    document.getElementById('modalR2InpHdiRadius').value = t.hdiSearchRadiusMm || 0.175;
+    document.getElementById('modalR2InpDiffDist').value = optionalPositive(t.differentialCenterDistance) || '';
+    document.getElementById('modalR2InpHdiRadius').value = optionalPositive(t.hdiSearchRadiusMm) || '';
     document.getElementById('modalR2InpLayer').value = t.layer;
     document.getElementById('modalR2InpTol').value = t.areaTolerance;
     document.getElementById('modalR2TxtShape').value = typeof t.rawShapeText === 'string'
@@ -244,9 +251,8 @@
   function saveRule2FromModal() {
     var name = document.getElementById('modalR2InpName').value.trim();
     var pad = document.getElementById('modalR2InpPadstack').value.trim();
-    var diffDist = parseFloat(document.getElementById('modalR2InpDiffDist').value) || 10.0;
-    var hdiRadiusInput = parseFloat(document.getElementById('modalR2InpHdiRadius').value);
-    var hdiSearchRadiusMm = hdiRadiusInput > 0 ? hdiRadiusInput : 0.175;
+    var diffDist = optionalPositive(document.getElementById('modalR2InpDiffDist').value);
+    var hdiSearchRadiusMm = optionalPositive(document.getElementById('modalR2InpHdiRadius').value);
     var layer = document.getElementById('modalR2InpLayer').value.trim();
     var tol = parseFloat(document.getElementById('modalR2InpTol').value) || 30.0;
     var rawTxt = document.getElementById('modalR2TxtShape').value;
@@ -254,8 +260,8 @@
 
     recordHistory('r2_name', name);
     recordHistory('r2_padstack', pad);
-    recordHistory('r2_diff_dist', String(diffDist));
-    recordHistory('r2_hdi_radius', String(hdiSearchRadiusMm));
+    if (diffDist != null) recordHistory('r2_diff_dist', String(diffDist));
+    if (hdiSearchRadiusMm != null) recordHistory('r2_hdi_radius', String(hdiSearchRadiusMm));
     recordHistory('r2_layer', layer);
     recordHistory('r2_tol', String(tol));
 
@@ -401,10 +407,8 @@
     if (Array.isArray(data.specialShapeTemplates)) {
       State.specialShapeTemplates = data.specialShapeTemplates;
       State.specialShapeTemplates.forEach(function (t) {
-        var centerDistance = parseFloat(t.differentialCenterDistance);
-        var hdiRadius = parseFloat(t.hdiSearchRadiusMm);
-        t.differentialCenterDistance = centerDistance > 0 ? centerDistance : 10.0;
-        t.hdiSearchRadiusMm = hdiRadius > 0 ? hdiRadius : 0.175;
+        t.differentialCenterDistance = optionalPositive(t.differentialCenterDistance);
+        t.hdiSearchRadiusMm = optionalPositive(t.hdiSearchRadiusMm);
         if (t.rawShapeText && root.PourChecker && root.PourChecker.parsePcbElements) {
           try {
             var parsed = root.PourChecker.parsePcbElements(t.rawShapeText);

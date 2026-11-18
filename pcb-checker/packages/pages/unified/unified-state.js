@@ -46,8 +46,8 @@ function normalizeSpecialShapeTemplates(templates) {
     const normalized = Object.assign({}, template);
     const centerDistance = parseFloat(normalized.differentialCenterDistance);
     const hdiRadius = parseFloat(normalized.hdiSearchRadiusMm);
-    normalized.differentialCenterDistance = centerDistance > 0 ? centerDistance : 10.0;
-    normalized.hdiSearchRadiusMm = hdiRadius > 0 ? hdiRadius : 0.175;
+    normalized.differentialCenterDistance = centerDistance > 0 ? centerDistance : null;
+    normalized.hdiSearchRadiusMm = hdiRadius > 0 ? hdiRadius : null;
     return normalized;
   });
 }

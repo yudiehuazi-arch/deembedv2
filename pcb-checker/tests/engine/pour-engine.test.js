@@ -192,7 +192,7 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   assert.ok(res.filter(item => item.layer === '02G01P').every(item => item.pass));
   assert.ok(res.filter(item => item.layer === 'L3').every(item => !item.pass));
   assert.ok(res.every(item => item.actualDifferentialCenterDistance === 1));
-  assert.ok(res.every(item => [12, 13].includes(item.actualHdiViaId) && item.hdiSearchRadiusMm === 0.175));
+  assert.ok(res.every(item => [12, 13].includes(item.actualHdiViaId) && item.hdiSearchRadiusMm === null), '未配置 HDI 搜索距离时不得恢复默认值');
   const grouped = groupResultsByTargetObject(res);
   assert.strictEqual(grouped.length, 2, '每颗差分孔的多个目标层应汇总为一个对象');
   assert.ok(grouped.every(item => !item.pass && item.failCount === 1 && item.subRecords.length === 2 && item.layerListStr.includes('L3')));
@@ -227,22 +227,63 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
     { id: 'distance_2', name: '中心距2模板', padstack: 'TYPE_A', differentialCenterDistance: 2.009, layer: 'L2', expectedArea: 100, areaTolerance: 1 },
     { id: 'outside_tolerance', name: '中心距超容差模板', padstack: 'TYPE_A', differentialCenterDistance: 2.011, layer: 'L2', expectedArea: 999, areaTolerance: 1 },
     { id: 'distance_5', name: '中心距5模板', padstack: 'TYPE_A', differentialCenterDistance: 5, layer: 'L2', expectedArea: 100, areaTolerance: 1 },
-    { id: 'inclusive_boundary', name: '默认搜索边界模板', padstack: 'TYPE_A', differentialCenterDistance: defaultRadiusMil, layer: 'L2', expectedArea: 100, areaTolerance: 1 },
+    { id: 'inclusive_boundary', name: '中心距模板（不限制搜索距离）', padstack: 'TYPE_A', differentialCenterDistance: defaultRadiusMil, layer: 'L2', expectedArea: 100, areaTolerance: 1 },
     { id: 'narrow_search', name: '修改后搜索距离过小模板', padstack: 'TYPE_A', differentialCenterDistance: 2, hdiSearchRadiusMm: 0.05, layer: 'L2', expectedArea: 999, areaTolerance: 1 }
   ];
   const res = checkSpecialShapedCopper(vias, shapes, templates);
   assert.strictEqual(res.length, 3, '三颗有合格同网络 HDI 孔的目标 Via 应各自选择一个中心距模板');
   assert.deepStrictEqual(res.map(item => item.viaId).sort((a, b) => a - b), [20, 21, 23]);
   assert.deepStrictEqual(res.map(item => item.templateId).sort(), ['distance_2', 'distance_5', 'inclusive_boundary']);
-  assert.ok(res.every(item => item.pass && item.hdiSearchRadiusMm === 0.175));
+  assert.ok(res.every(item => item.pass && item.hdiSearchRadiusMm === null), '未配置搜索距离时仅应用中心距约束');
   assert.strictEqual(res.find(item => item.viaId === 20).actualHdiViaId, 30, '多个/等距候选必须稳定选择最近且 ID 较小的 HDI Via');
   assert.strictEqual(res.find(item => item.viaId === 20).actualDifferentialCenterDistance, 2);
   assert.strictEqual(res.find(item => item.viaId === 21).actualHdiViaId, 34, '网络匹配应忽略大小写');
-  assert.ok(Math.abs(res.find(item => item.viaId === 23).actualDifferentialCenterDistance - defaultRadiusMil) < 1e-9, '默认 0.175 mm 边界应包含');
+  assert.ok(Math.abs(res.find(item => item.viaId === 23).actualDifferentialCenterDistance - defaultRadiusMil) < 1e-9, '未配置搜索距离时仍应按中心距找到同网络 HDI 孔');
   assert.ok(!res.some(item => item.viaId === 22), '无同网络 HDI 候选的目标 Via 不应匹配模板');
   assert.ok(!res.some(item => item.templateId === 'narrow_search'), '缩小可配置搜索距离后不得关联范围外 HDI Via');
   assert.ok(res.every(item => item.pairedViaId == null && item.pairedHdiViaId == null), '规则 2 不得依赖 _P/_N 目标孔配对');
   console.log('  PASS  第二项：目标 Via 到最近同网络 HDI Via 的独立中心距、边界与可配置搜索距离');
+}
+
+// 4.1 差分孔中心距与 HDI 搜索距离分别可选，且只应用已配置字段
+{
+  const vias = [
+    { id: 40, x: 0, y: 0, padstack: 'OPT_NONE', net: 'NO_HDI' },
+    { id: 41, x: 30, y: 0, padstack: 'OPT_CENTER', net: 'CENTER_NET' },
+    { id: 42, x: 60, y: 0, padstack: 'OPT_RADIUS', net: 'RADIUS_NET' },
+    { id: 43, x: 90, y: 0, padstack: 'OPT_BOTH', net: 'BOTH_NET' },
+    { id: 51, x: 40, y: 0, padstack: 'HDI_CENTER', net: 'CENTER_NET' },
+    { id: 52, x: 63, y: 0, padstack: 'HDI_RADIUS', net: 'RADIUS_NET' },
+    { id: 53, x: 92, y: 0, padstack: 'HDI_BOTH', net: 'BOTH_NET' }
+  ];
+  const shapes = [0, 30, 60, 90].map((x, index) => ({
+    id: 240 + index, layer: 'L2', area: 100, centroid: { x, y: 0 }
+  }));
+  const templates = [
+    { id: 'optional_none', name: '均留空', padstack: 'OPT_NONE', differentialCenterDistance: null, hdiSearchRadiusMm: null, layer: 'L2', expectedArea: 100, areaTolerance: 1 },
+    { id: 'optional_center', name: '仅中心距', padstack: 'OPT_CENTER', differentialCenterDistance: 10, hdiSearchRadiusMm: null, layer: 'L2', expectedArea: 100, areaTolerance: 1 },
+    { id: 'optional_radius', name: '仅搜索距离', padstack: 'OPT_RADIUS', differentialCenterDistance: null, hdiSearchRadiusMm: 0.1, layer: 'L2', expectedArea: 100, areaTolerance: 1 },
+    { id: 'optional_both', name: '两者均配置', padstack: 'OPT_BOTH', differentialCenterDistance: 2, hdiSearchRadiusMm: 0.1, layer: 'L2', expectedArea: 100, areaTolerance: 1 }
+  ];
+  const res = checkSpecialShapedCopper(vias, shapes, templates);
+  assert.strictEqual(res.length, 4, '四种可选字段组合都应生成检查结果');
+  assert.ok(res.every(item => item.pass));
+  const byTemplate = new Map(res.map(item => [item.templateId, item]));
+  assert.strictEqual(byTemplate.get('optional_none').actualHdiViaId, null, '两项留空时不得要求附近存在 HDI 孔');
+  assert.strictEqual(byTemplate.get('optional_none').expectedDifferentialCenterDistance, null);
+  assert.strictEqual(byTemplate.get('optional_none').hdiSearchRadiusMm, null);
+  assert.strictEqual(byTemplate.get('optional_center').actualDifferentialCenterDistance, 10, '仅中心距时不得套用旧的 0.175 mm 最大搜索距离');
+  assert.strictEqual(byTemplate.get('optional_center').hdiSearchRadiusMm, null);
+  assert.strictEqual(byTemplate.get('optional_radius').expectedDifferentialCenterDistance, null, '仅搜索距离时不得套用中心距默认值');
+  assert.strictEqual(byTemplate.get('optional_radius').actualDifferentialCenterDistance, 3);
+  assert.strictEqual(byTemplate.get('optional_both').actualDifferentialCenterDistance, 2);
+  assert.strictEqual(byTemplate.get('optional_both').hdiSearchRadiusMm, 0.1);
+  assert.ok(!/HDI|中心距|搜索距离/.test(byTemplate.get('optional_none').message), '两项留空时结果描述不得虚构 HDI 约束');
+  const grouped = new Map(groupResultsByTargetObject(res).map(item => [item.viaId, item]));
+  assert.ok(!/中心距|搜索距离|HDI/.test(grouped.get(40).metricsStr));
+  assert.ok(/中心距规则 10 mil/.test(grouped.get(41).metricsStr) && !/搜索距离/.test(grouped.get(41).metricsStr));
+  assert.ok(!/中心距规则/.test(grouped.get(42).metricsStr) && /搜索距离 ≤ 0.1 mm/.test(grouped.get(42).metricsStr));
+  console.log('  PASS  第二项：中心距与 HDI 搜索距离支持均留空、仅中心距、仅搜索距离和同时配置');
 }
 
 // 5. 第三项：走线上/下参考层铺铜覆盖与单侧超宽检查 (Trace Reference Layer Margin)

@@ -152,7 +152,12 @@
       return '最近铜皮距离: <strong>' + esc(r.actualDistStr) + '</strong> / 孔心搜索范围 ≤ ' + esc(r.requiredDist) + ' mil；范围内检出任意铜皮即达标';
     }
     if (r.checkCategory === 'special_shape') {
-      return '差分孔中心距: <strong>' + esc(rn(r.actualDifferentialCenterDistance, 2)) + ' mil</strong> / 规则 ' + esc(r.expectedDifferentialCenterDistance) + ' mil；目标孔 → HDI #' + esc(r.actualHdiViaId) + '；搜索距离 ≤ ' + esc(r.hdiSearchRadiusMm || 0.175) + ' mm；实测面积 ' + esc(rn(r.actualArea, 1)) + ' sq mil / 期望 ' + esc(r.expectedArea);
+      var metrics = [];
+      if (r.actualHdiViaId != null) metrics.push('目标孔 → HDI #' + esc(r.actualHdiViaId) + '，实测中心距 <strong>' + esc(rn(r.actualDifferentialCenterDistance, 2)) + ' mil</strong>');
+      if (r.expectedDifferentialCenterDistance != null) metrics.push('中心距规则 ' + esc(r.expectedDifferentialCenterDistance) + ' mil');
+      if (r.hdiSearchRadiusMm != null) metrics.push('搜索距离 ≤ ' + esc(r.hdiSearchRadiusMm) + ' mm');
+      metrics.push('实测面积 ' + esc(rn(r.actualArea, 1)) + ' sq mil / 期望 ' + esc(r.expectedArea));
+      return metrics.join('；');
     }
     if (r.checkCategory === 'trace_ref_margin') {
       return '单侧外延: <strong>' + esc(rn(r.actualMargin, 1)) + ' mil</strong> / 要求 ≥ ' + esc(r.minMargin) + ' mil';

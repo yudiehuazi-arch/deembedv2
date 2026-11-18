@@ -174,11 +174,15 @@ async function test(name, fn) {
 
   await test('铜皮异型模板可编辑匹配字段与 Shape TXT 数据并导出', () => {
     const normalizedTemplates = w.normalizeSpecialShapeTemplates([
-      { differentialCenterDistance: 10, hdiSearchRadiusMm: 0 },
-      { differentialCenterDistance: 10 }
+      { differentialCenterDistance: '', hdiSearchRadiusMm: '' },
+      { differentialCenterDistance: 10 },
+      { hdiSearchRadiusMm: 0.15 },
+      { differentialCenterDistance: 10, hdiSearchRadiusMm: 0.15 }
     ]);
-    if (!normalizedTemplates.every(template => template.hdiSearchRadiusMm === 0.175)) {
-      throw new Error('旧规则或非法 HDI 搜索距离未归一化为 0.175 mm');
+    if (normalizedTemplates[0].differentialCenterDistance !== null || normalizedTemplates[0].hdiSearchRadiusMm !== null ||
+        normalizedTemplates[1].differentialCenterDistance !== 10 || normalizedTemplates[1].hdiSearchRadiusMm !== null ||
+        normalizedTemplates[2].differentialCenterDistance !== null || normalizedTemplates[2].hdiSearchRadiusMm !== 0.15) {
+      throw new Error('规则 2 四种可选字段组合未按空值归一化');
     }
     w.renderRulesUI();
     const rule2Headers = [...d.querySelectorAll('#tblPourRule2 th')].map(th => th.textContent.trim());
@@ -194,6 +198,7 @@ async function test(name, fn) {
     }
     const before = w.State.rules.specialShapeTemplates.length;
     w.openAddPourShapeModal();
+    if ($('modalPourShapeInpDiffDist').value !== '' || $('modalPourShapeInpHdiRadius').value !== '') throw new Error('综合页新增模板不应预填可选字段默认值');
     $('modalPourShapeInpName').value = '中心距模板测试';
     $('modalPourShapeInpDiffDist').value = '19.68';
     $('modalPourShapeInpHdiRadius').value = '0.15';
@@ -232,6 +237,8 @@ async function test(name, fn) {
     }
     w.editPourShapeTemplate(before);
     if ($('modalPourShapeTxt').value !== editedShapeTxt) throw new Error('综合页编辑弹窗未回填修改后的 Shape TXT 数据');
+    $('modalPourShapeInpDiffDist').value = '';
+    $('modalPourShapeInpHdiRadius').value = '';
     $('modalPourShapeTxt').value = '';
     w.previewModalPourShape();
     w.savePourShapeFromModal();
@@ -239,16 +246,22 @@ async function test(name, fn) {
     if (cleared.rawTxt !== '' || cleared.expectedArea !== 0 || cleared.shape !== null) {
       throw new Error('综合页编辑弹窗未删除已清空的 Shape TXT 数据');
     }
+    if (cleared.differentialCenterDistance !== null || cleared.hdiSearchRadiusMm !== null) {
+      throw new Error('综合页编辑弹窗未保留两个可选字段空值');
+    }
     w.editPourShapeTemplate(before);
     if ($('modalPourShapeTxt').value !== '' || $('modalPourShapeTxt').disabled) throw new Error('综合页清空后的 Shape TXT 数据未保持可编辑空值');
+    if ($('modalPourShapeInpDiffDist').value !== '' || $('modalPourShapeInpHdiRadius').value !== '') throw new Error('综合页编辑重开后恢复了可选字段默认值');
     w.closePourShapeModal();
     if (![...d.querySelectorAll('#tblPourRule2Body input[type="text"]')].some(input => input.value === '19IS08, L5')) {
       throw new Error('综合页规则表未显示多个目标层');
     }
+    const optionalInputs = d.querySelectorAll('#tblPourRule2Body tr')[before].querySelectorAll('input[type="number"]');
+    if (optionalInputs[0].value !== '' || optionalInputs[1].value !== '') throw new Error('综合页规则表未内联保留可选字段空值');
     w.exportPourRulesPrompt();
     const exported = JSON.parse($('txtModalExportContent').value);
-    if (exported.specialShapeTemplates[before].differentialCenterDistance !== 23.62 || exported.specialShapeTemplates[before].hdiSearchRadiusMm !== 0.125 || exported.specialShapeTemplates[before].rawTxt !== '') {
-      throw new Error('铜皮规则 JSON 未导出差分孔中心距、HDI 搜索距离与已清空的 Shape TXT 数据');
+    if (exported.specialShapeTemplates[before].differentialCenterDistance !== null || exported.specialShapeTemplates[before].hdiSearchRadiusMm !== null || exported.specialShapeTemplates[before].rawTxt !== '') {
+      throw new Error('铜皮规则 JSON 未保留可选字段与 Shape TXT 的空值');
     }
     w.State.rules.specialShapeTemplates.splice(before, 1);
     w.renderRulesUI();
