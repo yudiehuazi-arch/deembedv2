@@ -127,6 +127,10 @@
     return padstack + ' / ' + network + ' / ' + target;
   }
 
+  function formatResultStatus(r) {
+    return r.pass ? '符合' : ('不符合' + (r.failCount ? ' · ' + r.failCount + ' 层未检出' : ''));
+  }
+
   function formatComparisonDescription(r) {
     var records = r.subRecords && r.subRecords.length ? r.subRecords : [r];
     var failed = records.filter(function (record) { return !record.pass; });
@@ -197,7 +201,7 @@
       var targetStr = formatTargetIdentity(r);
       var hasSub = r.subRecords && r.subRecords.length > 1;
       var targetId = r.viaId || r.traceId || r.shapeId || '';
-      var statusText = r.pass ? '符合' : ('不符合' + (r.failCount ? ' · ' + r.failCount + ' 层未检出' : ''));
+      var statusText = formatResultStatus(r);
 
       htmlRows += '<tr class="' + rowClass + '" data-result-key="' + safeKey + '">' +
         '<td><input type="checkbox" data-no-persist ' + (isReviewed ? 'checked' : '') + ' onchange="toggleReviewItem(\'' + safeKey + '\', this.checked)"></td>' +
@@ -557,6 +561,7 @@
 
   root.updateTopKPIs = updateTopKPIs;
   root.formatPourResultTarget = formatTargetIdentity;
+  root.formatPourResultStatus = formatResultStatus;
   root.formatPourResultProblem = formatComparisonDescription;
   root.setViewMode = setViewMode;
   root.applyFilters = applyFilters;

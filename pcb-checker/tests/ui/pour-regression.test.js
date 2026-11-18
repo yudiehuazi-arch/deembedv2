@@ -331,9 +331,9 @@ test('判定状态与五类检查可组合筛选，孔层铺铜使用层别缺�
   const oldGrouped = w.State.groupedResults;
   const oldViewMode = w.State.viewMode;
   const mockResults = [
-    { groupKey: 'mock_cov_fail', checkCategory: 'via_coverage', checkCategoryName: '① 孔经过层铺铜覆盖检查', pass: false, viaId: 1, viaPadstack: 'VIA_A', viaNet: 'N1', layer: 'L2', layerListStr: 'L2, L3', message: '旧的详细阈值描述', subRecords: [{ checkCategory: 'via_coverage', pass: false, layer: 'L2', message: '旧说明' }, { checkCategory: 'via_coverage', pass: true, layer: 'L3', message: '旧说明' }] },
+    { groupKey: 'mock_cov_fail', checkCategory: 'via_coverage', checkCategoryName: '① 孔经过层铺铜覆盖检查', pass: false, failCount: 1, viaId: 1, viaPadstack: 'VIA_A', viaNet: 'N1', layer: 'L2', layerListStr: 'L2, L3', message: '旧的详细阈值描述', subRecords: [{ checkCategory: 'via_coverage', pass: false, layer: 'L2', message: '旧说明' }, { checkCategory: 'via_coverage', pass: true, layer: 'L3', message: '旧说明' }] },
     { groupKey: 'mock_cov_pass', checkCategory: 'via_coverage', checkCategoryName: '① 孔经过层铺铜覆盖检查', pass: true, viaId: 2, viaPadstack: 'VIA_A', viaNet: 'N2', layer: 'L3', layerListStr: 'L3', message: '旧的符合描述', subRecords: [{ checkCategory: 'via_coverage', pass: true, layer: 'L3', message: '旧说明' }] },
-    { groupKey: 'mock_shape_fail', checkCategory: 'special_shape', checkCategoryName: '② 特定异型铜皮比对检查', pass: false, viaId: 3, layer: 'L4', message: '冗长异型铜皮说明' },
+    { groupKey: 'mock_shape_fail', checkCategory: 'special_shape', checkCategoryName: '② 特定异型铜皮比对检查', pass: false, failCount: 2, viaId: 3, layer: 'L4', message: '冗长异型铜皮说明' },
     { groupKey: 'mock_margin_fail', checkCategory: 'trace_ref_margin', checkCategoryName: '③ 参考层超宽检查', pass: false, traceId: 4, refLayer: 'L5', layer: 'L8', minMargin: 100, message: '冗长参考层说明' },
     { groupKey: 'mock_small_fail', checkCategory: 'isolated_copper', checkCategoryName: '④ 孤立小铜皮检查', pass: false, shapeId: 5, layer: 'L6', message: '冗长孤铜说明' },
     { groupKey: 'mock_arc_fail', checkCategory: 'arc_radius', checkCategoryName: '⑤ 圆弧半径检查', pass: false, shapeId: 6, layer: 'L7', message: '冗长圆弧说明' }
@@ -354,9 +354,30 @@ test('判定状态与五类检查可组合筛选，孔层铺铜使用层别缺�
   w.setResultColumnFilter('target', 'VIA_A');
   if (w.State.filteredResults.length !== 2) throw new Error('目标对象表头关键词筛选未生效');
   w.setResultColumnFilter('target', '');
-  d.querySelector('[data-result-column-filter="status"]').click();
-  if ($('pourColumnFilterMenu').hidden) throw new Error('Excel 风格表头筛选菜单未打开');
-  w.closeResultColumnFilter();
+  const readColumnOptions = key => {
+    d.querySelector(`[data-result-column-filter="${key}"]`).click();
+    if ($('pourColumnFilterMenu').hidden) throw new Error(`${key} 的 Excel 风格表头筛选菜单未打开`);
+    const values = [...$('pourColumnFilterMenu').querySelectorAll('.pour-column-filter-options label span')].map(span => span.textContent.trim());
+    w.closeResultColumnFilter();
+    return values;
+  };
+  const layerOptions = readColumnOptions('layer');
+  if (!layerOptions.includes('L2, L3') || !layerOptions.includes('L8')) throw new Error('涉及层别筛选未列出表格中的全部不同值');
+  const statusOptions = readColumnOptions('status');
+  if (!statusOptions.includes('符合') || !statusOptions.includes('不符合') || !statusOptions.includes('不符合 · 1 层未检出') || !statusOptions.includes('不符合 · 2 层未检出')) {
+    throw new Error('判定筛选未区分符合、普通不符合及不同未检出层数：' + statusOptions.join(' / '));
+  }
+  const problemOptions = readColumnOptions('problem');
+  if (!problemOptions.includes('L2 层缺铜皮') || !problemOptions.includes('L5 层走线边缘外 100 mil 范围存在缺铜') ||
+      !problemOptions.includes('L7 层铜皮圆弧半径过小')) {
+    throw new Error('问题点筛选未列出表格中的全部不同值：' + problemOptions.join(' / '));
+  }
+  w.setResultColumnFilter('status', ['不符合 · 1 层未检出']);
+  if (w.State.filteredResults.length !== 1 || w.State.filteredResults[0].groupKey !== 'mock_cov_fail') throw new Error('判定完整文本筛选未生效');
+  w.setResultColumnFilter('status', []);
+  w.setResultColumnFilter('problem', ['L4 层异型铜皮不匹配']);
+  if (w.State.filteredResults.length !== 1 || w.State.filteredResults[0].groupKey !== 'mock_shape_fail') throw new Error('问题点枚举筛选未生效');
+  w.setResultColumnFilter('problem', []);
 
   w.setResultStatusFilter('defects');
   w.setCategoryFilter('via_coverage');

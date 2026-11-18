@@ -9,7 +9,7 @@
     category: '检查分类', target: '目标对象', layer: '涉及层别',
     status: '判定', problem: '问题点', review: '复核状态'
   };
-  var OPTION_KEYS = { category: true, layer: true, status: true, review: true };
+  var OPTION_KEYS = { category: true, layer: true, status: true, problem: true, review: true };
   var activeKey = '';
 
   function filters() {
@@ -28,8 +28,10 @@
   function cellValue(record, key, index) {
     if (key === 'category') return String(record.checkCategoryName || '未分类');
     if (key === 'target') return root.formatPourResultTarget ? root.formatPourResultTarget(record) : String(record.targetLabel || '');
-    if (key === 'layer') return String(record.layerListStr || record.layer || record.refLayer || '-');
-    if (key === 'status') return record.pass ? '符合' : '不符合';
+    if (key === 'layer') return String(record.layerListStr || record.layer || '-');
+    if (key === 'status') return root.formatPourResultStatus
+      ? root.formatPourResultStatus(record)
+      : (record.pass ? '符合' : ('不符合' + (record.failCount ? ' · ' + record.failCount + ' 层未检出' : '')));
     if (key === 'problem') return root.formatPourResultProblem ? root.formatPourResultProblem(record) : String(record.message || '');
     if (key === 'review') return root.State.reviewedItems.has(itemKey(record, index)) ? '已复核' : '待复核';
     return '';
