@@ -310,7 +310,7 @@
             <select id="selCanvasShapeLayer" data-no-persist onchange="setCanvasShapeLayer(this.value)" data-tip="选择全部层、当前定位的问题层或某一层，仅控制铜皮轮廓显示">
               <option value="__ALL__">铜皮层：全部层</option>
             </select>
-            <span class="canvas-defect-filters" data-tip="按五类检查筛选画布上的异常位置标记">
+            <span class="canvas-defect-filters" data-tip="按五类检查筛选画布上的异常位置标记；再次点击已选按钮可取消显示">
               <button type="button" id="btnCanvasDefectAll" class="active" onclick="setCanvasDefectFilter('all')">全部异常</button>
               <button type="button" id="btnCanvasDefectCov" onclick="setCanvasDefectFilter('via_coverage')">① 孔层铺铜</button>
               <button type="button" id="btnCanvasDefectSpecial" onclick="setCanvasDefectFilter('special_shape')">② 异型铜皮</button>

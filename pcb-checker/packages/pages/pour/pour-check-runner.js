@@ -149,6 +149,7 @@
     State.canvas.hasInitialFit = false;
     State.canvas.highlightShapeIds = [];
     State.canvas.activeProblem = null;
+    State.canvas.showDefects = true;
     State.canvas.defectFilter = 'all';
     State.canvas.shapeLayerMode = 'all';
     State.canvas.visibleShapeLayers = [];

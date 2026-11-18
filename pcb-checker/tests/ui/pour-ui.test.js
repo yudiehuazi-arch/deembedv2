@@ -57,6 +57,41 @@ test('三栏 EDA 壳层完整、悬浮 Tips 正常、静态标题/标签无括�
   w.EdaTooltip.hide();
 });
 
+test('几何视口的六个异常筛选按钮均可再次点击取消选中', () => {
+  const buttons = [
+    ['all', 'btnCanvasDefectAll'],
+    ['via_coverage', 'btnCanvasDefectCov'],
+    ['special_shape', 'btnCanvasDefectSpecial'],
+    ['trace_ref_margin', 'btnCanvasDefectMargin'],
+    ['isolated_copper', 'btnCanvasDefectSmall'],
+    ['arc_radius', 'btnCanvasDefectArc']
+  ];
+
+  buttons.forEach(([category, buttonId]) => {
+    w.State.canvas.defectFilter = category;
+    w.State.canvas.showDefects = true;
+    w.refreshCanvasDefectButtons();
+    const button = $(buttonId);
+    if (!button.classList.contains('active') || button.getAttribute('aria-pressed') !== 'true') {
+      throw new Error('异常筛选按钮未进入选中状态：' + buttonId);
+    }
+
+    button.click();
+    if (w.State.canvas.showDefects || button.classList.contains('active') || button.getAttribute('aria-pressed') !== 'false') {
+      throw new Error('再次点击后未取消异常筛选：' + buttonId);
+    }
+
+    button.click();
+    if (!w.State.canvas.showDefects || w.State.canvas.defectFilter !== category || !button.classList.contains('active')) {
+      throw new Error('取消后未能重新选中异常筛选：' + buttonId);
+    }
+  });
+
+  w.State.canvas.defectFilter = 'all';
+  w.State.canvas.showDefects = true;
+  w.refreshCanvasDefectButtons();
+});
+
 test('规则 1/2/3 多规则配置表格与历史快捷标签初始化正常', () => {
   if (!$('tblRule1Body') || !$('tblRule2Body') || !$('tblRule3Body')) throw new Error('缺少规则表格体');
   if (w.State.viaCoverageRules.length < 2) throw new Error('Rule 1 初始规则应至少有 2 条');

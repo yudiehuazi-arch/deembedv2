@@ -53,19 +53,31 @@
     return null;
   }
 
+  function syncDefectButton(button, active) {
+    if (!button) return;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', active ? 'true' : 'false');
+  }
+
   function refreshCanvasDefectButtons() {
-    var selected = (root.State.canvas && root.State.canvas.defectFilter) || 'all';
-    var allButton = document.getElementById('btnCanvasDefectAll');
-    if (allButton) allButton.className = selected === 'all' ? 'active' : '';
+    var canvas = root.State.canvas || {};
+    var selected = canvas.showDefects === false ? '' : (canvas.defectFilter || 'all');
+    syncDefectButton(document.getElementById('btnCanvasDefectAll'), selected === 'all');
     Object.keys(CATEGORIES).forEach(function (key) {
-      var button = document.getElementById(CATEGORIES[key].buttonId);
-      if (button) button.className = selected === key ? 'active' : '';
+      syncDefectButton(document.getElementById(CATEGORIES[key].buttonId), selected === key);
     });
   }
 
   function setCanvasDefectFilter(category) {
-    root.State.canvas.defectFilter = CATEGORIES[category] ? category : 'all';
-    root.State.canvas.showDefects = true;
+    var canvas = root.State.canvas;
+    var next = CATEGORIES[category] ? category : 'all';
+    var current = CATEGORIES[canvas.defectFilter] ? canvas.defectFilter : 'all';
+    if (canvas.showDefects !== false && current === next) {
+      canvas.showDefects = false;
+    } else {
+      canvas.defectFilter = next;
+      canvas.showDefects = true;
+    }
     refreshCanvasDefectButtons();
     if (typeof root.renderCanvas === 'function') root.renderCanvas();
   }
