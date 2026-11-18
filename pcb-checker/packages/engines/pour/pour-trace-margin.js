@@ -123,12 +123,17 @@
 
     rules.forEach(function (rule, ruleIndex) {
       var traceLayer = String(rule.traceLayer || '').trim().toUpperCase();
+      var traceLayerAlias = geom.physicalLayerAlias(traceLayer);
       var parsedMargin = rule.minMargin != null ? parseFloat(rule.minMargin) : 50;
       var margin = isFinite(parsedMargin) && parsedMargin >= 0 ? parsedMargin : 50;
       var refs = [];
       if (String(rule.upperRefLayer || '').trim()) refs.push({ name: String(rule.upperRefLayer).trim().toUpperCase(), type: '上参考层' });
       if (String(rule.lowerRefLayer || '').trim()) refs.push({ name: String(rule.lowerRefLayer).trim().toUpperCase(), type: '下参考层' });
-      (traces || []).filter(function (trace) { return String(trace.layer || '').toUpperCase() === traceLayer; }).forEach(function (trace) {
+      (traces || []).filter(function (trace) {
+        var actualLayer = String(trace.layer || '').trim().toUpperCase();
+        return actualLayer === traceLayer ||
+          (traceLayerAlias && geom.physicalLayerAlias(actualLayer) === traceLayerAlias);
+      }).forEach(function (trace) {
         refs.forEach(function (ref) {
           var index = indexes.get(ref.name) || indexes.get(geom.physicalLayerAlias(ref.name));
           var coverage = index ? traceMarginCoverage(trace, index, margin) : { pass: false, missing: null };

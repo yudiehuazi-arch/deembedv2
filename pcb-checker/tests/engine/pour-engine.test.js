@@ -392,6 +392,27 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   console.log('  PASS  第三项语义：走线边缘外规则距离范围必须全部连续有铜');
 }
 
+// 5.2 规则使用 L2/L3 时，必须匹配 Allegro 物理层 02G01P/03G02P
+{
+  const trace = {
+    id: 303, layer: '02G01P', net: 'ALIAS_LAYER_TRACE',
+    segments: [{ type: 'line', x1: 0, y1: 0, x2: 200, y2: 0, width: 10, len: 200 }]
+  };
+  const shapes = [
+    { id: 421, layer: 'Top', bbox: { minX: -105, minY: -105, maxX: 305, maxY: 105 } },
+    { id: 422, layer: '03G02P', bbox: { minX: -105, minY: 20, maxX: 305, maxY: 105 } },
+    { id: 423, layer: '03G02P', bbox: { minX: -105, minY: -105, maxX: 305, maxY: -20 } }
+  ];
+  const results = checkTraceReferenceMargin([trace], shapes, [
+    { traceLayer: 'L2', upperRefLayer: 'Top', lowerRefLayer: 'L3', minMargin: 100 }
+  ]);
+  assert.strictEqual(results.length, 2, 'L2 规则应匹配 02G01P 走线并检查 Top/L3 两个参考层');
+  assert.strictEqual(results.find(result => result.refLayer === 'TOP').pass, true, 'Top 完整覆盖应通过');
+  assert.strictEqual(results.find(result => result.refLayer === 'L3').pass, false, '03G02P 在走线轨迹附近缺铜时必须报错');
+  assert.match(results.find(result => result.refLayer === 'L3').message, /100 mil 范围存在未铺铜区域/);
+  console.log('  PASS  第三项层别名：L2/L3 规则匹配 02G01P/03G02P 并检出走廊缺铜');
+}
+
 // 6. 第四项：孤立小铜皮检查 (Isolated Small Copper)
 {
   const shapes = [
