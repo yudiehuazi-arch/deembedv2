@@ -289,7 +289,7 @@ test('非圆焊盘性能：2300 组对偶的矩形焊盘检查 < 2s', () => {
   console.log(`        ${res.totalChecked.toLocaleString()} 对偶 / ${ms} ms`);
 });
 
-test('叠层编号与 Padstack Defined 解析：精准识别通孔 / 顶底盲孔 / 内层埋孔', () => {
+test('叠层编号与 Padstack Defined 解析：精准识别通孔 / 顶底盲孔 / 内层埋孔 / 单层焊盘', () => {
   if (DfmCheck.parseLayerIndex('Top') !== 1) throw new Error('Top 层号应为 1');
   if (DfmCheck.parseLayerIndex('Bottom') !== DfmCheck.BOTTOM_LAYER_INDEX) throw new Error('Bottom 层号应为 BOTTOM_LAYER_INDEX');
   if (DfmCheck.parseLayerIndex('10G07P') !== 10) throw new Error('10G07P 层号应为 10');
@@ -315,6 +315,48 @@ test('叠层编号与 Padstack Defined 解析：精准识别通孔 / 顶底盲�
   const botBlind = DfmCheck.parseViaLayerSpan('  Padstack Defined from 18IS08 to Bottom\n');
   if (botBlind.viaSpanType !== 'blind' || botBlind.minLayerNum !== 18 || botBlind.maxLayerNum !== DfmCheck.BOTTOM_LAYER_INDEX) {
     throw new Error('18IS08 to Bottom 应识别为底层盲孔');
+  }
+
+  const topOnly = DfmCheck.parseViaLayerSpan('  Padstack Defined only on Top\n');
+  if (topOnly.viaSpanType !== 'surface' || topOnly.minLayerNum !== 1 || topOnly.maxLayerNum !== 1 || !topOnly.hasDefinedSpan) {
+    throw new Error('only on Top 应识别为仅存在 L1 的单层焊盘，实际 ' + JSON.stringify(topOnly));
+  }
+});
+
+test('SMD Pin only on Top 与 L2-L5 埋孔不重叠，不应产生孔间距缺陷', () => {
+  const txt = `Total 2 Item
+
+Item 8372                < Via >
+  Origin-xy:          [19224.1296, 27580.8800]
+  Net:                GND
+  Padstack Name:      BGA-HDI-GND-045drill-ring3_L2_L5
+  Usage:              BBVia
+  Circle Drill:       4.5000 Plated
+  Padstack Defined from 02G01P to 05G02P
+  Connections:
+    Shape:            2 (03IS01 05G02P)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Item 26176                < Via >
+  Origin-xy:          [19217.5691, 27580.3748]
+  Net:                28_N
+  Padstack Name:      via2_8-top
+  Usage:              SMD Pin
+  Padstack Defined only on Top
+  Connections:
+    Shape:            2 (Top)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`;
+  const parsed = DfmCheck.parseDfmItems(txt, { gndPadDiameter: 7.906, signalPadDiameter: 12 });
+  const smd = parsed.vias.find(v => v.id === 26176);
+  const buried = parsed.vias.find(v => v.id === 8372);
+  if (!smd || smd.minLayerNum !== 1 || smd.maxLayerNum !== 1 || smd.viaSpanType !== 'surface') {
+    throw new Error('via2_8-top 层信息解析错误：' + JSON.stringify(smd));
+  }
+  if (!buried || buried.minLayerNum !== 2 || buried.maxLayerNum !== 5) {
+    throw new Error('L2-L5 埋孔层信息解析错误：' + JSON.stringify(buried));
+  }
+  const r = DfmCheck.runDfmCheck(parsed.vias, [], { minClearancePadPair: 20, diffNetOnly: true });
+  if (r.padPairStats.total !== 0 || r.padPairStats.fail !== 0 || r.padPairDefects.length !== 0) {
+    throw new Error('Top 与 L2-L5 没有公共层，不应执行孔间距检查：' + JSON.stringify(r.padPairStats));
   }
 });
 

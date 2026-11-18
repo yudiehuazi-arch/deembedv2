@@ -204,7 +204,7 @@ var PG = (typeof module === "object" && module.exports) ? require("../../geometr
     let sigTotal = 0;
     let skippedNonSpanningPairs = 0;
     let undeterminedSpanPairs = 0;
-    const viaTypeCounts = { thru: 0, blind: 0, buried: 0 };
+    const viaTypeCounts = { thru: 0, blind: 0, buried: 0, surface: 0 };
     vias.forEach(v => {
       const vType = v.viaSpanType || 'thru';
       if (viaTypeCounts[vType] !== undefined) viaTypeCounts[vType]++;
