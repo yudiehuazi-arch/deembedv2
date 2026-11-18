@@ -211,6 +211,60 @@ canvas#mainCanvas:active {
   border-left: 1px solid rgba(148, 163, 184, 0.35);
 }
 
+.canvas-defect-filter-group {
+  position: relative;
+  display: inline-flex;
+}
+
+.canvas-defect-subfilters {
+  position: absolute;
+  top: calc(100% + 7px);
+  left: 0;
+  z-index: 15;
+  display: flex;
+  min-width: 210px;
+  max-width: min(340px, 72vw);
+  max-height: 260px;
+  flex-direction: column;
+  gap: 4px;
+  overflow: auto;
+  padding: 6px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.97);
+}
+
+.canvas-defect-subfilters[hidden] {
+  display: none;
+}
+
+.canvas-toolbar .canvas-defect-subfilters button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.canvas-defect-subfilter-count {
+  min-width: 22px;
+  padding: 1px 5px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.13);
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.canvas-defect-subfilter-empty {
+  padding: 5px 7px;
+  color: #cbd5e1;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
 .canvas-toolbar button:hover,
 .canvas-toolbar select:hover {
   background: rgba(255, 255, 255, 0.2);

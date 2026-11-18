@@ -314,7 +314,10 @@
             </select>
             <span class="canvas-defect-filters" data-tip="按五类检查筛选画布上的异常位置标记；再次点击已选按钮可取消显示">
               <button type="button" id="btnCanvasDefectAll" class="active" onclick="setCanvasDefectFilter('all')">全部异常</button>
-              <button type="button" id="btnCanvasDefectCov" onclick="setCanvasDefectFilter('via_coverage')">① 孔层铺铜</button>
+              <span class="canvas-defect-filter-group">
+                <button type="button" id="btnCanvasDefectCov" onclick="setCanvasDefectFilter('via_coverage')" aria-haspopup="true" aria-expanded="false">① 孔层铺铜</button>
+                <span id="canvasViaCoverageSubfilters" class="canvas-defect-subfilters" hidden></span>
+              </span>
               <button type="button" id="btnCanvasDefectSpecial" onclick="setCanvasDefectFilter('special_shape')">② 异型铜皮</button>
               <button type="button" id="btnCanvasDefectMargin" onclick="setCanvasDefectFilter('trace_ref_margin')">③ 参考层超宽</button>
               <button type="button" id="btnCanvasDefectSmall" onclick="setCanvasDefectFilter('isolated_copper')">④ 孤立小铜皮</button>

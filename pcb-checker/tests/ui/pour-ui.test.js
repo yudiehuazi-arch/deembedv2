@@ -110,6 +110,70 @@ test('几何视口的六个异常筛选按钮均可再次点击取消选中', ()
   w.refreshCanvasDefectButtons();
 });
 
+test('孔层铺铜按结果问题点动态生成子级并筛选对应标记', () => {
+  const previous = {
+    rawResults: w.State.rawResults,
+    defectFilter: w.State.canvas.defectFilter,
+    defectSubFilter: w.State.canvas.defectSubFilter,
+    showDefects: w.State.canvas.showDefects,
+    renderCanvas: w.renderCanvas
+  };
+  w.renderCanvas = () => {};
+  w.State.rawResults = [
+    { checkCategory: 'via_coverage', pass: false, layer: '05G02P', viaId: 11, viaCoord: [10, 10] },
+    { checkCategory: 'via_coverage', pass: false, layer: '05G02P', viaId: 12, viaCoord: [20, 20] },
+    { checkCategory: 'via_coverage', pass: false, layer: '10G07P', viaId: 13, viaCoord: [30, 30] },
+    { checkCategory: 'via_coverage', pass: true, layer: 'L4', viaId: 14, viaCoord: [40, 40] },
+    { checkCategory: 'special_shape', pass: false, layer: '05G02P', viaId: 15, viaCoord: [50, 50] }
+  ];
+  w.State.canvas.defectFilter = 'all';
+  w.State.canvas.defectSubFilter = '';
+  w.State.canvas.showDefects = true;
+  w.refreshCanvasDefectButtons();
+
+  const types = w.getViaCoverageProblemTypes();
+  if (types.length !== 2 || types[0].label !== '05G02P 层缺铜皮' || types[0].count !== 2 || types[1].label !== '10G07P 层缺铜皮' || types[1].count !== 1) {
+    throw new Error('未按检查结果明细统计孔层铺铜问题点类型与数量');
+  }
+
+  $('btnCanvasDefectCov').click();
+  const menu = $('canvasViaCoverageSubfilters');
+  const childButtons = [...menu.querySelectorAll('[data-via-coverage-problem]')];
+  if (menu.hidden || $('btnCanvasDefectCov').getAttribute('aria-expanded') !== 'true' || childButtons.length !== 2) {
+    throw new Error('孔层铺铜子级未随父级展开');
+  }
+  if (!childButtons[0].textContent.includes('05G02P 层缺铜皮') || !childButtons[0].textContent.includes('2')) {
+    throw new Error('孔层铺铜子级未显示问题点名称与数量');
+  }
+
+  childButtons[0].click();
+  if (w.State.canvas.defectFilter !== 'via_coverage' || w.State.canvas.defectSubFilter !== '05G02P 层缺铜皮') {
+    throw new Error('点击孔层铺铜问题点子级后未保存筛选状态');
+  }
+  const markerPositions = [];
+  const markerContext = {
+    save() {}, restore() {}, beginPath() {}, arc() {}, stroke() {}, setLineDash() {},
+    moveTo() {}, lineTo() {}, closePath() {}, fill() {}, fillText() {}
+  };
+  w.drawPourDefectMarkers(markerContext, (x, y) => {
+    markerPositions.push([x, y]);
+    return { x, y };
+  });
+  if (JSON.stringify(markerPositions) !== '[[10,10],[20,20]]') {
+    throw new Error('孔层铺铜问题点子级未只显示对应异常标记：' + JSON.stringify(markerPositions));
+  }
+
+  [...menu.querySelectorAll('[data-via-coverage-problem]')][0].click();
+  if (w.State.canvas.defectSubFilter) throw new Error('再次点击孔层铺铜问题点子级后未返回父级全部异常');
+
+  w.State.rawResults = previous.rawResults;
+  w.State.canvas.defectFilter = previous.defectFilter;
+  w.State.canvas.defectSubFilter = previous.defectSubFilter;
+  w.State.canvas.showDefects = previous.showDefects;
+  w.renderCanvas = previous.renderCanvas;
+  w.refreshCanvasDefectButtons();
+});
+
 test('规则 1/2/3 多规则配置表格与历史快捷标签初始化正常', () => {
   if (!$('tblRule1Body') || !$('tblRule2Body') || !$('tblRule3Body')) throw new Error('缺少规则表格体');
   if (w.State.viaCoverageRules.length < 2) throw new Error('Rule 1 初始规则应至少有 2 条');

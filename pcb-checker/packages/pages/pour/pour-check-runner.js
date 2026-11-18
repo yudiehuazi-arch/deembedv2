@@ -151,6 +151,7 @@
     State.canvas.activeProblem = null;
     State.canvas.showDefects = true;
     State.canvas.defectFilter = 'all';
+    State.canvas.defectSubFilter = '';
     State.canvas.shapeLayerMode = 'all';
     State.canvas.visibleShapeLayers = [];
     State.canvas.problemShapeLayers = [];

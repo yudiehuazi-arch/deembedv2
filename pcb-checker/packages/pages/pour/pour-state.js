@@ -98,6 +98,7 @@
       showObjectIds: true,
       showDefects: true,
       defectFilter: 'all',
+      defectSubFilter: '',
       measureMode: false,
       measurePoints: [],
       highlightShapeIds: [],
