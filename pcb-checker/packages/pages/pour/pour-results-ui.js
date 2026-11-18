@@ -46,10 +46,12 @@
 
     var elFilterAll = document.getElementById('cntFilterAll');
     var elFilterDefects = document.getElementById('cntFilterDefects');
+    var elFilterPass = document.getElementById('cntFilterPass');
     var totalObj = State.groupedResults ? State.groupedResults.length : s.totalChecks;
     var defectObj = State.groupedResults ? State.groupedResults.filter(function (g) { return !g.pass; }).length : s.totalDefects;
     if (elFilterAll) elFilterAll.textContent = String(totalObj);
     if (elFilterDefects) elFilterDefects.textContent = String(defectObj);
+    if (elFilterPass) elFilterPass.textContent = String(Math.max(0, totalObj - defectObj));
   }
 
   function setViewMode(mode) {
@@ -59,27 +61,6 @@
     var btnF = document.getElementById('btnViewModeFlat');
     if (btnG) btnG.className = 'btn small ' + (mode === 'grouped' ? 'pri' : 'sec');
     if (btnF) btnF.className = 'btn small ' + (mode === 'flat' ? 'pri' : 'sec');
-    applyFilters();
-  }
-
-  function setCategoryFilter(catKey) {
-    var State = root.State;
-    State.categoryFilter = catKey;
-    var filterBtns = {
-      all: 'btnFilterAll',
-      defects: 'btnFilterDefects',
-      via_coverage: 'btnFilterCov',
-      special_shape: 'btnFilterSpecial',
-      trace_ref_margin: 'btnFilterMargin',
-      isolated_copper: 'btnFilterSmall',
-      arc_radius: 'btnFilterArc'
-    };
-
-    Object.keys(filterBtns).forEach(function (k) {
-      var btn = document.getElementById(filterBtns[k]);
-      if (btn) btn.className = 'btn small ' + (k === catKey ? 'pri' : 'sec');
-    });
-
     applyFilters();
   }
 
@@ -93,10 +74,9 @@
     var source = State.viewMode === 'grouped' ? (State.groupedResults || []) : (State.rawResults || []);
 
     var list = source.filter(function (r) {
-      if (State.categoryFilter === 'defects' && r.pass) return false;
-      if (State.categoryFilter !== 'all' && State.categoryFilter !== 'defects') {
-        if (r.checkCategory !== State.categoryFilter) return false;
-      }
+      if (State.resultStatusFilter === 'defects' && r.pass) return false;
+      if (State.resultStatusFilter === 'pass' && !r.pass) return false;
+      if (State.categoryFilter !== 'all' && r.checkCategory !== State.categoryFilter) return false;
       if (query) {
         var str = [
           r.checkCategoryName || '',
@@ -171,10 +151,27 @@
     return '-';
   }
 
+  function formatComparisonDescription(r) {
+    if (r.checkCategory !== 'via_coverage') return cleanMsg(r.message);
+    var records = r.subRecords && r.subRecords.length ? r.subRecords : [r];
+    var failed = records.filter(function (record) { return !record.pass; });
+    var selected = failed.length ? failed : records;
+    var layers = [];
+    selected.forEach(function (record) {
+      var layer = record.layer || record.layerListStr;
+      if (layer && layers.indexOf(String(layer)) < 0) layers.push(String(layer));
+    });
+    var layerText = layers.length ? layers.join('、') + ' 层' : '目标层';
+    return failed.length ? layerText + '缺铜皮' : layerText + '铜皮覆盖符合要求';
+  }
+
   function renderResultsTable() {
     var State = root.State;
     var tbody = document.getElementById('tblResultsBody');
     if (!tbody) return;
+    var hideMetrics = State.categoryFilter === 'via_coverage';
+    var metricsHeader = document.getElementById('thResultMetrics');
+    if (metricsHeader) metricsHeader.style.display = hideMetrics ? 'none' : '';
 
     var list = State.filteredResults || [];
     var total = list.length;
@@ -182,7 +179,7 @@
     if (lblTotal) lblTotal.textContent = String(total);
 
     if (total === 0) {
-      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:28px;color:var(--sub)">' +
+      tbody.innerHTML = '<tr><td colspan="' + (hideMetrics ? '8' : '9') + '" style="text-align:center;padding:28px;color:var(--sub)">' +
         (State.rawResults.length === 0 ? '请先在工序 ② 导入数据并执行检查' : '无符合当前筛选条件的检查记录') +
         '</td></tr>';
       document.getElementById('lblPageStart').textContent = '0';
@@ -222,9 +219,9 @@
         '<td><span class="badge-tag copper">' + esc(r.checkCategoryName) + '</span></td>' +
         '<td><strong>' + esc(targetStr) + '</strong></td>' +
         '<td><span class="badge-tag gray">' + esc(r.layerListStr || r.layer || '-') + '</span></td>' +
-        '<td style="font-size:12px">' + formatRowMetrics(r) + '</td>' +
+        (hideMetrics ? '' : '<td style="font-size:12px">' + formatRowMetrics(r) + '</td>') +
         '<td><span class="badge-tag ' + (r.pass ? 'ok' : 'bad') + '">' + esc(statusText) + '</span></td>' +
-        '<td style="font-size:12px;line-height:1.45">' + esc(cleanMsg(r.message)) + '</td>' +
+        '<td style="font-size:12px;line-height:1.45">' + esc(formatComparisonDescription(r)) + '</td>' +
         '<td><label style="font-size:12px;display:inline-flex;align-items:center;gap:4px;cursor:pointer">' +
           '<input type="checkbox" data-no-persist ' + (isReviewed ? 'checked' : '') + ' onchange="toggleReviewItem(\'' + safeKey + '\', this.checked)">' +
           '<span>' + (isReviewed ? '已复核' : '待复核') + '</span>' +
@@ -240,7 +237,7 @@
       '</tr>';
 
       if (hasSub && isExpanded) {
-        htmlRows += '<tr class="subrow"><td></td><td colspan="8" style="padding:10px 14px">' +
+        htmlRows += '<tr class="subrow"><td></td><td colspan="' + (hideMetrics ? '7' : '8') + '" style="padding:10px 14px">' +
           '<div style="font-weight:700;font-size:12px;margin-bottom:6px;color:var(--pri-d)">' +
             esc(targetStr) + ' · 逐层检查拆解 · 共 ' + r.subRecords.length + ' 项' +
           '</div>' +
@@ -256,7 +253,7 @@
                 '<td><strong>' + esc(actual) + '</strong></td>' +
                 '<td>' + esc(req) + '</td>' +
                 '<td><span class="badge-tag ' + (sub.pass ? 'ok' : 'bad') + '">' + (sub.pass ? '符合' : '不符合') + '</span></td>' +
-                '<td class="hint">' + esc(cleanMsg(sub.message)) + '</td>' +
+                '<td class="hint">' + esc(formatComparisonDescription(sub)) + '</td>' +
               '</tr>';
             }).join('') +
             '</tbody></table>' +
@@ -578,7 +575,6 @@
 
   root.updateTopKPIs = updateTopKPIs;
   root.setViewMode = setViewMode;
-  root.setCategoryFilter = setCategoryFilter;
   root.applyFilters = applyFilters;
   root.toggleRowExpand = toggleRowExpand;
   root.renderResultsTable = renderResultsTable;

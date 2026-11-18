@@ -243,14 +243,22 @@
         </div>
 
         <div class="row" style="justify-content:space-between;margin:10px 0">
-          <div class="row" style="gap:4px">
-            <button type="button" class="btn small pri" id="btnFilterAll" onclick="setCategoryFilter('all')">全部对象 · <span id="cntFilterAll">0</span></button>
-            <button type="button" class="btn small sec" id="btnFilterDefects" onclick="setCategoryFilter('defects')">不符合项 · <span id="cntFilterDefects">0</span></button>
-            <button type="button" class="btn small sec" id="btnFilterCov" onclick="setCategoryFilter('via_coverage')">① 孔层铺铜</button>
-            <button type="button" class="btn small sec" id="btnFilterSpecial" onclick="setCategoryFilter('special_shape')">② 异型铜皮</button>
-            <button type="button" class="btn small sec" id="btnFilterMargin" onclick="setCategoryFilter('trace_ref_margin')">③ 参考层超宽</button>
-            <button type="button" class="btn small sec" id="btnFilterSmall" onclick="setCategoryFilter('isolated_copper')">④ 孤立小铜皮</button>
-            <button type="button" class="btn small sec" id="btnFilterArc" onclick="setCategoryFilter('arc_radius')">⑤ 圆弧半径</button>
+          <div class="row" style="gap:8px;flex-wrap:wrap">
+            <div class="row" style="gap:4px" data-tip="先选择全部、符合或不符合，再与右侧检查分类组合筛选">
+              <span class="hint" style="font-weight:600">判定：</span>
+              <button type="button" class="btn small pri" id="btnFilterAll" onclick="setResultStatusFilter('all')">全部项 · <span id="cntFilterAll">0</span></button>
+              <button type="button" class="btn small sec" id="btnFilterDefects" onclick="setResultStatusFilter('defects')">不符合项 · <span id="cntFilterDefects">0</span></button>
+              <button type="button" class="btn small sec" id="btnFilterPass" onclick="setResultStatusFilter('pass')">符合项 · <span id="cntFilterPass">0</span></button>
+            </div>
+            <div class="row" style="gap:4px">
+              <span class="hint" style="font-weight:600">检查分类：</span>
+              <button type="button" class="btn small pri" id="btnFilterCategoryAll" onclick="setCategoryFilter('all')">全部检查</button>
+              <button type="button" class="btn small sec" id="btnFilterCov" onclick="setCategoryFilter('via_coverage')">① 孔层铺铜</button>
+              <button type="button" class="btn small sec" id="btnFilterSpecial" onclick="setCategoryFilter('special_shape')">② 异型铜皮</button>
+              <button type="button" class="btn small sec" id="btnFilterMargin" onclick="setCategoryFilter('trace_ref_margin')">③ 参考层超宽</button>
+              <button type="button" class="btn small sec" id="btnFilterSmall" onclick="setCategoryFilter('isolated_copper')">④ 孤立小铜皮</button>
+              <button type="button" class="btn small sec" id="btnFilterArc" onclick="setCategoryFilter('arc_radius')">⑤ 圆弧半径</button>
+            </div>
           </div>
           <div>
             <input type="text" id="inpSearch" placeholder="搜索孔号 / 网络 / 层名 / Shape..." style="width:220px" oninput="applyFilters()" data-no-persist>
@@ -265,7 +273,7 @@
                 <th>检查分类</th>
                 <th>Padstack / 网络 / 目标对象</th>
                 <th>涉及层别</th>
-                <th>实测值与规则阈值</th>
+                <th id="thResultMetrics">实测值与规则阈值</th>
                 <th>判定</th>
                 <th>比对说明与异常归因</th>
                 <th style="width:76px">复核</th>
@@ -578,6 +586,7 @@
 <script src="packages/pages/pour/pour-state.js?v=46"></script><script src="packages/pages/pour/pour-check-runner.js?v=46"></script>
 <script src="packages/pages/pour/pour-rules-ui.js?v=46"></script>
 <script src="packages/pages/pour/pour-results-ui.js?v=46"></script>
+<script src="packages/pages/pour/pour-results-filters.js?v=46"></script>
 <script src="packages/pages/pour/pour-canvas-viewer.js?v=46"></script>
 <script src="packages/pages/pour/pour-canvas-defects.js?v=46"></script>
 <script src="packages/pages/pour/pour-canvas-navigation.js?v=46"></script>

@@ -53,6 +53,7 @@
     filteredResults: [],
     summary: null,
     activeTab: 'tabRules',
+    resultStatusFilter: 'all',
     categoryFilter: 'all',
     viewMode: 'grouped',
     expandedRows: new Set(),

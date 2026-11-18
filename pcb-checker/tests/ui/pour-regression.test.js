@@ -326,15 +326,44 @@ test('【⑤ 缺陷规律与工程分析】五大分类深度归纳总结与导�
   }
 });
 
-test('分类筛选与缺陷过滤工作正常', () => {
-  w.setCategoryFilter('via_coverage');
-  if (w.State.categoryFilter !== 'via_coverage') throw new Error('分类筛选未切换至 via_coverage');
-  if (w.State.filteredResults.some(r => r.checkCategory !== 'via_coverage')) {
-    throw new Error('过滤结果包含非 via_coverage 项');
-  }
+test('判定状态与五类检查可组合筛选，孔层铺铜使用层别缺铜说明', () => {
+  const oldRaw = w.State.rawResults;
+  const oldGrouped = w.State.groupedResults;
+  const oldViewMode = w.State.viewMode;
+  const mockResults = [
+    { groupKey: 'mock_cov_fail', checkCategory: 'via_coverage', checkCategoryName: '① 孔经过层铺铜覆盖检查', pass: false, viaId: 1, viaPadstack: 'VIA_A', viaNet: 'N1', layer: 'L2', layerListStr: 'L2', message: '旧的详细阈值描述', subRecords: [{ checkCategory: 'via_coverage', pass: false, layer: 'L2', message: '旧说明' }] },
+    { groupKey: 'mock_cov_pass', checkCategory: 'via_coverage', checkCategoryName: '① 孔经过层铺铜覆盖检查', pass: true, viaId: 2, viaPadstack: 'VIA_A', viaNet: 'N2', layer: 'L3', layerListStr: 'L3', message: '旧的符合描述', subRecords: [{ checkCategory: 'via_coverage', pass: true, layer: 'L3', message: '旧说明' }] },
+    { groupKey: 'mock_shape_fail', checkCategory: 'special_shape', checkCategoryName: '② 特定异型铜皮比对检查', pass: false, viaId: 3, layer: 'L4', message: '异型铜皮不匹配' }
+  ];
+  w.State.rawResults = mockResults;
+  w.State.groupedResults = mockResults;
+  w.setViewMode('grouped');
+  w.updateTopKPIs();
+  if ($('cntFilterAll').textContent !== '3' || $('cntFilterDefects').textContent !== '2' || $('cntFilterPass').textContent !== '1') throw new Error('全部、符合与不符合数量未同步');
 
+  w.setResultStatusFilter('defects');
+  w.setCategoryFilter('via_coverage');
+  if (w.State.resultStatusFilter !== 'defects' || w.State.categoryFilter !== 'via_coverage') throw new Error('判定状态与检查分类未独立保存');
+  if (w.State.filteredResults.length !== 1 || w.State.filteredResults[0].groupKey !== 'mock_cov_fail') throw new Error('未取到孔层铺铜的不符合项交集');
+  if (!$('btnFilterDefects').classList.contains('pri') || !$('btnFilterCov').classList.contains('pri')) throw new Error('两个组合筛选按钮未同时保持选中');
+  if ($('thResultMetrics').style.display !== 'none') throw new Error('孔层铺铜列表未隐藏实测值与规则阈值列');
+  const failDescription = d.querySelector('#tblResultsBody tr[data-result-key] td:nth-child(6)').textContent.trim();
+  if (failDescription !== 'L2 层缺铜皮') throw new Error('孔层铺铜异常归因未按实际层别简化：' + failDescription);
+
+  w.setResultStatusFilter('pass');
+  if (w.State.categoryFilter !== 'via_coverage' || w.State.filteredResults.length !== 1 || w.State.filteredResults[0].groupKey !== 'mock_cov_pass') throw new Error('切换符合项时未保留孔层铺铜分类');
+  const passDescription = d.querySelector('#tblResultsBody tr[data-result-key] td:nth-child(6)').textContent.trim();
+  if (passDescription !== 'L3 层铜皮覆盖符合要求') throw new Error('孔层铺铜符合项说明不正确：' + passDescription);
+
+  w.setCategoryFilter('special_shape');
+  if (w.State.resultStatusFilter !== 'pass' || w.State.filteredResults.length !== 0) throw new Error('切换五类检查时未保留符合项限制');
+  w.State.rawResults = oldRaw;
+  w.State.groupedResults = oldGrouped;
+  w.State.viewMode = oldViewMode;
+  w.updateTopKPIs();
+  w.setResultStatusFilter('all');
   w.setCategoryFilter('all');
-  if (w.State.categoryFilter !== 'all') throw new Error('分类筛选未重置为 all');
+  if ($('thResultMetrics').style.display === 'none') throw new Error('退出孔层铺铜分类后未恢复实测值与规则阈值列');
 });
 
 test('复核状态勾选与记忆更新', () => {
