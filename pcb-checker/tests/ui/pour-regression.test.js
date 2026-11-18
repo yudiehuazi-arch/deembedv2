@@ -377,12 +377,23 @@ test('判定状态与五类检查可组合筛选，孔层铺铜使用层别缺�
   w.setResultColumnFilter('status', []);
   w.setResultColumnFilter('problem', ['L4 层异型铜皮不匹配']);
   if (w.State.filteredResults.length !== 1 || w.State.filteredResults[0].groupKey !== 'mock_shape_fail') throw new Error('问题点枚举筛选未生效');
+  if (JSON.stringify(readColumnOptions('layer')) !== '["L4"]' || JSON.stringify(readColumnOptions('status')) !== '["不符合 · 2 层未检出"]') {
+    throw new Error('其他列筛选下拉未基于当前问题点筛选后的列表联动');
+  }
   w.setResultColumnFilter('problem', []);
 
   w.setResultStatusFilter('defects');
   w.setCategoryFilter('via_coverage');
   if (w.State.resultStatusFilter !== 'defects' || w.State.categoryFilter !== 'via_coverage') throw new Error('判定状态与检查分类未独立保存');
   if (w.State.filteredResults.length !== 1 || w.State.filteredResults[0].groupKey !== 'mock_cov_fail') throw new Error('未取到孔层铺铜的不符合项交集');
+  if ($('cntFilterAll').textContent !== '2' || $('cntFilterDefects').textContent !== '1' || $('cntFilterPass').textContent !== '1') {
+    throw new Error('判定统计数字未随孔层铺铜分类动态变化');
+  }
+  if (JSON.stringify(readColumnOptions('status')) !== '["不符合 · 1 层未检出"]' ||
+      JSON.stringify(readColumnOptions('layer')) !== '["L2, L3"]' ||
+      JSON.stringify(readColumnOptions('problem')) !== '["L2 层缺铜皮"]') {
+    throw new Error('表头筛选下拉未按当前“不符合项 × 孔层铺铜”列表收窄选项');
+  }
   if (!$('btnFilterDefects').classList.contains('pri') || !$('btnFilterCov').classList.contains('pri')) throw new Error('两个组合筛选按钮未同时保持选中');
   const failDescription = d.querySelector('#tblResultsBody tr[data-result-key] td:nth-child(6)').textContent.trim();
   if (failDescription !== 'L2 层缺铜皮') throw new Error('孔层铺铜异常归因未按实际层别简化：' + failDescription);
@@ -397,8 +408,16 @@ test('判定状态与五类检查可组合筛选，孔层铺铜使用层别缺�
 
   w.setCategoryFilter('special_shape');
   if (w.State.resultStatusFilter !== 'pass' || w.State.filteredResults.length !== 0) throw new Error('切换五类检查时未保留符合项限制');
+  if ($('cntFilterAll').textContent !== '1' || $('cntFilterDefects').textContent !== '1' || $('cntFilterPass').textContent !== '0') {
+    throw new Error('判定统计数字未随异型铜皮分类动态变化');
+  }
 
   w.setResultStatusFilter('defects');
+  if (JSON.stringify(readColumnOptions('status')) !== '["不符合 · 2 层未检出"]' ||
+      JSON.stringify(readColumnOptions('layer')) !== '["L4"]' ||
+      JSON.stringify(readColumnOptions('problem')) !== '["L4 层异型铜皮不匹配"]') {
+    throw new Error('表头筛选下拉未按当前“不符合项 × 异型铜皮”列表统计全部可能性');
+  }
   [
     ['special_shape', 'L4 层异型铜皮不匹配'],
     ['trace_ref_margin', 'L5 层走线边缘外 100 mil 范围存在缺铜'],

@@ -53,6 +53,7 @@
     resultStatusFilter: 'all',
     categoryFilter: 'all',
     resultColumnFilters: { category: [], target: '', layer: [], status: [], problem: '', review: [] },
+    resultColumnFilterSource: [],
     viewMode: 'grouped',
     expandedRows: new Set(),
     page: 1,

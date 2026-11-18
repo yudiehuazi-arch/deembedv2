@@ -19,6 +19,22 @@
     return String(s == null ? '' : s).replace(/^[\s✅❌⚠️]+/u, '').trim();
   };
 
+  function updateResultStatusCounts() {
+    var State = root.State;
+    var source = State.viewMode === 'flat' ? (State.rawResults || []) : (State.groupedResults || []);
+    if (State.categoryFilter && State.categoryFilter !== 'all') {
+      source = source.filter(function (record) { return record.checkCategory === State.categoryFilter; });
+    }
+    var total = source.length;
+    var defects = source.filter(function (record) { return !record.pass; }).length;
+    var elFilterAll = document.getElementById('cntFilterAll');
+    var elFilterDefects = document.getElementById('cntFilterDefects');
+    var elFilterPass = document.getElementById('cntFilterPass');
+    if (elFilterAll) elFilterAll.textContent = String(total);
+    if (elFilterDefects) elFilterDefects.textContent = String(defects);
+    if (elFilterPass) elFilterPass.textContent = String(total - defects);
+  }
+
   function updateTopKPIs() {
     var State = root.State;
     var s = State.summary;
@@ -27,6 +43,7 @@
     var elDefects = document.getElementById('statTotalDefects');
     var elPass = document.getElementById('statTotalPass');
     var elBadgeDefects = document.getElementById('badgeDefectCount');
+    updateResultStatusCounts();
 
     if (!s) {
       if (elShapes) elShapes.textContent = '0';
@@ -43,15 +60,6 @@
     if (elDefects) elDefects.textContent = defVal;
     if (elPass) elPass.textContent = String(s.passCount);
     if (elBadgeDefects) elBadgeDefects.textContent = defVal;
-
-    var elFilterAll = document.getElementById('cntFilterAll');
-    var elFilterDefects = document.getElementById('cntFilterDefects');
-    var elFilterPass = document.getElementById('cntFilterPass');
-    var totalObj = State.groupedResults ? State.groupedResults.length : s.totalChecks;
-    var defectObj = State.groupedResults ? State.groupedResults.filter(function (g) { return !g.pass; }).length : s.totalDefects;
-    if (elFilterAll) elFilterAll.textContent = String(totalObj);
-    if (elFilterDefects) elFilterDefects.textContent = String(defectObj);
-    if (elFilterPass) elFilterPass.textContent = String(Math.max(0, totalObj - defectObj));
   }
 
   function setViewMode(mode) {
@@ -72,6 +80,7 @@
     var inp = document.getElementById('inpSearch');
     var query = (inp && inp.value ? inp.value : '').trim().toLowerCase();
     var source = State.viewMode === 'grouped' ? (State.groupedResults || []) : (State.rawResults || []);
+    updateResultStatusCounts();
 
     var list = source.filter(function (r) {
       if (State.resultStatusFilter === 'defects' && r.pass) return false;
@@ -95,6 +104,7 @@
       return true;
     });
 
+    State.resultColumnFilterSource = list.slice();
     if (typeof root.filterPourResultsByColumns === 'function') {
       list = root.filterPourResultsByColumns(list);
     }
@@ -560,6 +570,7 @@
   }
 
   root.updateTopKPIs = updateTopKPIs;
+  root.updateResultStatusCounts = updateResultStatusCounts;
   root.formatPourResultTarget = formatTargetIdentity;
   root.formatPourResultStatus = formatResultStatus;
   root.formatPourResultProblem = formatComparisonDescription;
