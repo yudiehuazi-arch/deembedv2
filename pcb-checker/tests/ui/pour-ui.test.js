@@ -41,7 +41,8 @@ test('三栏 EDA 壳层完整、悬浮 Tips 正常、静态标题/标签无括�
   if (!w.State.canvas.showVias || !w.State.canvas.showTraces || !w.State.canvas.showPorts) {
     throw new Error('过孔、走线和端口未保持默认显示');
   }
-  if (!$('btnToggleLabels') || !w.State.canvas.showLabels) throw new Error('几何工具栏缺少默认开启的网络/编号显示开关');
+  if (!$('btnToggleNetLabels') || !w.State.canvas.showNetLabels) throw new Error('几何工具栏缺少默认开启的网络名显示开关');
+  if (!$('btnToggleObjectIds') || !w.State.canvas.showObjectIds) throw new Error('几何工具栏缺少默认开启的对象编号显示开关');
   ['btnCanvasDefectCov', 'btnCanvasDefectSpecial', 'btnCanvasDefectMargin', 'btnCanvasDefectSmall', 'btnCanvasDefectArc'].forEach(id => {
     if (!$(id)) throw new Error('几何工具栏缺少五类异常按钮：' + id);
   });
@@ -58,16 +59,20 @@ test('三栏 EDA 壳层完整、悬浮 Tips 正常、静态标题/标签无括�
   w.EdaTooltip.hide();
 });
 
-test('几何视口可取消并恢复网络名与目标对象编号', () => {
-  const button = $('btnToggleLabels');
-  button.click();
-  if (w.State.canvas.showLabels || button.classList.contains('active')) {
-    throw new Error('网络名与目标对象编号未被取消显示');
+test('几何视口可独立取消并恢复网络名与目标对象编号', () => {
+  const netButton = $('btnToggleNetLabels');
+  const idButton = $('btnToggleObjectIds');
+  netButton.click();
+  if (w.State.canvas.showNetLabels || !w.State.canvas.showObjectIds || netButton.classList.contains('active') || !idButton.classList.contains('active')) {
+    throw new Error('网络名开关影响了目标对象编号');
   }
-  button.click();
-  if (!w.State.canvas.showLabels || !button.classList.contains('active')) {
-    throw new Error('网络名与目标对象编号未恢复显示');
+  netButton.click();
+  idButton.click();
+  if (!w.State.canvas.showNetLabels || w.State.canvas.showObjectIds || !netButton.classList.contains('active') || idButton.classList.contains('active')) {
+    throw new Error('目标对象编号开关影响了网络名');
   }
+  idButton.click();
+  if (!w.State.canvas.showNetLabels || !w.State.canvas.showObjectIds) throw new Error('网络名或目标对象编号未恢复显示');
 });
 
 test('几何视口的六个异常筛选按钮均可再次点击取消选中', () => {
@@ -521,11 +526,17 @@ Item 3 < Via >
     throw new Error('几何视口默认未显示网络名或目标对象编号');
   }
   markerTexts.length = 0;
-  $('btnToggleLabels').click();
-  if (markerTexts.includes('#3') || markerTexts.some(text => text.includes('Shape #') || text === 'GND')) {
-    throw new Error('关闭网络/编号后画布仍绘制对象标注');
+  $('btnToggleObjectIds').click();
+  if (markerTexts.includes('#3') || markerTexts.some(text => text.includes('Shape #')) || !w.State.canvas.showNetLabels) {
+    throw new Error('关闭对象编号后影响了网络名状态，或仍绘制对象编号');
   }
-  $('btnToggleLabels').click();
+  $('btnToggleObjectIds').click();
+  markerTexts.length = 0;
+  $('btnToggleNetLabels').click();
+  if (markerTexts.includes('GND') || !markerTexts.includes('#3') || !markerTexts.some(text => text.includes('Shape #1'))) {
+    throw new Error('关闭网络名后未保留目标对象编号，或仍绘制网络名');
+  }
+  $('btnToggleNetLabels').click();
   w.PourChecker.shapeRings = originalShapeRings;
   canvas.getContext = originalGetContext;
   if (!renderedShapeLayers.length || renderedShapeLayers.some(layer => layer !== 'Top')) {

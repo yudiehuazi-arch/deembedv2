@@ -307,7 +307,8 @@
             <button type="button" onclick="zoomCanvas(1.2)">放大</button>
             <button type="button" onclick="zoomCanvas(0.8)">缩小</button>
             <button type="button" id="btnToggleShapes" class="active" onclick="toggleCanvasLayer('shapes')" data-tip="显示或隐藏 Shape 铜皮轮廓">铜皮</button>
-            <button type="button" id="btnToggleLabels" class="active" onclick="toggleCanvasLayer('labels')" data-tip="显示或隐藏网络名及画布上的目标对象编号">网络/编号</button>
+            <button type="button" id="btnToggleNetLabels" class="active" onclick="toggleCanvasLayer('netLabels')" data-tip="显示或隐藏 GND 与走线网络名称">网络名</button>
+            <button type="button" id="btnToggleObjectIds" class="active" onclick="toggleCanvasLayer('objectIds')" data-tip="显示或隐藏 Shape、Via 等目标对象编号">对象编号</button>
             <select id="selCanvasShapeLayer" data-no-persist onchange="setCanvasShapeLayer(this.value)" data-tip="选择全部层、当前定位的问题层或某一层，仅控制铜皮轮廓显示">
               <option value="__ALL__">铜皮层：全部层</option>
             </select>
