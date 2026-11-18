@@ -220,12 +220,13 @@
     var desc = document.getElementById('modalR2PreviewDesc');
 
     if (parsed.shapes.length > 0) {
-      var s = parsed.shapes[0];
+      var s = PC.composeShapeItems ? PC.composeShapeItems(parsed.shapes) : parsed.shapes[0];
       State.modalShapeParsed = s;
       var lineCnt = s.boundary.filter(function (b) { return b.type === 'line'; }).length;
-      title.textContent = '已解析 Shape 几何 · 层 ' + s.layer;
+      var itemCount = s.itemCount || 1;
+      title.textContent = '已解析 ' + itemCount + ' 个 Shape Item · 层 ' + s.layer;
       desc.innerHTML =
-        '<div>实测面积: <strong>' + PC.roundN(s.area, 2) + ' sq mil</strong> · ' + PC.roundN(s.areaMm2, 4) + ' mm²</div>' +
+        '<div>合计面积: <strong>' + PC.roundN(s.area, 2) + ' sq mil</strong> · ' + PC.roundN(s.areaMm2, 4) + ' mm²</div>' +
         '<div>边界段数: ' + s.boundary.length + ' 段 · 直线 ' + lineCnt + ' / 圆弧 ' + s.arcs.length + '</div>';
       if (root.drawShapePreviewCanvas) {
         root.drawShapePreviewCanvas(document.getElementById('modalR2Canvas'), s);
@@ -273,6 +274,7 @@
       expectedArea: expectedArea,
       areaTolerance: tol,
       rawShapeText: rawTxt,
+      shapeItemCount: State.modalShapeParsed ? (State.modalShapeParsed.itemCount || 1) : 0,
       shape: State.modalShapeParsed
     };
 
@@ -403,10 +405,14 @@
         var hdiRadius = parseFloat(t.hdiSearchRadiusMm);
         t.differentialCenterDistance = centerDistance > 0 ? centerDistance : 10.0;
         t.hdiSearchRadiusMm = hdiRadius > 0 ? hdiRadius : 0.175;
-        if (t.rawShapeText && !t.shape && root.PourChecker && root.PourChecker.parsePcbElements) {
+        if (t.rawShapeText && root.PourChecker && root.PourChecker.parsePcbElements) {
           try {
             var parsed = root.PourChecker.parsePcbElements(t.rawShapeText);
-            if (parsed.shapes.length > 0) t.shape = parsed.shapes[0];
+            if (parsed.shapes.length > 0) {
+              t.shape = root.PourChecker.composeShapeItems
+                ? root.PourChecker.composeShapeItems(parsed.shapes) : parsed.shapes[0];
+              t.shapeItemCount = t.shape.itemCount || 1;
+            }
           } catch (e) {}
         }
       });

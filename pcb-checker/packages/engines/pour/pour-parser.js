@@ -183,6 +183,8 @@
     const set = setM ? setM[1].trim() : 'Etch';
     const typeM = block.match(/Type:\s*([^\r\n]+)/i);
     const type = typeM ? typeM[1].trim() : 'Shape(Static)';
+    const netM = block.match(/Net:\s*([^\r\n]+)/i);
+    const net = netM ? netM[1].trim() : '';
     const areaM = block.match(/Area:\s*([\d\.\-]+)/i);
     const area = areaM ? parseFloat(areaM[1]) : 0;
 
@@ -218,6 +220,7 @@
       layer,
       set,
       type,
+      net,
       area: area,                     // 以 EDA 报告面积为准（缺失时才用计算值）
       areaReported: area,
       areaComputed: 0,
@@ -263,6 +266,112 @@
     }
 
     return shape;
+  }
+
+  /** 将同一异型铜皮模板的多个 Shape Item 组合为一个预览与面积比对对象。 */
+  function composeShapeItems(shapes) {
+    const items = (shapes || []).filter(shape => shape && shape.bbox);
+    if (!items.length) return null;
+    if (items.length === 1) return items[0];
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    let area = 0, areaComputed = 0, areaMm2 = 0, momentX = 0, momentY = 0, weightSum = 0;
+    const layers = new Set(), nets = new Set();
+    const boundary = [], voids = [], arcs = [];
+    items.forEach(shape => {
+      minX = Math.min(minX, shape.bbox.minX); minY = Math.min(minY, shape.bbox.minY);
+      maxX = Math.max(maxX, shape.bbox.maxX); maxY = Math.max(maxY, shape.bbox.maxY);
+      area += Number(shape.area) || 0;
+      areaComputed += Number(shape.areaComputed) || 0;
+      areaMm2 += Number(shape.areaMm2) || 0;
+      const weight = Number(shape.area) > 0 ? Number(shape.area) : 1;
+      if (shape.centroid && isFinite(shape.centroid.x) && isFinite(shape.centroid.y)) {
+        momentX += shape.centroid.x * weight; momentY += shape.centroid.y * weight; weightSum += weight;
+      }
+      if (shape.layer) layers.add(shape.layer);
+      if (shape.net) nets.add(shape.net);
+      boundary.push.apply(boundary, shape.boundary || []);
+      voids.push.apply(voids, shape.voids || []);
+      arcs.push.apply(arcs, shape.arcs || []);
+    });
+    return {
+      id: items[0].id,
+      rawId: items[0].rawId,
+      itemIds: items.map(shape => shape.id),
+      itemCount: items.length,
+      components: items,
+      layer: Array.from(layers).join(', '),
+      layers: Array.from(layers),
+      net: Array.from(nets).join(', '),
+      nets: Array.from(nets),
+      set: items[0].set,
+      type: 'Shape(Multi-Item)',
+      area,
+      areaReported: area,
+      areaComputed,
+      areaMm2,
+      boundary,
+      voids,
+      arcs,
+      centroid: weightSum > 0
+        ? { x: momentX / weightSum, y: momentY / weightSum }
+        : { x: (minX + maxX) / 2, y: (minY + maxY) / 2 },
+      bbox: { minX, minY, maxX, maxY, spanX: maxX - minX, spanY: maxY - minY }
+    };
+  }
+
+  function shapeItemsTouch(a, b, tolerance) {
+    const gap = tolerance == null ? 0.05 : tolerance;
+    if (!a || !b || !a.bbox || !b.bbox) return false;
+    if (a.bbox.maxX < b.bbox.minX - gap || b.bbox.maxX < a.bbox.minX - gap ||
+        a.bbox.maxY < b.bbox.minY - gap || b.bbox.maxY < a.bbox.minY - gap) return false;
+    const aRing = geom.shapeRing(a), bRing = geom.shapeRing(b);
+    if (a.centroid && geom.pointToShapeDistance(a.centroid.x, a.centroid.y, b) <= gap) return true;
+    if (b.centroid && geom.pointToShapeDistance(b.centroid.x, b.centroid.y, a) <= gap) return true;
+    for (let i = 0; i < aRing.length; i++) {
+      if (geom.pointToShapeDistance(aRing[i][0], aRing[i][1], b) <= gap) return true;
+    }
+    for (let i = 0; i < bRing.length; i++) {
+      if (geom.pointToShapeDistance(bRing[i][0], bRing[i][1], a) <= gap) return true;
+    }
+    return false;
+  }
+
+  function findAssociatedShapeItems(via, shapeIndex, itemCount) {
+    const wanted = Math.max(1, parseInt(itemCount, 10) || 1);
+    const candidates = geom.queryPointGrid(shapeIndex, via.x - 120, via.y - 120, via.x + 120, via.y + 120)
+      .map(shape => ({ shape, distance: dist2D(via.x, via.y, shape.centroid.x, shape.centroid.y) }))
+      .filter(entry => entry.distance <= 120)
+      .sort((a, b) => a.distance - b.distance || String(a.shape.id).localeCompare(String(b.shape.id), undefined, { numeric: true }));
+    if (!candidates.length) return null;
+    const selected = [candidates[0].shape], used = new Set(selected);
+    while (selected.length < wanted) {
+      const next = candidates.find(entry => {
+        const shape = entry.shape, first = selected[0];
+        if (used.has(shape) || String(shape.layer).toUpperCase() !== String(first.layer).toUpperCase()) return false;
+        if (shape.net && first.net && String(shape.net).toUpperCase() !== String(first.net).toUpperCase()) return false;
+        return selected.some(current => shapeItemsTouch(current, shape, 0.05));
+      });
+      if (!next) break;
+      selected.push(next.shape); used.add(next.shape);
+    }
+    return selected.length === 1 ? selected[0] : composeShapeItems(selected);
+  }
+
+  function buildShapePointIndexes(shapes) {
+    const byLayer = new Map();
+    (shapes || []).forEach(shape => {
+      const layer = String(shape.layer || '').toUpperCase();
+      if (!byLayer.has(layer)) byLayer.set(layer, []);
+      byLayer.get(layer).push(shape);
+    });
+    const indexes = new Map();
+    byLayer.forEach((layerShapes, layer) => {
+      const index = geom.buildPointGrid(layerShapes, 120, shape => shape.centroid);
+      indexes.set(layer, index);
+      const alias = geom.physicalLayerAlias(layer);
+      if (!indexes.has(alias)) indexes.set(alias, index);
+    });
+    return indexes;
   }
 
   /**
@@ -368,6 +477,10 @@
     parsePcbElements: parsePcbElements,
     parseShapeContours: parseShapeContours,
     parseShapeBlock: parseShapeBlock,
+    composeShapeItems: composeShapeItems,
+    shapeItemsTouch: shapeItemsTouch,
+    findAssociatedShapeItems: findAssociatedShapeItems,
+    buildShapePointIndexes: buildShapePointIndexes,
     parseViaBlock: parseViaBlock,
     parseTraceBlock: parseTraceBlock
   };

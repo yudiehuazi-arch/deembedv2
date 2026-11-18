@@ -8,6 +8,7 @@ const path = require('path');
 const { openPage } = require('../helpers/open-page');
 
 const SPECIAL_SHAPE_TXT = fs.readFileSync(path.join(__dirname, '../../sample/special-shape-seg-arc.txt'), 'utf8');
+const MULTI_SHAPE_TXT = fs.readFileSync(path.join(__dirname, '../../sample/special-shape-multi-item.txt'), 'utf8');
 const VOID_SHAPE_TXT = fs.readFileSync(path.join(__dirname, '../../sample/shape-with-voids.txt'), 'utf8');
 const ctx = openPage('pour.html', { syncCheck: true });
 const { w, d } = ctx;
@@ -98,6 +99,48 @@ test('异型铜皮预览按离散轮廓绘制，不把圆弧画成整圆', () =>
   const drawn = w.drawShapePreviewCanvas({ width: 110, height: 110, getContext: () => context }, shape);
   if (!drawn || calls.lineTo !== shape._ring.length - 1) throw new Error('预览未按完整离散轮廓连续绘制');
   if (calls.arc !== 1) throw new Error('预览仍把扫掠圆弧错误绘制为整圆');
+});
+
+test('异型铜皮模板读取并预览全部 Shape Item，而非只取第一个', () => {
+  const parsed = w.PourChecker.parsePcbElements(MULTI_SHAPE_TXT);
+  const shape = w.PourChecker.composeShapeItems(parsed.shapes);
+  if (!shape || shape.itemCount !== 2 || shape.itemIds.join(',') !== '1,2' || Math.abs(shape.area - 118.27433) > 1e-6) {
+    throw new Error('多个 Shape Item 未正确组合为异型铜皮模板');
+  }
+  const calls = { moveTo: 0, evenoddFills: 0 };
+  const context = {
+    clearRect() {}, fillRect() {}, beginPath() {}, lineTo() {}, closePath() {}, stroke() {}, arc() {},
+    moveTo() { calls.moveTo++; },
+    fill(rule) { if (rule === 'evenodd') calls.evenoddFills++; }
+  };
+  if (!w.drawShapePreviewCanvas({ width: 120, height: 160, getContext: () => context }, shape)) {
+    throw new Error('多 Item 异型铜皮预览未绘制');
+  }
+  if (calls.moveTo !== 2 || calls.evenoddFills !== 2) {
+    throw new Error(`预览没有分别绘制圆形与矩形 Item: ${JSON.stringify(calls)}`);
+  }
+  $('modalR2TxtShape').value = MULTI_SHAPE_TXT;
+  w.previewModalShape();
+  if (w.State.modalShapeParsed.itemCount !== 2 || !$('modalR2PreviewTitle').textContent.includes('2 个 Shape Item') ||
+      !$('modalR2PreviewDesc').textContent.includes('118.27 sq mil')) {
+    throw new Error('弹窗未显示多 Item 数量与合计面积');
+  }
+  const resolved = w.resolveShapePreview({ rawShapeText: MULTI_SHAPE_TXT });
+  if (!resolved || resolved.itemCount !== 2) throw new Error('规则表缩略图仍只解析第一个 Shape Item');
+  w.openAddRule2Modal();
+  $('modalR2InpName').value = '多 Item 模板';
+  $('modalR2InpPadstack').value = 'MULTI_TARGET';
+  $('modalR2InpDiffDist').value = '1';
+  $('modalR2InpLayer').value = '02G01P';
+  $('modalR2InpTol').value = '0.1';
+  $('modalR2TxtShape').value = MULTI_SHAPE_TXT;
+  w.saveRule2FromModal();
+  const savedIndex = w.State.specialShapeTemplates.findIndex(template => template.name === '多 Item 模板');
+  const saved = w.State.specialShapeTemplates[savedIndex];
+  if (!saved || saved.shapeItemCount !== 2 || saved.shape.itemCount !== 2 || Math.abs(saved.expectedArea - 118.27433) > 1e-6) {
+    throw new Error('多 Item 数量、组合几何或合计面积未保存到规则 2');
+  }
+  w.deleteRule2(savedIndex);
 });
 
 test('铜皮主画布与缩略图以 evenodd 复合路径镂空全部 Void', () => {

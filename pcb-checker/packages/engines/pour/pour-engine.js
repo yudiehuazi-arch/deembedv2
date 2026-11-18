@@ -17,7 +17,7 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
   var buildPointGrid = geom.buildPointGrid, queryPointGrid = geom.queryPointGrid;
   var buildBBoxGrid = geom.buildBBoxGrid, queryBBoxGrid = geom.queryBBoxGrid, physicalLayerAlias = geom.physicalLayerAlias;
   var expandLayerRange = parser.expandLayerRange, parsePcbElements = parser.parsePcbElements;
-  var parseShapeBlock = parser.parseShapeBlock;
+  var parseShapeBlock = parser.parseShapeBlock, findAssociatedShapeItems = parser.findAssociatedShapeItems, buildShapePointIndexes = parser.buildShapePointIndexes;
   var SPECIAL_SHAPE_CENTER_DISTANCE_TOLERANCE = 0.01;
   function checkViaLayerCoverage(vias, shapes, rules = [], availableLayers = []) {
     const results = [];
@@ -77,15 +77,6 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
     }
     return results;
   }
-  function findAssociatedShape(via, shapeIndex) {
-    let bestShape = null;
-    let minCenterDist = Infinity;
-    queryPointGrid(shapeIndex, via.x - 120, via.y - 120, via.x + 120, via.y + 120).forEach(shape => {
-      const distance = dist2D(via.x, via.y, shape.centroid.x, shape.centroid.y);
-      if (distance < minCenterDist && distance <= 120.0) { minCenterDist = distance; bestShape = shape; }
-    });
-    return bestShape;
-  }
   function findNearbySameNetHdi(via, hdiIndex, maxDistanceMil) {
     let nearest = null;
     let nearestDistance = Infinity;
@@ -110,11 +101,7 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
       if (!shapesByLayer.has(layer)) shapesByLayer.set(layer, []);
       shapesByLayer.get(layer).push(shape);
     });
-    const shapeIndexes = new Map();
-    shapesByLayer.forEach((layerShapes, layer) => {
-      const index = buildPointGrid(layerShapes, 120, shape => shape.centroid);
-      shapeIndexes.set(layer, index); if (!shapeIndexes.has(physicalLayerAlias(layer))) shapeIndexes.set(physicalLayerAlias(layer), index);
-    });
+    const shapeIndexes = buildShapePointIndexes(shapes);
     const hdiByNet = new Map();
     vias.forEach(via => {
       if (!String(via.padstack || '').toLowerCase().includes('hdi')) return;
@@ -134,6 +121,7 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
       if (!(expectedCenterDistance > 0) || !targetLayers.length) return;
       const tmplName = tmpl.name || `异型铜皮模板_${tIdx + 1}`;
       const expectedArea = tmpl.expectedArea || (tmpl.shape ? tmpl.shape.area : 0);
+      const expectedItemCount = tmpl.shapeItemCount || (tmpl.shape && tmpl.shape.itemCount) || 1;
       const tolArea = tmpl.areaTolerance != null ? parseFloat(tmpl.areaTolerance) : 30.0;
       const matchedVias = vias.filter(via => !padPattern || padPattern === '*' ||
         via.padstack.toLowerCase().includes(padPattern));
@@ -142,7 +130,8 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
         const nearbyHdi = findNearbySameNetHdi(via, hdiIndexes.get(netKey), hdiSearchRadiusMil);
         if (!nearbyHdi || Math.abs(nearbyHdi.distance - expectedCenterDistance) > SPECIAL_SHAPE_CENTER_DISTANCE_TOLERANCE) return;
         targetLayers.forEach(targetLayer => {
-          const bestShape = findAssociatedShape(via, shapeIndexes.get(targetLayer));
+          const bestShape = findAssociatedShapeItems(via, shapeIndexes.get(targetLayer), expectedItemCount);
+          const bestShapeIds = bestShape ? (bestShape.itemIds || [bestShape.id]) : [];
           let isMatch = false;
           let failReason = '';
           if (!bestShape) {
@@ -153,7 +142,7 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
             const areaDiff = Math.abs(bestShape.area - expectedArea);
             isMatch = areaDiff <= tolArea;
             if (!isMatch) {
-              failReason = `铜皮 Shape #${bestShape.id} 面积为 ${roundN(bestShape.area, 1)} sq mil，与模板期望面积 ${roundN(expectedArea, 1)} sq mil 偏差 ${roundN(areaDiff, 1)} sq mil (超出容差 ±${tolArea})`;
+              failReason = `铜皮 Shape #${bestShapeIds.join(' + #')} 合计面积为 ${roundN(bestShape.area, 1)} sq mil，与模板期望面积 ${roundN(expectedArea, 1)} sq mil 偏差 ${roundN(areaDiff, 1)} sq mil (超出容差 ±${tolArea})`;
             }
           }
           results.push({
@@ -165,10 +154,10 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
             hdiSearchRadiusMm,
             actualDifferentialCenterDistance: nearbyHdi.distance,
             expectedDifferentialCenterDistance: expectedCenterDistance,
-            layer: targetLayer, targetShapeId: bestShape ? bestShape.id : null,
+            layer: targetLayer, targetShapeId: bestShape ? bestShape.id : null, targetShapeIds: bestShapeIds, actualShapeItemCount: bestShapeIds.length, expectedShapeItemCount: expectedItemCount,
             actualArea: bestShape ? bestShape.area : 0, expectedArea, areaTolerance: tolArea, pass: isMatch,
             message: isMatch
-              ? `✅ 符合：孔 #${via.id} 到同网络 HDI 孔 #${nearbyHdi.via.id} 的中心距 ${roundN(nearbyHdi.distance, 2)} mil，在 ${targetLayer} 层的铜皮与异型模板【${tmplName}】匹配 (实测面积 ${bestShape ? roundN(bestShape.area, 1) : '-'} sq mil)`
+              ? `✅ 符合：孔 #${via.id} 到同网络 HDI 孔 #${nearbyHdi.via.id} 的中心距 ${roundN(nearbyHdi.distance, 2)} mil，在 ${targetLayer} 层的铜皮与异型模板【${tmplName}】匹配 (${bestShapeIds.length} 个 Shape Item 合计面积 ${bestShape ? roundN(bestShape.area, 1) : '-'} sq mil)`
               : `❌ 不符合：孔 #${via.id} 到同网络 HDI 孔 #${nearbyHdi.via.id} 的中心距 ${roundN(nearbyHdi.distance, 2)} mil，在 ${targetLayer} 层异型铜皮不匹配 (${failReason})`
           });
         });

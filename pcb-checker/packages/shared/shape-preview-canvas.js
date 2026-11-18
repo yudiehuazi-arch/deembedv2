@@ -15,7 +15,9 @@
       if (!rawText.trim() || !checker || !checker.parsePcbElements) return null;
       try {
         var parsed = checker.parsePcbElements(rawText);
-        template.shape = parsed.shapes && parsed.shapes.length ? parsed.shapes[0] : null;
+        template.shape = checker.composeShapeItems
+          ? checker.composeShapeItems(parsed.shapes)
+          : (parsed.shapes && parsed.shapes.length ? parsed.shapes[0] : null);
       } catch (_) {
         template.shape = null;
       }
@@ -34,6 +36,14 @@
     return exterior.length >= 3 ? [exterior] : [];
   }
 
+  function getShapeRingGroups(shape) {
+    var components = shape && Array.isArray(shape.components) && shape.components.length
+      ? shape.components : [shape];
+    return components.map(getShapeRings).filter(function (rings) {
+      return rings.length && rings[0].length >= 3;
+    });
+  }
+
   function drawShapePreviewCanvas(canvas, shape) {
     if (!canvas || !canvas.getContext) return false;
     var ctx = canvas.getContext('2d');
@@ -44,11 +54,14 @@
     ctx.fillStyle = '#0b1220';
     ctx.fillRect(0, 0, width, height);
 
-    var rings = getShapeRings(shape);
-    if (!rings.length || rings[0].length < 3) return false;
-    var ring = rings[0];
-    var xs = ring.map(function (point) { return point[0]; });
-    var ys = ring.map(function (point) { return point[1]; });
+    var ringGroups = getShapeRingGroups(shape);
+    if (!ringGroups.length) return false;
+    var allRings = [];
+    ringGroups.forEach(function (rings) { Array.prototype.push.apply(allRings, rings); });
+    var allPoints = [];
+    allRings.forEach(function (ring) { Array.prototype.push.apply(allPoints, ring); });
+    var xs = allPoints.map(function (point) { return point[0]; });
+    var ys = allPoints.map(function (point) { return point[1]; });
     var minX = Math.min.apply(null, xs);
     var maxX = Math.max.apply(null, xs);
     var minY = Math.min.apply(null, ys);
@@ -67,20 +80,22 @@
       };
     }
 
-    ctx.beginPath();
-    rings.forEach(function (contourRing) {
-      contourRing.forEach(function (point, index) {
-        var screen = project(point);
-        if (index === 0) ctx.moveTo(screen.x, screen.y);
-        else ctx.lineTo(screen.x, screen.y);
-      });
-      ctx.closePath();
-    });
     ctx.fillStyle = 'rgba(180, 83, 9, 0.35)';
     ctx.strokeStyle = '#f59e0b';
     ctx.lineWidth = 1.5;
-    ctx.fill('evenodd');
-    ctx.stroke();
+    ringGroups.forEach(function (rings) {
+      ctx.beginPath();
+      rings.forEach(function (contourRing) {
+        contourRing.forEach(function (point, index) {
+          var screen = project(point);
+          if (index === 0) ctx.moveTo(screen.x, screen.y);
+          else ctx.lineTo(screen.x, screen.y);
+        });
+        ctx.closePath();
+      });
+      ctx.fill('evenodd');
+      ctx.stroke();
+    });
 
     if (shape.centroid) {
       var centroid = project([shape.centroid.x, shape.centroid.y]);

@@ -63,6 +63,36 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   console.log('  PASS  EDA 异型铜皮：Seg 与 Arc seg 按原始顺序解析并保留源 TXT');
 }
 
+// 1.2 多个 Shape Item 共同组成一个异型铜皮模板
+{
+  const text = fs.readFileSync(path.join(__dirname, '../../sample/special-shape-multi-item.txt'), 'utf8');
+  const parsed = parsePcbElements(text);
+  assert.strictEqual(parsed.shapes.length, 2, '应完整读取两个 Shape Item');
+  assert.deepStrictEqual(parsed.shapes.map(shape => shape.net), ['9_N', '9_N']);
+  const composite = PourChecker.composeShapeItems(parsed.shapes);
+  assert.strictEqual(composite.itemCount, 2);
+  assert.deepStrictEqual(composite.itemIds, [1, 2]);
+  assert.ok(Math.abs(composite.area - 118.27433) < 1e-6, '模板面积应为两个 Item 报告面积之和');
+  assert.strictEqual(composite.boundary.length, 5, '应保留圆形与矩形的全部五段边界');
+  assert.strictEqual(composite.arcs.length, 1);
+  assert.strictEqual(PourChecker.shapeItemsTouch(parsed.shapes[0], parsed.shapes[1], 0.05), true,
+    '同层同网络的圆形与矩形 Item 应识别为相接铜皮');
+  const vias = [
+    { id: 10, x: 17880, y: 35965.0001, padstack: 'MULTI_TARGET', net: '9_N' },
+    { id: 11, x: 17881, y: 35965.0001, padstack: 'HDI_NEAR', net: '9_N' }
+  ];
+  const checked = checkSpecialShapedCopper(vias, parsed.shapes, [{
+    id: 'multi', name: '圆形加矩形', padstack: 'MULTI_TARGET', differentialCenterDistance: 1,
+    hdiSearchRadiusMm: 0.175, layer: '02G01P', expectedArea: composite.area,
+    areaTolerance: 0.001, shapeItemCount: 2, shape: composite
+  }]);
+  assert.strictEqual(checked.length, 1);
+  assert.strictEqual(checked[0].pass, true, '实际数据的两个相接 Item 应按合计面积匹配模板');
+  assert.deepStrictEqual(checked[0].targetShapeIds, [1, 2]);
+  assert.strictEqual(checked[0].actualShapeItemCount, 2);
+  console.log('  PASS  多 Item 异型铜皮：完整预览、合计面积与实际相接 Shape 联合比对');
+}
+
 // 2. 第一项：孔经过层铺铜覆盖检查 (Via Layer Coverage Check)
 {
   const vias = [
@@ -450,4 +480,4 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   console.log('  PASS  Item 308：混合线/弧 Void 参与点内、距离、孤铜与参考层覆盖检查');
 }
 
-console.log('\n结果: 全部 16 项铜皮检查单元测试通过！');
+console.log('\n结果: 全部 17 项铜皮检查单元测试通过！');

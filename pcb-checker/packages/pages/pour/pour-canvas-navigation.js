@@ -67,7 +67,7 @@
       [sub.shapeId, sub.targetShapeId, sub.nearestShapeId].forEach(function (id) {
         if (id != null && ids.indexOf(String(id)) < 0) ids.push(String(id));
       });
-      (sub.referenceShapeIds || []).forEach(function (id) {
+      (sub.targetShapeIds || []).concat(sub.referenceShapeIds || []).forEach(function (id) {
         if (id != null && ids.indexOf(String(id)) < 0) ids.push(String(id));
       });
     });
