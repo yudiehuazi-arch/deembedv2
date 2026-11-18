@@ -202,7 +202,6 @@
     if (layerKey === 'shapes') c.showShapes = !c.showShapes;
     if (layerKey === 'vias') c.showVias = !c.showVias;
     if (layerKey === 'traces') c.showTraces = !c.showTraces;
-    if (layerKey === 'ports') c.showPorts = !c.showPorts;
     if (layerKey === 'netLabels') c.showNetLabels = c.showNetLabels === false;
     if (layerKey === 'objectIds') c.showObjectIds = c.showObjectIds === false;
     if (layerKey === 'defects') c.showDefects = !c.showDefects;
@@ -210,7 +209,6 @@
       btnToggleShapes: c.showShapes,
       btnToggleVias: c.showVias,
       btnToggleTraces: c.showTraces,
-      btnTogglePorts: c.showPorts,
       btnToggleNetLabels: c.showNetLabels !== false,
       btnToggleObjectIds: c.showObjectIds !== false,
       btnToggleDefects: c.showDefects
@@ -423,59 +421,11 @@
         ctx.restore();
       });
     }
-    /* 4. 端口 P1~P4 标注 */
-    if (State.canvas.showPorts && State.traces && State.traces.length > 0) {
-      var allMinX = Infinity, allMaxX = -Infinity, allMinY = Infinity, allMaxY = -Infinity;
-      State.traces.forEach(function (t) {
-        if (!t.bbox) return;
-        allMinX = Math.min(allMinX, t.bbox.minX);
-        allMaxX = Math.max(allMaxX, t.bbox.maxX);
-        allMinY = Math.min(allMinY, t.bbox.minY);
-        allMaxY = Math.max(allMaxY, t.bbox.maxY);
-      });
-      var centerX = (allMinX + allMaxX) / 2;
-      var centerY = (allMinY + allMaxY) / 2;
-      var netEndpoints = {};
-      State.traces.forEach(function (t) {
-        if (!netEndpoints[t.net]) netEndpoints[t.net] = [];
-        t.segments.forEach(function (s) {
-          netEndpoints[t.net].push({ x: s.x1, y: s.y1 });
-          netEndpoints[t.net].push({ x: s.x2, y: s.y2 });
-        });
-      });
-      Object.keys(netEndpoints).forEach(function (net) {
-        if (net === 'GND' || net === 'UNKNOWN') return;
-        var pts = netEndpoints[net];
-        if (!pts || !pts.length) return;
-        var maxDist = -1, outerPt = null;
-        pts.forEach(function (p) {
-          var d = Math.hypot(p.x - centerX, p.y - centerY);
-          if (d > maxDist) { maxDist = d; outerPt = p; }
-        });
-        if (!outerPt) return;
-        var portName = '';
-        if (net === '26_N' || (outerPt.y > centerY && outerPt.x > centerX)) portName = 'P1';
-        else if (net === '25_N' || (outerPt.y < centerY && outerPt.x < centerX)) portName = 'P2';
-        else if (net === '25_P' || (outerPt.y > centerY && outerPt.x < centerX)) portName = 'P3';
-        else if (net === '26_P' || (outerPt.y < centerY && outerPt.x > centerX)) portName = 'P4';
-        if (portName) {
-          var sp = worldToScreen(outerPt.x, outerPt.y);
-          ctx.save();
-          ctx.font = 'bold 20px monospace';
-          ctx.fillStyle = '#fde047';
-          ctx.textAlign = outerPt.x >= centerX ? 'left' : 'right';
-          var offsetX = outerPt.x >= centerX ? 14 : -14;
-          var offsetY = outerPt.y >= centerY ? -10 : 18;
-          ctx.fillText(portName, sp.x + offsetX, sp.y + offsetY);
-          ctx.restore();
-        }
-      });
-    }
-    /* 5. 五类异常位置标记 */
+    /* 4. 五类异常位置标记 */
     if (State.canvas.showDefects && State.summary && typeof root.drawPourDefectMarkers === 'function') {
       root.drawPourDefectMarkers(ctx, worldToScreen, viewBounds);
     }
-    /* 6. 两点测距标尺 */
+    /* 5. 两点测距标尺 */
     if (State.canvas.measurePoints.length > 0) {
       var pts = State.canvas.measurePoints.map(function (p) { return worldToScreen(p.x, p.y); });
       ctx.save();

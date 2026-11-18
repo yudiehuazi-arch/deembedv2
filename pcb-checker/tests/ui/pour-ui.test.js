@@ -38,9 +38,10 @@ test('三栏 EDA 壳层完整、悬浮 Tips 正常、静态标题/标签无括�
   ['btnToggleVias', 'btnToggleTraces', 'btnTogglePorts'].forEach(id => {
     if ($(id)) throw new Error('几何工具栏仍显示已移除的选项：' + id);
   });
-  if (!w.State.canvas.showVias || !w.State.canvas.showTraces || !w.State.canvas.showPorts) {
-    throw new Error('过孔、走线和端口未保持默认显示');
+  if (!w.State.canvas.showVias || !w.State.canvas.showTraces) {
+    throw new Error('过孔和走线未保持默认显示');
   }
+  if ('showPorts' in w.State.canvas) throw new Error('几何视口仍保留 P1/P2/P3/P4 端口标注状态');
   if (!$('btnToggleNetLabels') || !w.State.canvas.showNetLabels) throw new Error('几何工具栏缺少默认开启的网络名显示开关');
   if (!$('btnToggleObjectIds') || !w.State.canvas.showObjectIds) throw new Error('几何工具栏缺少默认开启的对象编号显示开关');
   ['btnCanvasDefectCov', 'btnCanvasDefectSpecial', 'btnCanvasDefectMargin', 'btnCanvasDefectSmall', 'btnCanvasDefectArc'].forEach(id => {
@@ -296,7 +297,7 @@ test('铜皮主画布与缩略图以 evenodd 复合路径镂空全部 Void', () 
   w.State.shapes = [shape];
   Object.assign(w.State.canvas, {
     zoom: 1, panX: 0, panY: 0,
-    showShapes: true, showVias: false, showTraces: false, showPorts: false, showDefects: false,
+    showShapes: true, showVias: false, showTraces: false, showDefects: false,
     measurePoints: []
   });
   w.State.summary = null;
@@ -687,7 +688,20 @@ Item 3  < Via >
   }
 
   w.switchTab('tabCanvas');
+  const portLabelTexts = [];
+  const mainCanvas = $('mainCanvas');
+  const originalGetContext = mainCanvas.getContext;
+  mainCanvas.getContext = () => ({
+    clearRect() {}, fillRect() {}, save() {}, restore() {}, beginPath() {}, moveTo() {}, lineTo() {},
+    closePath() {}, fill() {}, stroke() {}, arc() {}, setLineDash() {},
+    fillText(text) { portLabelTexts.push(String(text)); },
+    measureText() { return { width: 0 }; }
+  });
   w.renderCanvas();
+  mainCanvas.getContext = originalGetContext;
+  if (portLabelTexts.some(text => /^P[1-4]$/.test(text))) {
+    throw new Error('几何视口仍绘制自动生成的端口字符：' + portLabelTexts.join(' / '));
+  }
 
   w.switchTab('tabAnalysis');
   const text = $('pnlAnalysisContainer').textContent;

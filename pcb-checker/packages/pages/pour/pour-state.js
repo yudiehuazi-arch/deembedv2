@@ -93,7 +93,6 @@
       showShapes: true,
       showVias: true,
       showTraces: true,
-      showPorts: true,
       showNetLabels: true,
       showObjectIds: true,
       showDefects: true,
