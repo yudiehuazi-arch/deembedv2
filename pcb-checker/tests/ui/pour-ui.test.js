@@ -108,7 +108,10 @@ test('几何视口的六个异常筛选按钮均可再次点击取消选中', ()
 test('规则 1/2/3 多规则配置表格与历史快捷标签初始化正常', () => {
   if (!$('tblRule1Body') || !$('tblRule2Body') || !$('tblRule3Body')) throw new Error('缺少规则表格体');
   if (w.State.viaCoverageRules.length < 2) throw new Error('Rule 1 初始规则应至少有 2 条');
-  if (w.State.specialShapeTemplates.length < 2) throw new Error('Rule 2 初始模板应至少有 2 条');
+  if (w.State.specialShapeTemplates.length < 6) throw new Error('Rule 2 初始模板应包含 BGA 与四种 PTH-SIG L5/L10 模板');
+  if (w.State.specialShapeTemplates.filter(rule => rule.padstack === 'PTH-SIG-150drill-ring0_L5_L10').length !== 4) {
+    throw new Error('Rule 2 未完整内置 PTH-SIG L5/L10 的四种 HDI 偏移模板');
+  }
   if (w.State.traceMarginRules.length < 2) throw new Error('Rule 3 初始规则应至少有 2 条');
   const rule2Headers = [...$('tblRule2Body').parentElement.querySelectorAll('th')].map(th => th.textContent.trim());
   const viaTypeIndex = rule2Headers.indexOf('过孔类型');
@@ -420,7 +423,7 @@ Item 55  < Via >
 
   w.setViewMode('grouped');
   if (d.querySelectorAll('#tblResultsBody tr').length !== 3) throw new Error('汇总视图行数应为 3');
-  const headers = [...d.querySelectorAll('#tabResults thead th')].map(th => th.textContent.trim());
+  const headers = [...d.querySelectorAll('#tabResults thead .result-filter-label')].map(el => el.textContent.trim());
   if (!headers.includes('Padstack / 网络 / 目标对象')) throw new Error('结果表目标列标题未按新顺序显示');
   const firstTarget = d.querySelector('#tblResultsBody tr td:nth-child(3)').textContent;
   if (!firstTarget.includes('HDI_045drill_ring3_1_4') || !firstTarget.includes('21_N') || !firstTarget.includes('孔 #53')) {

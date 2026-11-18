@@ -343,8 +343,20 @@ test('判定状态与五类检查可组合筛选，孔层铺铜使用层别缺�
   w.setViewMode('grouped');
   w.updateTopKPIs();
   if ($('cntFilterAll').textContent !== '6' || $('cntFilterDefects').textContent !== '5' || $('cntFilterPass').textContent !== '1') throw new Error('全部、符合与不符合数量未同步');
-  const resultHeaders = [...d.querySelectorAll('#tabResults thead th')].map(th => th.textContent.trim());
+  const resultHeaders = [...d.querySelectorAll('#tabResults thead .result-filter-label')].map(el => el.textContent.trim());
   if (resultHeaders.includes('实测值与规则阈值') || !resultHeaders.includes('问题点')) throw new Error('结果明细表未删除实测阈值列或缺少问题点列');
+  const columnFilterButtons = d.querySelectorAll('#tabResults thead [data-result-column-filter]');
+  if (columnFilterButtons.length !== 6) throw new Error('检查明细表未给六个数据列提供表头筛选');
+  w.setResultColumnFilter('layer', ['L8']);
+  if (w.State.filteredResults.length !== 1 || w.State.filteredResults[0].groupKey !== 'mock_margin_fail') throw new Error('涉及层别表头筛选未生效');
+  if (!d.querySelector('[data-result-column-filter="layer"]').classList.contains('active')) throw new Error('已启用的表头筛选未高亮');
+  w.setResultColumnFilter('layer', []);
+  w.setResultColumnFilter('target', 'VIA_A');
+  if (w.State.filteredResults.length !== 2) throw new Error('目标对象表头关键词筛选未生效');
+  w.setResultColumnFilter('target', '');
+  d.querySelector('[data-result-column-filter="status"]').click();
+  if ($('pourColumnFilterMenu').hidden) throw new Error('Excel 风格表头筛选菜单未打开');
+  w.closeResultColumnFilter();
 
   w.setResultStatusFilter('defects');
   w.setCategoryFilter('via_coverage');

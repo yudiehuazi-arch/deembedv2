@@ -91,18 +91,7 @@ const State = {
       { id: 'pour_r1_2', padstack: 'BGA_3510', layers: 'L2-L19', radius: 45.0 }
     ],
     // 规则 2：特定类型孔在指定层的异型铜皮比对规则 (image-1.png)
-    specialShapeTemplates: [
-      {
-        id: 'tmpl_1',
-        name: 'L2特定异型铜皮_1',
-        padstack: 'BGA_3510',
-        differentialCenterDistance: 10.0,
-        hdiSearchRadiusMm: 0.175,
-        layer: '02G01P',
-        expectedArea: 452.4,
-        areaTolerance: 30.0
-      }
-    ],
+    specialShapeTemplates: normalizeSpecialShapeTemplates(PourChecker.getDefaultSpecialShapeTemplates()),
     pourRule3: [
       { id: 'pour_r3_1', traceLayer: '08IS03', upperRef: '07G02P', lowerRef: '09G03P', margin: 50.0 },
       { id: 'pour_r3_2', traceLayer: '19IS08', upperRef: '18G07P', lowerRef: '20G08P', margin: 50.0 }

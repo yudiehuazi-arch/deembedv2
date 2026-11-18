@@ -13,6 +13,7 @@ const {
   expandLayerRange,
   checkViaLayerCoverage,
   checkSpecialShapedCopper,
+  getDefaultSpecialShapeTemplates,
   checkTraceReferenceMargin,
   checkIsolatedSmallCopper,
   checkCopperArcRadius,
@@ -295,6 +296,36 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   assert.ok(/中心距规则 10 mil/.test(grouped.get(41).metricsStr) && !/搜索距离/.test(grouped.get(41).metricsStr));
   assert.ok(!/中心距规则/.test(grouped.get(42).metricsStr) && /搜索距离 ≤ 0.1 mm/.test(grouped.get(42).metricsStr));
   console.log('  PASS  第二项：中心距与 HDI 搜索距离支持均留空、仅中心距、仅搜索距离和同时配置');
+}
+
+// 4.2 PTH-SIG L5/L10 四种 HDI 偏移的内置模板必须覆盖该孔型
+{
+  const specs = [
+    { mm: 0.025, area: 113.09734 },
+    { mm: 0.075, area: 50.26548 },
+    { mm: 0.125, area: 97.38257 },
+    { mm: 0.175, area: 101.16052 }
+  ];
+  const vias = [], shapes = [];
+  specs.forEach((spec, index) => {
+    const x = index * 100;
+    vias.push({ id: 300 + index, x, y: 0, padstack: 'PTH-SIG-150drill-ring0_L5_L10', net: `PTH_${index}` });
+    vias.push({ id: 310 + index, x: x + spec.mm * PourChecker.MIL_PER_MM, y: 0, padstack: 'BGA-HDI-SIG-045drill-ring3', net: `PTH_${index}` });
+    ['05G02P', '10G07P'].forEach((layer, layerIndex) => {
+      shapes.push({
+        id: 320 + index * 2 + layerIndex, layer,
+        area: spec.mm === 0.125 ? 50.26548 : spec.area,
+        centroid: { x, y: 0 }
+      });
+    });
+  });
+  const templates = getDefaultSpecialShapeTemplates().filter(template => template.padstack === 'PTH-SIG-150drill-ring0_L5_L10');
+  const results = checkSpecialShapedCopper(vias, shapes, templates);
+  assert.strictEqual(templates.length, 4, '应内置 0.025/0.075/0.125/0.175 mm 四种 PTH-SIG 模板');
+  assert.strictEqual(results.length, 8, '四颗 PTH-SIG 孔应在 L5/L10 各生成一条检查记录');
+  assert.deepStrictEqual([...new Set(results.map(result => result.viaId))].sort(), [300, 301, 302, 303]);
+  assert.strictEqual(results.filter(result => !result.pass).length, 2, '0.125 mm 偏移孔的两层面积异常应被检出');
+  console.log('  PASS  第二项：PTH-SIG L5/L10 四种 HDI 偏移模板完整覆盖');
 }
 
 // 5. 第三项：走线上/下参考层铺铜覆盖与单侧超宽检查 (Trace Reference Layer Margin)

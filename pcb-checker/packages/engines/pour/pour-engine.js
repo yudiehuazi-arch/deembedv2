@@ -379,6 +379,16 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
     }
     return groups;
   }
+  function getDefaultSpecialShapeTemplates() {
+    return [
+      { id: 'tmpl_1', name: 'L2特定异型泪滴铜皮', padstack: 'BGA_3510', differentialCenterDistance: 10.0, hdiSearchRadiusMm: 0.175, layer: '02G01P', expectedArea: 452.38, areaTolerance: 30.0, rawShapeText: '' },
+      { id: 'tmpl_2', name: 'L19特定异型铜皮', padstack: 'BGA_3510', differentialCenterDistance: 10.0, hdiSearchRadiusMm: 0.175, layer: '19IS08', expectedArea: 113.10, areaTolerance: 20.0, rawShapeText: '' },
+      { id: 'pth_l5_l10_025', name: 'PTH-SIG L5/L10 · HDI 偏移 0.025 mm', padstack: 'PTH-SIG-150drill-ring0_L5_L10', differentialCenterDistance: 0.98425, hdiSearchRadiusMm: 0.175, layer: '05G02P, 10G07P', expectedArea: 113.09734, areaTolerance: 1.0, rawShapeText: '' },
+      { id: 'pth_l5_l10_075', name: 'PTH-SIG L5/L10 · HDI 偏移 0.075 mm', padstack: 'PTH-SIG-150drill-ring0_L5_L10', differentialCenterDistance: 2.95276, hdiSearchRadiusMm: 0.175, layer: '05G02P, 10G07P', expectedArea: 50.26548, areaTolerance: 1.0, rawShapeText: '' },
+      { id: 'pth_l5_l10_125', name: 'PTH-SIG L5/L10 · HDI 偏移 0.125 mm', padstack: 'PTH-SIG-150drill-ring0_L5_L10', differentialCenterDistance: 4.92126, hdiSearchRadiusMm: 0.175, layer: '05G02P, 10G07P', expectedArea: 97.38257, areaTolerance: 1.0, rawShapeText: '' },
+      { id: 'pth_l5_l10_175', name: 'PTH-SIG L5/L10 · HDI 偏移 0.175 mm', padstack: 'PTH-SIG-150drill-ring0_L5_L10', differentialCenterDistance: 6.88976, hdiSearchRadiusMm: 0.175, layer: '05G02P, 10G07P', expectedArea: 101.16052, areaTolerance: 1.0, rawShapeText: '' }
+    ];
+  }
   function runAllCopperChecks(inputText, config = {}) {
     const startTime = Date.now();
     const parsed = parsePcbElements(inputText);
@@ -387,10 +397,7 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
       { id: 'cov_1', padstack: 'HDI_045drill_ring3_1_4', layers: 'L1-L5', coverageRadius: 50.0 },
       { id: 'cov_2', padstack: 'BGA_GND_pad1mil_0902', layers: '02G01P, 19IS08', coverageRadius: 50.0 }
     ];
-    const specialShapeTemplates = config.specialShapeTemplates || [
-      { id: 'tmpl_1', name: 'L2特定异型泪滴铜皮', padstack: 'BGA_3510', differentialCenterDistance: 10.0, hdiSearchRadiusMm: 0.175, layer: '02G01P', expectedArea: 452.38, areaTolerance: 30.0 },
-      { id: 'tmpl_2', name: 'L19特定异型铜皮', padstack: 'BGA_3510', differentialCenterDistance: 10.0, hdiSearchRadiusMm: 0.175, layer: '19IS08', expectedArea: 113.10, areaTolerance: 20.0 }
-    ];
+    const specialShapeTemplates = config.specialShapeTemplates || getDefaultSpecialShapeTemplates();
     const traceMarginRules = config.traceMarginRules || [
       { id: 'margin_1', traceLayer: '19IS08', upperRefLayer: '08IS03', lowerRefLayer: 'Bottom', minMargin: 50.0 },
       { id: 'margin_2', traceLayer: '08IS03', upperRefLayer: '02G01P', lowerRefLayer: '19IS08', minMargin: 50.0 }
@@ -463,6 +470,7 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
     physicalLayerAlias: physicalLayerAlias,
     checkViaLayerCoverage: checkViaLayerCoverage,
     checkSpecialShapedCopper: checkSpecialShapedCopper,
+    getDefaultSpecialShapeTemplates: getDefaultSpecialShapeTemplates,
     checkTraceReferenceMargin: checkTraceReferenceMargin,
     checkIsolatedSmallCopper: checkIsolatedSmallCopper,
     checkCopperArcRadius: checkCopperArcRadius,

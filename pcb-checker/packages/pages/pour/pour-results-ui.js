@@ -95,6 +95,9 @@
       return true;
     });
 
+    if (typeof root.filterPourResultsByColumns === 'function') {
+      list = root.filterPourResultsByColumns(list);
+    }
     State.filteredResults = list;
     State.page = 1;
     renderResultsTable();
@@ -252,7 +255,9 @@
     var nextVal = reviewed !== undefined ? Boolean(reviewed) : !State.reviewedItems.has(key);
     if (nextVal) State.reviewedItems.add(key);
     else State.reviewedItems.delete(key);
-    renderResultsTable();
+    var reviewFilter = State.resultColumnFilters && State.resultColumnFilters.review;
+    if (reviewFilter && reviewFilter.length) applyFilters();
+    else renderResultsTable();
     if (State.activeReviewKey === key && typeof root.renderPourCanvasReviewBox === 'function') {
       root.renderPourCanvasReviewBox(key);
     }
@@ -268,7 +273,9 @@
       if (masterChk && masterChk.checked) State.reviewedItems.add(key);
       else State.reviewedItems.delete(key);
     });
-    renderResultsTable();
+    var reviewFilter = State.resultColumnFilters && State.resultColumnFilters.review;
+    if (reviewFilter && reviewFilter.length) applyFilters();
+    else renderResultsTable();
   }
 
   function exportResultsCSV() {
@@ -549,6 +556,8 @@
   }
 
   root.updateTopKPIs = updateTopKPIs;
+  root.formatPourResultTarget = formatTargetIdentity;
+  root.formatPourResultProblem = formatComparisonDescription;
   root.setViewMode = setViewMode;
   root.applyFilters = applyFilters;
   root.toggleRowExpand = toggleRowExpand;

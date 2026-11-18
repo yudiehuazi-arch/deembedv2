@@ -465,3 +465,66 @@ canvas#mainCanvas:active {
   overflow: hidden;
   flex-shrink: 0;
 }
+
+/* 检查结果表头 Excel 风格列筛选 */
+.result-filter-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.result-column-filter-btn {
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #ffffff;
+  color: var(--sub);
+  padding: 2px 5px;
+  font-size: 11px;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.result-column-filter-btn:hover,
+.result-column-filter-btn.active {
+  border-color: var(--pri);
+  background: #eff6ff;
+  color: var(--pri-d);
+}
+
+.pour-column-filter-menu {
+  position: fixed;
+  z-index: 10020;
+  width: 260px;
+  max-height: 360px;
+  overflow: hidden;
+  padding: 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.18);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.pour-column-filter-menu[hidden] { display: none; }
+.pour-column-filter-title { margin-bottom: 8px; font-weight: 700; color: var(--heading); }
+.pour-column-filter-actions,
+.pour-column-filter-footer { display: flex; justify-content: space-between; gap: 6px; }
+.pour-column-filter-actions { margin-bottom: 6px; }
+.pour-column-filter-footer { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+.pour-column-filter-menu button {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #ffffff;
+  padding: 3px 9px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+}
+.pour-column-filter-menu button.apply { border-color: var(--pri); background: var(--pri); color: #ffffff; }
+.pour-column-filter-options { max-height: 230px; overflow: auto; border: 1px solid var(--line); border-radius: 5px; padding: 4px; }
+.pour-column-filter-options label { display: flex; align-items: center; gap: 6px; padding: 4px; cursor: pointer; }
+.pour-column-filter-options label:hover { background: #f8fafc; }
+.pour-column-filter-search { width: 100%; }

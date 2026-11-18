@@ -270,12 +270,12 @@
             <thead>
               <tr>
                 <th style="width:38px"><input type="checkbox" id="chkSelectAll" onclick="toggleSelectAll(this)" data-no-persist data-tip="全选或取消当前筛选列表复核状态"></th>
-                <th>检查分类</th>
-                <th>Padstack / 网络 / 目标对象</th>
-                <th>涉及层别</th>
-                <th>判定</th>
-                <th>问题点</th>
-                <th style="width:76px">复核</th>
+                <th><span class="result-filter-heading"><span class="result-filter-label">检查分类</span><button type="button" class="result-column-filter-btn" data-result-column-filter="category" onclick="toggleResultColumnFilter('category', this)" aria-label="筛选检查分类">筛选</button></span></th>
+                <th><span class="result-filter-heading"><span class="result-filter-label">Padstack / 网络 / 目标对象</span><button type="button" class="result-column-filter-btn" data-result-column-filter="target" onclick="toggleResultColumnFilter('target', this)" aria-label="筛选目标对象">筛选</button></span></th>
+                <th><span class="result-filter-heading"><span class="result-filter-label">涉及层别</span><button type="button" class="result-column-filter-btn" data-result-column-filter="layer" onclick="toggleResultColumnFilter('layer', this)" aria-label="筛选涉及层别">筛选</button></span></th>
+                <th><span class="result-filter-heading"><span class="result-filter-label">判定</span><button type="button" class="result-column-filter-btn" data-result-column-filter="status" onclick="toggleResultColumnFilter('status', this)" aria-label="筛选判定">筛选</button></span></th>
+                <th><span class="result-filter-heading"><span class="result-filter-label">问题点</span><button type="button" class="result-column-filter-btn" data-result-column-filter="problem" onclick="toggleResultColumnFilter('problem', this)" aria-label="筛选问题点">筛选</button></span></th>
+                <th style="width:112px"><span class="result-filter-heading"><span class="result-filter-label">复核</span><button type="button" class="result-column-filter-btn" data-result-column-filter="review" onclick="toggleResultColumnFilter('review', this)" aria-label="筛选复核状态">筛选</button></span></th>
                 <th style="width:128px">操作</th>
               </tr>
             </thead>
@@ -588,6 +588,7 @@
 <script src="packages/pages/pour/pour-rules-ui.js?v=46"></script>
 <script src="packages/pages/pour/pour-results-ui.js?v=46"></script>
 <script src="packages/pages/pour/pour-results-filters.js?v=46"></script>
+<script src="packages/pages/pour/pour-results-column-filters.js?v=46"></script>
 <script src="packages/pages/pour/pour-canvas-viewer.js?v=46"></script>
 <script src="packages/pages/pour/pour-canvas-defects.js?v=46"></script>
 <script src="packages/pages/pour/pour-canvas-navigation.js?v=46"></script>
