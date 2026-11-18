@@ -96,6 +96,7 @@
       showVias: true,
       showTraces: true,
       showPorts: true,
+      showLabels: true,
       showDefects: true,
       defectFilter: 'all',
       measureMode: false,

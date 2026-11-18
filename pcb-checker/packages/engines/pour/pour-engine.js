@@ -4,16 +4,17 @@
 (function (root, factory) {
 var geom = (typeof module === "object" && module.exports) ? require("./pour-geom.js") : root.PourChecker;
   var parser = (typeof module === "object" && module.exports) ? require("./pour-parser.js") : root.PourChecker;
-  var api = factory(geom, parser);
+  var traceMargin = (typeof module === "object" && module.exports) ? require("./pour-trace-margin.js") : root.PourChecker;
+  var api = factory(geom, parser, traceMargin);
   if (typeof module === "object" && module.exports) module.exports = api;
   root.PourChecker = Object.assign(root.PourChecker || {}, api);
-})(typeof globalThis !== "undefined" ? globalThis : this, function (geom, parser) {
+})(typeof globalThis !== "undefined" ? globalThis : this, function (geom, parser, traceMargin) {
   "use strict";
   var MM_PER_MIL = geom.MM_PER_MIL, MIL_PER_MM = geom.MIL_PER_MM;
   var dist2D = geom.dist2D, roundN = geom.roundN;
-  var pointToShapeDistance = geom.pointToShapeDistance, isPointInsideBBox = geom.isPointInsideBBox;
+  var pointToShapeDistance = geom.pointToShapeDistance;
   var shapeRing = geom.shapeRing, pointInShape = geom.pointInShape;
-  var pointToShapeBoundaryDistance = geom.pointToShapeBoundaryDistance;
+  var checkTraceReferenceMargin = traceMargin.checkTraceReferenceMargin;
   var buildPointGrid = geom.buildPointGrid, queryPointGrid = geom.queryPointGrid;
   var buildBBoxGrid = geom.buildBBoxGrid, queryBBoxGrid = geom.queryBBoxGrid, physicalLayerAlias = geom.physicalLayerAlias;
   var expandLayerRange = parser.expandLayerRange, parsePcbElements = parser.parsePcbElements;
@@ -169,133 +170,6 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
         });
       });
     });
-    return results;
-  }
-  function checkTraceReferenceMargin(traces, shapes, rules = []) {
-    const results = [];
-    const shapesByLayer = new Map();
-    shapes.forEach(s => {
-      const l = s.layer.toUpperCase();
-      if (!shapesByLayer.has(l)) shapesByLayer.set(l, []);
-      shapesByLayer.get(l).push(s);
-    });
-    const shapeIndexes = new Map();
-    shapesByLayer.forEach((layerShapes, layer) => {
-      const index = buildBBoxGrid(layerShapes, 100);
-      shapeIndexes.set(layer, index);
-      if (!shapeIndexes.has(physicalLayerAlias(layer))) shapeIndexes.set(physicalLayerAlias(layer), index);
-    });
-    for (let rIdx = 0; rIdx < rules.length; rIdx++) {
-      const rule = rules[rIdx];
-      const traceLayer = (rule.traceLayer || '').trim().toUpperCase();
-      const upperRef = (rule.upperRefLayer || '').trim().toUpperCase();
-      const lowerRef = (rule.lowerRefLayer || '').trim().toUpperCase();
-      const marginThresh = rule.minMargin != null ? parseFloat(rule.minMargin) : 50.0;
-      const layerTraces = traces.filter(t => t.layer.toUpperCase() === traceLayer);
-      for (const trace of layerTraces) {
-        const refsToCheck = [];
-        if (upperRef) refsToCheck.push({ name: upperRef, type: '上参考层' });
-        if (lowerRef) refsToCheck.push({ name: lowerRef, type: '下参考层' });
-        for (const ref of refsToCheck) {
-          const refIndex = shapeIndexes.get(ref.name) || shapeIndexes.get(physicalLayerAlias(ref.name));
-          if (!refIndex) {
-            results.push({
-              checkCategory: 'trace_ref_margin',
-              checkCategoryName: '③ 走线参考层超宽检查',
-              ruleIndex: rIdx + 1,
-              traceId: trace.id,
-              traceNet: trace.net,
-              traceLayer: trace.layer,
-              refLayer: ref.name,
-              refType: ref.type,
-              minMargin: marginThresh,
-              actualMargin: 0,
-              pass: false,
-              message: `❌ 不符合：走线【${trace.net}】在 ${ref.type}【${ref.name}】完全无铺铜铜皮 (缺失参考地/电源平面)`
-            });
-            continue;
-          }
-          let minObservedMargin = Infinity;
-          let coveredCount = 0;
-          let totalSamples = 0;
-          for (const seg of trace.segments) {
-            const samplePts = [];
-            if (seg.type === 'line') {
-              const numSamples = Math.max(3, Math.ceil((seg.len || 10) / 20.0));
-              for (let i = 0; i <= numSamples; i++) {
-                const t = i / numSamples;
-                samplePts.push({
-                  x: seg.x1 + (seg.x2 - seg.x1) * t,
-                  y: seg.y1 + (seg.y2 - seg.y1) * t
-                });
-              }
-            } else if (seg.type === 'arc') {
-              const a1 = Math.atan2(seg.y1 - seg.cy, seg.x1 - seg.cx);
-              const a2 = Math.atan2(seg.y2 - seg.cy, seg.x2 - seg.cx);
-              let diff = a2 - a1;
-              if (diff <= 0) diff += Math.PI * 2;
-              const numSamples = Math.max(4, Math.ceil((seg.radius * diff) / 20.0));
-              for (let i = 0; i <= numSamples; i++) {
-                const ang = a1 + diff * (i / numSamples);
-                samplePts.push({
-                  x: seg.cx + Math.cos(ang) * seg.radius,
-                  y: seg.cy + Math.sin(ang) * seg.radius
-                });
-              }
-            }
-            for (const pt of samplePts) {
-              totalSamples++;
-              let ptMargin = -1;
-              const nearbyShapes = queryBBoxGrid(refIndex, pt.x, pt.y, pt.x, pt.y);
-              for (const shape of nearbyShapes) {
-                const hasOutline = !!(shape.boundary && shape.boundary.length);
-                const isCovered = hasOutline
-                  ? pointInShape(pt.x, pt.y, shape)
-                  : isPointInsideBBox(pt.x, pt.y, shape.bbox);
-                if (isCovered) {
-                  const dEdge = hasOutline
-                    ? pointToShapeBoundaryDistance(pt.x, pt.y, shape)
-                    : Math.min(
-                      pt.x - shape.bbox.minX,
-                      shape.bbox.maxX - pt.x,
-                      pt.y - shape.bbox.minY,
-                      shape.bbox.maxY - pt.y
-                    );
-                  const singleSideMargin = dEdge - ((seg.width || 6.0) / 2);
-                  if (singleSideMargin > ptMargin) {
-                    ptMargin = singleSideMargin;
-                  }
-                }
-              }
-              if (ptMargin >= 0) {
-                coveredCount++;
-                if (ptMargin < minObservedMargin) minObservedMargin = ptMargin;
-              } else {
-                minObservedMargin = 0;
-              }
-            }
-          }
-          const isPass = totalSamples > 0 && coveredCount === totalSamples && minObservedMargin >= marginThresh;
-          const actualMarginVal = (minObservedMargin === Infinity || totalSamples === 0) ? 0 : minObservedMargin;
-          results.push({
-            checkCategory: 'trace_ref_margin',
-            checkCategoryName: '③ 走线参考层超宽检查',
-            ruleIndex: rIdx + 1,
-            traceId: trace.id,
-            traceNet: trace.net,
-            traceLayer: trace.layer,
-            refLayer: ref.name,
-            refType: ref.type,
-            minMargin: marginThresh,
-            actualMargin: actualMarginVal,
-            pass: isPass,
-            message: isPass
-              ? `✅ 符合：走线【${trace.net}】在 ${ref.type}【${ref.name}】单侧铜皮外延 ${roundN(actualMarginVal, 1)} mil (≥ 阈值 ${marginThresh} mil)`
-              : `❌ 不符合：走线【${trace.net}】在 ${ref.type}【${ref.name}】单侧铜皮外延仅 ${roundN(actualMarginVal, 1)} mil (< 阈值 ${marginThresh} mil，存在跨分割或外延不足)`
-          });
-        }
-      }
-    }
     return results;
   }
   function checkIsolatedSmallCopper(shapes, vias, maxAreaThreshold = 500.0) {
@@ -474,14 +348,14 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
         g.layerListStr = `信号层: ${s0.traceLayer} (${subs.map(s => `${s.refType}:${s.refLayer}`).join(', ')})`;
         g.minMargin = s0.minMargin;
         if (allPass) {
-          g.actualMargin = s0.actualMargin;
-          g.metricsStr = `各参考层单侧外延均 ≥ ${s0.minMargin} mil`;
-          g.message = `✅ 符合：走线【${s0.traceNet}】在上/下参考层单侧外延均满足 ≥ ${s0.minMargin} mil 规则`;
+          g.actualMargin = s0.minMargin;
+          g.metricsStr = `各参考层在走线边缘外 ${s0.minMargin} mil 范围内均连续有铜`;
+          g.message = `✅ 符合：走线【${s0.traceNet}】上下参考层的规则距离范围均完整铺铜`;
         } else {
-          const failDesc = failedSubs.map(s => `${s.refType}【${s.refLayer}】仅 ${roundN(s.actualMargin, 1)} mil`).join('; ');
-          g.actualMargin = Math.min(...subs.map(s => s.actualMargin));
-          g.metricsStr = `外延不足: ${failDesc} (要求 ≥ ${s0.minMargin} mil)`;
-          g.message = `❌ 不符合：走线【${s0.traceNet}】在 ${failDesc}，单侧超宽不足 ${s0.minMargin} mil（存在跨分割/边缘不连续风险）`;
+          const failDesc = failedSubs.map(s => `${s.refType}【${s.refLayer}】`).join('、');
+          g.actualMargin = 0;
+          g.metricsStr = `${failDesc}在走线边缘外 ${s0.minMargin} mil 范围存在缺铜`;
+          g.message = `❌ 不符合：走线【${s0.traceNet}】的${failDesc}未完整覆盖走线边缘外 ${s0.minMargin} mil 范围`;
         }
       } else if (g.checkCategory === 'isolated_copper') {
         const s0 = subs[0];

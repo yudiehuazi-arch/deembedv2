@@ -13,7 +13,7 @@
   var CATEGORY = {
     via_coverage: { order: 1, type: '孔层铺铜缺失', color: '#ef4444', fix: '在异常层补铺铜，确保孔心检测半径内存在铜皮。' },
     special_shape: { order: 2, type: '异型铜皮不匹配', color: '#a855f7', fix: '按模板重生成异型铜皮，并消除反焊盘侵占。' },
-    trace_ref_margin: { order: 3, type: '参考层铜皮外延不足', color: '#f59e0b', fix: '外扩参考层铜皮至规则阈值，避免走线跨分割。' },
+    trace_ref_margin: { order: 3, type: '参考层规则范围存在缺铜', color: '#f59e0b', fix: '补齐走线边缘外规则距离范围内的参考铜皮，避免跨分割。' },
     isolated_copper: { order: 4, type: '孤立小铜皮', color: '#06b6d4', fix: '删除无连接碎铜，或增加同层过孔可靠接地。' },
     arc_radius: { order: 5, type: '铜皮圆弧半径过小', color: '#ec4899', fix: '增大铜皮圆角半径至规则阈值以上。' }
   };

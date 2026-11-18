@@ -288,7 +288,7 @@ Item 3  < Via >
 
   const upperRes = marginResults.find(r => r.refLayer.toUpperCase() === '02G01P');
   if (!upperRes || !upperRes.pass) {
-    throw new Error('走线在 02G01P 铜皮内部且单侧外延 > 50mil 应判定为符合');
+    throw new Error('走线边缘外 50mil 范围在 02G01P 内连续有铜时应判定为符合');
   }
 
   const lowerRes = marginResults.find(r => r.refLayer.toUpperCase() === 'BOTTOM');
@@ -334,7 +334,7 @@ test('判定状态与五类检查可组合筛选，孔层铺铜使用层别缺�
     { groupKey: 'mock_cov_fail', checkCategory: 'via_coverage', checkCategoryName: '① 孔经过层铺铜覆盖检查', pass: false, viaId: 1, viaPadstack: 'VIA_A', viaNet: 'N1', layer: 'L2', layerListStr: 'L2, L3', message: '旧的详细阈值描述', subRecords: [{ checkCategory: 'via_coverage', pass: false, layer: 'L2', message: '旧说明' }, { checkCategory: 'via_coverage', pass: true, layer: 'L3', message: '旧说明' }] },
     { groupKey: 'mock_cov_pass', checkCategory: 'via_coverage', checkCategoryName: '① 孔经过层铺铜覆盖检查', pass: true, viaId: 2, viaPadstack: 'VIA_A', viaNet: 'N2', layer: 'L3', layerListStr: 'L3', message: '旧的符合描述', subRecords: [{ checkCategory: 'via_coverage', pass: true, layer: 'L3', message: '旧说明' }] },
     { groupKey: 'mock_shape_fail', checkCategory: 'special_shape', checkCategoryName: '② 特定异型铜皮比对检查', pass: false, viaId: 3, layer: 'L4', message: '冗长异型铜皮说明' },
-    { groupKey: 'mock_margin_fail', checkCategory: 'trace_ref_margin', checkCategoryName: '③ 参考层超宽检查', pass: false, traceId: 4, refLayer: 'L5', layer: 'L8', message: '冗长参考层说明' },
+    { groupKey: 'mock_margin_fail', checkCategory: 'trace_ref_margin', checkCategoryName: '③ 参考层超宽检查', pass: false, traceId: 4, refLayer: 'L5', layer: 'L8', minMargin: 100, message: '冗长参考层说明' },
     { groupKey: 'mock_small_fail', checkCategory: 'isolated_copper', checkCategoryName: '④ 孤立小铜皮检查', pass: false, shapeId: 5, layer: 'L6', message: '冗长孤铜说明' },
     { groupKey: 'mock_arc_fail', checkCategory: 'arc_radius', checkCategoryName: '⑤ 圆弧半径检查', pass: false, shapeId: 6, layer: 'L7', message: '冗长圆弧说明' }
   ];
@@ -368,7 +368,7 @@ test('判定状态与五类检查可组合筛选，孔层铺铜使用层别缺�
   w.setResultStatusFilter('defects');
   [
     ['special_shape', 'L4 层异型铜皮不匹配'],
-    ['trace_ref_margin', 'L5 层参考铜皮外延不足'],
+    ['trace_ref_margin', 'L5 层走线边缘外 100 mil 范围存在缺铜'],
     ['isolated_copper', 'L6 层存在孤立小铜皮'],
     ['arc_radius', 'L7 层铜皮圆弧半径过小']
   ].forEach(([category, expected]) => {

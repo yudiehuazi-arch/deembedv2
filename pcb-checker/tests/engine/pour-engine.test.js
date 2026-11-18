@@ -336,6 +336,31 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   console.log('  PASS  第三项：走线上/下参考层铺铜覆盖与单侧 50mil 超宽检查');
 }
 
+// 5.1 单侧超宽表示走线边缘外规则距离范围必须全部有铜，可由相接铜皮共同覆盖
+{
+  const trace = {
+    id: 302, layer: 'L4', net: 'PCIE_RX_P',
+    segments: [{ type: 'line', x1: 0, y1: 0, x2: 200, y2: 0, width: 10, len: 200 }]
+  };
+  const rule = [{ traceLayer: 'L4', upperRefLayer: 'L3', minMargin: 100 }];
+  const continuousSplitCopper = [
+    { id: 411, layer: 'L3', bbox: { minX: -105, minY: 0, maxX: 305, maxY: 105 } },
+    { id: 412, layer: 'L3', bbox: { minX: -105, minY: -105, maxX: 305, maxY: 0 } }
+  ];
+  const covered = checkTraceReferenceMargin([trace], continuousSplitCopper, rule)[0];
+  assert.strictEqual(covered.pass, true, '走线边缘外 100mil 范围由相接铜皮完整覆盖时应通过');
+  assert.match(covered.message, /走线边缘外 100 mil 范围内连续有铜/);
+
+  const copperWithGap = [
+    { id: 413, layer: 'L3', bbox: { minX: -105, minY: 10, maxX: 305, maxY: 105 } },
+    { id: 414, layer: 'L3', bbox: { minX: -105, minY: -105, maxX: 305, maxY: -10 } }
+  ];
+  const uncovered = checkTraceReferenceMargin([trace], copperWithGap, rule)[0];
+  assert.strictEqual(uncovered.pass, false, '走线边缘外 100mil 范围内存在缺铜带时必须不通过');
+  assert.match(uncovered.message, /100 mil 范围存在未铺铜区域/);
+  console.log('  PASS  第三项语义：走线边缘外规则距离范围必须全部连续有铜');
+}
+
 // 6. 第四项：孤立小铜皮检查 (Isolated Small Copper)
 {
   const shapes = [

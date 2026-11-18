@@ -153,7 +153,7 @@
       <div class="card">
         <div class="row" style="justify-content:space-between;margin-bottom:6px">
           <div>
-            <h2>3. 走线上下参考层铺铜与单侧超宽规则 <span class="badge-tag copper" id="lblR3Count">2 条规则</span> <span class="eda-tip" tabindex="0" data-tip="核对信号走线在上下参考平面投影区是否存在连续铺铜，且铜皮单侧边缘超出走线边缘不少于设定距离">?</span></h2>
+            <h2>3. 走线上下参考层铺铜与单侧超宽规则 <span class="badge-tag copper" id="lblR3Count">2 条规则</span> <span class="eda-tip" tabindex="0" data-tip="以实际走线边缘为起点向外检查设定距离；该范围内每一点都必须有连续参考铜皮，存在分割或缺铜即不符合">?</span></h2>
           </div>
           <button type="button" class="btn pri small" onclick="openAddRule3Modal()">+ 新增走线参考层规则</button>
         </div>
@@ -307,6 +307,7 @@
             <button type="button" onclick="zoomCanvas(1.2)">放大</button>
             <button type="button" onclick="zoomCanvas(0.8)">缩小</button>
             <button type="button" id="btnToggleShapes" class="active" onclick="toggleCanvasLayer('shapes')" data-tip="显示或隐藏 Shape 铜皮轮廓">铜皮</button>
+            <button type="button" id="btnToggleLabels" class="active" onclick="toggleCanvasLayer('labels')" data-tip="显示或隐藏网络名及画布上的目标对象编号">网络/编号</button>
             <select id="selCanvasShapeLayer" data-no-persist onchange="setCanvasShapeLayer(this.value)" data-tip="选择全部层、当前定位的问题层或某一层，仅控制铜皮轮廓显示">
               <option value="__ALL__">铜皮层：全部层</option>
             </select>
@@ -545,7 +546,7 @@
         <div class="chip-bar" id="chipsModalR3LowerRef"></div>
       </div>
       <div class="form-item">
-        <label for="modalR3InpMargin" data-tip="参考层铜皮单侧边缘超出走线边缘的最小距离，单位 mil">铜皮单侧最小超宽 mil *</label>
+        <label for="modalR3InpMargin" data-tip="从实际走线边缘向外计算；设定距离范围内每一点都必须存在参考铜皮，单位 mil">铜皮单侧最小超宽 mil *</label>
         <input type="number" id="modalR3InpMargin" value="50.0" step="1.0" data-no-persist>
         <div class="chip-bar" id="chipsModalR3Margin"></div>
       </div>
@@ -581,6 +582,7 @@
 <script src="packages/shared/shape-preview-canvas.js?v=46"></script>
 <script src="packages/engines/pour/pour-geom.js?v=46"></script>
 <script src="packages/engines/pour/pour-parser.js?v=46"></script>
+<script src="packages/engines/pour/pour-trace-margin.js?v=46"></script>
 <script src="packages/engines/pour/pour-engine.js?v=46"></script>
 <script src="packages/pages/pour/pour-state.js?v=46"></script><script src="packages/pages/pour/pour-check-runner.js?v=46"></script>
 <script src="packages/pages/pour/pour-rules-ui.js?v=46"></script>

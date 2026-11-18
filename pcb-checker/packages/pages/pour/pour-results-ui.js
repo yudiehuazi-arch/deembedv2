@@ -140,7 +140,11 @@
     var hasProblem = failed.length > 0;
     if (r.checkCategory === 'via_coverage') return layerText + (hasProblem ? '缺铜皮' : '铜皮覆盖符合要求');
     if (r.checkCategory === 'special_shape') return layerText + (hasProblem ? '异型铜皮不匹配' : '异型铜皮匹配');
-    if (r.checkCategory === 'trace_ref_margin') return layerText + (hasProblem ? '参考铜皮外延不足' : '参考铜皮外延符合要求');
+    if (r.checkCategory === 'trace_ref_margin') {
+      var margin = r.minMargin != null ? r.minMargin : (selected[0] && selected[0].minMargin);
+      var marginText = margin == null ? '规则距离范围' : margin + ' mil 范围';
+      return layerText + '走线边缘外 ' + marginText + (hasProblem ? '存在缺铜' : '连续有铜');
+    }
     if (r.checkCategory === 'isolated_copper') return layerText + (hasProblem ? '存在孤立小铜皮' : '未发现孤立小铜皮');
     if (r.checkCategory === 'arc_radius') return layerText + (hasProblem ? '铜皮圆弧半径过小' : '铜皮圆弧半径符合要求');
     return cleanMsg(r.message);
@@ -374,7 +378,7 @@
       } else if (r.checkCategory === 'special_shape') {
         reasonHtml = '<b style="color:var(--bad)">异型面积超差</b> · 期望 ' + esc(r.expectedArea) + ' ± ' + esc(r.areaTolerance) + ' sq mil';
       } else if (r.checkCategory === 'trace_ref_margin') {
-        reasonHtml = '<b style="color:var(--bad)">参考层外延不足</b> · ' + esc(r.refType) + ' ' + esc(r.refLayer) + ' 未达到 ' + esc(r.minMargin) + ' mil';
+        reasonHtml = '<b style="color:var(--bad)">参考层范围缺铜</b> · ' + esc(r.refType) + ' ' + esc(r.refLayer) + ' 在走线边缘外 ' + esc(r.minMargin) + ' mil 内未连续铺铜';
       } else if (r.checkCategory === 'isolated_copper') {
         reasonHtml = '<b style="color:var(--bad)">无连接孤立碎铜</b> · 面积低于 ' + esc(r.areaThreshold) + ' sq mil';
       } else if (r.checkCategory === 'arc_radius') {
@@ -475,9 +479,9 @@
       '<h3><span>③ 走线参考层铺铜覆盖与单侧超宽 — 缺陷规律与工程分析</span>' +
       '<span class="badge-tag ' + (b.traceMarginDefects > 0 ? 'bad' : 'ok') + '">' + b.traceMarginDefects + ' 处参考层异常</span></h3>' +
       '<div class="pattern-box">' +
-        '<strong>外延不足与跨分割机理：</strong>走线靠近参考地平面边缘或跨越平面挖空区，边缘电力线无法闭合于参考平面，造成特征阻抗偏高与边缘辐射。' +
+        '<strong>范围缺铜与跨分割机理：</strong>走线边缘外规则距离范围存在平面挖空或分割时，回流路径不连续，容易造成特征阻抗偏高与边缘辐射。' +
       '</div>' +
-      '<div class="hint"><strong>整改措施：</strong>外扩上下参考平面边界确保单侧外延 ≥ 设定阈值，禁止高速差分对紧贴分割槽布线。</div>' +
+      '<div class="hint"><strong>整改措施：</strong>补齐上下参考平面，使走线边缘外设定距离范围内每一点都有铜，禁止高速差分对跨越分割槽。</div>' +
     '</div>';
 
     h += '<div class="pattern-card">' +
@@ -532,7 +536,7 @@
       '- 整改措施: 核查指定层异型铜皮自动生成规则并修复反焊盘切割区域。',
       '',
       '### ③ 走线参考层超宽检查: ' + b.traceMarginDefects + ' 处超标',
-      '- 整改措施: 外扩地平面边界确保单侧外延达标，消除跨分割走线。',
+      '- 整改措施: 补齐走线边缘外规则距离范围内的参考铜皮，消除跨分割走线。',
       '',
       '### ④ 孤立小铜皮检查: ' + b.smallCopperDefects + ' 处超标',
       '- 整改措施: 开启铺铜孤立死铜自动移除策略。',

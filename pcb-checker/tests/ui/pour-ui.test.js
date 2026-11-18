@@ -41,6 +41,7 @@ test('三栏 EDA 壳层完整、悬浮 Tips 正常、静态标题/标签无括�
   if (!w.State.canvas.showVias || !w.State.canvas.showTraces || !w.State.canvas.showPorts) {
     throw new Error('过孔、走线和端口未保持默认显示');
   }
+  if (!$('btnToggleLabels') || !w.State.canvas.showLabels) throw new Error('几何工具栏缺少默认开启的网络/编号显示开关');
   ['btnCanvasDefectCov', 'btnCanvasDefectSpecial', 'btnCanvasDefectMargin', 'btnCanvasDefectSmall', 'btnCanvasDefectArc'].forEach(id => {
     if (!$(id)) throw new Error('几何工具栏缺少五类异常按钮：' + id);
   });
@@ -55,6 +56,18 @@ test('三栏 EDA 壳层完整、悬浮 Tips 正常、静态标题/标签无括�
   w.EdaTooltip.show(tipCarrier);
   if ($('edaFloatingTooltip').style.display !== 'block') throw new Error('悬浮气泡未显示');
   w.EdaTooltip.hide();
+});
+
+test('几何视口可取消并恢复网络名与目标对象编号', () => {
+  const button = $('btnToggleLabels');
+  button.click();
+  if (w.State.canvas.showLabels || button.classList.contains('active')) {
+    throw new Error('网络名与目标对象编号未被取消显示');
+  }
+  button.click();
+  if (!w.State.canvas.showLabels || !button.classList.contains('active')) {
+    throw new Error('网络名与目标对象编号未恢复显示');
+  }
 });
 
 test('几何视口的六个异常筛选按钮均可再次点击取消选中', () => {
@@ -501,9 +514,18 @@ Item 3 < Via >
     return originalShapeRings(shape);
   };
   w.renderCanvas();
+  if (!markerTexts.includes('#3') || !markerTexts.some(text => text.includes('Shape #1'))) {
+    throw new Error('几何视口默认未显示网络名或目标对象编号');
+  }
+  markerTexts.length = 0;
+  $('btnToggleLabels').click();
+  if (markerTexts.includes('#3') || markerTexts.some(text => text.includes('Shape #') || text === 'GND')) {
+    throw new Error('关闭网络/编号后画布仍绘制对象标注');
+  }
+  $('btnToggleLabels').click();
   w.PourChecker.shapeRings = originalShapeRings;
   canvas.getContext = originalGetContext;
-  if (renderedShapeLayers.join(',') !== 'Top') {
+  if (!renderedShapeLayers.length || renderedShapeLayers.some(layer => layer !== 'Top')) {
     throw new Error('定位画布仍绘制了非问题层铜皮：' + renderedShapeLayers.join(','));
   }
   if (!markerTexts.includes('1')) throw new Error('孔所在位置未绘制第 1 类特殊异常标记');

@@ -203,12 +203,14 @@
     if (layerKey === 'vias') c.showVias = !c.showVias;
     if (layerKey === 'traces') c.showTraces = !c.showTraces;
     if (layerKey === 'ports') c.showPorts = !c.showPorts;
+    if (layerKey === 'labels') c.showLabels = c.showLabels === false;
     if (layerKey === 'defects') c.showDefects = !c.showDefects;
     var map = {
       btnToggleShapes: c.showShapes,
       btnToggleVias: c.showVias,
       btnToggleTraces: c.showTraces,
       btnTogglePorts: c.showPorts,
+      btnToggleLabels: c.showLabels !== false,
       btnToggleDefects: c.showDefects
     };
     Object.keys(map).forEach(function (id) {
@@ -276,7 +278,7 @@
           ctx.fill('evenodd');
           ctx.stroke();
         }
-        if ((State.canvas.zoom > 1.5 || isProblemShape) && shape.centroid) {
+        if (State.canvas.showLabels !== false && (State.canvas.zoom > 1.5 || isProblemShape) && shape.centroid) {
           var cent = worldToScreen(shape.centroid.x, shape.centroid.y);
           ctx.fillStyle = isProblemShape ? '#fecaca' : '#fde68a';
           ctx.font = isProblemShape ? 'bold 12px monospace' : '10px monospace';
@@ -334,11 +336,13 @@
           ctx.fill();
           ctx.strokeStyle = '#cbd5e1';
           ctx.stroke();
-          ctx.fillStyle = '#f8fafc';
-          ctx.font = 'bold 9px sans-serif';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText('GND', sp.x, sp.y);
+          if (State.canvas.showLabels !== false) {
+            ctx.fillStyle = '#f8fafc';
+            ctx.font = 'bold 9px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('GND', sp.x, sp.y);
+          }
           ctx.restore();
         } else {
           var rad = Math.max(3.5, 4.0 * State.canvas.zoom);
@@ -356,7 +360,7 @@
           ctx.strokeStyle = '#fef08a';
           ctx.lineWidth = 0.8;
           ctx.stroke();
-          if (State.canvas.zoom > 2.2) {
+          if (State.canvas.showLabels !== false && State.canvas.zoom > 2.2) {
             ctx.fillStyle = '#fde047';
             ctx.font = '9px sans-serif';
             ctx.textAlign = 'center';
@@ -397,7 +401,7 @@
             ctx.stroke();
           }
         });
-        if (State.canvas.zoom > 1.2 && trace.segments.length > 0) {
+        if (State.canvas.showLabels !== false && State.canvas.zoom > 1.2 && trace.segments.length > 0) {
           var firstSeg = trace.segments[0];
           var midX = (firstSeg.x1 + (firstSeg.x2 || firstSeg.x1)) / 2;
           var midY = (firstSeg.y1 + (firstSeg.y2 || firstSeg.y1)) / 2;
