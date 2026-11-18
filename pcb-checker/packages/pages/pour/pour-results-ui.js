@@ -124,54 +124,32 @@
     return padstack + ' / ' + network + ' / ' + target;
   }
 
-  function formatRowMetrics(r) {
-    var PC = root.PourChecker;
-    var rn = PC && PC.roundN ? PC.roundN : function (v, n) { return Number(v || 0).toFixed(n || 1); };
-    if (r.metricsStr) return esc(r.metricsStr);
-    if (r.checkCategory === 'via_coverage') {
-      return '最近铜皮距离: <strong>' + esc(r.actualDistStr) + '</strong> / 孔心搜索范围 ≤ ' + esc(r.requiredDist) + ' mil；范围内检出任意铜皮即达标';
-    }
-    if (r.checkCategory === 'special_shape') {
-      var metrics = [];
-      if (r.actualHdiViaId != null) metrics.push('目标孔 → HDI #' + esc(r.actualHdiViaId) + '，实测中心距 <strong>' + esc(rn(r.actualDifferentialCenterDistance, 2)) + ' mil</strong>');
-      if (r.expectedDifferentialCenterDistance != null) metrics.push('中心距规则 ' + esc(r.expectedDifferentialCenterDistance) + ' mil');
-      if (r.hdiSearchRadiusMm != null) metrics.push('搜索距离 ≤ ' + esc(r.hdiSearchRadiusMm) + ' mm');
-      metrics.push('实测面积 ' + esc(rn(r.actualArea, 1)) + ' sq mil / 期望 ' + esc(r.expectedArea));
-      return metrics.join('；');
-    }
-    if (r.checkCategory === 'trace_ref_margin') {
-      return '单侧外延: <strong>' + esc(rn(r.actualMargin, 1)) + ' mil</strong> / 要求 ≥ ' + esc(r.minMargin) + ' mil';
-    }
-    if (r.checkCategory === 'isolated_copper') {
-      return '铜皮面积: <strong>' + esc(rn(r.area, 1)) + ' sq mil</strong> / 阈值 &lt; ' + esc(r.areaThreshold);
-    }
-    if (r.checkCategory === 'arc_radius') {
-      return '实测半径: <strong>' + esc(rn(r.actualRadius, 2)) + ' mil</strong> / 要求 ≥ ' + esc(r.requiredRadius) + ' mil';
-    }
-    return '-';
-  }
-
   function formatComparisonDescription(r) {
-    if (r.checkCategory !== 'via_coverage') return cleanMsg(r.message);
     var records = r.subRecords && r.subRecords.length ? r.subRecords : [r];
     var failed = records.filter(function (record) { return !record.pass; });
     var selected = failed.length ? failed : records;
     var layers = [];
     selected.forEach(function (record) {
-      var layer = record.layer || record.layerListStr;
+      var category = record.checkCategory || r.checkCategory;
+      var layer = category === 'trace_ref_margin'
+        ? (record.refLayer || record.layer)
+        : (record.layer || record.layerListStr);
       if (layer && layers.indexOf(String(layer)) < 0) layers.push(String(layer));
     });
     var layerText = layers.length ? layers.join('、') + ' 层' : '目标层';
-    return failed.length ? layerText + '缺铜皮' : layerText + '铜皮覆盖符合要求';
+    var hasProblem = failed.length > 0;
+    if (r.checkCategory === 'via_coverage') return layerText + (hasProblem ? '缺铜皮' : '铜皮覆盖符合要求');
+    if (r.checkCategory === 'special_shape') return layerText + (hasProblem ? '异型铜皮不匹配' : '异型铜皮匹配');
+    if (r.checkCategory === 'trace_ref_margin') return layerText + (hasProblem ? '参考铜皮外延不足' : '参考铜皮外延符合要求');
+    if (r.checkCategory === 'isolated_copper') return layerText + (hasProblem ? '存在孤立小铜皮' : '未发现孤立小铜皮');
+    if (r.checkCategory === 'arc_radius') return layerText + (hasProblem ? '铜皮圆弧半径过小' : '铜皮圆弧半径符合要求');
+    return cleanMsg(r.message);
   }
 
   function renderResultsTable() {
     var State = root.State;
     var tbody = document.getElementById('tblResultsBody');
     if (!tbody) return;
-    var hideMetrics = State.categoryFilter === 'via_coverage';
-    var metricsHeader = document.getElementById('thResultMetrics');
-    if (metricsHeader) metricsHeader.style.display = hideMetrics ? 'none' : '';
 
     var list = State.filteredResults || [];
     var total = list.length;
@@ -179,7 +157,7 @@
     if (lblTotal) lblTotal.textContent = String(total);
 
     if (total === 0) {
-      tbody.innerHTML = '<tr><td colspan="' + (hideMetrics ? '8' : '9') + '" style="text-align:center;padding:28px;color:var(--sub)">' +
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:28px;color:var(--sub)">' +
         (State.rawResults.length === 0 ? '请先在工序 ② 导入数据并执行检查' : '无符合当前筛选条件的检查记录') +
         '</td></tr>';
       document.getElementById('lblPageStart').textContent = '0';
@@ -219,7 +197,6 @@
         '<td><span class="badge-tag copper">' + esc(r.checkCategoryName) + '</span></td>' +
         '<td><strong>' + esc(targetStr) + '</strong></td>' +
         '<td><span class="badge-tag gray">' + esc(r.layerListStr || r.layer || '-') + '</span></td>' +
-        (hideMetrics ? '' : '<td style="font-size:12px">' + formatRowMetrics(r) + '</td>') +
         '<td><span class="badge-tag ' + (r.pass ? 'ok' : 'bad') + '">' + esc(statusText) + '</span></td>' +
         '<td style="font-size:12px;line-height:1.45">' + esc(formatComparisonDescription(r)) + '</td>' +
         '<td><label style="font-size:12px;display:inline-flex;align-items:center;gap:4px;cursor:pointer">' +
@@ -237,21 +214,17 @@
       '</tr>';
 
       if (hasSub && isExpanded) {
-        htmlRows += '<tr class="subrow"><td></td><td colspan="' + (hideMetrics ? '7' : '8') + '" style="padding:10px 14px">' +
+        htmlRows += '<tr class="subrow"><td></td><td colspan="7" style="padding:10px 14px">' +
           '<div style="font-weight:700;font-size:12px;margin-bottom:6px;color:var(--pri-d)">' +
             esc(targetStr) + ' · 逐层检查拆解 · 共 ' + r.subRecords.length + ' 项' +
           '</div>' +
           '<div class="tbl-wrap">' +
             '<table style="font-size:12px"><thead><tr>' +
-              '<th>层别 / 参考层</th><th>实测参数</th><th>规则阈值</th><th>结论</th><th>说明</th>' +
+              '<th>层别 / 参考层</th><th>结论</th><th>问题点</th>' +
             '</tr></thead><tbody>' +
             r.subRecords.map(function (sub) {
-              var actual = sub.actualDistStr || (sub.actualMargin != null ? sub.actualMargin + ' mil' : (sub.actualRadius != null ? sub.actualRadius + ' mil' : '-'));
-              var req = sub.requiredDist ? ('≤ ' + sub.requiredDist + ' mil') : (sub.minMargin ? ('≥ ' + sub.minMargin + ' mil') : ('≥ ' + (sub.requiredRadius || 10) + ' mil'));
               return '<tr>' +
                 '<td><span class="badge-tag gray">' + esc(sub.layer || sub.refLayer || '-') + '</span></td>' +
-                '<td><strong>' + esc(actual) + '</strong></td>' +
-                '<td>' + esc(req) + '</td>' +
                 '<td><span class="badge-tag ' + (sub.pass ? 'ok' : 'bad') + '">' + (sub.pass ? '符合' : '不符合') + '</span></td>' +
                 '<td class="hint">' + esc(formatComparisonDescription(sub)) + '</td>' +
               '</tr>';
@@ -302,19 +275,17 @@
       return;
     }
 
-    var csv = '\uFEFF检查分类,Padstack/网络/目标对象,涉及层别,实测与规则说明,判定结果,详细文字表述,复核状态\n';
+    var csv = '\uFEFF检查分类,Padstack/网络/目标对象,涉及层别,判定结果,问题点,复核状态\n';
     source.forEach(function (r, idx) {
       var key = buildItemKey(r, idx);
       var isRev = State.reviewedItems.has(key) ? '已复核' : '待复核';
       var target = formatTargetIdentity(r);
-      var metricRaw = String(r.metricsStr || r.actualDistStr || r.actualMargin || r.area || '-');
       csv += [
         '"' + String(r.checkCategoryName || '').replace(/"/g, '""') + '"',
         '"' + String(target).replace(/"/g, '""') + '"',
         '"' + String(r.layerListStr || r.layer || r.traceLayer || '-').replace(/"/g, '""') + '"',
-        '"' + metricRaw.replace(/"/g, '""') + '"',
         '"' + (r.pass ? '符合' : '不符合') + '"',
-        '"' + cleanMsg(r.message).replace(/"/g, '""') + '"',
+        '"' + formatComparisonDescription(r).replace(/"/g, '""') + '"',
         '"' + isRev + '"'
       ].join(',') + '\n';
     });

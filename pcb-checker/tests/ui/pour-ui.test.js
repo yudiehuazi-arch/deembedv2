@@ -378,10 +378,9 @@ Item 55  < Via >
   if (!firstTarget.includes('HDI_045drill_ring3_1_4') || !firstTarget.includes('21_N') || !firstTarget.includes('孔 #53')) {
     throw new Error('目标列未按 Padstack / 网络 / 目标对象显示：' + firstTarget);
   }
-  const firstMetric = d.querySelector('#tblResultsBody tr td:nth-child(5)').textContent;
-  if (!firstMetric.includes('检出任意铜皮即达标') || firstMetric.includes('无铜皮/超标')) {
-    throw new Error('孔铺铜规则说明仍未表达“阈值范围内任意铜皮即达标”');
-  }
+  if (headers.includes('实测值与规则阈值') || !headers.includes('问题点')) throw new Error('结果表未删除实测阈值列或缺少问题点列');
+  const firstProblem = d.querySelector('#tblResultsBody tr td:nth-child(6)').textContent;
+  if (firstProblem.trim() !== 'L1、L3、L4、L5 层缺铜皮') throw new Error('孔铺铜问题点未按实际层别精简：' + firstProblem);
   w.toggleRowExpand(via53Group.groupKey);
   if (d.querySelectorAll('#tblResultsBody tr.subrow').length !== 1) throw new Error('展开后应出现 1 个子表行');
 });
