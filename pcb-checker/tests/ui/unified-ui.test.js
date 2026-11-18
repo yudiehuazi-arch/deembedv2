@@ -78,7 +78,7 @@ async function test(name, fn) {
     const S = w.State;
     const byCat = {};
     S.allChecks.forEach(c => { byCat[c.category] = (byCat[c.category] || 0) + 1; });
-    const want = { trace: 16, copper: 40, dfm: 11, fanout: 1, pour: 15 };
+    const want = { trace: 16, copper: 40, dfm: 11, fanout: 1, pour: 138 };
     for (const k of Object.keys(want)) {
       if (byCat[k] !== want[k]) throw new Error(`${k} 检查项应为 ${want[k]}，实际 ${byCat[k]}`);
     }
@@ -108,9 +108,9 @@ async function test(name, fn) {
     }
 
     const fails = S.allChecks.filter(c => !c.pass).length;
-    if (fails !== 69) throw new Error('不符合项应为 69，实际 ' + fails);
-    if ($('kpiTotalChecks').textContent !== '83') throw new Error('遥测总检查项异常：' + $('kpiTotalChecks').textContent);
-    if ($('kpiDefectCount').textContent !== '69') throw new Error('遥测缺陷数异常：' + $('kpiDefectCount').textContent);
+    if (fails !== 192) throw new Error('不符合项应为 192，实际 ' + fails);
+    if ($('kpiTotalChecks').textContent !== '206') throw new Error('遥测总检查项异常：' + $('kpiTotalChecks').textContent);
+    if ($('kpiDefectCount').textContent !== '192') throw new Error('遥测缺陷数异常：' + $('kpiDefectCount').textContent);
     ['trace', 'copper', 'dfm', 'fanout', 'pour'].forEach(k => {
       if (!S.results[k] || !S.results[k].hasData) throw new Error('引擎无数据：' + k);
     });

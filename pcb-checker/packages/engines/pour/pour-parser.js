@@ -18,7 +18,7 @@
   var polygonCentroid = geom.polygonCentroid;
   function expandLayerRange(layerInput, availableLayers = []) {
     if (Array.isArray(layerInput)) {
-      return layerInput.map(s => String(s).trim()).filter(Boolean);
+      return [...new Set(layerInput.flatMap(layer => expandLayerRange(String(layer), availableLayers)))];
     }
     if (!layerInput || typeof layerInput !== 'string') return [];
 
@@ -27,23 +27,24 @@
       return availableLayers.length > 0 ? [...availableLayers] : ['Top', '02G01P', '08IS03', '19IS08', 'Bottom'];
     }
 
-    // 检查范围表达式如 "L1-L5", "L1~L10", "1-10", "01-08"
-    const rangeMatch = str.match(/^([a-zA-Z]*)(\d+)\s*(?:-|~|\.\.)\s*([a-zA-Z]*)(\d+)$/);
-    if (rangeMatch) {
+    // 先拆分逗号等列表，再逐项展开范围；例如 L1, L3-L5 => L1/L3/L4/L5。
+    const tokens = str.replace(/\s*(\.\.|[-~～–—])\s*/g, '$1')
+      .split(/[,;\/\s，；、]+/).map(token => token.trim()).filter(Boolean);
+    const layers = [];
+    tokens.forEach(token => {
+      const rangeMatch = token.match(/^([a-zA-Z]*)(\d+)(?:-|~|～|–|—|\.\.)([a-zA-Z]*)(\d+)$/);
+      if (!rangeMatch) {
+        layers.push(token);
+        return;
+      }
       const prefix = rangeMatch[1] || rangeMatch[3] || 'L';
       const startNum = parseInt(rangeMatch[2], 10);
       const endNum = parseInt(rangeMatch[4], 10);
       const minN = Math.min(startNum, endNum);
       const maxN = Math.max(startNum, endNum);
-      const res = [];
-      for (let i = minN; i <= maxN; i++) {
-        res.push(`${prefix}${i}`);
-      }
-      return res;
-    }
-
-    // 普通逗号、分号、斜杠、空格分隔
-    return str.split(/[,;\/\s，；、]+/).map(s => s.trim()).filter(Boolean);
+      for (let layerNum = minN; layerNum <= maxN; layerNum++) layers.push(`${prefix}${layerNum}`);
+    });
+    return [...new Set(layers)];
   }
 
   /**

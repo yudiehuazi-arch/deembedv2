@@ -113,7 +113,7 @@
               <tr>
                 <th style="width:52px">序号</th>
                 <th data-tip="按子串匹配过孔 Padstack Name，填 * 匹配全部过孔">过孔类型</th>
-                <th data-tip="支持 L1-L5 或逗号分隔层名列表">要求铺铜层范围</th>
+                <th data-tip="支持混合填写，如 L1, L3-L5 会展开为 L1、L3、L4、L5">要求铺铜层范围</th>
                 <th>距孔心最大判定距离</th>
                 <th style="width:124px">操作</th>
               </tr>
@@ -443,8 +443,8 @@
         <div class="chip-bar" id="chipsModalR1Padstack"></div>
       </div>
       <div class="form-item">
-        <label for="modalR1InpLayers" data-tip="支持层区间 L1-L5 或逗号分隔层名列表">要求铺铜层范围 *</label>
-        <input type="text" id="modalR1InpLayers" placeholder="如 L1-L5 或 Top, 02G01P, 19IS08" data-no-persist>
+        <label for="modalR1InpLayers" data-tip="支持层区间与列表混合填写；L1, L3-L5 会展开为 L1、L3、L4、L5">要求铺铜层范围 *</label>
+        <input type="text" id="modalR1InpLayers" placeholder="如 L1, L3-L5 或 Top, 02G01P" data-no-persist>
         <div class="chip-bar" id="chipsModalR1Layers"></div>
       </div>
       <div class="form-item">

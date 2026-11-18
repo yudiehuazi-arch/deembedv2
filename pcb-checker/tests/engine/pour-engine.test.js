@@ -10,6 +10,7 @@ const PourChecker = require("../../packages/engines/pour");
 
 const {
   parsePcbElements,
+  expandLayerRange,
   checkViaLayerCoverage,
   checkSpecialShapedCopper,
   checkTraceReferenceMargin,
@@ -152,7 +153,17 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   assert.strictEqual(far[0].pass, false, '最近铜皮距离 56mil 超过 55mil 搜索范围应不达标');
   assert.strictEqual(PourChecker.physicalLayerAlias('Top'), 'L1');
   assert.strictEqual(PourChecker.physicalLayerAlias('08IS03'), 'L8');
-  console.log('  PASS  第一项：孔心阈值范围内任意铜皮即达标，并兼容 Lx / Allegro 物理层名');
+
+  assert.deepStrictEqual(expandLayerRange('L1, L3-L5'), ['L1', 'L3', 'L4', 'L5'], '列表中的层范围必须逐层展开');
+  assert.deepStrictEqual(expandLayerRange(['L1', 'L3 - L5']), ['L1', 'L3', 'L4', 'L5'], '数组输入与带空格范围也必须逐层展开');
+  const rangeResults = checkViaLayerCoverage(probeVia, [rectangle(203, 'L1', 10, 20)],
+    [{ padstack: 'PROBE', layers: 'L1, L3-L5', coverageRadius: 55 }], ['L1']);
+  assert.deepStrictEqual(rangeResults.map(result => result.layer), ['L1', 'L3', 'L4', 'L5']);
+  assert.deepStrictEqual(rangeResults.map(result => result.pass), [true, false, false, false]);
+  const rangeGroup = groupResultsByTargetObject(rangeResults)[0];
+  assert.strictEqual(rangeGroup.failCount, 3);
+  assert.strictEqual(rangeGroup.layerListStr, 'L1, L3, L4, L5');
+  console.log('  PASS  第一项：孔心阈值范围内任意铜皮即达标，并兼容层范围列表与物理层名');
 }
 
 // 3. 第二项：特定异型铜皮比对检查 (Special Shaped Copper Check)

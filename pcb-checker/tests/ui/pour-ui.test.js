@@ -333,7 +333,7 @@ test('规则 JSON 快照导出、本地恢复与导出复制兜底验证', () =>
 
 test('同一目标对象多层问题自动汇总聚合、子行展开与 XSS 防护', () => {
   w.State.viaCoverageRules = [
-    { id: 'cov_hdi', padstack: 'HDI_045drill', layers: 'L1-L4', coverageRadius: 50.0 }
+    { id: 'cov_hdi', padstack: 'HDI_045drill', layers: 'L1, L3-L5', coverageRadius: 50.0 }
   ];
   const evil = '<img src=x onerror="window.__pwn=1">';
   const sampleMultiLayerTxt = `
@@ -366,6 +366,9 @@ Item 55  < Via >
 
   const via53Group = w.State.groupedResults.find(g => String(g.viaId) === '53');
   if (!via53Group || via53Group.failCount !== 4) throw new Error('孔 #53 应汇总 4 层超标');
+  if (via53Group.layerListStr !== 'L1, L3, L4, L5' || via53Group.subRecords.map(record => record.layer).join(',') !== 'L1,L3,L4,L5') {
+    throw new Error('L1, L3-L5 未展开为 L1、L3、L4、L5');
+  }
 
   w.setViewMode('grouped');
   if (d.querySelectorAll('#tblResultsBody tr').length !== 3) throw new Error('汇总视图行数应为 3');
