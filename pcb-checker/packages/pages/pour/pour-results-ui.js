@@ -141,6 +141,13 @@
     return r.pass ? '符合' : ('不符合' + (r.failCount ? ' · ' + r.failCount + ' 层未检出' : ''));
   }
 
+  function formatTraceReferenceIssue(record) {
+    var issues = [], distance = record.minMargin != null ? record.minMargin + ' mil' : '规则距离';
+    if (record.footprintCovered === false) issues.push('完整走线投影缺铜');
+    if (record.leftSideCopper === false) issues.push('走线左侧 ' + distance + ' 内无铜');
+    if (record.rightSideCopper === false) issues.push('走线右侧 ' + distance + ' 内无铜');
+    return issues.join('、') || '参考铜不符合要求';
+  }
   function formatComparisonDescription(r) {
     var records = r.subRecords && r.subRecords.length ? r.subRecords : [r];
     var failed = records.filter(function (record) { return !record.pass; });
@@ -158,9 +165,15 @@
     if (r.checkCategory === 'via_coverage') return layerText + (hasProblem ? '缺铜皮' : '铜皮覆盖符合要求');
     if (r.checkCategory === 'special_shape') return layerText + (hasProblem ? '异型铜皮不匹配' : '异型铜皮匹配');
     if (r.checkCategory === 'trace_ref_margin') {
-      var margin = r.minMargin != null ? r.minMargin : (selected[0] && selected[0].minMargin);
-      var marginText = margin == null ? '规则距离范围' : margin + ' mil 范围';
-      return layerText + '走线边缘外 ' + marginText + (hasProblem ? '存在缺铜' : '连续有铜');
+      if (!hasProblem) {
+        var margin = r.minMargin != null ? r.minMargin : (selected[0] && selected[0].minMargin);
+        var sideText = margin == null ? '规则距离内' : margin + ' mil 内';
+        return layerText + '完整覆盖走线投影，且左右两侧 ' + sideText + '均有铜';
+      }
+      return selected.map(function (record) {
+        var layer = record.refLayer || record.layer || '目标';
+        return layer + ' 层' + formatTraceReferenceIssue(record);
+      }).filter(function (value, index, values) { return values.indexOf(value) === index; }).join('；');
     }
     if (r.checkCategory === 'isolated_copper') return layerText + (hasProblem ? '存在孤立小铜皮' : '未发现孤立小铜皮');
     if (r.checkCategory === 'arc_radius') return layerText + (hasProblem ? '铜皮圆弧半径过小' : '铜皮圆弧半径符合要求');
@@ -372,7 +385,7 @@
         ruleTitle = r.templateName || ((r.viaPadstack || '过孔') + '·异型模板');
         padName = r.viaPadstack || 'BGA过孔';
       } else if (r.checkCategory === 'trace_ref_margin') {
-        ruleTitle = (r.traceLayer || '信号层') + '·走线参考层超宽';
+        ruleTitle = (r.traceLayer || '信号层') + '·走线参考层覆盖与邻近铜';
         padName = '走线层: ' + (r.traceLayer || '-');
       } else if (r.checkCategory === 'isolated_copper') {
         ruleTitle = '全板孤立小铜皮 < ' + (r.areaThreshold || 500) + ' sq mil';
@@ -399,7 +412,7 @@
       } else if (r.checkCategory === 'special_shape') {
         reasonHtml = '<b style="color:var(--bad)">异型面积超差</b> · 期望 ' + esc(r.expectedArea) + ' ± ' + esc(r.areaTolerance) + ' sq mil';
       } else if (r.checkCategory === 'trace_ref_margin') {
-        reasonHtml = '<b style="color:var(--bad)">参考层范围缺铜</b> · ' + esc(r.refType) + ' ' + esc(r.refLayer) + ' 在走线边缘外 ' + esc(r.minMargin) + ' mil 内未连续铺铜';
+        reasonHtml = '<b style="color:var(--bad)">参考层铺铜不符合</b> · ' + esc(r.refType) + ' ' + esc(r.refLayer) + '：' + esc(formatTraceReferenceIssue(r));
       } else if (r.checkCategory === 'isolated_copper') {
         reasonHtml = '<b style="color:var(--bad)">无连接孤立碎铜</b> · 面积低于 ' + esc(r.areaThreshold) + ' sq mil';
       } else if (r.checkCategory === 'arc_radius') {
@@ -497,12 +510,12 @@
     '</div>';
 
     h += '<div class="pattern-card">' +
-      '<h3><span>③ 走线参考层铺铜覆盖与单侧超宽 — 缺陷规律与工程分析</span>' +
+      '<h3><span>③ 走线参考层投影覆盖与两侧邻近铜 — 缺陷规律与工程分析</span>' +
       '<span class="badge-tag ' + (b.traceMarginDefects > 0 ? 'bad' : 'ok') + '">' + b.traceMarginDefects + ' 处参考层异常</span></h3>' +
       '<div class="pattern-box">' +
-        '<strong>范围缺铜与跨分割机理：</strong>走线边缘外规则距离范围存在平面挖空或分割时，回流路径不连续，容易造成特征阻抗偏高与边缘辐射。' +
+        '<strong>投影缺铜与回流风险：</strong>走线完整线宽投影未被参考铜覆盖，或整条走线任一侧在规则距离内完全无铜时，回流路径会被拉长并增加阻抗突变与边缘辐射风险。' +
       '</div>' +
-      '<div class="hint"><strong>整改措施：</strong>补齐上下参考平面，使走线边缘外设定距离范围内每一点都有铜，禁止高速差分对跨越分割槽。</div>' +
+      '<div class="hint"><strong>整改措施：</strong>补齐走线完整投影范围的上下参考铜，并确保整条走线左右两侧各有铜皮落在设定搜索距离内，避免跨越平面分割。</div>' +
     '</div>';
 
     h += '<div class="pattern-card">' +
@@ -556,8 +569,8 @@
       '### ② 特定异型铜皮比对检查: ' + b.specialShapeDefects + ' 处超标',
       '- 整改措施: 核查指定层异型铜皮自动生成规则并修复反焊盘切割区域。',
       '',
-      '### ③ 走线参考层超宽检查: ' + b.traceMarginDefects + ' 处超标',
-      '- 整改措施: 补齐走线边缘外规则距离范围内的参考铜皮，消除跨分割走线。',
+      '### ③ 走线参考层投影覆盖与两侧邻近铜检查: ' + b.traceMarginDefects + ' 处超标',
+      '- 整改措施: 补齐完整走线投影范围的参考铜，并确保整条走线左右两侧各有铜皮位于规则距离内。',
       '',
       '### ④ 孤立小铜皮检查: ' + b.smallCopperDefects + ' 处超标',
       '- 整改措施: 开启铺铜孤立死铜自动移除策略。',

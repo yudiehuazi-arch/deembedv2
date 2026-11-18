@@ -301,7 +301,7 @@
 
   function openAddRule3Modal() {
     State.editingIndex = -1;
-    document.getElementById('modalR3Title').textContent = '新增走线参考层超宽规则';
+    document.getElementById('modalR3Title').textContent = '新增走线参考层投影与邻近铜规则';
     document.getElementById('modalR3InpTraceLayer').value = '19IS08';
     document.getElementById('modalR3InpUpperRef').value = '08IS03';
     document.getElementById('modalR3InpLowerRef').value = 'Bottom';
@@ -465,7 +465,7 @@
           statusEl.textContent = '已从「' + file.name + '」载入 ' +
             State.viaCoverageRules.length + ' 条孔铺铜规则、' +
             State.specialShapeTemplates.length + ' 条异型模板、' +
-            State.traceMarginRules.length + ' 条走线超宽规则。';
+            State.traceMarginRules.length + ' 条走线参考层投影与邻近铜规则。';
         }
         event.target.value = '';
       } catch (err) {

@@ -19,7 +19,7 @@
       <a href="portal.html" class="eda-portal-link" data-tip="返回统一入口启动台">启动台</a>
     </div>
     <h1>PCB 铜皮检查工具 <span class="tag">POUR</span></h1>
-    <span class="sub">孔层铺铜 · 异型模板 · 参考层超宽 · 孤立小铜皮 · 最小弧半径</span>
+    <span class="sub">孔层铺铜 · 异型模板 · 参考层投影与邻近铜 · 孤立小铜皮 · 最小弧半径</span>
   </header>
 
   <div class="eda-rail-section">
@@ -29,7 +29,7 @@
       <a href="copper.html" data-code="CON" data-tip="叠层约束表解析、过孔配对与反焊盘逐层尺寸核对">约束检查</a>
       <a href="dfm.html" data-code="DFM" data-tip="孔-孔、线-孔及异网孔盘 Airgap 几何间距测量与分层判定">加工能力检查</a>
       <a href="fanout.html" data-code="FAN" data-tip="过孔连通聚类、刚体变换方案匹配与孔心距分色预览">扇出方案检查</a>
-      <a href="pour.html" class="active" data-code="POR" data-tip="孔经过层铺铜、异型铜皮比对、参考层超宽、碎铜与圆弧半径核对">铜皮检查</a>
+      <a href="pour.html" class="active" data-code="POR" data-tip="孔经过层铺铜、异型铜皮比对、参考层走线投影与两侧邻近铜、碎铜与圆弧半径核对">铜皮检查</a>
       <a href="unified.html" data-code="UNI" data-tip="四槽位数据输入与五大检查引擎联动汇总工作台">综合一体化检查</a>
     </div>
   </div>
@@ -153,7 +153,7 @@
       <div class="card">
         <div class="row" style="justify-content:space-between;margin-bottom:6px">
           <div>
-            <h2>3. 走线上下参考层铺铜与单侧超宽规则 <span class="badge-tag copper" id="lblR3Count">2 条规则</span> <span class="eda-tip" tabindex="0" data-tip="以实际走线边缘为起点向外检查设定距离；该范围内每一点都必须有连续参考铜皮，存在分割或缺铜即不符合">?</span></h2>
+            <h2>3. 走线上下参考层投影覆盖与两侧邻近铜规则 <span class="badge-tag copper" id="lblR3Count">2 条规则</span> <span class="eda-tip" tabindex="0" data-tip="每个参考层都必须覆盖整条走线的完整线宽投影；另外，整条走线的左右两侧必须各有任意铜皮位于设定距离内，不要求边缘至该距离的范围连续铺满">?</span></h2>
           </div>
           <button type="button" class="btn pri small" onclick="openAddRule3Modal()">+ 新增走线参考层规则</button>
         </div>
@@ -165,7 +165,7 @@
                 <th>走线信号层</th>
                 <th>上参考层</th>
                 <th>下参考层</th>
-                <th>单侧最小超宽 mil</th>
+                <th>两侧邻近铜搜索距离 mil</th>
                 <th style="width:124px">操作</th>
               </tr>
             </thead>
@@ -255,7 +255,7 @@
               <button type="button" class="btn small pri" id="btnFilterCategoryAll" onclick="setCategoryFilter('all')">全部检查</button>
               <button type="button" class="btn small sec" id="btnFilterCov" onclick="setCategoryFilter('via_coverage')">① 孔层铺铜</button>
               <button type="button" class="btn small sec" id="btnFilterSpecial" onclick="setCategoryFilter('special_shape')">② 异型铜皮</button>
-              <button type="button" class="btn small sec" id="btnFilterMargin" onclick="setCategoryFilter('trace_ref_margin')">③ 参考层超宽</button>
+              <button type="button" class="btn small sec" id="btnFilterMargin" onclick="setCategoryFilter('trace_ref_margin')">③ 参考层投影与邻近铜</button>
               <button type="button" class="btn small sec" id="btnFilterSmall" onclick="setCategoryFilter('isolated_copper')">④ 孤立小铜皮</button>
               <button type="button" class="btn small sec" id="btnFilterArc" onclick="setCategoryFilter('arc_radius')">⑤ 圆弧半径</button>
             </div>
@@ -319,7 +319,7 @@
                 <span id="canvasViaCoverageSubfilters" class="canvas-defect-subfilters" hidden></span>
               </span>
               <button type="button" id="btnCanvasDefectSpecial" onclick="setCanvasDefectFilter('special_shape')">② 异型铜皮</button>
-              <button type="button" id="btnCanvasDefectMargin" onclick="setCanvasDefectFilter('trace_ref_margin')">③ 参考层超宽</button>
+              <button type="button" id="btnCanvasDefectMargin" onclick="setCanvasDefectFilter('trace_ref_margin')">③ 参考层投影与邻近铜</button>
               <button type="button" id="btnCanvasDefectSmall" onclick="setCanvasDefectFilter('isolated_copper')">④ 孤立小铜皮</button>
               <button type="button" id="btnCanvasDefectArc" onclick="setCanvasDefectFilter('arc_radius')">⑤ 圆弧半径</button>
             </span>
@@ -530,7 +530,7 @@
 <div class="modal-mask" id="modalRule3">
   <div class="modal-box">
     <div class="modal-header">
-      <h3 id="modalR3Title">配置走线参考层超宽规则</h3>
+      <h3 id="modalR3Title">配置走线参考层投影与邻近铜规则</h3>
       <button type="button" class="btn sec small" onclick="closeModal('modalRule3')">×</button>
     </div>
     <div class="form-grid">
@@ -550,7 +550,7 @@
         <div class="chip-bar" id="chipsModalR3LowerRef"></div>
       </div>
       <div class="form-item">
-        <label for="modalR3InpMargin" data-tip="从实际走线边缘向外计算；设定距离范围内每一点都必须存在参考铜皮，单位 mil">铜皮单侧最小超宽 mil *</label>
+        <label for="modalR3InpMargin" data-tip="从实际走线边缘向外计算；整条走线左右两侧各有任意铜皮落在此距离内即可，不要求范围连续铺满，单位 mil">两侧邻近铜搜索距离 mil *</label>
         <input type="number" id="modalR3InpMargin" value="50.0" step="1.0" data-no-persist>
         <div class="chip-bar" id="chipsModalR3Margin"></div>
       </div>

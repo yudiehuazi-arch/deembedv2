@@ -328,7 +328,7 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   console.log('  PASS  第二项：PTH-SIG L5/L10 四种 HDI 偏移模板完整覆盖');
 }
 
-// 5. 第三项：走线上/下参考层铺铜覆盖与单侧超宽检查 (Trace Reference Layer Margin)
+// 5. 第三项：完整走线投影覆盖与整条走线左右两侧邻近铜检查
 {
   const traces = [
     {
@@ -340,16 +340,14 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   ];
 
   const shapes = [
-    // L3 上参考层：单侧超宽 60mil > 50mil (通过)
-    {
-      id: 401, layer: 'L3', area: 50000,
-      bbox: { minX: 900, minY: 937, maxX: 1300, maxY: 1063 } // Y方向 1000 ± 63 mil -> 单侧外延 60mil
-    },
-    // L5 下参考层：单侧超宽仅 20mil < 50mil (超差报错)
-    {
-      id: 402, layer: 'L5', area: 20000,
-      bbox: { minX: 950, minY: 977, maxX: 1250, maxY: 1023 } // Y方向 1000 ± 23 mil -> 单侧外延 20mil
-    }
+    // L3：完整覆盖走线投影，并在左右两侧 50mil 内分别有一小块铜（通过）。
+    { id: 401, layer: 'L3', bbox: { minX: 997, minY: 997, maxX: 1203, maxY: 1003 } },
+    { id: 402, layer: 'L3', bbox: { minX: 1100, minY: 1030, maxX: 1110, maxY: 1035 } },
+    { id: 403, layer: 'L3', bbox: { minX: 1100, minY: 965, maxX: 1110, maxY: 970 } },
+    // L5：完整覆盖走线投影，左侧 50mil 内有铜，右侧铜超出搜索距离（不通过）。
+    { id: 404, layer: 'L5', bbox: { minX: 997, minY: 997, maxX: 1203, maxY: 1003 } },
+    { id: 405, layer: 'L5', bbox: { minX: 1100, minY: 1030, maxX: 1110, maxY: 1035 } },
+    { id: 406, layer: 'L5', bbox: { minX: 1100, minY: 930, maxX: 1110, maxY: 940 } }
   ];
 
   const rules = [
@@ -360,36 +358,59 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   assert.strictEqual(res.length, 2, '包含上参考层 L3 与下参考层 L5');
 
   const l3Res = res.find(r => r.refLayer === 'L3');
-  assert.strictEqual(l3Res.pass, true, 'L3 单侧外延 60mil >= 50mil 应通过');
+  assert.strictEqual(l3Res.pass, true, '完整走线投影及左右两侧 50mil 内均有铜时应通过');
+  assert.strictEqual(l3Res.footprintCovered, true);
+  assert.strictEqual(l3Res.leftSideCopper, true);
+  assert.strictEqual(l3Res.rightSideCopper, true);
 
   const l5Res = res.find(r => r.refLayer === 'L5');
-  assert.strictEqual(l5Res.pass, false, 'L5 单侧外延 20mil < 50mil 应报错');
-  console.log('  PASS  第三项：走线上/下参考层铺铜覆盖与单侧 50mil 超宽检查');
+  assert.strictEqual(l5Res.pass, false, '一侧铜皮超出 50mil 实际搜索距离时应报错');
+  assert.strictEqual(l5Res.footprintCovered, true);
+  assert.strictEqual(l5Res.leftSideCopper, true);
+  assert.strictEqual(l5Res.rightSideCopper, false);
+  assert.match(l5Res.message, /走线右侧边缘外 50 mil 内未检测到铜皮/);
+  console.log('  PASS  第三项：完整走线投影覆盖与左右两侧规则距离内邻近铜检查');
 }
 
-// 5.1 单侧超宽表示走线边缘外规则距离范围必须全部有铜，可由相接铜皮共同覆盖
+// 5.1 两侧只需整条走线各有一处邻近铜，不要求边缘至规则距离的走廊连续铺满
 {
   const trace = {
     id: 302, layer: 'L4', net: 'PCIE_RX_P',
     segments: [{ type: 'line', x1: 0, y1: 0, x2: 200, y2: 0, width: 10, len: 200 }]
   };
   const rule = [{ traceLayer: 'L4', upperRefLayer: 'L3', minMargin: 100 }];
-  const continuousSplitCopper = [
-    { id: 411, layer: 'L3', bbox: { minX: -105, minY: 0, maxX: 305, maxY: 105 } },
-    { id: 412, layer: 'L3', bbox: { minX: -105, minY: -105, maxX: 305, maxY: 0 } }
+  const footprintAndSparseSideCopper = [
+    { id: 411, layer: 'L3', bbox: { minX: -5, minY: -5, maxX: 205, maxY: 5 } },
+    { id: 412, layer: 'L3', bbox: { minX: 52.3, minY: 52.3, maxX: 52.4, maxY: 52.4 } },
+    { id: 413, layer: 'L3', bbox: { minX: 147.7, minY: -52.4, maxX: 147.8, maxY: -52.3 } }
   ];
-  const covered = checkTraceReferenceMargin([trace], continuousSplitCopper, rule)[0];
-  assert.strictEqual(covered.pass, true, '走线边缘外 100mil 范围由相接铜皮完整覆盖时应通过');
-  assert.match(covered.message, /走线边缘外 100 mil 范围内连续有铜/);
+  const sparse = checkTraceReferenceMargin([trace], footprintAndSparseSideCopper, rule)[0];
+  assert.strictEqual(sparse.pass, true, '走线投影完整且左右两侧各有一处微小的 100mil 内铜皮时应通过');
+  assert.match(sparse.message, /正上方完整有铜，且走线左右两侧边缘外 100 mil 内均存在铜皮/);
 
-  const copperWithGap = [
-    { id: 413, layer: 'L3', bbox: { minX: -105, minY: 10, maxX: 305, maxY: 105 } },
-    { id: 414, layer: 'L3', bbox: { minX: -105, minY: -105, maxX: 305, maxY: -10 } }
+  const footprintOnly = [
+    { id: 414, layer: 'L3', bbox: { minX: -5, minY: -5, maxX: 205, maxY: 5 } }
   ];
-  const uncovered = checkTraceReferenceMargin([trace], copperWithGap, rule)[0];
-  assert.strictEqual(uncovered.pass, false, '走线边缘外 100mil 范围内存在缺铜带时必须不通过');
-  assert.match(uncovered.message, /100 mil 范围存在未铺铜区域/);
-  console.log('  PASS  第三项语义：走线边缘外规则距离范围必须全部连续有铜');
+  const noSideCopper = checkTraceReferenceMargin([trace], footprintOnly, rule)[0];
+  assert.strictEqual(noSideCopper.pass, false, '只有完整走线投影、两侧均无邻近铜时必须不通过');
+  assert.deepStrictEqual(noSideCopper.failureKinds, ['left_side', 'right_side']);
+  assert.match(noSideCopper.message, /走线左侧边缘外 100 mil 内未检测到铜皮/);
+  assert.match(noSideCopper.message, /走线右侧边缘外 100 mil 内未检测到铜皮/);
+  const noSideGroup = groupResultsByTargetObject([noSideCopper])[0];
+  assert.match(noSideGroup.metricsStr, /走线左侧 100 mil 内无铜/);
+  assert.match(noSideGroup.metricsStr, /走线右侧 100 mil 内无铜/);
+
+  const footprintGapButBothSidesPresent = [
+    { id: 415, layer: 'L3', bbox: { minX: -5, minY: -5, maxX: 95, maxY: 5 } },
+    { id: 416, layer: 'L3', bbox: { minX: 105, minY: -5, maxX: 205, maxY: 5 } },
+    { id: 417, layer: 'L3', bbox: { minX: 50, minY: 50, maxX: 55, maxY: 55 } },
+    { id: 418, layer: 'L3', bbox: { minX: 145, minY: -55, maxX: 150, maxY: -50 } }
+  ];
+  const footprintGap = checkTraceReferenceMargin([trace], footprintGapButBothSidesPresent, rule)[0];
+  assert.strictEqual(footprintGap.pass, false, '左右两侧均有邻近铜也不能弥补走线投影缺铜');
+  assert.deepStrictEqual(footprintGap.failureKinds, ['footprint']);
+  assert.match(footprintGap.message, /完整线宽投影存在缺铜/);
+  console.log('  PASS  第三项语义：完整投影必须有铜，两侧仅需整条走线各存在一处邻近铜');
 }
 
 // 5.2 规则使用 L2/L3 时，必须匹配 Allegro 物理层 02G01P/03G02P
@@ -408,9 +429,13 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   ]);
   assert.strictEqual(results.length, 2, 'L2 规则应匹配 02G01P 走线并检查 Top/L3 两个参考层');
   assert.strictEqual(results.find(result => result.refLayer === 'TOP').pass, true, 'Top 完整覆盖应通过');
-  assert.strictEqual(results.find(result => result.refLayer === 'L3').pass, false, '03G02P 在走线轨迹附近缺铜时必须报错');
-  assert.match(results.find(result => result.refLayer === 'L3').message, /100 mil 范围存在未铺铜区域/);
-  console.log('  PASS  第三项层别名：L2/L3 规则匹配 02G01P/03G02P 并检出走廊缺铜');
+  const l3 = results.find(result => result.refLayer === 'L3');
+  assert.strictEqual(l3.pass, false, '03G02P 未覆盖完整走线投影时必须报错');
+  assert.strictEqual(l3.footprintCovered, false);
+  assert.strictEqual(l3.leftSideCopper, true, 'L3 左侧 100mil 内应检测到铜皮');
+  assert.strictEqual(l3.rightSideCopper, true, 'L3 右侧 100mil 内应检测到铜皮');
+  assert.match(l3.message, /完整线宽投影存在缺铜/);
+  console.log('  PASS  第三项层别名：L2/L3 规则匹配 02G01P/03G02P 并检出走线投影缺铜');
 }
 
 // 6. 第四项：孤立小铜皮检查 (Isolated Small Copper)

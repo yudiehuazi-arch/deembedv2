@@ -343,19 +343,26 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
       } else if (g.checkCategory === 'trace_ref_margin') {
         const failedSubs = subs.filter(s => !s.pass);
         const s0 = subs[0];
+        const issueText = s => {
+          const issues = [];
+          if (s.footprintCovered === false) issues.push('完整走线投影缺铜');
+          if (s.leftSideCopper === false) issues.push(`走线左侧 ${s.minMargin} mil 内无铜`);
+          if (s.rightSideCopper === false) issues.push(`走线右侧 ${s.minMargin} mil 内无铜`);
+          return issues.join('、') || '参考铜不符合要求';
+        };
         g.traceLayer = s0.traceLayer;
         g.layer = s0.traceLayer;
         g.layerListStr = `信号层: ${s0.traceLayer} (${subs.map(s => `${s.refType}:${s.refLayer}`).join(', ')})`;
         g.minMargin = s0.minMargin;
         if (allPass) {
           g.actualMargin = s0.minMargin;
-          g.metricsStr = `各参考层在走线边缘外 ${s0.minMargin} mil 范围内均连续有铜`;
-          g.message = `✅ 符合：走线【${s0.traceNet}】上下参考层的规则距离范围均完整铺铜`;
+          g.metricsStr = `各参考层均完整覆盖走线投影，且走线左右两侧边缘外 ${s0.minMargin} mil 内各存在铜皮`;
+          g.message = `✅ 符合：走线【${s0.traceNet}】在上下参考层的完整投影均有铜，且左右两侧规则距离内均有铜`;
         } else {
-          const failDesc = failedSubs.map(s => `${s.refType}【${s.refLayer}】`).join('、');
+          const failDesc = failedSubs.map(s => `${s.refType}【${s.refLayer}】：${issueText(s)}`).join('；');
           g.actualMargin = 0;
-          g.metricsStr = `${failDesc}在走线边缘外 ${s0.minMargin} mil 范围存在缺铜`;
-          g.message = `❌ 不符合：走线【${s0.traceNet}】的${failDesc}未完整覆盖走线边缘外 ${s0.minMargin} mil 范围`;
+          g.metricsStr = failDesc;
+          g.message = `❌ 不符合：走线【${s0.traceNet}】${failDesc}`;
         }
       } else if (g.checkCategory === 'isolated_copper') {
         const s0 = subs[0];

@@ -258,7 +258,7 @@ function renderModularViews() {
   if ($('pnlModCopper')) $('pnlModCopper').innerHTML = `约束检查：反焊盘尺寸与 Padstack 连接层。健康分 <b>${State.results.copper.score}%</b>。`;
   if ($('pnlModDfm')) $('pnlModDfm').innerHTML = `DFM 检查：孔-孔、线-孔间距，盲埋孔按 Padstack Defined 穿层过滤${State.dfmSkippedPairs ? `，排除 ${State.dfmSkippedPairs} 处非穿层对偶` : ''}），共检出 <b>${State.results.dfm.checks.length}</b> 处间隙隐患。当前 DFM 健康分 <b>${State.results.dfm.score}%</b>。`;
   if ($('pnlModFanout')) $('pnlModFanout').innerHTML = `扇出检查：聚类 <b>${State.results.fanout.checks.length}</b> 个孔群。健康分 <b>${State.results.fanout.score}%</b>。`;
-  if ($('pnlModPour')) $('pnlModPour').innerHTML = `铜皮检查：孔铺铜、异型铜皮、参考层超宽、碎铜、圆弧。健康分 <b>${State.results.pour.score}%</b>。`;
+  if ($('pnlModPour')) $('pnlModPour').innerHTML = `铜皮检查：孔铺铜、异型铜皮、参考层投影与邻近铜、碎铜、圆弧。健康分 <b>${State.results.pour.score}%</b>。`;
 }
 
 function renderAnalysisGuidance() {

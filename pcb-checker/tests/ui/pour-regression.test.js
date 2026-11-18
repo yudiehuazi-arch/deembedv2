@@ -98,7 +98,7 @@ test('弹窗导入 Shape TXT 并解析异型铜皮几何与面积 (规则 2)', (
   if (!found) throw new Error('新增的规则 2 模板、差分孔中心距与 HDI 搜索距离未存入 State');
 });
 
-test('弹窗新增规则 3 (走线参考层超宽规则) 并保存', () => {
+test('弹窗新增规则 3 (走线参考层投影覆盖与两侧邻近铜规则) 并保存', () => {
   w.openAddRule3Modal();
   if (!$('modalRule3').classList.contains('open')) throw new Error('Modal 3 未打开');
   $('modalR3InpTraceLayer').value = '19IS08';
@@ -237,7 +237,7 @@ Item 55  < Via >
   if (subRows.length !== 1) throw new Error('展开后应出现 1 个嵌套明细子表行');
 });
 
-test('【走线导入与空间可视化】走线解析、2D 画布渲染与参考层超宽检查验证', () => {
+test('【走线导入与空间可视化】走线解析、2D 画布渲染与参考层投影及邻近铜检查验证', () => {
   const mixedDataTxt = `
 Total 3 Items
 Item 1  < Shape >
@@ -288,7 +288,7 @@ Item 3  < Via >
 
   const upperRes = marginResults.find(r => r.refLayer.toUpperCase() === '02G01P');
   if (!upperRes || !upperRes.pass) {
-    throw new Error('走线边缘外 50mil 范围在 02G01P 内连续有铜时应判定为符合');
+    throw new Error('走线投影完整覆盖且左右两侧 50mil 内均有铜时应判定为符合');
   }
 
   const lowerRes = marginResults.find(r => r.refLayer.toUpperCase() === 'BOTTOM');
@@ -311,7 +311,7 @@ test('【⑤ 缺陷规律与工程分析】五大分类深度归纳总结与导�
   const text = container.textContent;
   if (!text.includes('① 孔经过层铺铜覆盖检查 — 缺陷规律与工程分析')) throw new Error('缺少分类 1 规律分析');
   if (!text.includes('② 特定异型铜皮比对检查 — 缺陷规律与工程分析')) throw new Error('缺少分类 2 规律分析');
-  if (!text.includes('③ 走线参考层铺铜覆盖与单侧超宽 — 缺陷规律与工程分析')) throw new Error('缺少分类 3 规律分析');
+  if (!text.includes('③ 走线参考层投影覆盖与两侧邻近铜 — 缺陷规律与工程分析')) throw new Error('缺少分类 3 规律分析');
   if (!text.includes('④ 孤立小铜皮检查 — 缺陷规律与工程分析')) throw new Error('缺少分类 4 规律分析');
   if (!text.includes('⑤ 铜皮最小圆弧半径检查 — 缺陷规律与工程分析')) throw new Error('缺少分类 5 规律分析');
 
@@ -334,7 +334,7 @@ test('判定状态与五类检查可组合筛选，孔层铺铜使用层别缺�
     { groupKey: 'mock_cov_fail', checkCategory: 'via_coverage', checkCategoryName: '① 孔经过层铺铜覆盖检查', pass: false, failCount: 1, viaId: 1, viaPadstack: 'VIA_A', viaNet: 'N1', layer: 'L2', layerListStr: 'L2, L3', message: '旧的详细阈值描述', subRecords: [{ checkCategory: 'via_coverage', pass: false, layer: 'L2', message: '旧说明' }, { checkCategory: 'via_coverage', pass: true, layer: 'L3', message: '旧说明' }] },
     { groupKey: 'mock_cov_pass', checkCategory: 'via_coverage', checkCategoryName: '① 孔经过层铺铜覆盖检查', pass: true, viaId: 2, viaPadstack: 'VIA_A', viaNet: 'N2', layer: 'L3', layerListStr: 'L3', message: '旧的符合描述', subRecords: [{ checkCategory: 'via_coverage', pass: true, layer: 'L3', message: '旧说明' }] },
     { groupKey: 'mock_shape_fail', checkCategory: 'special_shape', checkCategoryName: '② 特定异型铜皮比对检查', pass: false, failCount: 2, viaId: 3, layer: 'L4', message: '冗长异型铜皮说明' },
-    { groupKey: 'mock_margin_fail', checkCategory: 'trace_ref_margin', checkCategoryName: '③ 参考层超宽检查', pass: false, traceId: 4, refLayer: 'L5', layer: 'L8', minMargin: 100, message: '冗长参考层说明' },
+    { groupKey: 'mock_margin_fail', checkCategory: 'trace_ref_margin', checkCategoryName: '③ 参考层覆盖与邻近铜检查', pass: false, traceId: 4, refLayer: 'L5', layer: 'L8', minMargin: 100, footprintCovered: false, leftSideCopper: true, rightSideCopper: true, message: '冗长参考层说明' },
     { groupKey: 'mock_small_fail', checkCategory: 'isolated_copper', checkCategoryName: '④ 孤立小铜皮检查', pass: false, shapeId: 5, layer: 'L6', message: '冗长孤铜说明' },
     { groupKey: 'mock_arc_fail', checkCategory: 'arc_radius', checkCategoryName: '⑤ 圆弧半径检查', pass: false, shapeId: 6, layer: 'L7', message: '冗长圆弧说明' }
   ];
@@ -368,7 +368,7 @@ test('判定状态与五类检查可组合筛选，孔层铺铜使用层别缺�
     throw new Error('判定筛选未区分符合、普通不符合及不同未检出层数：' + statusOptions.join(' / '));
   }
   const problemOptions = readColumnOptions('problem');
-  if (!problemOptions.includes('L2 层缺铜皮') || !problemOptions.includes('L5 层走线边缘外 100 mil 范围存在缺铜') ||
+  if (!problemOptions.includes('L2 层缺铜皮') || !problemOptions.includes('L5 层完整走线投影缺铜') ||
       !problemOptions.includes('L7 层铜皮圆弧半径过小')) {
     throw new Error('问题点筛选未列出表格中的全部不同值：' + problemOptions.join(' / '));
   }
@@ -420,7 +420,7 @@ test('判定状态与五类检查可组合筛选，孔层铺铜使用层别缺�
   }
   [
     ['special_shape', 'L4 层异型铜皮不匹配'],
-    ['trace_ref_margin', 'L5 层走线边缘外 100 mil 范围存在缺铜'],
+    ['trace_ref_margin', 'L5 层完整走线投影缺铜'],
     ['isolated_copper', 'L6 层存在孤立小铜皮'],
     ['arc_radius', 'L7 层铜皮圆弧半径过小']
   ].forEach(([category, expected]) => {

@@ -642,7 +642,7 @@ Item 3 < Via >
   boardZoom.querySelector('.pour-board-zoom-close').click();
 });
 
-test('走线导入、参考层超宽判定、2D 画布视口定位复核、规律分析与 CSV 导出', () => {
+test('走线导入、参考层投影及邻近铜判定、2D 画布视口定位复核、规律分析与 CSV 导出', () => {
   const mixedDataTxt = `
 Total 3 Items
 Item 1  < Shape >
@@ -684,7 +684,7 @@ Item 3  < Via >
   const upperRes = marginResults.find(r => r.refLayer.toUpperCase() === '02G01P');
   const lowerRes = marginResults.find(r => r.refLayer.toUpperCase() === 'BOTTOM');
   if (!upperRes || !upperRes.pass || !lowerRes || lowerRes.pass) {
-    throw new Error('走线上下参考层超宽判定结果异常');
+    throw new Error('走线上下参考层投影及邻近铜判定结果异常');
   }
 
   w.switchTab('tabCanvas');
@@ -708,7 +708,7 @@ Item 3  < Via >
   [
     '① 孔经过层铺铜覆盖检查 — 缺陷规律与工程分析',
     '② 特定异型铜皮比对检查 — 缺陷规律与工程分析',
-    '③ 走线参考层铺铜覆盖与单侧超宽 — 缺陷规律与工程分析',
+    '③ 走线参考层投影覆盖与两侧邻近铜 — 缺陷规律与工程分析',
     '④ 孤立小铜皮检查 — 缺陷规律与工程分析',
     '⑤ 铜皮最小圆弧半径检查 — 缺陷规律与工程分析'
   ].forEach(heading => {

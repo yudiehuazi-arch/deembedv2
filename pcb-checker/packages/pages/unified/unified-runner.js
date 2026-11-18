@@ -494,6 +494,11 @@ function runPourEngine(ctx) {
       pourRun.results.traceMargin.forEach(r => {
         if (!r.pass) {
           const reqM = (r.minMargin != null) ? r.minMargin : (r.requiredMargin || 50.0);
+          const issues = [];
+          if (r.footprintCovered === false) issues.push('完整走线投影缺铜');
+          if (r.leftSideCopper === false) issues.push(`走线左侧 ${reqM.toFixed(1)} mil 内无铜`);
+          if (r.rightSideCopper === false) issues.push(`走线右侧 ${reqM.toFixed(1)} mil 内无铜`);
+          const issueText = issues.join('、') || '参考铜不符合要求';
           pourChecks.push({
             id: `pour_trace_${r.traceId}_${r.refLayer}`,
             category: 'pour',
@@ -501,12 +506,12 @@ function runPourEngine(ctx) {
             target: `Trace #${r.traceId} (${r.traceNet || r.net || '走线'})`,
             targetType: '走线段',
             layer: r.traceLayer,
-            item: `参考层 (${r.refLayer}) 规则距离范围铺铜`,
-            actual: `走线边缘外 ${reqM.toFixed(1)} mil 范围存在缺铜`,
-            rule: '规则距离范围内必须全部有铜',
+            item: `参考层 (${r.refLayer}) 走线投影覆盖与两侧邻近铜`,
+            actual: issueText,
+            rule: `完整走线投影有铜，且左右两侧各在 ${reqM.toFixed(1)} mil 内存在铜皮`,
             pass: false,
-            deviation: '覆盖不连续',
-            reason: `参考地层 ${r.refLayer} 未完整覆盖走线边缘外 ${reqM.toFixed(1)} mil 范围，存在缺铜或平面分割`,
+            deviation: issueText,
+            reason: `参考层 ${r.refLayer}：${issueText}`,
             objId: r.traceId
           });
         }

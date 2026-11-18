@@ -8,7 +8,7 @@
   var CATEGORIES = {
     via_coverage: { index: '1', label: '孔层铺铜', color: '#ef4444', buttonId: 'btnCanvasDefectCov' },
     special_shape: { index: '2', label: '异型铜皮', color: '#a855f7', buttonId: 'btnCanvasDefectSpecial' },
-    trace_ref_margin: { index: '3', label: '参考层超宽', color: '#f59e0b', buttonId: 'btnCanvasDefectMargin' },
+    trace_ref_margin: { index: '3', label: '参考层投影与邻近铜', color: '#f59e0b', buttonId: 'btnCanvasDefectMargin' },
     isolated_copper: { index: '4', label: '孤立小铜皮', color: '#06b6d4', buttonId: 'btnCanvasDefectSmall' },
     arc_radius: { index: '5', label: '圆弧半径', color: '#ec4899', buttonId: 'btnCanvasDefectArc' }
   };

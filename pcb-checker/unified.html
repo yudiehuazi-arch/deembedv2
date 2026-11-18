@@ -30,7 +30,7 @@
       <a href="copper.html" data-code="CON" data-tip="叠层约束表解析、过孔配对与反焊盘逐层尺寸核对">约束检查</a>
       <a href="dfm.html" data-code="DFM" data-tip="孔-孔、线-孔及异网孔盘 Airgap 几何间距测量与分层判定">加工能力检查</a>
       <a href="fanout.html" data-code="FAN" data-tip="过孔连通聚类、刚体变换方案匹配与孔心距分色预览">扇出方案检查</a>
-      <a href="pour.html" data-code="POR" data-tip="孔经过层铺铜、异型铜皮比对、参考层超宽、碎铜与圆弧半径核对">铜皮检查</a>
+      <a href="pour.html" data-code="POR" data-tip="孔经过层铺铜、异型铜皮比对、参考层走线投影与两侧邻近铜、碎铜与圆弧半径核对">铜皮检查</a>
       <a href="unified.html" class="active" data-code="UNI" data-tip="四槽位数据输入与五大检查引擎联动汇总工作台">综合一体化检查</a>
     </div>
   </div>
@@ -167,7 +167,7 @@
               <span style="font-size:13px;font-weight:700;color:#111827">④ 铜皮检查数据</span>
               <span id="badgeData_pour" class="tag-badge" style="background:#e3e8ef;color:#6b7280;font-size:11px">未导入</span>
             </div>
-            <div style="font-size:12px;color:#6b7280;line-height:1.4">铜皮检查所需的 Shape / Via / Trace 数据 <span class="eda-tip" tabindex="0" data-tip="铺铜覆盖 / 异型铜皮 / 参考层超宽">?</span></div>
+            <div style="font-size:12px;color:#6b7280;line-height:1.4">铜皮检查所需的 Shape / Via / Trace 数据 <span class="eda-tip" tabindex="0" data-tip="铺铜覆盖 / 异型铜皮 / 参考层投影与邻近铜">?</span></div>
           </div>
           <div class="data-cat-drop" id="dropZone_pour" onclick="$('fileData_pour').click()">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>
@@ -425,7 +425,7 @@
         <!-- 5. Pour Rules (完整保留多规则 1/2/3 表格 + Shape TXT 导入) -->
         <div class="rule-acc">
           <div class="rule-acc-header" onclick="toggleAcc(this)">
-            <h4>5. 铜皮五项检查规则 <span class="eda-tip" tabindex="0" data-tip="孔铺铜多规则 / 异型铜皮比对 / 参考层超宽多规则 / 碎铜 / 锐角">?</span></h4>
+            <h4>5. 铜皮五项检查规则 <span class="eda-tip" tabindex="0" data-tip="孔铺铜多规则 / 异型铜皮比对 / 参考层投影与两侧邻近铜多规则 / 碎铜 / 锐角">?</span></h4>
             <div style="display:flex;gap:4px" onclick="event.stopPropagation()">
               <button class="btn sec small" style="padding:2px 6px" onclick="importPourRulesPrompt()">导入铜皮 JSON</button>
               <button class="btn sec small" style="padding:2px 6px" onclick="exportPourRulesPrompt()">导出铜皮 JSON</button>
@@ -497,7 +497,7 @@
             </div>
 
             <!-- Rule 3 Snippet -->
-            <div style="font-size:12px;margin-bottom:4px;font-weight:600">规则 3：走线上/下参考层铺铜单侧超宽规则 <span class="eda-tip" tabindex="0" data-tip="从实际走线边缘向外检查设定距离，范围内每一点都必须存在参考铜皮；支持多规则配置">?</span>:</div>
+            <div style="font-size:12px;margin-bottom:4px;font-weight:600">规则 3：走线上/下参考层投影覆盖与两侧邻近铜规则 <span class="eda-tip" tabindex="0" data-tip="每个参考层必须覆盖完整走线投影；整条走线左右两侧还必须各有任意铜皮位于设定距离内，不要求边缘至该距离的范围连续铺满；支持多规则配置">?</span>:</div>
             <div class="table-wrap" style="margin-bottom:8px">
               <table id="tblPourRule3">
                 <thead>
@@ -505,7 +505,7 @@
                     <th>走线物理层</th>
                     <th>上参考层</th>
                     <th>下参考层</th>
-                    <th style="width:90px">单侧超宽阈值</th>
+                    <th style="width:110px">两侧邻近铜搜索距离</th>
                     <th style="width:50px;text-align:center">操作</th>
                   </tr>
                 </thead>
