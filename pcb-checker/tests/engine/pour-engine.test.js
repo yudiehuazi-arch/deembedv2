@@ -83,7 +83,8 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
     '同层同网络的圆形与矩形 Item 应识别为相接铜皮');
   const vias = [
     { id: 10, x: 17880, y: 35965.0001, padstack: 'MULTI_TARGET', net: '9_N' },
-    { id: 11, x: 17881, y: 35965.0001, padstack: 'HDI_NEAR', net: '9_N' }
+    { id: 11, x: 17881, y: 35965.0001, padstack: 'HDI_NEAR', net: '9_N' },
+    { id: 12, x: 17882, y: 35965.0001, padstack: 'HDI_MATE', net: '9_P' }
   ];
   const checked = checkSpecialShapedCopper(vias, parsed.shapes, [{
     id: 'multi', name: '圆形加矩形', padstack: 'MULTI_TARGET', differentialCenterDistance: 1,
@@ -195,7 +196,7 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   const templates = [
     {
       id: 'tmpl_1', name: 'L2特定异型铜皮',
-      padstack: 'BGA_3510', differentialCenterDistance: 1.0, layer: '02G01P；L3',
+      padstack: 'BGA_3510', differentialCenterDistance: 10.0, layer: '02G01P；L3',
       expectedArea: 452.38, areaTolerance: 10.0
     }
   ];
@@ -205,8 +206,9 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   assert.deepStrictEqual([...new Set(res.map(item => item.layer))].sort(), ['02G01P', 'L3']);
   assert.ok(res.filter(item => item.layer === '02G01P').every(item => item.pass));
   assert.ok(res.filter(item => item.layer === 'L3').every(item => !item.pass));
-  assert.ok(res.every(item => item.actualDifferentialCenterDistance === 1));
-  assert.ok(res.every(item => [12, 13].includes(item.actualHdiViaId) && item.hdiSearchRadiusMm === null), '未配置 HDI 搜索距离时不得恢复默认值');
+  assert.ok(res.every(item => item.actualDifferentialCenterDistance === 10));
+  assert.ok(res.every(item => item.hdiAssociationDistance === 1));
+  assert.ok(res.every(item => [12, 13].includes(item.actualHdiViaId) && [12, 13].includes(item.pairedHdiViaId) && item.hdiSearchRadiusMm === null), '未配置 HDI 搜索距离时不得恢复默认值');
   const grouped = groupResultsByTargetObject(res);
   assert.strictEqual(grouped.length, 2, '每颗差分孔的多个目标层应汇总为一个对象');
   assert.ok(grouped.every(item => !item.pass && item.failCount === 1 && item.subRecords.length === 2 && item.layerListStr.includes('L3')));
@@ -217,19 +219,22 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
 {
   const defaultRadiusMil = 0.175 * 1000 / 25.4;
   const vias = [
-    { id: 20, x: 0, y: 0, padstack: 'TYPE_A_SIG', net: 'NET_A' },
-    { id: 21, x: 20, y: 0, padstack: 'TYPE_A_SIG', net: 'NET_B' },
-    { id: 22, x: 40, y: 0, padstack: 'TYPE_A_SIG', net: 'NET_C' },
-    { id: 23, x: 60, y: 0, padstack: 'TYPE_A_SIG', net: 'NET_D' },
-    // NET_A 的等距 HDI 候选故意逆 ID 排列，确定性规则应选较小 ID 30。
-    { id: 31, x: -2, y: 0, padstack: 'LASER_HDI_A_TIE', net: 'NET_A' },
-    { id: 30, x: 2, y: 0, padstack: 'HDI_LASER_A_NEAREST', net: 'NET_A' },
-    { id: 38, x: 5, y: 0, padstack: 'HDI_LASER_A_FARTHER', net: 'NET_A' },
+    { id: 20, x: 0, y: 0, padstack: 'TYPE_A_SIG', net: 'NET_A_P' },
+    { id: 21, x: 20, y: 0, padstack: 'TYPE_A_SIG', net: 'NET_B_P' },
+    { id: 22, x: 40, y: 0, padstack: 'TYPE_A_SIG', net: 'NET_C_P' },
+    { id: 23, x: 60, y: 0, padstack: 'TYPE_A_SIG', net: 'NET_D_P' },
+    // NET_A_P 的等距 HDI 候选故意逆 ID 排列，确定性规则应选较小 ID 30。
+    { id: 31, x: -2, y: 0, padstack: 'LASER_HDI_A_TIE', net: 'NET_A_P' },
+    { id: 30, x: 2, y: 0, padstack: 'HDI_LASER_A_NEAREST', net: 'NET_A_P' },
+    { id: 38, x: 5, y: 0, padstack: 'HDI_LASER_A_FARTHER', net: 'NET_A_P' },
+    { id: 39, x: 4, y: 0, padstack: 'HDI_LASER_A_MATE', net: 'NET_A_N' },
     { id: 32, x: 0.25, y: 0, padstack: 'HDI_WRONG_NET', net: 'OTHER' },
-    { id: 33, x: 0.5, y: 0, padstack: 'MICRO_LASER', net: 'NET_A' },
-    { id: 34, x: 25, y: 0, padstack: 'laser_hdi_b', net: 'net_b' },
+    { id: 33, x: 0.5, y: 0, padstack: 'MICRO_LASER', net: 'NET_A_P' },
+    { id: 34, x: 25, y: 0, padstack: 'laser_hdi_b', net: 'net_b_p' },
+    { id: 37, x: 30, y: 0, padstack: 'laser_hdi_b_mate', net: 'net_b_n' },
     { id: 35, x: 41, y: 0, padstack: 'HDI_ONLY_WRONG_NET', net: 'OTHER' },
-    { id: 36, x: 60 + defaultRadiusMil, y: 0, padstack: 'HDI_BOUNDARY', net: 'NET_D' }
+    { id: 36, x: 60 + defaultRadiusMil, y: 0, padstack: 'HDI_BOUNDARY', net: 'NET_D_P' },
+    { id: 40, x: 60 + defaultRadiusMil * 2, y: 0, padstack: 'HDI_BOUNDARY_MATE', net: 'NET_D_N' }
   ];
   const shapes = [
     { id: 210, layer: 'L2', area: 100, centroid: { x: 0, y: 0 } },
@@ -259,20 +264,22 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   assert.strictEqual(unmatched[0].viaId, 22);
   assert.ok(!unmatched[0].pass && /未找到同网络 HDI 孔/.test(unmatched[0].associationSummary));
   assert.ok(!res.some(item => item.templateId === 'narrow_search'), '缩小可配置搜索距离后不得关联范围外 HDI Via');
-  assert.ok(res.every(item => item.pairedViaId == null && item.pairedHdiViaId == null), '规则 2 不得依赖 _P/_N 目标孔配对');
-  console.log('  PASS  第二项：目标 Via 独立关联同网络 HDI，未命中模板时生成不符合结果');
+  assert.deepStrictEqual(matched.map(item => item.pairedHdiViaId).sort((a, b) => a - b), [37, 39, 40], '中心距必须来自同网络 HDI 与差分网络 HDI');
+  console.log('  PASS  第二项：目标 Via 搜索同网络 HDI，再按差分 HDI 孔距选择模板');
 }
 
 // 4.1 差分孔中心距与 HDI 搜索距离分别可选，且只应用已配置字段
 {
   const vias = [
     { id: 40, x: 0, y: 0, padstack: 'OPT_NONE', net: 'NO_HDI' },
-    { id: 41, x: 30, y: 0, padstack: 'OPT_CENTER', net: 'CENTER_NET' },
+    { id: 41, x: 30, y: 0, padstack: 'OPT_CENTER', net: 'CENTER_P' },
     { id: 42, x: 60, y: 0, padstack: 'OPT_RADIUS', net: 'RADIUS_NET' },
-    { id: 43, x: 90, y: 0, padstack: 'OPT_BOTH', net: 'BOTH_NET' },
-    { id: 51, x: 40, y: 0, padstack: 'HDI_CENTER', net: 'CENTER_NET' },
+    { id: 43, x: 90, y: 0, padstack: 'OPT_BOTH', net: 'BOTH_P' },
+    { id: 51, x: 40, y: 0, padstack: 'HDI_CENTER', net: 'CENTER_P' },
+    { id: 54, x: 50, y: 0, padstack: 'HDI_CENTER_MATE', net: 'CENTER_N' },
     { id: 52, x: 63, y: 0, padstack: 'HDI_RADIUS', net: 'RADIUS_NET' },
-    { id: 53, x: 92, y: 0, padstack: 'HDI_BOTH', net: 'BOTH_NET' }
+    { id: 53, x: 92, y: 0, padstack: 'HDI_BOTH', net: 'BOTH_P' },
+    { id: 55, x: 94, y: 0, padstack: 'HDI_BOTH_MATE', net: 'BOTH_N' }
   ];
   const shapes = [0, 30, 60, 90].map((x, index) => ({
     id: 240 + index, layer: 'L2', area: 100, centroid: { x, y: 0 }
@@ -293,7 +300,8 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   assert.strictEqual(byTemplate.get('optional_center').actualDifferentialCenterDistance, 10, '仅中心距时不得套用旧的 0.175 mm 最大搜索距离');
   assert.strictEqual(byTemplate.get('optional_center').hdiSearchRadiusMm, null);
   assert.strictEqual(byTemplate.get('optional_radius').expectedDifferentialCenterDistance, null, '仅搜索距离时不得套用中心距默认值');
-  assert.strictEqual(byTemplate.get('optional_radius').actualDifferentialCenterDistance, 3);
+  assert.strictEqual(byTemplate.get('optional_radius').hdiAssociationDistance, 3);
+  assert.strictEqual(byTemplate.get('optional_radius').actualDifferentialCenterDistance, null);
   assert.strictEqual(byTemplate.get('optional_both').actualDifferentialCenterDistance, 2);
   assert.strictEqual(byTemplate.get('optional_both').hdiSearchRadiusMm, 0.1);
   assert.ok(!/HDI|中心距|搜索距离/.test(byTemplate.get('optional_none').message), '两项留空时结果描述不得虚构 HDI 约束');
@@ -307,45 +315,58 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
 // 4.2 PTH-SIG L5/L10 四种 HDI 偏移的内置模板必须覆盖该孔型
 {
   const specs = [
-    { mm: 0.025, area: 113.09734 },
-    { mm: 0.075, area: 50.26548 },
-    { mm: 0.125, area: 97.38257 },
-    { mm: 0.175, area: 101.16052 }
+    { offsetMm: 0.025, pitchMil: 19.685, area: 113.09734 },
+    { offsetMm: 0.075, pitchMil: 23.62, area: 50.26548 },
+    { offsetMm: 0.125, pitchMil: 27.56, area: 97.38257 },
+    { offsetMm: 0.175, pitchMil: 31.496, area: 101.16052 }
   ];
   const vias = [], shapes = [];
   specs.forEach((spec, index) => {
     const x = index * 100;
-    vias.push({ id: 300 + index, x, y: 0, padstack: 'PTH-SIG-150drill-ring0_L5_L10', net: `PTH_${index}` });
-    vias.push({ id: 310 + index, x: x + spec.mm * PourChecker.MIL_PER_MM, y: 0, padstack: 'BGA-HDI-SIG-045drill-ring3', net: `PTH_${index}` });
+    const hdiX = x + spec.offsetMm * PourChecker.MIL_PER_MM;
+    vias.push({ id: 300 + index, x, y: 0, padstack: 'PTH-SIG-150drill-ring0_L5_L10', net: `PTH_${index}_P` });
+    vias.push({ id: 310 + index, x: hdiX, y: 0, padstack: 'BGA-HDI-SIG-045drill-ring3', net: `PTH_${index}_P` });
+    vias.push({ id: 340 + index, x: hdiX, y: spec.pitchMil, padstack: 'BGA-HDI-SIG-045drill-ring3', net: `PTH_${index}_N` });
     ['05G02P', '10G07P'].forEach((layer, layerIndex) => {
       shapes.push({
         id: 320 + index * 2 + layerIndex, layer,
-        area: spec.mm === 0.125 ? 50.26548 : spec.area,
+        area: spec.pitchMil === 27.56 ? 50.26548 : spec.area,
         centroid: { x, y: 0 }
       });
     });
   });
   const templates = getDefaultSpecialShapeTemplates().filter(template => template.padstack === 'PTH-SIG-150drill-ring0_L5_L10');
   const results = checkSpecialShapedCopper(vias, shapes, templates);
-  assert.strictEqual(templates.length, 4, '应内置 0.025/0.075/0.125/0.175 mm 四种 PTH-SIG 模板');
+  assert.strictEqual(templates.length, 4, '应内置 0.5/0.6/0.7/0.8 mm 四种 HDI 差分孔距模板');
   assert.strictEqual(results.length, 8, '四颗 PTH-SIG 孔应在 L5/L10 各生成一条检查记录');
   assert.deepStrictEqual([...new Set(results.map(result => result.viaId))].sort(), [300, 301, 302, 303]);
-  assert.strictEqual(results.filter(result => !result.pass).length, 2, '0.125 mm 偏移孔的两层面积异常应被检出');
-  console.log('  PASS  第二项：PTH-SIG L5/L10 四种 HDI 偏移模板完整覆盖');
+  assert.strictEqual(results.filter(result => !result.pass).length, 2, '0.7 mm HDI 孔距对应的两层面积异常应被检出');
+  assert.ok(results.every(result => result.hdiAssociationDistance <= 0.175 * PourChecker.MIL_PER_MM + 1e-9));
+  console.log('  PASS  第二项：PTH-SIG 先搜索同网络 HDI，再按四种 HDI 差分孔距匹配面积');
 }
 
-// 4.3 实板同规模回归：模板关联条件未命中时 592 颗 PTH-SIG 也不得静默消失
+// 4.3 实板同规模回归：搜索半径、HDI 差分孔距、面积与未配置孔距分别判定
 {
-  const vias = [];
-  for (let index = 0; index < 592; index++) {
-    const x = index * 20;
-    vias.push({ id: 1000 + index, x, y: 0, padstack: 'PTH-SIG-150drill-ring0_L5_L10', net: `REAL_PTH_${index}` });
-    vias.push({ id: 2000 + index, x: x + 0.98425, y: 0, padstack: 'BGA-HDI-SIG-045drill-ring3', net: `REAL_PTH_${index}` });
-  }
-  const shapes = [
-    { id: 4000, layer: '05G02P', area: 50.26548, centroid: { x: 0, y: 0 } },
-    { id: 4001, layer: '10G07P', area: 50.26548, centroid: { x: 0, y: 0 } }
+  const families = [
+    { offsetMil: 0.98425, pitchMil: 19.685, area: 113.09734 },
+    { offsetMil: 2.95276, pitchMil: 23.62, area: 50.26548 },
+    { offsetMil: 4.92126, pitchMil: 27.56, area: 97.38257 },
+    { offsetMil: 6.88976, pitchMil: 31.496, area: 101.16052 }
   ];
+  const vias = [], shapes = [];
+  for (let index = 0; index < 592; index++) {
+    const family = families[Math.floor(index / 148)];
+    const x = index * 100;
+    const hdiX = x + family.offsetMil;
+    vias.push({ id: 1000 + index, x, y: 0, padstack: 'PTH-SIG-150drill-ring0_L5_L10', net: `REAL_PTH_${index}_P` });
+    vias.push({ id: 2000 + index, x: hdiX, y: 0, padstack: 'BGA-HDI-SIG-045drill-ring3', net: `REAL_PTH_${index}_P` });
+    vias.push({ id: 3000 + index, x: hdiX, y: family.pitchMil, padstack: 'BGA-HDI-SIG-045drill-ring3', net: `REAL_PTH_${index}_N` });
+    ['05G02P', '10G07P'].forEach((layer, layerIndex) => shapes.push({
+      id: 4000 + index * 2 + layerIndex, layer,
+      area: family.pitchMil === 27.56 && index < 298 ? 50.26548 : family.area,
+      centroid: { x, y: 0 }
+    }));
+  }
   const templates = [
     { id: 'legacy_pth_1', name: 'L5/10特定异型泪滴铜皮', padstack: 'PTH-SIG-150drill-ring0_L5_L10', differentialCenterDistance: 23.62, hdiSearchRadiusMm: 0.175, layer: 'L10,L5', expectedArea: 50.3, areaTolerance: 1 },
     { id: 'legacy_pth_2', name: 'L5/10特定异型泪滴铜皮', padstack: 'PTH-SIG-150drill-ring0_L5_L10', differentialCenterDistance: 27.56, hdiSearchRadiusMm: 0.175, layer: 'L10,L5', expectedArea: 97.4, areaTolerance: 1 },
@@ -353,11 +374,18 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   ];
   const results = checkSpecialShapedCopper(vias, shapes, templates);
   const grouped = groupResultsByTargetObject(results);
-  assert.strictEqual(results.length, 1184, '592 颗目标孔在 L5/L10 均应生成未命中结果');
+  assert.strictEqual(results.length, 1184, '592 颗目标孔在 L5/L10 均应生成检查结果');
   assert.strictEqual(grouped.length, 592, '按目标对象汇总后必须完整保留 592 颗 PTH-SIG');
-  assert.ok(results.every(result => result.associationFailed && !result.pass));
-  assert.ok(/0.984 mil/.test(grouped[0].metricsStr) && /19.685 \/ 23.62 \/ 27.56 mil/.test(grouped[0].metricsStr));
-  console.log('  PASS  第二项：592 颗 PTH-SIG 未命中模板时全部生成明确不符合结果');
+  assert.strictEqual(results.filter(result => result.associationFailed).length, 296, '未配置 0.8 mm 模板的 148 颗孔应在两层明确报错');
+  assert.strictEqual(grouped.filter(result => result.pass).length, 442);
+  assert.strictEqual(grouped.filter(result => !result.pass).length, 150, '148 颗未配置孔距加 2 颗面积异常应不符合');
+  const first = results.find(result => result.viaId === 1000);
+  assert.strictEqual(first.actualHdiViaId, 2000);
+  assert.strictEqual(first.pairedHdiViaId, 3000);
+  assert.strictEqual(first.hdiAssociationDistance, 0.98425);
+  assert.strictEqual(first.actualDifferentialCenterDistance, 19.685);
+  assert.ok(!first.associationFailed && first.pass);
+  console.log('  PASS  第二项：592 颗 PTH-SIG 按同网络 HDI 搜索与 HDI 差分孔距完整判定');
 }
 
 // 5. 第三项：完整走线投影覆盖与整条走线左右两侧邻近铜检查

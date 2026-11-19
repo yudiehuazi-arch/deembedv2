@@ -138,8 +138,8 @@
                 <th style="width:68px">缩略图</th>
                 <th>模板名称</th>
                 <th data-tip="目标过孔 Padstack 匹配关键字">过孔类型</th>
-                <th data-tip="可选；填写后才按目标 Via 到最近同网络 HDI 孔的中心距匹配模板，单位 mil，容差 0.01 mil">差分孔中心距</th>
-                <th data-tip="可选；填写后才限制同网络 HDI 孔的最大搜索距离，留空不限制">HDI 搜索距离 mm</th>
+                <th data-tip="可选；先关联搜索范围内的同网络 HDI 孔，再计算该 HDI 与对应差分网络 HDI 孔的中心距，单位 mil，容差 0.01 mil">差分孔中心距</th>
+                <th data-tip="可选；目标过孔到同网络且 Padstack 名含 HDI 的孔的最大关联距离，留空不限制">HDI 搜索距离 mm</th>
                 <th data-tip="支持同时填写多个目标层，使用逗号、分号或斜杠分隔">目标层别</th>
                 <th>基准面积与容差</th>
                 <th style="width:124px">操作</th>
@@ -483,12 +483,12 @@
         <div class="chip-bar" id="chipsModalR2Padstack"></div>
       </div>
       <div class="form-item">
-        <label for="modalR2InpDiffDist" data-tip="可选；填写后才按目标 Via 到最近同网络 HDI 孔的中心距匹配模板，单位 mil，容差 0.01 mil">差分孔中心距</label>
+        <label for="modalR2InpDiffDist" data-tip="可选；先关联搜索范围内的同网络 HDI 孔，再计算该 HDI 与对应差分网络 HDI 孔的中心距，单位 mil，容差 0.01 mil">差分孔中心距</label>
         <input type="number" id="modalR2InpDiffDist" value="" placeholder="留空则不检查中心距" step="0.01" min="0.01" data-no-persist>
         <div class="chip-bar" id="chipsModalR2DiffDist"></div>
       </div>
       <div class="form-item">
-        <label for="modalR2InpHdiRadius" data-tip="可选；填写后才限制同网络 HDI 孔的最大搜索距离，留空不限制">HDI 搜索距离 mm</label>
+        <label for="modalR2InpHdiRadius" data-tip="可选；目标过孔到同网络且 Padstack 名含 HDI 的孔的最大关联距离，留空不限制">HDI 搜索距离 mm</label>
         <input type="number" id="modalR2InpHdiRadius" value="" placeholder="留空则不限制搜索距离" step="0.001" min="0.001" data-no-persist>
         <div class="chip-bar" id="chipsModalR2HdiRadius"></div>
       </div>
