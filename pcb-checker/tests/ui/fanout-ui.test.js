@@ -44,6 +44,36 @@ test('页面初始化与预设 6 套扇出方案库加载', () => {
   assert.ok(document.getElementById('statSchemeCount').textContent.includes('6'));
 });
 
+test('方案库可选择两套方案并逐项对比关键指标、等比例图形与逐孔明细', () => {
+  const button = document.getElementById('btnCompareSchemes');
+  assert.ok(button && !button.disabled, '方案库缺少双方案对比入口');
+  window.openFanoutSchemeCompare();
+  const modal = document.getElementById('modalSchemeCompare');
+  const selectA = document.getElementById('selCompareSchemeA');
+  const selectB = document.getElementById('selCompareSchemeB');
+  assert.ok(modal.classList.contains('open'));
+  assert.strictEqual(selectA.options.length, 6);
+  assert.strictEqual(selectB.options.length, 6);
+  assert.notStrictEqual(selectA.value, selectB.value, '默认应选择两套不同方案');
+  assert.strictEqual(document.querySelectorAll('[data-compare-metric]').length, 9);
+  assert.strictEqual(document.querySelectorAll('.scheme-compare-different').length, 1,
+    '两个 SMA 十字方案应仅在 Padstack 构成上不同');
+  assert.ok(document.getElementById('schemeCompareStatus').textContent.includes('1 项关键差异'));
+  assert.strictEqual(document.querySelectorAll('.scheme-compare-preview-grid canvas').length, 2);
+  assert.strictEqual(document.querySelectorAll('.scheme-compare-via-card').length, 2);
+  assert.ok(document.getElementById('schemeCompareOutput').textContent.includes('孔心距谱'));
+
+  selectB.value = selectA.value;
+  window.updateFanoutSchemeComparison('b');
+  assert.notStrictEqual(selectA.value, selectB.value, '不允许把同一套方案作为 A、B 对比对象');
+  const previousA = selectA.value, previousB = selectB.value;
+  window.swapFanoutSchemeComparison();
+  assert.strictEqual(selectA.value, previousB);
+  assert.strictEqual(selectB.value, previousA);
+  window.closeFanoutSchemeCompare();
+  assert.ok(!modal.classList.contains('open'));
+});
+
 test('新建自定义扇出方案模态框与保存、聚类单位切换', () => {
   window.openSchemeModal();
   const modal = document.getElementById('modalScheme');

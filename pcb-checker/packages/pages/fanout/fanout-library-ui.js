@@ -101,7 +101,9 @@
     var statSchemeCount = document.getElementById('statSchemeCount');
     var selFilter = document.getElementById('selSchemeFilter');
     var schemes = State.library.schemes;
+    var compareButton = document.getElementById('btnCompareSchemes');
 
+    if (compareButton) compareButton.disabled = schemes.length < 2;
     if (FC.syncLibraryPadstackColors) FC.syncLibraryPadstackColors(schemes);
     if (countBadge) countBadge.textContent = String(schemes.length);
     if (statSchemeCount) statSchemeCount.textContent = String(schemes.length);

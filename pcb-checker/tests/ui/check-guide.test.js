@@ -20,8 +20,8 @@ const CASES = [
 test('五个检查模块均提供独立、可切换且默认收起的检查说明页', () => {
   CASES.forEach(item => {
     const source = fs.readFileSync(path.join(CHECKER_DIR, item.page), 'utf8');
-    assert.match(source, /assets\/styles\/check-guide\.css\?v=46/, item.page + ' 未加载检查说明样式');
-    assert.match(source, /packages\/shared\/check-guide\.js\?v=46/, item.page + ' 未加载检查说明脚本');
+    assert.match(source, /assets\/styles\/check-guide\.css\?v=47/, item.page + ' 未加载检查说明样式');
+    assert.match(source, /packages\/shared\/check-guide\.js\?v=47/, item.page + ' 未加载检查说明脚本');
 
     const ctx = openPage(item.page, { syncCheck: true });
     const { d } = ctx;
@@ -57,7 +57,8 @@ test('共享检查说明用白话写清操作步骤、判断依据与验证标�
   ['符合标准', '不符合标准', '边界与例外', '系统按什么判断', '位置容差', '数值容差', 'Void', '0.01 mil'].forEach(keyword => {
     assert(js.includes(keyword), '检查说明缺少关键语义：' + keyword);
   });
-  ['0、0.025、0.075、0.125、0.175 mm', '每个档位允许 ±0.005 mm', '合并可以连续传递', '当前归组不使用 Connections', '0°、90°、180°、270°'].forEach(keyword => {
+  ['0、0.025、0.075、0.125、0.175 mm', '每个档位允许 ±0.005 mm', '合并可以连续传递', '当前归组不使用 Connections', '0°、90°、180°、270°',
+    '双方案对比使用同一画布比例和中心原点', 'Padstack 层跨会保留在诊断中，但不会推翻参考层上已经存在的 Void 几何'].forEach(keyword => {
     assert(js.includes(keyword), '检查说明未写清关键判断依据：' + keyword);
   });
   ['正交旋转', '刚体变换', '方案姿态', '连通分量'].forEach(jargon => {
