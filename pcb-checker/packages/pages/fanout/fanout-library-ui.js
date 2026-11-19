@@ -103,7 +103,7 @@
     var schemes = State.library.schemes;
     var compareButton = document.getElementById('btnCompareSchemes');
 
-    if (compareButton) compareButton.disabled = schemes.length < 2;
+    if (compareButton) compareButton.disabled = false;
     if (FC.syncLibraryPadstackColors) FC.syncLibraryPadstackColors(schemes);
     if (countBadge) countBadge.textContent = String(schemes.length);
     if (statSchemeCount) statSchemeCount.textContent = String(schemes.length);

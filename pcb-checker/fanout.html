@@ -4,11 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>PCB 扇出方案检查工具</title>
-<link rel="stylesheet" href="assets/styles/tokens.css?v=48">
-<link rel="stylesheet" href="assets/styles/eda-shell.css?v=48">
-<link rel="stylesheet" href="assets/styles/eda-dock.css?v=48">
-<link rel="stylesheet" href="assets/styles/components.css?v=48">
-<link rel="stylesheet" href="assets/styles/pages/fanout.css?v=48"><link rel="stylesheet" href="assets/styles/check-guide.css?v=48">
+<link rel="stylesheet" href="assets/styles/tokens.css?v=49">
+<link rel="stylesheet" href="assets/styles/eda-shell.css?v=49">
+<link rel="stylesheet" href="assets/styles/eda-dock.css?v=49">
+<link rel="stylesheet" href="assets/styles/components.css?v=49">
+<link rel="stylesheet" href="assets/styles/pages/fanout.css?v=49"><link rel="stylesheet" href="assets/styles/check-guide.css?v=49">
 </head>
 <body class="eda-workbench">
 
@@ -94,10 +94,10 @@
     <section id="tabLibrary" class="tab active">
       <div class="card">
         <div class="row" style="justify-content:space-between">
-          <h2>扇出方案库管理 <span class="eda-tip" tabindex="0" data-tip="每套方案定义信号孔与伴随屏蔽地孔的相对坐标、孔心距谱与逐孔 Padstack；可选择两套方案逐项对比">?</span></h2>
+          <h2>扇出方案库管理 <span class="eda-tip" tabindex="0" data-tip="每套方案定义信号孔与伴随屏蔽地孔的相对坐标、孔心距谱与逐孔 Padstack；对比两侧可选库方案或手动粘贴 TXT">?</span></h2>
           <div class="row" style="gap:6px">
             <button type="button" class="btn pri small" onclick="openSchemeModal()">+ 新建扇出方案</button>
-            <button type="button" class="btn sec small" id="btnCompareSchemes" onclick="openFanoutSchemeCompare()" data-tip="选择方案库中的两套方案，对比孔数、Padstack、孔心距谱、几何跨度和逐孔明细">对比两个方案</button>
+            <button type="button" class="btn sec small" id="btnCompareSchemes" onclick="openFanoutSchemeCompare()" data-tip="方案库或手动粘贴 TXT 均可作为 A/B 两侧，对比孔数、Padstack、孔心距谱、几何跨度和逐孔明细">对比方案</button>
             <button type="button" class="btn ghost small" onclick="openBatchFanoutModal()" data-tip="按 ~~~end~~~ 分界符一次性解析导入多套方案">批量导入多方案</button>
             <button type="button" class="btn sec small" onclick="loadPresets()">载入标准预设</button>
             <button type="button" class="btn sec small" onclick="exportLibraryJSON()">导出 JSON</button>
@@ -641,24 +641,24 @@
     </div>
   </div>
 </div>
-<script src="packages/shared/check-guide.js?v=48"></script><script src="packages/shared/dom-utils.js?v=48"></script>
-<script src="packages/engines/fanout/fanout-parser.js?v=48"></script>
-<script src="packages/engines/fanout/fanout-palette.js?v=48"></script>
-<script src="packages/engines/fanout/fanout-scheme.js?v=48"></script>
-<script src="packages/engines/fanout/fanout-clustering.js?v=48"></script>
-<script src="packages/engines/fanout/fanout-topology.js?v=48"></script>
-<script src="packages/engines/fanout/fanout-inspector.js?v=48"></script>
-<script src="packages/engines/fanout/fanout-layout.js?v=48"></script>
-<script src="packages/engines/fanout/fanout-canvas.js?v=48"></script>
-<script src="packages/pages/fanout/fanout-state.js?v=48"></script>
-<script src="packages/pages/fanout/fanout-library-ui.js?v=48"></script><script src="packages/pages/fanout/fanout-scheme-compare.js?v=48"></script>
-<script src="packages/pages/fanout/fanout-scheme-viewer.js?v=48"></script>
-<script src="packages/pages/fanout/fanout-result-details.js?v=48"></script><script src="packages/pages/fanout/fanout-results-ui.js?v=48"></script>
-<script src="packages/pages/fanout/fanout-analysis-ui.js?v=48"></script>
-<script src="packages/pages/fanout/fanout-canvas-review.js?v=48"></script>
-<script src="packages/pages/fanout/fanout-canvas-viewer.js?v=48"></script>
-<script src="packages/shared/eda-tooltip.js?v=48"></script>
-<script src="packages/shared/eda-shell.js?v=48"></script>
-<script src="packages/shared/ui-prefs.js?v=48"></script>
+<script src="packages/shared/check-guide.js?v=49"></script><script src="packages/shared/dom-utils.js?v=49"></script>
+<script src="packages/engines/fanout/fanout-parser.js?v=49"></script>
+<script src="packages/engines/fanout/fanout-palette.js?v=49"></script>
+<script src="packages/engines/fanout/fanout-scheme.js?v=49"></script>
+<script src="packages/engines/fanout/fanout-clustering.js?v=49"></script>
+<script src="packages/engines/fanout/fanout-topology.js?v=49"></script>
+<script src="packages/engines/fanout/fanout-inspector.js?v=49"></script>
+<script src="packages/engines/fanout/fanout-layout.js?v=49"></script>
+<script src="packages/engines/fanout/fanout-canvas.js?v=49"></script>
+<script src="packages/pages/fanout/fanout-state.js?v=49"></script>
+<script src="packages/pages/fanout/fanout-library-ui.js?v=49"></script><script src="packages/pages/fanout/fanout-scheme-compare.js?v=49"></script>
+<script src="packages/pages/fanout/fanout-scheme-viewer.js?v=49"></script>
+<script src="packages/pages/fanout/fanout-result-details.js?v=49"></script><script src="packages/pages/fanout/fanout-results-ui.js?v=49"></script>
+<script src="packages/pages/fanout/fanout-analysis-ui.js?v=49"></script>
+<script src="packages/pages/fanout/fanout-canvas-review.js?v=49"></script>
+<script src="packages/pages/fanout/fanout-canvas-viewer.js?v=49"></script>
+<script src="packages/shared/eda-tooltip.js?v=49"></script>
+<script src="packages/shared/eda-shell.js?v=49"></script>
+<script src="packages/shared/ui-prefs.js?v=49"></script>
 </body>
 </html>

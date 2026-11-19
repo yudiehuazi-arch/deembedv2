@@ -52,8 +52,9 @@ test('方案库可选择两套方案并逐项对比关键指标、等比例图�
   const selectA = document.getElementById('selCompareSchemeA');
   const selectB = document.getElementById('selCompareSchemeB');
   assert.ok(modal.classList.contains('open'));
-  assert.strictEqual(selectA.options.length, 6);
-  assert.strictEqual(selectB.options.length, 6);
+  assert.strictEqual(selectA.options.length, 7);
+  assert.strictEqual(selectB.options.length, 7);
+  assert.strictEqual(selectA.options[6].value, '__manual__');
   assert.notStrictEqual(selectA.value, selectB.value, '默认应选择两套不同方案');
   assert.strictEqual(document.querySelectorAll('[data-compare-metric]').length, 9);
   assert.strictEqual(document.querySelectorAll('.scheme-compare-different').length, 1,
@@ -72,6 +73,84 @@ test('方案库可选择两套方案并逐项对比关键指标、等比例图�
   assert.strictEqual(selectB.value, previousA);
   window.closeFanoutSchemeCompare();
   assert.ok(!modal.classList.contains('open'));
+});
+
+test('对比两侧均可粘贴 TXT，解析失败保留有效结果且不会修改方案库', () => {
+  window.openFanoutSchemeCompare();
+  const selectA = document.getElementById('selCompareSchemeA');
+  const selectB = document.getElementById('selCompareSchemeB');
+  const initialLibraryLength = window.State.library.schemes.length;
+  const initialLibraryJson = JSON.stringify(window.State.library.toJSON());
+  const manualA = `
+Item 101 < Via >
+  Origin-xy: [1000, 1000]
+  Net: SIG_A
+  Padstack Name: MANUAL_SIG_A
+Item 102 < Via >
+  Origin-xy: [1030, 1000]
+  Net: GND
+  Padstack Name: MANUAL_GND
+Item 103 < Via >
+  Origin-xy: [1000, 1040]
+  Net: GND
+  Padstack Name: MANUAL_GND
+`;
+  const manualB = `
+Item 201 < Via >
+  Origin-xy: [2000, 2000]
+  Net: SIG_B
+  Padstack Name: MANUAL_SIG_B
+Item 202 < Via >
+  Origin-xy: [2050, 2000]
+  Net: GND
+  Padstack Name: MANUAL_GND_B
+`;
+
+  selectA.value = '__manual__';
+  window.updateFanoutSchemeComparison('a');
+  assert.strictEqual(document.getElementById('schemeCompareManualA').hidden, false);
+  assert.ok(document.getElementById('schemeCompareStatus').textContent.includes('等待手动 TXT'));
+  document.getElementById('inpCompareManualNameA').value = '临时手动方案 A';
+  document.getElementById('txtCompareManualA').value = manualA;
+  const parsedA = window.parseFanoutCompareManual('a');
+  assert.strictEqual(parsedA.viaCount, 3);
+  assert.strictEqual(window.State.library.schemes.length, initialLibraryLength, '手动方案不得写入方案库');
+  assert.strictEqual(document.querySelectorAll('[data-compare-metric]').length, 9);
+  assert.ok(document.getElementById('schemeCompareOutput').textContent.includes('临时手动方案 A'));
+  assert.strictEqual(document.querySelectorAll('.scheme-compare-via-card:first-child tbody tr').length, 3);
+
+  document.getElementById('txtCompareManualA').value = '不是有效的 Via TXT';
+  const rejected = window.parseFanoutCompareManual('a');
+  assert.strictEqual(rejected, null);
+  assert.ok(document.getElementById('schemeCompareParseStatusA').textContent.includes('仍保留上次成功解析'));
+  assert.strictEqual(document.querySelectorAll('[data-compare-metric]').length, 9, '无效 TXT 不得替换已生效的对比结果');
+  assert.ok(document.getElementById('schemeCompareOutput').textContent.includes('临时手动方案 A'));
+
+  selectB.value = '__manual__';
+  window.updateFanoutSchemeComparison('b');
+  assert.strictEqual(document.getElementById('schemeCompareManualB').hidden, false);
+  assert.strictEqual(window.parseFanoutCompareManual('b'), null);
+  assert.ok(document.getElementById('schemeCompareParseStatusB').textContent.includes('请先粘贴'));
+  assert.ok(document.getElementById('schemeCompareStatus').textContent.includes('等待手动 TXT'));
+  document.getElementById('inpCompareManualNameB').value = '临时手动方案 B';
+  document.getElementById('txtCompareManualB').value = manualB;
+  const parsedB = window.parseFanoutCompareManual('b');
+  assert.strictEqual(parsedB.viaCount, 2);
+  assert.strictEqual(document.querySelectorAll('[data-compare-metric]').length, 9);
+  assert.strictEqual(document.querySelectorAll('.scheme-compare-via-card:last-child tbody tr').length, 2);
+  assert.strictEqual(window.State.library.schemes.length, initialLibraryLength);
+
+  const libraryId = String(window.State.library.schemes[0].id);
+  selectA.value = libraryId;
+  window.updateFanoutSchemeComparison('a');
+  assert.strictEqual(selectB.value, '__manual__');
+  window.swapFanoutSchemeComparison();
+  assert.strictEqual(selectA.value, '__manual__', '库方案 / 手动方案交换后 A 应为手动方案');
+  assert.strictEqual(selectB.value, libraryId, '库方案 / 手动方案交换后 B 应为原库方案');
+  assert.ok(document.getElementById('schemeCompareOutput').textContent.includes('临时手动方案 B'));
+  assert.strictEqual(window.State.library.schemes.length, initialLibraryLength);
+  assert.strictEqual(JSON.stringify(window.State.library.toJSON()), initialLibraryJson, '手动对比不得修改库方案内容');
+  window.closeFanoutSchemeCompare();
 });
 
 test('新建自定义扇出方案模态框与保存、聚类单位切换', () => {
