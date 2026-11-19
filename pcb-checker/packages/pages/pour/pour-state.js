@@ -52,6 +52,7 @@
     activeTab: 'tabRules',
     resultStatusFilter: 'all',
     categoryFilter: 'all',
+    analysisCategoryFilter: 'via_coverage',
     resultColumnFilters: { category: [], target: '', layer: [], status: [], problem: '', review: [] },
     resultColumnFilterSource: [],
     viewMode: 'grouped',

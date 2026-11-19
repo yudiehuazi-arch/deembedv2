@@ -333,6 +333,121 @@ canvas#mainCanvas:active {
   z-index: 25;
 }
 
+/* 缺陷规律分析分类筛选 */
+.pour-analysis-filter {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+}
+
+.pour-analysis-filter-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 9px;
+}
+
+.pour-analysis-filter-head div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pour-analysis-filter-head strong {
+  color: var(--heading);
+  font-size: 13px;
+}
+
+.pour-analysis-filter-head span {
+  color: var(--sub);
+  font-size: 11px;
+}
+
+#lblAnalysisFilterStatus {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border: 1px solid var(--pri-border);
+  border-radius: 999px;
+  background: var(--pri-soft);
+  color: var(--pri-d);
+  font-weight: 700;
+}
+
+.pour-analysis-filter-buttons {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(164px, 1fr));
+  gap: 7px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.pour-analysis-filter-btn {
+  --analysis-color: var(--sub);
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--analysis-color);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--txt);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: left;
+}
+
+.pour-analysis-filter-btn[data-analysis-category="via_coverage"] { --analysis-color: #ef4444; }
+.pour-analysis-filter-btn[data-analysis-category="special_shape"] { --analysis-color: #a855f7; }
+.pour-analysis-filter-btn[data-analysis-category="trace_ref_margin"] { --analysis-color: #f59e0b; }
+.pour-analysis-filter-btn[data-analysis-category="isolated_copper"] { --analysis-color: #06b6d4; }
+.pour-analysis-filter-btn[data-analysis-category="arc_radius"] { --analysis-color: #ec4899; }
+
+.pour-analysis-filter-btn:hover,
+.pour-analysis-filter-btn.active {
+  border-color: var(--pri-border);
+  border-left-color: var(--analysis-color);
+  background: var(--pri-soft);
+  color: var(--pri-d);
+}
+
+.pour-analysis-filter-btn b {
+  display: inline-flex;
+  min-width: 22px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: var(--heading);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.pour-analysis-filter-btn.active b {
+  background: var(--pri);
+  color: #ffffff;
+}
+
+@media (max-width: 780px) {
+  .pour-analysis-filter-head {
+    flex-direction: column;
+  }
+
+  .pour-analysis-filter-buttons {
+    grid-template-columns: repeat(5, minmax(164px, 1fr));
+  }
+}
+
 /* 规律分析卡片 */
 .pattern-card {
   background: #ffffff;

@@ -42,13 +42,14 @@ State.summary = {
   totalShapes: SHAPE_COUNT, totalVias: VIA_COUNT, totalTraces: 0
 };
 
+State.analysisCategoryFilter = 'isolated_copper';
 let started = Date.now();
 w.renderAnalysisTab();
 const analysisMs = Date.now() - started;
 const analysisHtml = d.getElementById('pnlAnalysisContainer').innerHTML;
 assert.ok(analysisMs < 1500, `规律分析耗时 ${analysisMs} ms，超过 1.5 秒预算`);
 assert.ok(analysisHtml.length < 500000, `规律分析 HTML ${analysisHtml.length} 字节，聚合失效`);
-assert.strictEqual(d.querySelectorAll('.pour-defect-summary-table tbody tr').length, 2);
+assert.strictEqual(d.querySelectorAll('.pour-defect-summary-table tbody tr').length, 1);
 assert.strictEqual(d.querySelector('.pour-defect-board-canvas').getAttribute('data-all-via-count'), String(VIA_COUNT));
 
 const canvas = d.getElementById('mainCanvas');

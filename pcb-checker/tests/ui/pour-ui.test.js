@@ -761,6 +761,64 @@ Item 3  < Via >
   if (!csvCaptured || !csvCaptured.content.includes('检查分类')) throw new Error('CSV 导出内容异常');
 });
 
+test('缺陷规律分析可按五类缺陷按钮单独筛选总结表和原因明细', () => {
+  const saved = {
+    rawResults: w.State.rawResults,
+    summary: w.State.summary,
+    analysisCategoryFilter: w.State.analysisCategoryFilter
+  };
+  const mocks = [
+    { checkCategory: 'via_coverage', checkCategoryName: '① 孔层铺铜', pass: false, viaId: 101, viaPadstack: 'VIA_COV', viaNet: 'NET_COV', layer: 'L2', requiredDist: 50 },
+    { checkCategory: 'special_shape', checkCategoryName: '② 异型铜皮', pass: false, viaId: 102, viaPadstack: 'VIA_SPECIAL', viaNet: 'NET_SPECIAL', layer: 'L3', templateName: '模板二', associationFailed: true, associationSummary: '未命中模板' },
+    { checkCategory: 'trace_ref_margin', checkCategoryName: '③ 参考层铺铜', pass: false, traceId: 103, traceNet: 'NET_MARGIN', traceLayer: 'L4', refLayer: 'L5', refType: '上参考层', footprintCovered: false, leftSideCopper: true, rightSideCopper: true },
+    { checkCategory: 'isolated_copper', checkCategoryName: '④ 孤立小铜皮', pass: false, shapeId: 104, layer: 'L6', areaThreshold: 500 },
+    { checkCategory: 'arc_radius', checkCategoryName: '⑤ 圆弧半径', pass: false, shapeId: 105, layer: 'L7', requiredRadius: 10 }
+  ];
+  w.State.rawResults = mocks;
+  w.State.summary = Object.assign({}, saved.summary || {}, {
+    totalDefects: 5,
+    breakdown: { viaCoverageDefects: 1, specialShapeDefects: 1, traceMarginDefects: 1, smallCopperDefects: 1, arcRadiusDefects: 1 }
+  });
+  w.State.analysisCategoryFilter = 'via_coverage';
+  w.renderAnalysisTab();
+
+  const buttonCases = [
+    ['btnAnalysisCov', 'via_coverage', '① 孔层铺铜', '孔层铺铜缺失'],
+    ['btnAnalysisSpecial', 'special_shape', '② 异型铜皮', '异型铜皮不匹配'],
+    ['btnAnalysisMargin', 'trace_ref_margin', '③ 参考层铺铜', '走线投影或两侧邻近铜不符合'],
+    ['btnAnalysisSmall', 'isolated_copper', '④ 孤立小铜皮', '孤立小铜皮'],
+    ['btnAnalysisArc', 'arc_radius', '⑤ 圆弧半径', '铜皮圆弧半径过小']
+  ];
+  if (d.querySelectorAll('.pour-analysis-filter-btn').length !== 5) throw new Error('缺陷规律分析必须恰好显示五个分类按钮');
+  if (!$('btnAnalysisCov').classList.contains('active')) throw new Error('默认未选中第一类孔经过层铺铜覆盖检查');
+  buttonCases.forEach(([buttonId, category, expected, summaryLabel]) => {
+    const button = $(buttonId);
+    const count = button.querySelector('b');
+    if (!button || count.textContent !== '1') throw new Error(expected + ' 按钮或数量异常');
+    button.click();
+    if (w.State.analysisCategoryFilter !== category || !button.classList.contains('active') || button.getAttribute('aria-pressed') !== 'true') throw new Error(expected + ' 未进入选中状态');
+    if (w.State.rawResults !== mocks) throw new Error('切换缺陷类型时不应重新执行检查');
+    if (d.querySelectorAll('.pour-analysis-filter-btn.active').length !== 1) throw new Error('同时选中了多个缺陷类型');
+    const table = d.querySelector('.pour-analysis-detail-table');
+    if (!table || !table.textContent.includes(expected)) throw new Error('原因明细未显示 ' + expected);
+    buttonCases.forEach(([, otherCategory, otherLabel]) => {
+      if (otherCategory !== category && table.textContent.includes(otherLabel)) throw new Error('原因明细混入其他类别：' + otherLabel);
+    });
+    const summaryTable = d.querySelector('.pour-defect-summary-table');
+    if (!summaryTable || summaryTable.querySelectorAll('tbody tr').length !== 1 || !summaryTable.textContent.includes(summaryLabel)) throw new Error('缺陷总结表未只显示 ' + expected);
+    buttonCases.forEach(([, otherCategory, , otherSummaryLabel]) => {
+      if (otherCategory !== category && summaryTable.textContent.includes(otherSummaryLabel)) throw new Error('缺陷总结表混入其他类别：' + otherSummaryLabel);
+    });
+    const visibleCards = [...d.querySelectorAll('.pattern-card[data-analysis-category]')].filter(card => !card.hidden);
+    if (visibleCards.length !== 1 || visibleCards[0].dataset.analysisCategory !== category) throw new Error('规律卡片未只显示 ' + expected);
+  });
+
+  w.State.rawResults = saved.rawResults;
+  w.State.summary = saved.summary;
+  w.State.analysisCategoryFilter = saved.analysisCategoryFilter || 'via_coverage';
+  w.renderAnalysisTab();
+});
+
 test('大文件仅在文本框显示截断预览，并通过 Web Worker 后台执行几何检查', () => {
   const input = $('txtDataInput');
   const originalText = input.value;

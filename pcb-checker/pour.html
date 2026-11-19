@@ -398,6 +398,20 @@
           <button type="button" class="btn sec small" onclick="exportAnalysisReport()">导出 Markdown 分析报告</button>
         </div>
 
+        <div class="pour-analysis-filter" aria-label="缺陷类型筛选">
+          <div class="pour-analysis-filter-head">
+            <div><strong>按缺陷类型查看</strong><span>选择一种缺陷后，下方总结表和原因明细只显示这一类结果。</span></div>
+            <span id="lblAnalysisFilterStatus">当前显示：孔经过层铺铜覆盖检查</span>
+          </div>
+          <div class="pour-analysis-filter-buttons">
+            <button type="button" id="btnAnalysisCov" class="pour-analysis-filter-btn active" data-analysis-category="via_coverage" aria-pressed="true" onclick="setAnalysisCategoryFilter('via_coverage')">① 孔经过层铺铜覆盖检查 <b id="cntAnalysisCov">0</b></button>
+            <button type="button" id="btnAnalysisSpecial" class="pour-analysis-filter-btn" data-analysis-category="special_shape" aria-pressed="false" onclick="setAnalysisCategoryFilter('special_shape')">② 特定异型铜皮比对检查 <b id="cntAnalysisSpecial">0</b></button>
+            <button type="button" id="btnAnalysisMargin" class="pour-analysis-filter-btn" data-analysis-category="trace_ref_margin" aria-pressed="false" onclick="setAnalysisCategoryFilter('trace_ref_margin')">③ 走线参考层投影覆盖与两侧邻近铜 <b id="cntAnalysisMargin">0</b></button>
+            <button type="button" id="btnAnalysisSmall" class="pour-analysis-filter-btn" data-analysis-category="isolated_copper" aria-pressed="false" onclick="setAnalysisCategoryFilter('isolated_copper')">④ 孤立小铜皮检查 <b id="cntAnalysisSmall">0</b></button>
+            <button type="button" id="btnAnalysisArc" class="pour-analysis-filter-btn" data-analysis-category="arc_radius" aria-pressed="false" onclick="setAnalysisCategoryFilter('arc_radius')">⑤ 铜皮最小圆弧半径检查 <b id="cntAnalysisArc">0</b></button>
+          </div>
+        </div>
+
         <div id="pnlAnalysisContainer" style="margin-top:14px">
           <div style="text-align:center;padding:36px;color:var(--sub)">尚无检查数据，请先在工序 ② 导入数据并执行检查。</div>
         </div>

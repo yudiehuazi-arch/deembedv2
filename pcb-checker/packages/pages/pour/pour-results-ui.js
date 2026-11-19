@@ -358,7 +358,7 @@
   function renderAnalysisTab() {
     var State = root.State;
     var container = document.getElementById('pnlAnalysisContainer');
-    if (!container) return;
+    if (!container) return; if (root.syncAnalysisCategoryButtons) root.syncAnalysisCategoryButtons();
     if (!State.summary || !State.rawResults || !State.rawResults.length) {
       container.innerHTML = '<div style="text-align:center;padding:36px;color:var(--sub)">尚无检查数据，请先在工序 ② 导入数据并执行检查。</div>';
       return;
@@ -366,6 +366,7 @@
 
     var b = State.summary.breakdown;
     var defects = State.rawResults.filter(function (r) { return !r.pass; });
+    defects = defects.filter(function (r) { return r.checkCategory === (State.analysisCategoryFilter || 'via_coverage'); });
     var badTotal = defects.length;
 
     var layerBadMap = {};
@@ -449,7 +450,7 @@
         '</div></div>';
 
       var badKeys = Object.keys(badMap).sort(function (a, b) { return badMap[b].n - badMap[a].n; });
-      h += '<div class="tbl-wrap"><table><thead><tr>' +
+      h += '<div class="tbl-wrap"><table class="pour-analysis-detail-table"><thead><tr>' +
         '<th style="width:200px">规则 · 检查项</th>' +
         '<th style="width:72px">条数</th>' +
         '<th>具体原因与对应过孔/走线网络</th>' +
@@ -491,7 +492,7 @@
       return esc(l) + ' ' + layerBadMap[l] + ' 条';
     }).join('、') || '各内层';
 
-    h += '<div class="pattern-card">' +
+    h += '<div class="pattern-card" data-analysis-category="via_coverage">' +
       '<h3><span>① 孔经过层铺铜覆盖检查 — 缺陷规律与工程分析</span>' +
       '<span class="badge-tag ' + (b.viaCoverageDefects > 0 ? 'bad' : 'ok') + '">' + b.viaCoverageDefects + ' 处层位不符合</span></h3>' +
       '<div class="pattern-box">' +
@@ -500,7 +501,7 @@
       '<div class="hint"><strong>整改措施：</strong>在对应内层补充接地铜皮，高速差分过孔周边 30–50 mil 增设 GND 回流伴随孔。</div>' +
     '</div>';
 
-    h += '<div class="pattern-card">' +
+    h += '<div class="pattern-card" data-analysis-category="special_shape">' +
       '<h3><span>② 特定异型铜皮比对检查 — 缺陷规律与工程分析</span>' +
       '<span class="badge-tag ' + (b.specialShapeDefects > 0 ? 'bad' : 'ok') + '">' + b.specialShapeDefects + ' 处异型铜皮不匹配</span></h3>' +
       '<div class="pattern-box">' +
@@ -509,7 +510,7 @@
       '<div class="hint"><strong>整改措施：</strong>核查 EDA 泪滴与异型铜皮脚本层映射规则，修复相邻反焊盘侵占区域后重新铺铜。</div>' +
     '</div>';
 
-    h += '<div class="pattern-card">' +
+    h += '<div class="pattern-card" data-analysis-category="trace_ref_margin">' +
       '<h3><span>③ 走线参考层投影覆盖与两侧邻近铜 — 缺陷规律与工程分析</span>' +
       '<span class="badge-tag ' + (b.traceMarginDefects > 0 ? 'bad' : 'ok') + '">' + b.traceMarginDefects + ' 处参考层异常</span></h3>' +
       '<div class="pattern-box">' +
@@ -518,7 +519,7 @@
       '<div class="hint"><strong>整改措施：</strong>补齐端点反焊盘以外走线完整投影范围的上下参考铜，并确保整条走线左右两侧各有铜皮落在设定搜索距离内，避免跨越平面分割。</div>' +
     '</div>';
 
-    h += '<div class="pattern-card">' +
+    h += '<div class="pattern-card" data-analysis-category="isolated_copper">' +
       '<h3><span>④ 孤立小铜皮检查 — 缺陷规律与工程分析</span>' +
       '<span class="badge-tag ' + (b.smallCopperDefects > 0 ? 'bad' : 'ok') + '">' + b.smallCopperDefects + ' 处孤立小铜皮 &lt; ' + esc(State.smallCopperAreaThreshold) + ' sq mil</span></h3>' +
       '<div class="pattern-box">' +
@@ -527,7 +528,7 @@
       '<div class="hint"><strong>整改措施：</strong>在 EDA 铺铜管理器启用孤立铜岛自动清理，删除面积低于阈值的无连接碎铜。</div>' +
     '</div>';
 
-    h += '<div class="pattern-card">' +
+    h += '<div class="pattern-card" data-analysis-category="arc_radius">' +
       '<h3><span>⑤ 铜皮最小圆弧半径检查 — 缺陷规律与工程分析</span>' +
       '<span class="badge-tag ' + (b.arcRadiusDefects > 0 ? 'bad' : 'ok') + '">' + b.arcRadiusDefects + ' 处圆弧 &lt; ' + esc(State.minArcRadius) + ' mil</span></h3>' +
       '<div class="pattern-box">' +
@@ -536,8 +537,7 @@
       '<div class="hint"><strong>整改措施：</strong>将动态铜皮平滑圆角半径统一设为 ≥ ' + esc(State.minArcRadius) + ' mil。</div>' +
     '</div>';
 
-    container.innerHTML = h;
-    if (root.PourDefectSummary && root.PourDefectSummary.mount) root.PourDefectSummary.mount(container);
+    container.innerHTML = h; if (root.applyAnalysisCategoryVisibility) root.applyAnalysisCategoryVisibility(container); if (root.PourDefectSummary && root.PourDefectSummary.mount) root.PourDefectSummary.mount(container);
   }
 
   function exportAnalysisReport() {
