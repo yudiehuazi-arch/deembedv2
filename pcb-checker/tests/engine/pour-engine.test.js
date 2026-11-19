@@ -62,6 +62,8 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   assert.ok(/Item\s+1\s+< Shape >/.test(shape.rawText) && /Subset:\s+05G02P/.test(shape.rawText),
     '解析后的 Shape 应保留可回填编辑框的原始 TXT 块');
   assert.ok(!Object.keys(shape).includes('rawText'), '原始 TXT 不应污染 Shape 的 JSON 导出字段');
+  assert.ok(!Object.keys(shape).includes('_ring') && !Object.keys(shape).includes('_voidRings'),
+    '离散轮廓缓存不应进入 Worker 结构化克隆数据');
   console.log('  PASS  EDA 异型铜皮：Seg 与 Arc seg 按原始顺序解析并保留源 TXT');
 }
 

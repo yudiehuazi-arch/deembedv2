@@ -156,13 +156,48 @@
     return { x: cx / (6 * a), y: cy / (6 * a) };
   }
 
-  /** 射线法：点是否在多边形内（含边界近似） */
+  const polygonRayIndexCache = new WeakMap();
+
+  function buildPolygonRayIndex(ring) {
+    let minY = Infinity, maxY = -Infinity;
+    ring.forEach(point => { minY = Math.min(minY, point[1]); maxY = Math.max(maxY, point[1]); });
+    const cellSize = Math.max(10, (maxY - minY) / 512 || 10);
+    const cells = new Map(), longEdges = [];
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const startCell = Math.floor(Math.min(ring[i][1], ring[j][1]) / cellSize);
+      const endCell = Math.floor(Math.max(ring[i][1], ring[j][1]) / cellSize);
+      if (endCell - startCell > 512) { longEdges.push([i, j]); continue; }
+      for (let cell = startCell; cell <= endCell; cell++) {
+        if (!cells.has(cell)) cells.set(cell, []);
+        cells.get(cell).push([i, j]);
+      }
+    }
+    return { cellSize, cells, longEdges };
+  }
+
+  /** 射线法：长轮廓按 Y 区间索引候选边，避免每个查询点遍历整块铜皮的全部边。 */
   function pointInPolygon(px, py, ring) {
     if (!ring || ring.length < 3) return false;
+    let edges = null;
+    if (ring.length >= 256) {
+      let index = polygonRayIndexCache.get(ring);
+      if (!index) { index = buildPolygonRayIndex(ring); polygonRayIndexCache.set(ring, index); }
+      edges = (index.cells.get(Math.floor(py / index.cellSize)) || []).concat(index.longEdges);
+    }
     let inside = false;
-    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-      const xi = ring[i][0], yi = ring[i][1];
-      const xj = ring[j][0], yj = ring[j][1];
+    if (!edges) {
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
+        if ((yi > py) !== (yj > py)) {
+          const xCross = xi + (py - yi) * (xj - xi) / (yj - yi);
+          if (px < xCross) inside = !inside;
+        }
+      }
+      return inside;
+    }
+    for (const edge of edges) {
+      const current = ring[edge[0]], previous = ring[edge[1]];
+      const xi = current[0], yi = current[1], xj = previous[0], yj = previous[1];
       if ((yi > py) !== (yj > py)) {
         const xCross = xi + (py - yi) * (xj - xi) / (yj - yi);
         if (px < xCross) inside = !inside;
@@ -171,13 +206,17 @@
     return inside;
   }
 
-  /** 铜皮外轮廓多边形环（带缓存），没有几何数据时返回空 */
+  function setGeometryCache(target, key, value) {
+    Object.defineProperty(target, key, { value, writable: true, configurable: true });
+    return value;
+  }
+
+  /** 铜皮外轮廓多边形环（非枚举缓存），避免 Worker 回传时复制派生点列。 */
   function shapeRing(shape) {
     if (!shape) return [];
     if (Array.isArray(shape._ring)) return shape._ring;
     if (!shape.boundary || !shape.boundary.length) return [];
-    shape._ring = flattenBoundary(shape.boundary);
-    return shape._ring;
+    return setGeometryCache(shape, '_ring', flattenBoundary(shape.boundary));
   }
 
   /** 铜皮全部轮廓：第一个是 exterior，其余是按报告顺序排列的 Void。 */
@@ -185,22 +224,62 @@
     const exterior = shapeRing(shape);
     if (!exterior.length) return [];
     if (Array.isArray(shape._voidRings)) return [exterior].concat(shape._voidRings);
-    shape._voidRings = (shape.voids || []).map(voidContour => {
+    const voidRings = (shape.voids || []).map(voidContour => {
       if (Array.isArray(voidContour._ring)) return voidContour._ring;
       const ring = flattenBoundary(voidContour.boundary || voidContour);
-      if (voidContour && !Array.isArray(voidContour)) voidContour._ring = ring;
+      if (voidContour && !Array.isArray(voidContour)) setGeometryCache(voidContour, '_ring', ring);
       return ring;
     }).filter(ring => ring.length >= 3);
-    return [exterior].concat(shape._voidRings);
+    setGeometryCache(shape, '_voidRings', voidRings);
+    return [exterior].concat(voidRings);
   }
 
-  /** 与 Canvas evenodd 填充一致的铜皮点内判定：Void 内部不是铜。 */
+  const shapeVoidIndexCache = new WeakMap();
+
+  function ringBBox(ring) {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    ring.forEach(point => {
+      minX = Math.min(minX, point[0]); minY = Math.min(minY, point[1]);
+      maxX = Math.max(maxX, point[0]); maxY = Math.max(maxY, point[1]);
+    });
+    return { minX, minY, maxX, maxY };
+  }
+
+  function buildVoidRingIndex(rings) {
+    const cellSize = 100, cells = new Map(), large = [];
+    for (let i = 1; i < rings.length; i++) {
+      const bbox = ringBBox(rings[i]);
+      const minGX = Math.floor(bbox.minX / cellSize), maxGX = Math.floor(bbox.maxX / cellSize);
+      const minGY = Math.floor(bbox.minY / cellSize), maxGY = Math.floor(bbox.maxY / cellSize);
+      const entry = { ring: rings[i], bbox };
+      if ((maxGX - minGX + 1) * (maxGY - minGY + 1) > 256) { large.push(entry); continue; }
+      for (let gx = minGX; gx <= maxGX; gx++) {
+        for (let gy = minGY; gy <= maxGY; gy++) {
+          const key = gx + ',' + gy;
+          if (!cells.has(key)) cells.set(key, []);
+          cells.get(key).push(entry);
+        }
+      }
+    }
+    return { cellSize, cells, large };
+  }
+
+  /** 与 Canvas evenodd 填充一致；Void 按包围盒网格检索，避免逐点扫描整板全部反焊盘。 */
   function pointInShape(px, py, shape) {
     const rings = shapeRings(shape);
     if (!rings.length || !pointInPolygon(px, py, rings[0])) return false;
+    if (rings.length === 1) return true;
+    let index = shapeVoidIndexCache.get(shape);
+    if (!index) { index = buildVoidRingIndex(rings); shapeVoidIndexCache.set(shape, index); }
+    const key = Math.floor(px / index.cellSize) + ',' + Math.floor(py / index.cellSize);
     let inside = true;
-    for (let i = 1; i < rings.length; i++) {
-      if (pointInPolygon(px, py, rings[i])) inside = !inside;
+    for (const entry of index.large) {
+      const b = entry.bbox;
+      if (px >= b.minX && px <= b.maxX && py >= b.minY && py <= b.maxY && pointInPolygon(px, py, entry.ring)) inside = !inside;
+    }
+    for (const entry of index.cells.get(key) || []) {
+      const b = entry.bbox;
+      if (px >= b.minX && px <= b.maxX && py >= b.minY && py <= b.maxY && pointInPolygon(px, py, entry.ring)) inside = !inside;
     }
     return inside;
   }

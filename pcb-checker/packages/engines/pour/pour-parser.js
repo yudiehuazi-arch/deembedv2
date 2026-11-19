@@ -237,16 +237,16 @@
     // 用 exterior 减去全部 Void 得到实际铜面积与面积加权质心。
     const ring = flattenBoundary(boundary);
     if (ring.length >= 3) {
-      shape._ring = ring;
+      Object.defineProperty(shape, '_ring', { value: ring, writable: true, configurable: true });
       const exteriorArea = polygonArea(ring);
       const exteriorCentroid = polygonCentroid(ring);
       let filledArea = exteriorArea;
       let centroidXMoment = exteriorCentroid.x * exteriorArea;
       let centroidYMoment = exteriorCentroid.y * exteriorArea;
-      shape._voidRings = [];
+      Object.defineProperty(shape, '_voidRings', { value: [], writable: true, configurable: true });
       voids.forEach(voidContour => {
         const voidRing = flattenBoundary(voidContour.boundary);
-        voidContour._ring = voidRing;
+        Object.defineProperty(voidContour, '_ring', { value: voidRing, writable: true, configurable: true });
         if (voidRing.length < 3) return;
         shape._voidRings.push(voidRing);
         const voidArea = polygonArea(voidRing);

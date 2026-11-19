@@ -16,8 +16,17 @@
     return geom.pointToShapeBoundaryDistance(x, y, shape) <= 1e-7;
   }
 
-  function anyShapeCoversPoint(shapes, x, y) {
-    return shapes.some(function (shape) { return shapeCoversPoint(shape, x, y); });
+  function indexCoversPoint(index, x, y) {
+    var largeItems = index.largeItems || [];
+    for (var li = 0; li < largeItems.length; li++) {
+      if (shapeCoversPoint(largeItems[li], x, y)) return true;
+    }
+    var key = Math.floor(x / index.cellSize) + ',' + Math.floor(y / index.cellSize);
+    var bucket = index.cells.get(key) || [];
+    for (var bi = 0; bi < bucket.length; bi++) {
+      if (shapeCoversPoint(bucket[bi], x, y)) return true;
+    }
+    return false;
   }
 
   function cross(a, b, c) {
@@ -126,7 +135,7 @@
     };
   }
 
-  function firstUncoveredInDisc(cx, cy, radius, step, shapes) {
+  function firstUncoveredInDisc(cx, cy, radius, step, index) {
     var rings = Math.max(1, Math.ceil(radius / step));
     for (var ri = 0; ri <= rings; ri++) {
       var r = radius * ri / rings;
@@ -134,7 +143,7 @@
       for (var ai = 0; ai < count; ai++) {
         var angle = 2 * Math.PI * ai / count;
         var x = cx + Math.cos(angle) * r, y = cy + Math.sin(angle) * r;
-        if (!anyShapeCoversPoint(shapes, x, y)) return { x: x, y: y };
+        if (!indexCoversPoint(index, x, y)) return { x: x, y: y };
       }
     }
     return null;
@@ -153,8 +162,6 @@
   function firstUncoveredInTraceFootprint(seg, index) {
     var halfWidth = Math.max(0, Number(seg.width || 6) / 2);
     var step = Math.max(1, Math.min(3, halfWidth / 3 || 1));
-    var shapes = querySegmentShapes(seg, index, halfWidth);
-    if (!shapes.length) return { x: seg.x1, y: seg.y1 };
     var path = segmentGeometry(seg);
     var alongCount = Math.max(1, Math.ceil(path.length / step));
     var acrossCount = Math.max(1, Math.ceil(2 * halfWidth / step));
@@ -163,12 +170,12 @@
       for (var j = 0; j <= acrossCount; j++) {
         var offset = -halfWidth + (2 * halfWidth * j / acrossCount);
         var x = point.x + point.nx * offset, y = point.y + point.ny * offset;
-        if (!anyShapeCoversPoint(shapes, x, y)) return { x: x, y: y };
+        if (!indexCoversPoint(index, x, y)) return { x: x, y: y };
       }
     }
     var start = path.point(0), end = path.point(1);
-    return firstUncoveredInDisc(start.x, start.y, halfWidth, step, shapes) ||
-      firstUncoveredInDisc(end.x, end.y, halfWidth, step, shapes);
+    return firstUncoveredInDisc(start.x, start.y, halfWidth, step, index) ||
+      firstUncoveredInDisc(end.x, end.y, halfWidth, step, index);
   }
 
   function sideCorridorQuad(start, end, inner, outer, sign) {
