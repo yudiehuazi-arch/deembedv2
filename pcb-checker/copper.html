@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="assets/styles/eda-dock.css?v=46">
 <link rel="stylesheet" href="assets/styles/components.css?v=46">
 <link rel="stylesheet" href="assets/styles/pages/copper.css?v=46">
+<link rel="stylesheet" href="assets/styles/check-guide.css?v=46">
 <link rel="stylesheet" href="assets/styles/pages/copper-canvas.css?v=46">
 <link rel="stylesheet" href="assets/styles/pages/copper-summary.css?v=46">
 </head>
@@ -37,7 +38,7 @@
   </div>
 
   <div class="eda-rail-section">
-    <div class="eda-rail-label">工序流程 <span data-tip="支持快捷键 Alt+1..6 快速切换工序">Alt+1..6</span></div>
+    <div class="eda-rail-label">工序流程 <span data-tip="支持快捷键 Alt+1..7 快速切换工序">Alt+1..7</span></div>
     <nav id="tabs">
       <button type="button" data-tab="rules" class="active" data-tip="设定叠层总层数并导入参数行或三列表格约束 TXT">① 规则约束</button>
       <button type="button" data-tab="sets" data-tip="核对并微调按叠层展开的反焊盘与焊盘约束矩阵">② 生成的约束</button>
@@ -45,6 +46,7 @@
       <button type="button" data-tab="result" data-tip="逐孔逐层核对半径偏差、定位过孔并执行人工复核">④ 检查结果</button>
       <button type="button" data-tab="canvas" data-tip="查看过孔、圆形铜皮与走线的空间位置，并执行两点距离测量">⑤ 空间几何视口与测量</button>
       <button type="button" data-tab="legend" data-tip="查看各约束不符合原因明细、未匹配过孔与未配对铜皮分布">⑥ 规律分析</button>
+      <button type="button" data-tab="guide" data-tip="查看本模块完整操作流程、检查方案与符合/不符合验证标准">ⓘ 检查说明</button>
     </nav>
   </div>
 
@@ -66,6 +68,11 @@
   </div>
 
   <main>
+    <!-- 检查说明：模块流程、检查方案与验证标准 -->
+    <section class="tab" id="tab-guide">
+      <div data-check-guide-module="copper"></div>
+    </section>
+
     <!-- ================= ① 规则约束 ================= -->
     <section class="tab active" id="tab-rules">
       <div id="pin" class="pinblock">
@@ -282,6 +289,7 @@
 
 <div id="expMask"></div>
 
+<script src="packages/shared/check-guide.js?v=46"></script>
 <script src="packages/engines/copper/via-constraint-inference.js?v=46"></script><script src="packages/engines/copper/copper-engine.js?v=46"></script>
 <script src="packages/engines/copper/constraint-parser.js?v=46"></script>
 <script src="packages/pages/copper/copper-state.js?v=46"></script>

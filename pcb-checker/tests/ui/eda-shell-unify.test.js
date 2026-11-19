@@ -7,11 +7,11 @@
 const { openPage, tick, readPageCss } = require('../helpers/open-page');
 
 const PAGES = {
-  'index.html': 6,
-  'copper.html': 6,
-  'dfm.html': 5,
-  'fanout.html': 5,
-  'pour.html': 5,
+  'index.html': 7,
+  'copper.html': 7,
+  'dfm.html': 6,
+  'fanout.html': 6,
+  'pour.html': 6,
   'unified.html': 6
 };
 const SHELL_CSS = ['tokens.css', 'eda-shell.css', 'eda-dock.css', 'components.css'];

@@ -34,7 +34,7 @@ test('三栏 EDA 壳层完整、悬浮 Tips 正常、静态标题/标签无括�
   if (!d.querySelector('aside.eda-left-rail nav#tabs')) throw new Error('工序条不在左列导轨');
   if (!d.querySelector('aside.eda-right-dock .global-display-ctrl')) throw new Error('显示控制区不在右工具栏');
   const tabs = d.querySelectorAll('nav#tabs button');
-  if (tabs.length !== 5) throw new Error('页签数量应为 5，实际 ' + tabs.length);
+  if (tabs.length !== 6) throw new Error('五个工序与检查说明页签应为 6，实际 ' + tabs.length);
   ['btnToggleVias', 'btnToggleTraces', 'btnTogglePorts'].forEach(id => {
     if ($(id)) throw new Error('几何工具栏仍显示已移除的选项：' + id);
   });
@@ -60,31 +60,19 @@ test('三栏 EDA 壳层完整、悬浮 Tips 正常、静态标题/标签无括�
   w.EdaTooltip.hide();
 });
 
-test('五类检查均提供折叠式操作流程、验证标准与输出说明', () => {
-  const expected = {
-    via_coverage: ['筛选对象', '计算距离', '每一个目标层', 'Void 区域不算铜'],
-    special_shape: ['锁定目标孔', '选择模板', '0.01 mil', '两个独立条件'],
-    trace_ref_margin: ['检查完整投影', '检查两侧与豁免', '左侧、右侧各至少检出一处', '中途反焊盘'],
-    isolated_copper: ['筛选小铜皮', '核实过孔位置', '面积阈值是当前自动判定条件'],
-    arc_radius: ['提取圆弧', '测量半径', '等于阈值时符合']
-  };
-  const guides = [...d.querySelectorAll('.pour-check-guide')];
-  if (guides.length !== 5) throw new Error('检查说明数量应为 5，实际 ' + guides.length);
-  guides.forEach(guide => {
-    const key = guide.dataset.guideKey;
-    if (!expected[key]) throw new Error('出现未知检查说明：' + key);
-    if (guide.open) throw new Error('检查说明默认应折叠，避免形成大段文字：' + key);
-    if (!guide.querySelector('summary .pour-guide-badge') || guide.querySelectorAll('.pour-guide-step').length !== 3) {
-      throw new Error('检查说明缺少摘要或三步流程：' + key);
-    }
-    if (guide.querySelectorAll('.pour-guide-standard').length !== 3) throw new Error('验证标准未按三块展示：' + key);
-    const text = guide.textContent;
-    expected[key].forEach(keyword => {
-      if (!text.includes(keyword)) throw new Error(key + ' 检查说明缺少关键口径：' + keyword);
-    });
+test('五类检查说明迁移到独立页签，不再混杂于规则界面', () => {
+  const rules = $('tabRules');
+  const guide = $('tabGuide');
+  if (!guide || rules.querySelector('.module-guide-page')) throw new Error('检查说明仍位于原规则界面');
+  const schemes = [...guide.querySelectorAll('.module-guide-scheme')];
+  if (schemes.length !== 5) throw new Error('独立说明页应包含五类检查方案，实际 ' + schemes.length);
+  if (schemes.some(item => item.open)) throw new Error('五类检查方案默认应收起');
+  ['孔经过层铺铜覆盖', '特定异型铜皮模板', '走线参考层投影与邻近铜', '孤立小铜皮面积', '铜皮最小圆弧半径'].forEach(keyword => {
+    if (!guide.textContent.includes(keyword)) throw new Error('独立说明页缺少：' + keyword);
   });
-  const pageHtml = fs.readFileSync(path.join(__dirname, '../../pour.html'), 'utf8');
-  if (!pageHtml.includes('assets/styles/pages/pour-check-guides.css')) throw new Error('检查说明未加载独立视觉样式');
+  d.querySelector('nav#tabs button[data-tab="tabGuide"]').click();
+  if (!guide.classList.contains('active')) throw new Error('检查说明导航无法进入独立界面');
+  w.switchTab('tabRules');
 });
 
 test('几何视口可独立取消并恢复网络名与目标对象编号', () => {

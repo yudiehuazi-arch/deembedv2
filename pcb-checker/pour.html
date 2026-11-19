@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="assets/styles/eda-dock.css?v=46">
 <link rel="stylesheet" href="assets/styles/components.css?v=46">
 <link rel="stylesheet" href="assets/styles/pages/pour.css?v=46">
-<link rel="stylesheet" href="assets/styles/pages/pour-check-guides.css?v=46">
+<link rel="stylesheet" href="assets/styles/check-guide.css?v=46">
 </head>
 <body class="eda-workbench">
 
@@ -36,13 +36,14 @@
   </div>
 
   <div class="eda-rail-section">
-    <div class="eda-rail-label">工序流程 <span data-tip="支持快捷键 Alt+1..5 快速切换工序">Alt+1..5</span></div>
+    <div class="eda-rail-label">工序流程 <span data-tip="支持快捷键 Alt+1..6 快速切换工序">Alt+1..6</span></div>
     <nav id="tabs">
       <button type="button" data-tab="tabRules" class="active" data-tip="配置五大铜皮检查规则、异型铜皮模板与本地 JSON 规则快照">① 规则约束配置</button>
       <button type="button" data-tab="tabImport" data-tip="导入包含 Shape、Via、Trace 的 EDA TXT 坐标报告并执行检查">② 检查数据导入</button>
       <button type="button" data-tab="tabResults" data-tip="按目标对象聚合或逐层平铺检视异常明细并同步复核状态">③ 检查结果明细 <span class="badge" id="badgeDefectCount">0</span></button>
       <button type="button" data-tab="tabCanvas" data-tip="2D 几何画布渲染铜皮轮廓、过孔、走线、缺陷信标与两点标尺">④ 空间几何视口</button>
       <button type="button" data-tab="tabAnalysis" data-tip="按规则与层别归纳缺陷成因、目标网络映射与工程整改措施">⑤ 缺陷规律分析</button>
+      <button type="button" data-tab="tabGuide" data-tip="查看本模块完整操作流程、检查方案与符合/不符合验证标准">ⓘ 检查说明</button>
     </nav>
   </div>
 
@@ -64,6 +65,11 @@
   </div>
 
   <main>
+    <!-- 检查说明：模块流程、检查方案与验证标准 -->
+    <section class="tab" id="tabGuide">
+      <div data-check-guide-module="pour"></div>
+    </section>
+
     <div class="summary-grid">
       <div class="stat-box copper">
         <div class="lbl">导入铜皮总数</div>
@@ -108,7 +114,6 @@
           </div>
           <button type="button" class="btn pri small" onclick="openAddRule1Modal()">+ 新增孔铺铜规则</button>
         </div>
-        <div class="pour-check-guide-host" data-pour-check-guide="via_coverage"></div>
         <div class="tbl-wrap">
           <table>
             <thead>
@@ -132,7 +137,6 @@
           </div>
           <button type="button" class="btn pri small" onclick="openAddRule2Modal()" data-tip="粘贴 EDA Shape Item 文本自动提取边界与基准面积">+ 导入异型铜皮模板</button>
         </div>
-        <div class="pour-check-guide-host" data-pour-check-guide="special_shape"></div>
         <div class="tbl-wrap">
           <table>
             <thead>
@@ -160,7 +164,6 @@
           </div>
           <button type="button" class="btn pri small" onclick="openAddRule3Modal()">+ 新增走线参考层规则</button>
         </div>
-        <div class="pour-check-guide-host" data-pour-check-guide="trace_ref_margin"></div>
         <div class="tbl-wrap">
           <table>
             <thead>
@@ -181,8 +184,7 @@
       <div class="form-grid">
         <div class="card" style="margin-bottom:0">
           <h2>4. 孤立小铜皮面积阈值规则 <span class="eda-tip" tabindex="0" data-tip="面积小于阈值的铜皮进入异常清单，并记录同层过孔是否落在实铜轮廓内供复核">?</span></h2>
-          <div class="pour-check-guide-host" data-pour-check-guide="isolated_copper"></div>
-          <div class="form-item" style="margin-top:8px">
+            <div class="form-item" style="margin-top:8px">
             <label for="rule4InpArea" data-tip="单位 sq mil，小于该面积的 Shape 进入异常清单；轮廓内同层过孔作为复核证据单独记录">小铜皮最大面积阈值 sq mil</label>
             <input type="number" id="rule4InpArea" value="500.0" step="50.0" min="10.0" max="50000.0" onchange="recordHistory('r4_area', this.value)">
             <div class="chip-bar" id="chipsRule4Area"></div>
@@ -191,8 +193,7 @@
 
         <div class="card" style="margin-bottom:0">
           <h2>5. 铜皮最小圆弧半径规则 <span class="eda-tip" tabindex="0" data-tip="核查铜皮边界所有 Arc seg 半径，防范过小内凹圆弧造成湿法蚀刻药水滞留侧蚀">?</span></h2>
-          <div class="pour-check-guide-host" data-pour-check-guide="arc_radius"></div>
-          <div class="form-item" style="margin-top:8px">
+            <div class="form-item" style="margin-top:8px">
             <label for="rule5InpRadius" data-tip="单位 mil，轮廓圆弧半径低于该值判为尖角超标">铜皮最小圆弧半径 mil</label>
             <input type="number" id="rule5InpRadius" value="10.0" step="1.0" min="1.0" max="100.0" onchange="recordHistory('r5_radius', this.value)">
             <div class="chip-bar" id="chipsRule5Radius"></div>
@@ -588,13 +589,13 @@
   </div>
 </div>
 
+<script src="packages/shared/check-guide.js?v=46"></script>
 <script src="packages/shared/dom-utils.js?v=46"></script>
 <script src="packages/shared/shape-preview-canvas.js?v=46"></script>
 <script src="packages/engines/pour/pour-geom.js?v=46"></script>
 <script src="packages/engines/pour/pour-parser.js?v=46"></script>
 <script src="packages/engines/pour/pour-trace-margin.js?v=46"></script>
 <script src="packages/engines/pour/pour-engine.js?v=46"></script>
-<script src="packages/pages/pour/pour-check-guides.js?v=46"></script>
 <script src="packages/pages/pour/pour-state.js?v=46"></script><script src="packages/pages/pour/pour-check-runner.js?v=46"></script>
 <script src="packages/pages/pour/pour-rules-ui.js?v=46"></script>
 <script src="packages/pages/pour/pour-results-ui.js?v=46"></script>

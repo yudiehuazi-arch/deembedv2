@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="assets/styles/eda-shell.css?v=46">
 <link rel="stylesheet" href="assets/styles/eda-dock.css?v=46">
 <link rel="stylesheet" href="assets/styles/components.css?v=46">
-<link rel="stylesheet" href="assets/styles/pages/fanout.css?v=46">
+<link rel="stylesheet" href="assets/styles/pages/fanout.css?v=46"><link rel="stylesheet" href="assets/styles/check-guide.css?v=46">
 </head>
 <body class="eda-workbench">
 
@@ -35,13 +35,13 @@
   </div>
 
   <div class="eda-rail-section">
-    <div class="eda-rail-label">工序流程 <span data-tip="支持快捷键 Alt+1..5 快速切换工序">Alt+1..5</span></div>
+    <div class="eda-rail-label">工序流程 <span data-tip="支持快捷键 Alt+1..6 快速切换工序">Alt+1..6</span></div>
     <nav id="tabs">
       <button type="button" data-tab="tabLibrary" class="active" data-tip="定义、预览、改名或批量导入标准扇出过孔拓扑模板"><span>① 扇出方案库</span><span class="badge" id="badgeSchemeCount">6</span></button>
       <button type="button" data-tab="tabImport" data-tip="导入过孔与走线 TXT 并配置连通聚类阈值与旋转容差"><span>② 检查数据导入</span></button>
       <button type="button" data-tab="tabResults" data-tip="核对各孔群拓扑与 Padstack 匹配结论并执行人工复核"><span>③ 检查结果与异常分析</span><span class="badge" id="badgeClusterCount">0</span></button>
       <button type="button" data-tab="tabCanvas" data-tip="浏览 2D 孔群包络、扇出走线与缺失地孔坐标提示"><span>④ 空间几何 2D 视口</span></button>
-      <button type="button" data-tab="tabAnalysis" data-tip="统计各方案命中覆盖率与差分网络扇出异常分布"><span>⑤ 方案覆盖率与规律分析</span></button>
+      <button type="button" data-tab="tabAnalysis" data-tip="统计各方案命中覆盖率与差分网络扇出异常分布"><span>⑤ 方案覆盖率与规律分析</span></button><button type="button" data-tab="tabGuide" data-tip="查看本模块完整操作流程、检查方案与符合/不符合验证标准"><span>ⓘ 检查说明</span></button>
     </nav>
   </div>
 
@@ -62,7 +62,7 @@
     </div>
   </div>
 
-  <main>
+  <main><section class="tab" id="tabGuide"><div data-check-guide-module="fanout"></div></section>
     <div class="summary-grid">
       <div class="stat-box">
         <div class="lbl">导入过孔总数</div>
@@ -641,7 +641,7 @@
     </div>
   </div>
 </div>
-<script src="packages/shared/dom-utils.js?v=46"></script>
+<script src="packages/shared/check-guide.js?v=46"></script><script src="packages/shared/dom-utils.js?v=46"></script>
 <script src="packages/engines/fanout/fanout-parser.js?v=46"></script>
 <script src="packages/engines/fanout/fanout-palette.js?v=46"></script>
 <script src="packages/engines/fanout/fanout-scheme.js?v=46"></script>

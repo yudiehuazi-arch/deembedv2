@@ -30,7 +30,7 @@ test('三栏 EDA 壳层完整、悬浮 Tips 正常、静态标题/标签无括�
   if (!d.querySelector('aside.eda-left-rail nav#tabs')) throw new Error('工序条不在左列导轨');
   if (!d.querySelector('aside.eda-right-dock .global-display-ctrl')) throw new Error('显示控制区不在右工具栏');
   const tabs = d.querySelectorAll('nav#tabs button');
-  if (tabs.length !== 5) throw new Error('页签数量应为 5，实际 ' + tabs.length);
+  if (tabs.length !== 6) throw new Error('五个工序与检查说明页签应为 6，实际 ' + tabs.length);
   [...d.querySelectorAll('h1, h2, nav#tabs button, .form-item label')].forEach(el => {
     if (/[（(].+[)）]/.test(el.textContent)) {
       throw new Error('静态文案仍含括号解释：' + el.textContent.trim());

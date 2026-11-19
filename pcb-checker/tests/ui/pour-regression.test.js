@@ -27,10 +27,10 @@ function test(name, fn) {
 
 console.log('== 铜皮检查 (Copper Pour Inspection) UI、多规则、对象汇总与规律分析测试 ==');
 
-test('页面基本元素与 5 个页签存在', () => {
+test('页面基本元素、5 个工序与检查说明页签存在', () => {
   if (!d.title.includes('铜皮检查')) throw new Error('标题不包含铜皮检查');
   const tabs = d.querySelectorAll('nav#tabs button');
-  if (tabs.length !== 5) throw new Error('页签数量应为 5，实际 ' + tabs.length);
+  if (tabs.length !== 6) throw new Error('五个工序与检查说明页签应为 6，实际 ' + tabs.length);
 });
 
 test('规则 1、规则 2、规则 3 多规则配置表格与卡片存在', () => {

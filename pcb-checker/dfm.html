@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="assets/styles/eda-shell.css?v=46">
 <link rel="stylesheet" href="assets/styles/eda-dock.css?v=46">
 <link rel="stylesheet" href="assets/styles/components.css?v=46">
-<link rel="stylesheet" href="assets/styles/pages/dfm.css?v=46">
+<link rel="stylesheet" href="assets/styles/pages/dfm.css?v=46"><link rel="stylesheet" href="assets/styles/check-guide.css?v=46">
 <link rel="stylesheet" href="assets/styles/pages/dfm-panels.css?v=46">
 </head>
 <body class="eda-workbench">
@@ -36,13 +36,13 @@
   </div>
 
   <div class="eda-rail-section">
-    <div class="eda-rail-label">工序流程 <span data-tip="支持快捷键 Alt+1..5 快速切换工序">Alt+1..5</span></div>
+    <div class="eda-rail-label">工序流程 <span data-tip="支持快捷键 Alt+1..6 快速切换工序">Alt+1..6</span></div>
     <nav id="tabs">
       <button type="button" data-tab="import" class="active" data-tip="导入 Via/Trace 坐标 TXT 并设置焊盘几何与分层间距阈值">① 规则与数据导入</button>
       <button type="button" data-tab="canvas" data-tip="交互式 2D 几何画布、标尺测量与定位复核">② 空间几何视口与测量</button>
       <button type="button" data-tab="result" data-tip="出线层网络聚合视图、对偶明细表与孔盘间距明细">③ 检查结果明细</button>
       <button type="button" data-tab="analysis" data-tip="按信号孔或按走线维度归纳全板间距缺陷分布与集中度">④ 规律分析</button>
-      <button type="button" data-tab="legend" data-tip="精确几何模型、双判定口径与盲埋孔穿层判定规则">⑤ 判定原理与算法</button>
+      <button type="button" data-tab="legend" data-tip="精确几何模型、双判定口径与盲埋孔穿层判定规则">⑤ 判定原理与算法</button><button type="button" data-tab="guide" data-tip="查看本模块完整操作流程、检查方案与符合/不符合验证标准">ⓘ 检查说明</button>
     </nav>
   </div>
 
@@ -63,7 +63,7 @@
     </div>
   </div>
 
-  <main>
+  <main><section class="tab" id="tab-guide"><div data-check-guide-module="dfm"></div></section>
     <!-- ================= ① 规则与数据导入 ================= -->
     <section class="tab active" id="tab-import">
       <div class="card">
@@ -611,7 +611,7 @@
 
 <div class="tooltip" id="canvasTooltip"></div>
 
-<script src="packages/shared/dom-utils.js?v=46"></script>
+<script src="packages/shared/check-guide.js?v=46"></script><script src="packages/shared/dom-utils.js?v=46"></script>
 <script src="packages/geometry/pad-primitives.js?v=46"></script>
 <script src="packages/geometry/pad-region.js?v=46"></script>
 <script src="packages/engines/dfm/dfm-layers.js?v=46"></script>

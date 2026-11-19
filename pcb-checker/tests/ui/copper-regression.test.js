@@ -19,10 +19,10 @@ function activeTab() { const s = d.querySelector('section.tab.active'); return s
 setTimeout(() => {
   console.log('== 页签 ==');
   t('初始在 ① 规则约束', () => { if (activeTab() !== 'tab-rules') throw new Error(activeTab()); });
-  t('六个页签按钮存在且编号顺延', () => {
+  t('六个工序与检查说明页签存在且编号顺延', () => {
     const b = [...d.querySelectorAll('#tabs button')].map(x => x.textContent);
-    if (b.length !== 6) throw new Error('按钮数 ' + b.length + ' ' + b.join('|'));
-    ['① 规则约束', '② 生成的约束', '③ 导入数据', '④ 检查结果', '⑤ 空间几何视口与测量', '⑥ 规律分析'].forEach((x, i) => {
+    if (b.length !== 7) throw new Error('按钮数 ' + b.length + ' ' + b.join('|'));
+    ['① 规则约束', '② 生成的约束', '③ 导入数据', '④ 检查结果', '⑤ 空间几何视口与测量', '⑥ 规律分析', 'ⓘ 检查说明'].forEach((x, i) => {
       if (b[i].indexOf(x) !== 0) throw new Error('第' + (i + 1) + '个页签是 ' + b[i]);
     });
   });
