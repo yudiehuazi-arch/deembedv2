@@ -22,7 +22,7 @@ setTimeout(() => {
   t('六个工序与检查说明页签存在且编号顺延', () => {
     const b = [...d.querySelectorAll('#tabs button')].map(x => x.textContent);
     if (b.length !== 7) throw new Error('按钮数 ' + b.length + ' ' + b.join('|'));
-    ['① 规则约束', '② 生成的约束', '③ 导入数据', '④ 检查结果', '⑤ 空间几何视口与测量', '⑥ 规律分析', 'ⓘ 检查说明'].forEach((x, i) => {
+    ['① 规则约束', '② 生成的约束', '③ 导入数据', '④ 检查结果', '⑤ 空间几何视口与测量', '⑥ 规律分析', '⑦ 检查说明'].forEach((x, i) => {
       if (b[i].indexOf(x) !== 0) throw new Error('第' + (i + 1) + '个页签是 ' + b[i]);
     });
   });

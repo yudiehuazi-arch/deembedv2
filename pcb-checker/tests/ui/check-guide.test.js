@@ -10,11 +10,11 @@ const test = require('node:test');
 const { openPage, CHECKER_DIR } = require('../helpers/open-page');
 
 const CASES = [
-  { page: 'index.html', module: 'trace', tab: 'guide', section: 'tab-guide', schemes: 3, keyword: '差分对逐层与总长差' },
-  { page: 'copper.html', module: 'copper', tab: 'guide', section: 'tab-guide', schemes: 3, keyword: '反焊盘、焊盘与非功能焊盘尺寸' },
-  { page: 'dfm.html', module: 'dfm', tab: 'guide', section: 'tab-guide', schemes: 3, keyword: 'GND 孔盘到信号孔盘间距' },
-  { page: 'fanout.html', module: 'fanout', tab: 'tabGuide', section: 'tabGuide', schemes: 3, keyword: '信号孔检查资格与堆叠拓扑' },
-  { page: 'pour.html', module: 'pour', tab: 'tabGuide', section: 'tabGuide', schemes: 5, keyword: '走线参考层投影与邻近铜' }
+  { page: 'index.html', module: 'trace', tab: 'guide', section: 'tab-guide', schemes: 3, sequence: '⑦', keyword: '差分对逐层与总长差' },
+  { page: 'copper.html', module: 'copper', tab: 'guide', section: 'tab-guide', schemes: 3, sequence: '⑦', keyword: '反焊盘、焊盘与非功能焊盘尺寸' },
+  { page: 'dfm.html', module: 'dfm', tab: 'guide', section: 'tab-guide', schemes: 3, sequence: '⑥', keyword: 'GND 孔盘到信号孔盘间距' },
+  { page: 'fanout.html', module: 'fanout', tab: 'tabGuide', section: 'tabGuide', schemes: 3, sequence: '⑥', keyword: '信号孔资格与多段孔合并' },
+  { page: 'pour.html', module: 'pour', tab: 'tabGuide', section: 'tabGuide', schemes: 5, sequence: '⑥', keyword: '走线参考层投影与邻近铜' }
 ];
 
 test('五个检查模块均提供独立、可切换且默认收起的检查说明页', () => {
@@ -30,10 +30,13 @@ test('五个检查模块均提供独立、可切换且默认收起的检查说�
       const section = d.getElementById(item.section);
       const host = d.querySelector('[data-check-guide-module="' + item.module + '"]');
       assert(button, item.page + ' 缺少检查说明导航');
+      assert(button.textContent.trim().startsWith(item.sequence + ' 检查说明'), item.page + ' 检查说明序号未按工序顺延');
       assert(section && host, item.page + ' 缺少检查说明页容器');
       assert.strictEqual(host.querySelectorAll('.module-guide-flow-step').length, 5, item.page + ' 应展示五步总流程');
-      assert.strictEqual(host.querySelectorAll('.module-guide-scheme').length, item.schemes, item.page + ' 检查方案数量错误');
-      assert([...host.querySelectorAll('.module-guide-scheme')].every(el => !el.open), item.page + ' 检查方案默认应收起');
+      const schemes = [...host.querySelectorAll('.module-guide-scheme')];
+      assert.strictEqual(schemes.length, item.schemes, item.page + ' 检查方案数量错误');
+      assert(schemes.every(el => !el.open), item.page + ' 检查方案默认应收起');
+      assert(schemes.every(el => el.querySelectorAll('.module-guide-basis-item').length >= 4), item.page + ' 每个方案应清楚列出至少四条判断依据');
       assert.strictEqual(host.querySelectorAll('.module-guide-verdict.pass').length, item.schemes, item.page + ' 缺少符合标准');
       assert.strictEqual(host.querySelectorAll('.module-guide-verdict.fail').length, item.schemes, item.page + ' 缺少不符合标准');
       assert.strictEqual(host.querySelectorAll('.module-guide-verdict.note').length, item.schemes, item.page + ' 缺少边界说明');
@@ -49,9 +52,15 @@ test('五个检查模块均提供独立、可切换且默认收起的检查说�
   });
 });
 
-test('共享检查说明文案覆盖操作步骤、验证标准与边界例外', () => {
+test('共享检查说明用白话写清操作步骤、判断依据与验证标准', () => {
   const js = fs.readFileSync(path.join(CHECKER_DIR, 'packages/shared/check-guide.js'), 'utf8');
-  ['符合标准', '不符合标准', '边界与例外', '位置容差', '数值容差', 'Void', 'Trace 锚点', '0.01 mil'].forEach(keyword => {
+  ['符合标准', '不符合标准', '边界与例外', '系统按什么判断', '位置容差', '数值容差', 'Void', '0.01 mil'].forEach(keyword => {
     assert(js.includes(keyword), '检查说明缺少关键语义：' + keyword);
+  });
+  ['0、0.025、0.075、0.125、0.175 mm', '每个档位允许 ±0.005 mm', '合并可以连续传递', '当前归组不使用 Connections', '0°、90°、180°、270°'].forEach(keyword => {
+    assert(js.includes(keyword), '检查说明未写清关键判断依据：' + keyword);
+  });
+  ['正交旋转', '刚体变换', '方案姿态', '连通分量'].forEach(jargon => {
+    assert(!js.includes(jargon), '检查说明仍使用难懂术语：' + jargon);
   });
 });

@@ -44,7 +44,7 @@ setTimeout(() => {
     if (activeTab() !== 'tab-rules') throw new Error(activeTab());
     const b = [...d.querySelectorAll('#tabs button')].map(x => x.textContent.trim());
     if (b.length !== 7) throw new Error('页签数 ' + b.length);
-    ['① 规则约束', '② 生成的约束', '③ 导入数据', '④ 检查结果', '⑤ 空间几何视口与测量', '⑥ 规律分析', 'ⓘ 检查说明'].forEach((x, i) => {
+    ['① 规则约束', '② 生成的约束', '③ 导入数据', '④ 检查结果', '⑤ 空间几何视口与测量', '⑥ 规律分析', '⑦ 检查说明'].forEach((x, i) => {
       if (!b[i].startsWith(x)) throw new Error('第' + (i + 1) + '个页签为 ' + b[i]);
     });
     $('tabs').querySelector('[data-tab="sets"]').click();
