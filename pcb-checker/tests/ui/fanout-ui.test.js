@@ -99,7 +99,70 @@ test('26 孔 + 71 段走线导入、聚类比对、结果筛选、2D 视口同�
   assert.ok(document.getElementById('pnlDefectRanking').textContent.includes('Padstack 不符'));
 });
 
-test('快捷改名关键词重复点选拼接、放大查看无重叠标注、孔心距测量与全局色卡置底', () => {
+test('检查结果逐孔说明 Padstack、位置、缺孔和多孔问题及目标修改值', () => {
+  const scheme = {
+    name: '测试差分双孔方案',
+    vias: [
+      { id: 1, x: 0, y: 0, padstack: 'EXPECTED_P', net: 'DIFF_P', role: '差分P孔' },
+      { id: 2, x: 20, y: 0, padstack: 'EXPECTED_N', net: 'DIFF_N', role: '差分N孔' }
+    ]
+  };
+  const library = { schemes: [scheme] };
+  const mismatch = {
+    vias: [{ id: 11, x: 100, y: 100, padstack: 'WRONG_P', net: 'NET_P' }],
+    signalVias: [{ id: 11, x: 100, y: 100, padstack: 'WRONG_P', net: 'NET_P' }],
+    matchResult: {
+      pass: false,
+      status: 'PADSTACK_MISMATCH',
+      message: 'Padstack 比对不通过',
+      padMismatchList: [{ viaId: 11, x: 100, y: 100, actualPadstack: 'WRONG_P', expectedPadstack: 'EXPECTED_P', role: '差分P孔' }],
+      missingVias: [{ expectedX: 120, expectedY: 100, expectedPadstack: 'EXPECTED_N', role: '差分N孔' }]
+    }
+  };
+  const mismatchText = window.FanoutResultDetails.toText(mismatch, library, 2);
+  assert.ok(mismatchText.includes('孔 #11') && mismatchText.includes('当前「WRONG_P」') && mismatchText.includes('应改为「EXPECTED_P」'));
+  assert.ok(mismatchText.includes('[120, 100]') && mismatchText.includes('EXPECTED_N'), '缺孔应写清目标坐标与 Padstack');
+
+  const misplaced = {
+    vias: [
+      { id: 31, x: 140, y: 100, padstack: 'GND_WRONG_POS', net: 'GND' },
+      { id: 32, x: 160, y: 100, padstack: 'GND_EXTRA', net: 'GND' }
+    ],
+    signalVias: [],
+    matchResult: {
+      pass: false,
+      status: 'DISTANCE_MISMATCH',
+      message: '伴随地孔位置异常',
+      viaAudit: [],
+      missingVias: [{ expectedX: 120, expectedY: 100, expectedPadstack: 'GND_TARGET', role: '伴随地孔1' }]
+    }
+  };
+  const misplacedText = window.FanoutResultDetails.toText(misplaced, library, 2);
+  assert.ok(misplacedText.includes('孔 #31 当前在 [140, 100]') && misplacedText.includes('应移到 [120, 100]'), '位置问题应指出具体孔号、当前位置和目标位置');
+  assert.ok(misplacedText.includes('多出孔') && misplacedText.includes('孔 #32'), '未被方案使用的剩余孔应明确标为多出孔');
+
+  const noMatch = {
+    vias: [
+      { id: 21, x: 0, y: 0, padstack: 'EXPECTED_P', net: 'NET_P' },
+      { id: 22, x: 30, y: 0, padstack: 'WRONG_N', net: 'NET_N' },
+      { id: 23, x: 45, y: 0, padstack: 'EXTRA', net: 'NET_A' }
+    ],
+    signalVias: null,
+    matchResult: { pass: false, status: 'NO_MATCH_TOPOLOGY', message: '未匹配方案' }
+  };
+  const noMatchDetail = window.FanoutResultDetails.build(noMatch, library, 2);
+  const noMatchText = window.FanoutResultDetails.toText(noMatch, library, 2);
+  assert.ok(noMatchText.includes('信号孔多出') && noMatchText.includes('多出 1 个'), '应明确说明孔多了多少');
+  assert.ok(noMatchText.includes('孔 #22') && noMatchText.includes('WRONG_N') && noMatchText.includes('EXPECTED_N'), '应逐孔说明 Padstack 实际值与目标值');
+  assert.ok(noMatchDetail.issues.some(issue => issue.kind === 'position' && issue.text.includes('应移到约')), '应给出位置不对孔的目标坐标');
+
+  window.switchTab('tabResults');
+  window.setResultFilter('all');
+  assert.ok(document.querySelector('.fanout-result-summary'), '结果表应使用详细归因组件');
+  assert.ok(document.querySelector('.fanout-result-advice'), '结果表应显示怎么改');
+});
+
+test('快捷改名关键词重复点选拼接、放大查看无重叠标注、孔心距测量与方案库页尾色卡', () => {
   window.State.library.clear();
   window.loadPresets();
   const targetScheme = window.State.library.schemes[0];
@@ -138,10 +201,14 @@ test('快捷改名关键词重复点选拼接、放大查看无重叠标注、�
   window.State.library.removeScheme('test_measure_sc');
   window.renderSchemeCards();
 
-  // 全局 Padstack 色卡必须在 main 最末尾
+  // 全局 Padstack 色卡只能放在方案库页尾
   const legend = document.getElementById('libraryPadstackLegendBar');
-  const main = document.querySelector('main');
-  assert.strictEqual(main.lastElementChild, legend);
+  const libraryTab = document.getElementById('tabLibrary');
+  assert.strictEqual(legend.parentElement, libraryTab);
+  assert.strictEqual(libraryTab.lastElementChild, legend);
+  window.switchTab('tabImport');
+  assert.ok(!legend.closest('.tab.active'), '导入页不得显示方案库全局色卡');
+  window.switchTab('tabLibrary');
 });
 
 test('Trace 连接锚点才创建孔群，并支持纳入同网络 Via Connections 堆叠孔段', () => {

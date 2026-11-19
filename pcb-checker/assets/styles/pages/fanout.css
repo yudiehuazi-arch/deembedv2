@@ -362,3 +362,54 @@ canvas#mainCanvas:active {
   font-weight: 400;
   color: var(--sub);
 }
+
+/* 检查结果逐孔归因 */
+.fanout-result-summary {
+  color: var(--heading);
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.fanout-result-issues {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 6px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fanout-result-issues li {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 6px;
+  padding: 5px 7px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--warn);
+  border-radius: 5px;
+  background: #ffffff;
+  line-height: 1.5;
+}
+
+.fanout-result-issues li.padstack { border-left-color: var(--bad); }
+.fanout-result-issues li.position { border-left-color: var(--warn); }
+.fanout-result-issues li.missing { border-left-color: #a855f7; }
+.fanout-result-issues li.extra { border-left-color: var(--sub); }
+.fanout-result-issues li b { color: var(--heading); }
+.fanout-result-issues li span { overflow-wrap: anywhere; }
+
+.fanout-result-advice {
+  margin-top: 5px;
+  padding: 5px 8px;
+  border: 1px solid var(--pri-border);
+  border-radius: 5px;
+  background: var(--pri-soft);
+  color: var(--pri-d);
+  line-height: 1.5;
+}
+
+@media (max-width: 900px) {
+  .fanout-result-issues li {
+    grid-template-columns: 1fr;
+  }
+}

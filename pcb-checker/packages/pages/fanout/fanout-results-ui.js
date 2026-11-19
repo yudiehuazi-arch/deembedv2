@@ -9,6 +9,7 @@
   var State = root.State;
   var escapeHtml = root.escapeHtml;
   var getTraceLayerColor = root.getTraceLayerColor;
+  var ResultDetails = root.FanoutResultDetails;
 
   function setClusterThresh(val, unit) {
     unit = unit || 'mm';
@@ -318,7 +319,8 @@
             (v.padstack && v.padstack.toLowerCase().indexOf(query) >= 0);
         });
         var matchScheme = !!(res.schemeName && res.schemeName.toLowerCase().indexOf(query) >= 0);
-        var matchMsg = !!(res.message && res.message.toLowerCase().indexOf(query) >= 0);
+        var detailText = ResultDetails ? ResultDetails.toText(c, State.library, State.distTolerance).toLowerCase() : '';
+        var matchMsg = !!((res.message && res.message.toLowerCase().indexOf(query) >= 0) || detailText.indexOf(query) >= 0);
         var matchTraceLayer = !!(c.traceSummary && Array.isArray(c.traceSummary.layers) &&
           c.traceSummary.layers.some(function (l) { return l.toLowerCase().indexOf(query) >= 0; }));
         if (!matchId && !matchVia && !matchScheme && !matchMsg && !matchTraceLayer) return false;
@@ -422,6 +424,8 @@
         : '';
 
       var maxSpan = (c.bbox && c.bbox.maxSpan != null) ? c.bbox.maxSpan : Math.hypot((c.bbox && c.bbox.spanX) || 0, (c.bbox && c.bbox.spanY) || 0);
+      var comparisonHtml = ResultDetails ? ResultDetails.render(c, State.library, State.distTolerance) :
+        ('<div style="font-weight:600">' + escapeHtml(res.message || '-') + '</div>');
 
       return '<tr class="' + rowClass + '" id="row_' + c.id + '">' +
         '<td><input type="checkbox" data-no-persist ' + (isReviewed ? 'checked' : '') + ' onchange="toggleReviewCluster(\'' + c.id + '\', this.checked)"></td>' +
@@ -433,10 +437,7 @@
           '<div style="font-weight:700;color:var(--pri-d)">' + (c.signalNet ? escapeHtml(c.signalNet) : sigStr) + '</div>' +
           '<div style="color:var(--sub);font-size:11px">信号孔: ' + sigStr + ' · 地孔: ' + gndCount + '</div>' + traceInfoHtml + '</td>' +
         '<td>' + badgeHtml + '</td>' +
-        '<td style="font-size:11px;line-height:1.5">' +
-          '<div style="font-weight:600;color:' + (res.pass ? 'var(--ok)' : 'var(--heading)') + '">' + escapeHtml(res.message || '-') + '</div>' +
-          (res.advice ? ('<div style="margin-top:4px;padding:4px 8px;background:var(--surface-subtle);border:1px solid var(--line);border-radius:4px">' + escapeHtml(res.advice) + '</div>') : '') +
-        '</td>' +
+        '<td style="min-width:360px;font-size:11px;line-height:1.5">' + comparisonHtml + '</td>' +
         '<td><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer">' +
           '<input type="checkbox" data-no-persist ' + (isReviewed ? 'checked' : '') + ' onchange="toggleReviewCluster(\'' + c.id + '\', this.checked)">' +
           '<span>' + (isReviewed ? '已复核' : '待复核') + '</span></label></td>' +
@@ -491,7 +492,7 @@
 
   function exportResultsCSV() {
     if (!State.clusters.length) { alert('暂无检查结果可导出'); return; }
-    var csv = '\uFEFF孔群编号,过孔数量,质心X,质心Y,最大跨度(mil),判定结果,匹配方案名,旋转角度,镜像状态,比对说明,复核状态\n';
+    var csv = '\uFEFF孔群编号,过孔数量,质心X,质心Y,最大跨度(mil),判定结果,匹配方案名,旋转角度,镜像状态,比对归因与建议,复核状态\n';
     State.clusters.forEach(function (c) {
       var res = c.matchResult || {};
       var maxSpan = (c.bbox && c.bbox.maxSpan != null) ? c.bbox.maxSpan : Math.hypot((c.bbox && c.bbox.spanX) || 0, (c.bbox && c.bbox.spanY) || 0);
@@ -499,7 +500,7 @@
         '"' + c.id + '"', c.viaCount, c.centroid.x.toFixed(2), c.centroid.y.toFixed(2), maxSpan.toFixed(2),
         '"' + (res.statusText || '-') + '"', '"' + (res.schemeName || '-') + '"',
         res.rotationAngle != null ? res.rotationAngle : '-', res.isMirrored ? '是' : '否',
-        '"' + String(res.message || '').replace(/"/g, '""') + '"',
+        '"' + String(ResultDetails ? ResultDetails.toText(c, State.library, State.distTolerance) : (res.message || '')).replace(/"/g, '""') + '"',
         '"' + (State.reviewedClusters.has(c.id) ? '已复核' : '待复核') + '"'
       ].join(',') + '\n';
     });

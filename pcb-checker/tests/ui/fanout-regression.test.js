@@ -598,20 +598,20 @@ test('顶栏全局显示控制：铺满宽屏可用，全屏工作台与独立�
   assert.strictEqual(document.documentElement.classList.contains('pcb-global-wide'), false, '再次点击应关闭全宽模式');
 });
 
-test('方案库 Padstack 色卡已移到本页尾部（main 末尾，不在方案库卡片内）', () => {
+test('方案库 Padstack 色卡仅位于①方案库页尾，其他页不显示', () => {
   const legend = document.getElementById('libraryPadstackLegendBar');
-  const main = document.querySelector('main');
+  const libraryTab = document.getElementById('tabLibrary');
   assert.ok(legend, '色卡容器应存在');
-  assert.strictEqual(legend.parentElement, main, '色卡应直接挂在 main 下（页面尾部）');
-  assert.strictEqual(main.lastElementChild, legend, '色卡应是页面最后一个区块');
-  assert.ok(!legend.closest('#tabLibrary'), '色卡不应再出现在方案库卡片里');
-  const tabSections = Array.from(main.querySelectorAll('section.tab'));
-  assert.ok(tabSections.length >= 5, '五个页签区块仍完整');
-  assert.ok(tabSections[0].compareDocumentPosition(legend) & window.Node.DOCUMENT_POSITION_FOLLOWING,
-    '色卡应排在所有页签区块之后');
-  assert.ok(legend.innerHTML.trim().length > 0, '色卡内容仍应正常渲染（移动位置不能把渲染打断）');
-  assert.ok(legend.textContent.includes('Padstack') || legend.querySelector('span,div'),
-    legend.textContent.slice(0, 60));
+  assert.strictEqual(legend.parentElement, libraryTab, '色卡必须属于①扇出方案库页');
+  assert.strictEqual(libraryTab.lastElementChild, legend, '色卡应位于①扇出方案库页尾');
+  assert.ok(!legend.closest('.card'), '色卡不应混入方案卡片网格');
+  assert.ok(legend.innerHTML.trim().length > 0, '色卡内容仍应正常渲染');
+  ['tabImport', 'tabResults', 'tabCanvas', 'tabAnalysis'].forEach(tabId => {
+    window.switchTab(tabId);
+    assert.ok(!legend.closest('.tab.active'), `${tabId} 不得显示方案库全局色卡`);
+  });
+  window.switchTab('tabLibrary');
+  assert.strictEqual(legend.closest('.tab.active'), libraryTab, '返回方案库页后色卡应随页签显示');
 });
 
 console.log(`\n结果: ${pass} 通过, ${fail} 失败`);
