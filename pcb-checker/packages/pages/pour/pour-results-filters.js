@@ -35,6 +35,9 @@
     };
     State.categoryFilter = buttons[categoryKey] ? categoryKey : 'all';
     refreshFilterButtons(buttons, State.categoryFilter);
+    var targetHeader = document.getElementById('lblResultTargetHeader');
+    if (targetHeader) targetHeader.textContent = State.categoryFilter === 'special_shape'
+      ? 'Padstack / 网络 / 差分孔中心距 / 目标对象' : 'Padstack / 网络 / 目标对象';
     if (typeof root.applyFilters === 'function') root.applyFilters();
   }
 

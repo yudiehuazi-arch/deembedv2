@@ -37,6 +37,10 @@
     return '';
   }
 
+  function normalizedSearchText(value) {
+    return String(value == null ? '' : value).toLowerCase().replace(/[\s_\-./\\]+/g, '');
+  }
+
   function isActive(key) {
     var value = filters()[key];
     return Array.isArray(value) ? value.length > 0 : !!String(value || '').trim();
@@ -57,8 +61,8 @@
       var selected = current[key];
       var value = cellValue(record, key, index);
       if (Array.isArray(selected)) return !selected.length || selected.indexOf(value) >= 0;
-      var query = String(selected || '').trim().toLowerCase();
-      return !query || value.toLowerCase().indexOf(query) >= 0;
+      var query = String(selected || '').trim();
+      return !query || normalizedSearchText(value).indexOf(normalizedSearchText(query)) >= 0;
     });
   }
 

@@ -4,7 +4,6 @@
 (function (root) {
   'use strict';
   if (typeof document === 'undefined') return;
-
   var esc = root.escHtml || function (str) {
     if (!str) return '';
     return String(str)
@@ -14,11 +13,9 @@
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;');
   };
-
   var cleanMsg = root.PourCleanMsg || function (s) {
     return String(s == null ? '' : s).replace(/^[\s✅❌⚠️]+/u, '').trim();
   };
-
   function updateResultStatusCounts() {
     var State = root.State;
     var source = State.viewMode === 'flat' ? (State.rawResults || []) : (State.groupedResults || []);
@@ -34,7 +31,6 @@
     if (elFilterDefects) elFilterDefects.textContent = String(defects);
     if (elFilterPass) elFilterPass.textContent = String(total - defects);
   }
-
   function updateTopKPIs() {
     var State = root.State;
     var s = State.summary;
@@ -61,7 +57,6 @@
     if (elPass) elPass.textContent = String(s.passCount);
     if (elBadgeDefects) elBadgeDefects.textContent = defVal;
   }
-
   function setViewMode(mode) {
     var State = root.State;
     State.viewMode = mode;
@@ -71,7 +66,6 @@
     if (btnF) btnF.className = 'btn small ' + (mode === 'flat' ? 'pri' : 'sec');
     applyFilters();
   }
-
   function applyFilters() {
     var State = root.State;
     (State.rawResults || []).forEach(function (r, rawIdx) {
@@ -128,12 +122,18 @@
   }
 
   function formatTargetIdentity(r) {
-    if (r.targetLabel && String(r.targetLabel).split('/').length >= 3) return String(r.targetLabel);
+    var showPitch = r.checkCategory === 'special_shape' && root.State.categoryFilter === 'special_shape';
+    if (!showPitch && r.targetLabel && String(r.targetLabel).split('/').length >= 3) return String(r.targetLabel);
     var padstack = r.viaPadstack || '-';
     var network = r.viaNet || r.traceNet || '-';
     var target = r.viaId != null
       ? ('孔 #' + r.viaId)
       : (r.traceId != null ? ('走线 #' + r.traceId) : (r.shapeId != null ? ('铜皮 Shape #' + r.shapeId) : '-'));
+    if (showPitch) {
+      var detail = r.subRecords && r.subRecords.length ? r.subRecords[0] : r;
+      var pitch = detail.actualDifferentialCenterDistance != null ? detail.actualDifferentialCenterDistance : detail.expectedDifferentialCenterDistance;
+      return padstack + ' / ' + network + ' / ' + (isFinite(pitch) ? Math.round(pitch * 1000) / 1000 + ' mil' : '-') + ' / ' + target;
+    }
     return padstack + ' / ' + network + ' / ' + target;
   }
 
@@ -313,7 +313,7 @@
       return;
     }
 
-    var csv = '\uFEFF检查分类,Padstack/网络/目标对象,涉及层别,判定结果,问题点,复核状态\n';
+    var csv = '\uFEFF检查分类,' + (State.categoryFilter === 'special_shape' ? 'Padstack/网络/差分孔中心距/目标对象' : 'Padstack/网络/目标对象') + ',涉及层别,判定结果,问题点,复核状态\n';
     source.forEach(function (r, idx) {
       var key = buildItemKey(r, idx);
       var isRev = State.reviewedItems.has(key) ? '已复核' : '待复核';

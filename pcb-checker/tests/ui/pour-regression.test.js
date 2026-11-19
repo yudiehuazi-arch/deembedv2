@@ -344,7 +344,7 @@ test('判定状态与五类检查可组合筛选，孔层铺铜使用层别缺�
   const mockResults = [
     { groupKey: 'mock_cov_fail', checkCategory: 'via_coverage', checkCategoryName: '① 孔经过层铺铜覆盖检查', pass: false, failCount: 1, viaId: 1, viaPadstack: 'VIA_A', viaNet: 'N1', layer: 'L2', layerListStr: 'L2, L3', message: '旧的详细阈值描述', subRecords: [{ checkCategory: 'via_coverage', pass: false, layer: 'L2', message: '旧说明' }, { checkCategory: 'via_coverage', pass: true, layer: 'L3', message: '旧说明' }] },
     { groupKey: 'mock_cov_pass', checkCategory: 'via_coverage', checkCategoryName: '① 孔经过层铺铜覆盖检查', pass: true, viaId: 2, viaPadstack: 'VIA_A', viaNet: 'N2', layer: 'L3', layerListStr: 'L3', message: '旧的符合描述', subRecords: [{ checkCategory: 'via_coverage', pass: true, layer: 'L3', message: '旧说明' }] },
-    { groupKey: 'mock_shape_fail', checkCategory: 'special_shape', checkCategoryName: '② 特定异型铜皮比对检查', pass: false, failCount: 2, viaId: 3, layer: 'L4', message: '冗长异型铜皮说明' },
+    { groupKey: 'mock_shape_fail', checkCategory: 'special_shape', checkCategoryName: '② 特定异型铜皮比对检查', pass: false, failCount: 2, viaId: 3, viaPadstack: 'PTH-SIG-150drill-ring0_L5_L10', viaNet: '21_N', actualDifferentialCenterDistance: 23.622, layer: 'L4', message: '冗长异型铜皮说明' },
     { groupKey: 'mock_margin_fail', checkCategory: 'trace_ref_margin', checkCategoryName: '③ 参考层覆盖与邻近铜检查', pass: false, traceId: 4, refLayer: 'L5', layer: 'L8', minMargin: 100, footprintCovered: false, leftSideCopper: true, rightSideCopper: true, message: '冗长参考层说明' },
     { groupKey: 'mock_small_fail', checkCategory: 'isolated_copper', checkCategoryName: '④ 孤立小铜皮检查', pass: false, shapeId: 5, layer: 'L6', message: '冗长孤铜说明' },
     { groupKey: 'mock_arc_fail', checkCategory: 'arc_radius', checkCategoryName: '⑤ 圆弧半径检查', pass: false, shapeId: 6, layer: 'L7', message: '冗长圆弧说明' }
@@ -424,6 +424,21 @@ test('判定状态与五类检查可组合筛选，孔层铺铜使用层别缺�
   }
 
   w.setResultStatusFilter('defects');
+  if ($('lblResultTargetHeader').textContent.trim() !== 'Padstack / 网络 / 差分孔中心距 / 目标对象') {
+    throw new Error('选择异型铜皮后目标列标题未增加差分孔中心距');
+  }
+  const specialTarget = d.querySelector('#tblResultsBody tr[data-result-key] td:nth-child(3)').textContent.trim();
+  if (!specialTarget.includes('PTH-SIG-150drill-ring0_L5_L10 / 21_N / 23.622 mil / 孔 #3')) {
+    throw new Error('异型铜皮目标列未显示差分孔中心距：' + specialTarget);
+  }
+  d.querySelector('[data-result-column-filter="target"]').click();
+  const targetSearch = $('pourColumnFilterMenu').querySelector('input[type="search"]');
+  targetSearch.value = '21-N';
+  $('pourColumnFilterMenu').querySelector('[data-filter-action="apply"]').click();
+  if (w.State.filteredResults.length !== 1 || w.State.filteredResults[0].groupKey !== 'mock_shape_fail') {
+    throw new Error('目标列筛选未用局部关键词兼容 21-N 与 21_N');
+  }
+  w.setResultColumnFilter('target', '');
   if (JSON.stringify(readColumnOptions('status')) !== '["不符合 · 2 层未检出"]' ||
       JSON.stringify(readColumnOptions('layer')) !== '["L4"]' ||
       JSON.stringify(readColumnOptions('problem')) !== '["L4 层异型铜皮不匹配"]') {
@@ -445,6 +460,7 @@ test('判定状态与五类检查可组合筛选，孔层铺铜使用层别缺�
   w.updateTopKPIs();
   w.setResultStatusFilter('all');
   w.setCategoryFilter('all');
+  if ($('lblResultTargetHeader').textContent.trim() !== 'Padstack / 网络 / 目标对象') throw new Error('离开异型铜皮分类后目标列标题未恢复');
 });
 
 test('复核状态勾选与记忆更新', () => {
