@@ -122,21 +122,24 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
     return mateNet ? nearestHdiCandidate(hdi, hdiByNet.get(mateNet.toLowerCase())) : null;
   }
   function unmatchedAssociationSummary(via, templates, nearestHdi, pairedHdi) {
-    const centers = [...new Set(templates.map(template => parseFloat(template.differentialCenterDistance))
-      .filter(value => value > 0).map(value => roundN(value, 4)))].sort((a, b) => a - b);
     const radii = [...new Set(templates.map(template => parseFloat(template.hdiSearchRadiusMm))
       .filter(value => value > 0).map(value => roundN(value, 4)))].sort((a, b) => a - b);
-    let actual = '未找到同网络 HDI 孔';
-    if (nearestHdi) {
-      actual = `最近同网络 HDI 孔 #${nearestHdi.via.id} 关联距离 ${roundN(nearestHdi.distance, 3)} mil`;
-      actual += pairedHdi
-        ? `，与差分 HDI 孔 #${pairedHdi.via.id} 中心距 ${roundN(pairedHdi.distance, 3)} mil`
-        : '，未找到对应差分网络的 HDI 孔';
+    const searchLimit = templates.some(template => !(parseFloat(template.hdiSearchRadiusMm) > 0)) ? '未限制' : `${radii.join(' / ')} mm`;
+    const inRangeTemplates = templates.filter(template => {
+      const radius = parseFloat(template.hdiSearchRadiusMm);
+      return !(radius > 0) || (nearestHdi && nearestHdi.distance <= radius * MIL_PER_MM + 1e-9);
+    });
+    if (!nearestHdi || !inRangeTemplates.length) {
+      const nearest = nearestHdi ? `；最近同网络 HDI 孔 #${nearestHdi.via.id} 关联距离 ${roundN(nearestHdi.distance, 3)} mil` : '';
+      return `孔 #${via.id} 在 HDI 搜索范围（${searchLimit}）内未找到同网络且 Padstack 名含 HDI 的孔${nearest}`;
     }
-    const configured = [];
-    if (centers.length) configured.push(`模板中心距 ${centers.join(' / ')} mil`);
-    if (radii.length) configured.push(`HDI 搜索距离 ${radii.join(' / ')} mm`);
-    return `孔 #${via.id} ${actual}，未满足${configured.join('、') || '模板关联条件'}`;
+    if (!pairedHdi) {
+      return `孔 #${via.id} 已关联同网络 HDI 孔 #${nearestHdi.via.id}，但未找到对应差分网络的 HDI 孔`;
+    }
+    const centers = [...new Set(inRangeTemplates.map(template => parseFloat(template.differentialCenterDistance))
+      .filter(value => value > 0).map(value => roundN(value, 4)))].sort((a, b) => a - b);
+    return `孔 #${via.id} 已在 ${roundN(nearestHdi.distance, 3)} mil 内关联同网络 HDI 孔 #${nearestHdi.via.id}，` +
+      `该 HDI 与差分 HDI 孔 #${pairedHdi.via.id} 的实测中心距 ${roundN(pairedHdi.distance, 3)} mil 不满足规则 ${centers.join(' / ')} mil`;
   }
   function buildUnmatchedAssociationResults(candidates, matchedVias, hdiByNet) {
     const results = [];

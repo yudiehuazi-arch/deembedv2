@@ -262,7 +262,7 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   assert.ok(Math.abs(res.find(item => item.viaId === 23).actualDifferentialCenterDistance - defaultRadiusMil) < 1e-9, '未配置搜索距离时仍应按中心距找到同网络 HDI 孔');
   assert.strictEqual(unmatched.length, 1, '无同网络 HDI 候选的目标 Via 不得静默消失');
   assert.strictEqual(unmatched[0].viaId, 22);
-  assert.ok(!unmatched[0].pass && /未找到同网络 HDI 孔/.test(unmatched[0].associationSummary));
+  assert.ok(!unmatched[0].pass && /HDI 搜索范围.*未找到同网络/.test(unmatched[0].associationSummary));
   assert.ok(!res.some(item => item.templateId === 'narrow_search'), '缩小可配置搜索距离后不得关联范围外 HDI Via');
   assert.deepStrictEqual(matched.map(item => item.pairedHdiViaId).sort((a, b) => a - b), [37, 39, 40], '中心距必须来自同网络 HDI 与差分网络 HDI');
   console.log('  PASS  第二项：目标 Via 搜索同网络 HDI，再按差分 HDI 孔距选择模板');
@@ -312,7 +312,30 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   console.log('  PASS  第二项：中心距与 HDI 搜索距离支持均留空、仅中心距、仅搜索距离和同时配置');
 }
 
-// 4.2 PTH-SIG L5/L10 四种 HDI 偏移的内置模板必须覆盖该孔型
+// 4.2 已启用 HDI 搜索距离时，无同网络 HDI 或最近 HDI 超出范围都必须明确提示
+{
+  const vias = [
+    { id: 60, x: 0, y: 0, padstack: 'SEARCH_TARGET', net: 'MISSING_P' },
+    { id: 61, x: 100, y: 0, padstack: 'SEARCH_TARGET', net: 'FAR_P' },
+    { id: 70, x: 110, y: 0, padstack: 'HDI_FAR', net: 'FAR_P' },
+    { id: 71, x: 112, y: 0, padstack: 'HDI_FAR_MATE', net: 'FAR_N' }
+  ];
+  const shapes = [
+    { id: 260, layer: 'L2', area: 100, centroid: { x: 0, y: 0 } },
+    { id: 261, layer: 'L2', area: 100, centroid: { x: 100, y: 0 } }
+  ];
+  const results = checkSpecialShapedCopper(vias, shapes, [{
+    id: 'search_required', padstack: 'SEARCH_TARGET', differentialCenterDistance: 2,
+    hdiSearchRadiusMm: 0.1, layer: 'L2', expectedArea: 100, areaTolerance: 1
+  }]);
+  assert.strictEqual(results.length, 2);
+  assert.ok(results.every(result => result.associationFailed && !result.pass));
+  assert.ok(/HDI 搜索范围（0.1 mm）内未找到同网络/.test(results.find(result => result.viaId === 60).associationSummary));
+  assert.ok(/最近同网络 HDI 孔 #70 关联距离 10 mil/.test(results.find(result => result.viaId === 61).associationSummary));
+  console.log('  PASS  第二项：HDI 搜索范围无候选或候选超距时生成明确不符合提示');
+}
+
+// 4.3 PTH-SIG L5/L10 四种 HDI 孔距的内置模板必须覆盖该孔型
 {
   const specs = [
     { offsetMm: 0.025, pitchMil: 19.685, area: 113.09734 },
@@ -345,7 +368,7 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   console.log('  PASS  第二项：PTH-SIG 先搜索同网络 HDI，再按四种 HDI 差分孔距匹配面积');
 }
 
-// 4.3 实板同规模回归：搜索半径、HDI 差分孔距、面积与未配置孔距分别判定
+// 4.4 实板同规模回归：搜索半径、HDI 差分孔距、面积与未配置孔距分别判定
 {
   const families = [
     { offsetMil: 0.98425, pitchMil: 19.685, area: 113.09734 },
@@ -377,6 +400,7 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   assert.strictEqual(results.length, 1184, '592 颗目标孔在 L5/L10 均应生成检查结果');
   assert.strictEqual(grouped.length, 592, '按目标对象汇总后必须完整保留 592 颗 PTH-SIG');
   assert.strictEqual(results.filter(result => result.associationFailed).length, 296, '未配置 0.8 mm 模板的 148 颗孔应在两层明确报错');
+  assert.ok(/实测中心距 31.496 mil 不满足规则 19.685 \/ 23.62 \/ 27.56 mil/.test(results.find(result => result.associationFailed).associationSummary));
   assert.strictEqual(grouped.filter(result => result.pass).length, 442);
   assert.strictEqual(grouped.filter(result => !result.pass).length, 150, '148 颗未配置孔距加 2 颗面积异常应不符合');
   const first = results.find(result => result.viaId === 1000);

@@ -186,9 +186,9 @@ test('规则 2 模板关联未命中时显示 HDI 搜索距离与差分 HDI 中�
   const problem = w.formatPourResultProblem({
     checkCategory: 'special_shape', layer: '05G02P', pass: false,
     associationFailed: true,
-    associationSummary: '孔 #31838 最近同网络 HDI 孔 #31839 关联距离 6.89 mil，与差分 HDI 孔 #32083 中心距 31.495 mil，未满足模板中心距 19.685 / 23.62 / 27.56 mil'
+    associationSummary: '孔 #31838 已在 6.89 mil 内关联同网络 HDI 孔 #31839，该 HDI 与差分 HDI 孔 #32083 的实测中心距 31.495 mil 不满足规则 19.685 / 23.62 / 27.56 mil'
   });
-  if (!problem.includes('模板关联条件未命中') || !problem.includes('关联距离 6.89 mil') || !problem.includes('中心距 31.495 mil')) {
+  if (!problem.includes('模板关联条件未命中') || !problem.includes('已在 6.89 mil 内关联') || !problem.includes('实测中心距 31.495 mil 不满足规则')) {
     throw new Error('规则 2 未分别显示目标孔到 HDI 的关联距离和差分 HDI 中心距');
   }
 });
