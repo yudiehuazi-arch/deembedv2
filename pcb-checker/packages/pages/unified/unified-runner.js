@@ -496,7 +496,8 @@ function runPourEngine(ctx) {
         if (!r.pass) {
           const reqM = (r.minMargin != null) ? r.minMargin : (r.requiredMargin || 50.0);
           const issues = [];
-          if (r.footprintCovered === false) issues.push('完整走线投影缺铜');
+          const missingAt = r.missingPoint ? `（首个缺铜点 [${r.missingPoint.x.toFixed(1)}, ${r.missingPoint.y.toFixed(1)}]）` : '';
+          if (r.footprintCovered === false) issues.push(`完整走线投影缺铜${missingAt}`);
           if (r.leftSideCopper === false) issues.push(`走线左侧 ${reqM.toFixed(1)} mil 内无铜`);
           if (r.rightSideCopper === false) issues.push(`走线右侧 ${reqM.toFixed(1)} mil 内无铜`);
           const issueText = issues.join('、') || '参考铜不符合要求';
@@ -509,7 +510,7 @@ function runPourEngine(ctx) {
             layer: r.traceLayer,
             item: `参考层 (${r.refLayer}) 走线投影覆盖与两侧邻近铜`,
             actual: issueText,
-            rule: `完整走线投影有铜，且左右两侧各在 ${reqM.toFixed(1)} mil 内存在铜皮`,
+            rule: `除同网络且跨该参考层的 Via 端点反焊盘外完整走线投影有铜，且左右两侧各在 ${reqM.toFixed(1)} mil 内存在铜皮`,
             pass: false,
             deviation: issueText,
             reason: `参考层 ${r.refLayer}：${issueText}`,

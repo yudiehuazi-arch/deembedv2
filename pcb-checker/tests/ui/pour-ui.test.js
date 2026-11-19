@@ -76,6 +76,16 @@ test('几何视口可独立取消并恢复网络名与目标对象编号', () =>
   if (!w.State.canvas.showNetLabels || !w.State.canvas.showObjectIds) throw new Error('网络名或目标对象编号未恢复显示');
 });
 
+test('走线投影异常标记定位首个真实缺铜点而非走线中点', () => {
+  const marker = w.getPourDefectMarker({
+    checkCategory: 'trace_ref_margin', traceId: 35034,
+    missingPoint: { x: 19356.7, y: 34300 }
+  });
+  if (!marker || marker.x !== 19356.7 || marker.y !== 34300 || !marker.targetLabel.includes('缺铜点')) {
+    throw new Error('走线投影异常未定位到首个真实缺铜点');
+  }
+});
+
 test('几何视口的六个异常筛选按钮均可再次点击取消选中', () => {
   const buttons = [
     ['all', 'btnCanvasDefectAll'],

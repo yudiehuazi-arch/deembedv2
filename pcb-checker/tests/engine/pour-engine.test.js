@@ -30,6 +30,9 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
 
   assert.strictEqual(parsed.shapes.length, 3, '应解析出 3 个 Shape');
   assert.strictEqual(parsed.vias.length, 1, '应解析出 1 个 Via');
+  assert.strictEqual(parsed.vias[0].hasDefinedSpan, true);
+  assert.deepStrictEqual([parsed.vias[0].minLayerNum, parsed.vias[0].maxLayerNum], [1, 9999],
+    'Via 必须保留 Padstack Defined 层跨供端点反焊盘归属判定');
   assert.strictEqual(parsed.shapes[0].layer, 'Top');
   assert.strictEqual(parsed.shapes[0].area, 907.92028);
   assert.strictEqual(parsed.shapes[0].arcs.length, 1);
@@ -412,7 +415,7 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   console.log('  PASS  第二项：592 颗 PTH-SIG 按同网络 HDI 搜索与 HDI 差分孔距完整判定');
 }
 
-// 5. 第三项：完整走线投影覆盖与整条走线左右两侧邻近铜检查
+// 5. 第三项：端点反焊盘外的完整走线投影覆盖与整条走线左右两侧邻近铜检查
 {
   const traces = [
     {
@@ -470,7 +473,7 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   ];
   const sparse = checkTraceReferenceMargin([trace], footprintAndSparseSideCopper, rule)[0];
   assert.strictEqual(sparse.pass, true, '走线投影完整且左右两侧各有一处微小的 100mil 内铜皮时应通过');
-  assert.match(sparse.message, /正上方完整有铜，且走线左右两侧边缘外 100 mil 内均存在铜皮/);
+  assert.match(sparse.message, /除端点反焊盘外的完整投影有铜，且走线左右两侧边缘外 100 mil 内均存在铜皮/);
 
   const footprintOnly = [
     { id: 414, layer: 'L3', bbox: { minX: -5, minY: -5, maxX: 205, maxY: 5 } }
@@ -494,10 +497,136 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   assert.strictEqual(footprintGap.pass, false, '左右两侧均有邻近铜也不能弥补走线投影缺铜');
   assert.deepStrictEqual(footprintGap.failureKinds, ['footprint']);
   assert.match(footprintGap.message, /完整线宽投影存在缺铜/);
-  console.log('  PASS  第三项语义：完整投影必须有铜，两侧仅需整条走线各存在一处邻近铜');
+  console.log('  PASS  第三项语义：端点反焊盘外完整投影必须有铜，两侧仅需整条走线各存在一处邻近铜');
 }
 
-// 5.2 规则使用 L2/L3 时，必须匹配 Allegro 物理层 02G01P/03G02P
+// 5.2 同网络 Via 连接端点内的参考层反焊盘豁免，线路中途 Void 仍必须报错
+{
+  const rectBoundary = (minX, minY, maxX, maxY) => [
+    { type: 'line', x1: minX, y1: minY, x2: maxX, y2: minY },
+    { type: 'line', x1: maxX, y1: minY, x2: maxX, y2: maxY },
+    { type: 'line', x1: maxX, y1: maxY, x2: minX, y2: maxY },
+    { type: 'line', x1: minX, y1: maxY, x2: minX, y2: minY }
+  ];
+  const trace = {
+    id: 304, layer: 'L4', net: 'ENDPOINT_SIG',
+    segments: [{ type: 'line', x1: 0, y1: 0, x2: 200, y2: 0, width: 4, len: 200 }]
+  };
+  const vias = [
+    { id: 901, x: 0, y: 0, net: 'ENDPOINT_SIG', hasDefinedSpan: true, minLayerNum: 1, maxLayerNum: 4 },
+    { id: 902, x: 200, y: 0, net: 'ENDPOINT_SIG', hasDefinedSpan: true, minLayerNum: 1, maxLayerNum: 4 }
+  ];
+  const rule = [{ traceLayer: 'L4', upperRefLayer: 'L3', minMargin: 20 }];
+  const endpointVoids = {
+    id: 430, layer: 'L3', net: 'GND',
+    boundary: rectBoundary(-50, -50, 250, 50),
+    voids: [
+      { boundary: rectBoundary(-10, -10, 10, 10) },
+      { boundary: rectBoundary(190, -10, 210, 10) }
+    ],
+    bbox: { minX: -50, minY: -50, maxX: 250, maxY: 50 }
+  };
+
+  const withoutViaContext = checkTraceReferenceMargin([trace], [endpointVoids], rule)[0];
+  assert.strictEqual(withoutViaContext.pass, false, '没有同网络 Via 佐证时不能把普通端点缺铜当成反焊盘豁免');
+  const unknownSpan = checkTraceReferenceMargin([trace], [endpointVoids], rule,
+    vias.map(via => ({ id: via.id, x: via.x, y: via.y, net: via.net })))[0];
+  assert.strictEqual(unknownSpan.pass, false, '无法证明经过参考层的 Via 不能授权该层 Void 豁免');
+  const wrongSpan = checkTraceReferenceMargin([trace], [endpointVoids], rule,
+    vias.map(via => Object.assign({}, via, { minLayerNum: 4, maxLayerNum: 4 })))[0];
+  assert.strictEqual(wrongSpan.pass, false, '不经过 L3 参考层的端点 Via 不能授权 L3 Void 豁免');
+  const wrongNet = checkTraceReferenceMargin([trace], [endpointVoids], rule,
+    vias.map(via => Object.assign({}, via, { net: '' })))[0];
+  assert.strictEqual(wrongNet.pass, false, '空白或未知网络 Via 不能授权端点反焊盘豁免');
+
+  const exempted = checkTraceReferenceMargin([trace], [endpointVoids], rule, vias)[0];
+  assert.strictEqual(exempted.pass, true, '同网络 Via 端点反焊盘应从完整投影覆盖检查中豁免');
+  assert.strictEqual(exempted.footprintCovered, true);
+  assert.strictEqual(exempted.endpointAntipadExemptionCount, 2);
+  assert.deepStrictEqual(exempted.endpointAntipadViaIds, [901, 902]);
+  assert.match(exempted.message, /已豁免端点 Via #901、#902 的反焊盘/);
+  const exemptedGroup = groupResultsByTargetObject([exempted])[0];
+  assert.match(exemptedGroup.metricsStr, /已豁免端点 Via #901、#902 的反焊盘/);
+
+  const withInteriorVoid = Object.assign({}, endpointVoids, {
+    id: 431,
+    voids: endpointVoids.voids.concat([{ boundary: rectBoundary(95, -10, 105, 10) }])
+  });
+  const interiorGap = checkTraceReferenceMargin([trace], [withInteriorVoid], rule, vias)[0];
+  assert.strictEqual(interiorGap.pass, false, '走线中途的参考层 Void 不属于端点反焊盘豁免');
+  assert.strictEqual(interiorGap.footprintCovered, false);
+  assert.deepStrictEqual(interiorGap.failureKinds, ['footprint']);
+  assert.ok(interiorGap.missingPoint && interiorGap.missingPoint.x >= 95 && interiorGap.missingPoint.x <= 105,
+    '应记录中途 Void 内的首个真实缺铜点');
+  assert.match(interiorGap.message, /首个走线投影缺铜点/);
+
+  const extendedGap = Object.assign({}, endpointVoids, {
+    id: 432,
+    voids: endpointVoids.voids.concat([{ boundary: rectBoundary(11, -10, 30, 10) }])
+  });
+  assert.strictEqual(checkTraceReferenceMargin([trace], [extendedGap], rule, vias)[0].pass, false,
+    '端点反焊盘边界外继续延伸的缺铜仍必须检出');
+  const nearbyVoid = Object.assign({}, endpointVoids, {
+    id: 433,
+    voids: [{ boundary: rectBoundary(2, -10, 18, 10) }, endpointVoids.voids[1]]
+  });
+  assert.strictEqual(checkTraceReferenceMargin([trace], [nearbyVoid], rule, vias)[0].pass, false,
+    '靠近但不包含端点 Via 的普通 Void 不得视为端点反焊盘');
+  console.log('  PASS  第三项端点反焊盘豁免：仅豁免同网络且跨参考层的端点 Via，中途或外延缺铜仍检出');
+}
+
+// 5.3 Trace #35034 实板几何：04G01P U 形走线两端的 L3 反焊盘必须豁免
+{
+  const circleBoundary = (cx, cy, radius, count = 36) => Array.from({ length: count }, (_, i) => {
+    const a1 = Math.PI * 2 * i / count, a2 = Math.PI * 2 * (i + 1) / count;
+    return { type: 'line', x1: cx + Math.cos(a1) * radius, y1: cy + Math.sin(a1) * radius,
+      x2: cx + Math.cos(a2) * radius, y2: cy + Math.sin(a2) * radius };
+  });
+  const line = (x1, y1, x2, y2, width) => ({ type: 'line', x1, y1, x2, y2, width,
+    len: Math.hypot(x2 - x1, y2 - y1) });
+  const arc = (x1, y1, x2, y2, cx, cy, radius, width) =>
+    ({ type: 'arc', x1, y1, x2, y2, cx, cy, radius, dir: 'CW', width });
+  const trace35034 = { id: 35034, layer: '04G01P', net: '13_P', segments: [
+    line(19358.96, 34300, 19358.96, 34051.9739, 4.5),
+    arc(19358.96, 34051.9739, 19351.5315, 34035.6165, 19337.2358, 34051.9742, 21.7242, 4.5),
+    arc(19351.5315, 34035.6165, 19338.5756, 34030.25, 19338.5756, 34048.5724, 18.3224, 4.2),
+    line(19338.5756, 34030.25, 17900.585, 34030.25, 4.2),
+    arc(17900.585, 34030.25, 17887.4285, 34035.6996, 17900.585, 34048.8561, 18.6061, 4.2),
+    arc(17887.4285, 34035.6996, 17880, 34052.057, 17901.7242, 34052.0573, 21.7242, 4.5),
+    line(17880, 34052.057, 17880, 34300, 4.5)
+  ] };
+  const shape1418 = { id: 1418, layer: '03IS01', net: 'GND',
+    boundary: [
+      line(17600, 33800, 19650, 33800), line(19650, 33800, 19650, 34400),
+      line(19650, 34400, 17600, 34400), line(17600, 34400, 17600, 33800)
+    ],
+    voids: [
+      { boundary: circleBoundary(19358.96, 34300, 13.0001) },
+      { boundary: circleBoundary(17880, 34300, 13.0001) }
+    ],
+    bbox: { minX: 17600, minY: 33800, maxX: 19650, maxY: 34400 }
+  };
+  const vias = [
+    { id: 31811, x: 19358.96, y: 34300, net: '13_P', hasDefinedSpan: true,
+      startLayer: 'Top', endLayer: '04G01P', minLayerNum: 1, maxLayerNum: 4 },
+    { id: 31810, x: 17880, y: 34300, net: '13_P', hasDefinedSpan: true,
+      startLayer: 'Top', endLayer: '04G01P', minLayerNum: 1, maxLayerNum: 4 }
+  ];
+  const shapeL5 = Object.assign({}, shape1418, { id: 1354, layer: '05G02P', voids: [] });
+  const results = checkTraceReferenceMargin([trace35034], [shape1418, shapeL5], [{
+    traceLayer: 'L4', upperRefLayer: 'L3', lowerRefLayer: 'L5', minMargin: 100
+  }], vias);
+  const resultL3 = results.find(result => result.refLayer === 'L3');
+  const resultL5 = results.find(result => result.refLayer === 'L5');
+  assert.strictEqual(resultL3.traceId, 35034);
+  assert.strictEqual(resultL3.pass, true, 'Trace #35034 在 L3 应仅豁免两个真实端点反焊盘并通过');
+  assert.deepStrictEqual(resultL3.endpointAntipadViaIds, [31811, 31810]);
+  assert.strictEqual(resultL5.pass, true, 'Trace #35034 在 L5 无端点 Void 时应直接通过完整投影检查');
+  assert.deepStrictEqual(resultL5.endpointAntipadViaIds, []);
+  console.log('  PASS  Trace #35034 紧凑实板回归：03IS01/L3 两端反焊盘豁免，L5 无豁免且完整通过');
+}
+
+// 5.4 规则使用 L2/L3 时，必须匹配 Allegro 物理层 02G01P/03G02P
 {
   const trace = {
     id: 303, layer: '02G01P', net: 'ALIAS_LAYER_TRACE',

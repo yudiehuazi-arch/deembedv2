@@ -375,9 +375,30 @@
     return indexes;
   }
 
-  /**
-   * 解析 Via 块
-   */
+  function stackLayerNumber(layer) {
+    const key = String(layer || '').trim().toUpperCase();
+    if (key === 'TOP') return 1;
+    if (/^(?:BOTTOM|BOT)$/.test(key)) return 9999;
+    const alias = geom.physicalLayerAlias(key);
+    const match = alias.match(/^L0*(\d+)$/);
+    return match ? parseInt(match[1], 10) : null;
+  }
+
+  function parseViaSpan(block) {
+    const only = block.match(/Padstack\s+Defined\s+only\s+on\s+([^\s\r\n]+)/i);
+    const pair = block.match(/Padstack\s+Defined\s*(?:from|:)?\s*([^\s\r\n\-~]+?)\s*(?:\s+to\s+|\s*[\-~]\s*)\s*([^\s\r\n]+)/i);
+    const startLayer = only ? only[1].trim() : pair ? pair[1].trim() : '';
+    const endLayer = only ? startLayer : pair ? pair[2].trim() : '';
+    const startLayerNum = stackLayerNumber(startLayer), endLayerNum = stackLayerNumber(endLayer);
+    return {
+      hasDefinedSpan: !!(only || pair), startLayer: startLayer, endLayer: endLayer,
+      startLayerNum: startLayerNum, endLayerNum: endLayerNum,
+      minLayerNum: startLayerNum == null || endLayerNum == null ? null : Math.min(startLayerNum, endLayerNum),
+      maxLayerNum: startLayerNum == null || endLayerNum == null ? null : Math.max(startLayerNum, endLayerNum)
+    };
+  }
+
+  /** 解析 Via 块（含反焊盘归属判定所需的 Padstack 层跨）。 */
   function parseViaBlock(itemNum, block) {
     const origM = block.match(/(?:Origin-xy|Location|xy):\s*\[\s*([\d\.\-]+)\s*,\s*([\d\.\-]+)\s*\]/i);
     if (!origM) return null;
@@ -387,15 +408,15 @@
     const drillM = block.match(/Circle\s+Drill:\s*([\d\.\-]+)/i);
     const connM = block.match(/Connections:[\s\S]*?(?:Trace|Shape):\s*\d+\s*\(([^)]+)\)/i);
 
-    return {
+    return Object.assign({
       id: itemNum,
       x: parseFloat(origM[1]),
       y: parseFloat(origM[2]),
       padstack: padM ? padM[1].trim() : 'UNKNOWN_PADSTACK',
-      net: netM ? netM[1].trim() : 'GND',
+      net: netM ? netM[1].trim() : '',
       drill: drillM ? parseFloat(drillM[1]) : 3.94,
       connectedLayers: connM ? connM[1].split(/\s+/).filter(Boolean) : []
-    };
+    }, parseViaSpan(block));
   }
 
   /**

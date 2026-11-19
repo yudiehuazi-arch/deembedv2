@@ -135,7 +135,16 @@
     };
   }
 
-  function firstUncoveredInDisc(cx, cy, radius, step, index) {
+  function isPointInExemptRegion(x, y, exemptRegions) {
+    for (var i = 0; i < (exemptRegions || []).length; i++) {
+      var region = exemptRegions[i], bbox = region.bbox;
+      if (x >= bbox.minX && x <= bbox.maxX && y >= bbox.minY && y <= bbox.maxY &&
+          geom.pointInPolygon(x, y, region.ring)) return true;
+    }
+    return false;
+  }
+
+  function firstUncoveredInDisc(cx, cy, radius, step, index, exemptRegions) {
     var rings = Math.max(1, Math.ceil(radius / step));
     for (var ri = 0; ri <= rings; ri++) {
       var r = radius * ri / rings;
@@ -143,7 +152,7 @@
       for (var ai = 0; ai < count; ai++) {
         var angle = 2 * Math.PI * ai / count;
         var x = cx + Math.cos(angle) * r, y = cy + Math.sin(angle) * r;
-        if (!indexCoversPoint(index, x, y)) return { x: x, y: y };
+        if (!isPointInExemptRegion(x, y, exemptRegions) && !indexCoversPoint(index, x, y)) return { x: x, y: y };
       }
     }
     return null;
@@ -159,8 +168,54 @@
     return geom.queryBBoxGrid(index, minX - radius, minY - radius, maxX + radius, maxY + radius);
   }
 
-  function firstUncoveredInTraceFootprint(seg, index) {
+  function segmentToRingDistance(seg, ring) {
+    var a = { x: seg.x1, y: seg.y1 }, b = { x: seg.x2, y: seg.y2 };
+    var minDistance = Infinity;
+    for (var i = 0; i < ring.length; i++) {
+      var current = { x: ring[i][0], y: ring[i][1] };
+      var nextPoint = ring[(i + 1) % ring.length];
+      var next = { x: nextPoint[0], y: nextPoint[1] };
+      if (segmentsIntersect(a, b, current, next)) return 0;
+      minDistance = Math.min(minDistance,
+        geom.pointToSegmentDist(current.x, current.y, a.x, a.y, b.x, b.y),
+        geom.pointToSegmentDist(a.x, a.y, current.x, current.y, next.x, next.y),
+        geom.pointToSegmentDist(b.x, b.y, current.x, current.y, next.x, next.y));
+    }
+    return minDistance;
+  }
+
+  function isExemptRing(ring, exemptRegions) {
+    return (exemptRegions || []).some(function (region) { return region.ring === ring; });
+  }
+
+  /** 直线胶囊位于单一 Shape 内且不触碰非豁免 Void 时可精确快速通过，无需降低采样精度。 */
+  function lineFootprintCoveredBySingleShape(seg, index, halfWidth, exemptRegions) {
+    var candidates = querySegmentShapes(seg, index, halfWidth);
+    var minX = Math.min(seg.x1, seg.x2) - halfWidth, maxX = Math.max(seg.x1, seg.x2) + halfWidth;
+    var minY = Math.min(seg.y1, seg.y2) - halfWidth, maxY = Math.max(seg.y1, seg.y2) + halfWidth;
+    return candidates.some(function (shape) {
+      if (!shape.boundary || !shape.boundary.length) {
+        var box = shape.bbox;
+        return box && box.minX <= minX && box.maxX >= maxX && box.minY <= minY && box.maxY >= maxY;
+      }
+      var rings = geom.shapeRings(shape), exterior = rings[0];
+      var midX = (seg.x1 + seg.x2) / 2, midY = (seg.y1 + seg.y2) / 2;
+      if (!exterior || !geom.pointInPolygon(midX, midY, exterior) ||
+          segmentToRingDistance(seg, exterior) < halfWidth - 1e-7) return false;
+      var voidEntries = geom.shapeVoidRingEntriesInBBox(minX, minY, maxX, maxY, shape);
+      for (var i = 0; i < voidEntries.length; i++) {
+        var ring = voidEntries[i].ring;
+        if (isExemptRing(ring, exemptRegions)) continue;
+        if (geom.pointInPolygon(seg.x1, seg.y1, ring) || geom.pointInPolygon(seg.x2, seg.y2, ring) ||
+            geom.pointInPolygon(midX, midY, ring) || segmentToRingDistance(seg, ring) < halfWidth - 1e-7) return false;
+      }
+      return true;
+    });
+  }
+
+  function firstUncoveredInTraceFootprint(seg, index, exemptRegions) {
     var halfWidth = Math.max(0, Number(seg.width || 6) / 2);
+    if (seg.type !== 'arc' && lineFootprintCoveredBySingleShape(seg, index, halfWidth, exemptRegions)) return null;
     var step = Math.max(1, Math.min(3, halfWidth / 3 || 1));
     var path = segmentGeometry(seg);
     var alongCount = Math.max(1, Math.ceil(path.length / step));
@@ -170,12 +225,12 @@
       for (var j = 0; j <= acrossCount; j++) {
         var offset = -halfWidth + (2 * halfWidth * j / acrossCount);
         var x = point.x + point.nx * offset, y = point.y + point.ny * offset;
-        if (!indexCoversPoint(index, x, y)) return { x: x, y: y };
+        if (!isPointInExemptRegion(x, y, exemptRegions) && !indexCoversPoint(index, x, y)) return { x: x, y: y };
       }
     }
     var start = path.point(0), end = path.point(1);
-    return firstUncoveredInDisc(start.x, start.y, halfWidth, step, index) ||
-      firstUncoveredInDisc(end.x, end.y, halfWidth, step, index);
+    return firstUncoveredInDisc(start.x, start.y, halfWidth, step, index, exemptRegions) ||
+      firstUncoveredInDisc(end.x, end.y, halfWidth, step, index, exemptRegions);
   }
 
   function sideCorridorQuad(start, end, inner, outer, sign) {
@@ -210,12 +265,76 @@
     return { left: left, right: right };
   }
 
-  function traceMarginCoverage(trace, index, margin) {
+  function stackLayerNumber(layer) {
+    var key = String(layer || '').trim().toUpperCase();
+    if (key === 'TOP') return 1;
+    if (/^(?:BOTTOM|BOT)$/.test(key)) return 9999;
+    var match = geom.physicalLayerAlias(key).match(/^L0*(\d+)$/);
+    return match ? parseInt(match[1], 10) : null;
+  }
+
+  function viaSpansReferenceLayer(via, refLayer) {
+    var refNum = stackLayerNumber(refLayer);
+    if (refNum != null && via.minLayerNum != null && via.maxLayerNum != null) {
+      return refNum >= via.minLayerNum && refNum <= via.maxLayerNum;
+    }
+    if (!via.hasDefinedSpan) return false;
+    var refAlias = geom.physicalLayerAlias(refLayer);
+    return [via.startLayer, via.endLayer].some(function (layer) {
+      return geom.physicalLayerAlias(layer) === refAlias;
+    });
+  }
+
+  function findEndpointVia(point, trace, refLayer, viaIndex) {
+    if (!viaIndex || !point) return null;
+    var traceNet = String(trace.net || '').trim().toUpperCase();
+    var candidates = geom.queryPointGrid(viaIndex, point.x - 1, point.y - 1, point.x + 1, point.y + 1);
+    var nearest = null, nearestDist = Infinity;
+    candidates.forEach(function (via) {
+      var viaNet = String(via.net || '').trim().toUpperCase();
+      if (!traceNet || !viaNet || traceNet !== viaNet || !viaSpansReferenceLayer(via, refLayer)) return;
+      var distance = Math.hypot(via.x - point.x, via.y - point.y);
+      if (distance <= 1 && distance < nearestDist) { nearest = via; nearestDist = distance; }
+    });
+    return nearest;
+  }
+
+  function endpointAntipadExemptions(trace, refLayer, shapeIndex, viaIndex) {
+    var segments = trace.segments || [];
+    if (!segments.length || !viaIndex) return { regions: [], viaIds: [] };
+    var first = segments[0], last = segments[segments.length - 1];
+    var endpoints = [{ x: first.x1, y: first.y1 }, { x: last.x2, y: last.y2 }];
+    var regions = [], knownRings = [], viaIds = [];
+    endpoints.forEach(function (point) {
+      var via = findEndpointVia(point, trace, refLayer, viaIndex);
+      if (!via) return;
+      var endpointRings = [];
+      geom.queryBBoxGrid(shapeIndex, point.x, point.y, point.x, point.y).forEach(function (shape) {
+        endpointRings.push.apply(endpointRings, geom.shapeVoidRingsAtPoint(point.x, point.y, shape));
+      });
+      if (!endpointRings.length) return;
+      var accepted = false;
+      endpointRings.forEach(function (ring) {
+        if (knownRings.indexOf(ring) >= 0) { accepted = true; return; }
+        var bbox = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+        ring.forEach(function (p) {
+          bbox.minX = Math.min(bbox.minX, p[0]); bbox.maxX = Math.max(bbox.maxX, p[0]);
+          bbox.minY = Math.min(bbox.minY, p[1]); bbox.maxY = Math.max(bbox.maxY, p[1]);
+        });
+        knownRings.push(ring); regions.push({ ring: ring, bbox: bbox }); accepted = true;
+      });
+      if (accepted && viaIds.indexOf(via.id) < 0) viaIds.push(via.id);
+    });
+    return { regions: regions, viaIds: viaIds };
+  }
+
+  function traceMarginCoverage(trace, index, margin, viaIndex, refLayer) {
     var segments = trace.segments || [];
     var missing = null;
     var left = margin <= 0, right = margin <= 0;
+    var exemptions = endpointAntipadExemptions(trace, refLayer, index, viaIndex);
     for (var i = 0; i < segments.length; i++) {
-      if (!missing) missing = firstUncoveredInTraceFootprint(segments[i], index);
+      if (!missing) missing = firstUncoveredInTraceFootprint(segments[i], index, exemptions.regions);
       if (!(left && right)) {
         var nearby = nearbyCopperSidesInSegment(segments[i], index, margin);
         left = left || nearby.left;
@@ -228,13 +347,16 @@
       missing: missing,
       footprintCovered: footprintCovered,
       leftSideCopper: left,
-      rightSideCopper: right
+      rightSideCopper: right,
+      endpointAntipadExemptionCount: exemptions.viaIds.length,
+      endpointAntipadViaIds: exemptions.viaIds
     };
   }
 
-  function checkTraceReferenceMargin(traces, shapes, rules) {
+  function checkTraceReferenceMargin(traces, shapes, rules, vias) {
     rules = rules || [];
     var results = [], byLayer = new Map(), indexes = new Map();
+    var viaIndex = (vias || []).length ? geom.buildPointGrid(vias, 20, function (via) { return via; }) : null;
     (shapes || []).forEach(function (shape) {
       var layer = String(shape.layer || '').toUpperCase();
       if (!byLayer.has(layer)) byLayer.set(layer, []);
@@ -262,9 +384,10 @@
       }).forEach(function (trace) {
         refs.forEach(function (ref) {
           var index = indexes.get(ref.name) || indexes.get(geom.physicalLayerAlias(ref.name));
-          var coverage = index ? traceMarginCoverage(trace, index, margin) : {
+          var coverage = index ? traceMarginCoverage(trace, index, margin, viaIndex, ref.name) : {
             pass: false, missing: null, footprintCovered: false,
-            leftSideCopper: false, rightSideCopper: false
+            leftSideCopper: false, rightSideCopper: false,
+            endpointAntipadExemptionCount: 0, endpointAntipadViaIds: []
           };
           var location = coverage.missing
             ? '，首个走线投影缺铜点 [' + geom.roundN(coverage.missing.x, 1) + ', ' + geom.roundN(coverage.missing.y, 1) + ']'
@@ -290,10 +413,14 @@
             footprintCovered: coverage.footprintCovered,
             leftSideCopper: coverage.leftSideCopper,
             rightSideCopper: coverage.rightSideCopper,
+            missingPoint: coverage.missing,
+            endpointAntipadExemptionCount: coverage.endpointAntipadExemptionCount,
+            endpointAntipadViaIds: coverage.endpointAntipadViaIds,
             failureKinds: failureKinds,
             pass: coverage.pass,
             message: coverage.pass
-              ? '✅ 符合：走线【' + trace.net + '】在 ' + ref.type + '【' + ref.name + '】正上方完整有铜，且走线左右两侧边缘外 ' + margin + ' mil 内均存在铜皮'
+              ? '✅ 符合：走线【' + trace.net + '】在 ' + ref.type + '【' + ref.name + '】除端点反焊盘外的完整投影有铜，且走线左右两侧边缘外 ' + margin + ' mil 内均存在铜皮' +
+                (coverage.endpointAntipadExemptionCount ? '（已豁免端点 Via #' + coverage.endpointAntipadViaIds.join('、#') + ' 的反焊盘）' : '')
               : '❌ 不符合：走线【' + trace.net + '】在 ' + ref.type + '【' + ref.name + '】' + issues.join('；')
           });
         });

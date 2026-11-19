@@ -159,7 +159,7 @@
     root.State.activeReviewKey = null;
   }
 
-  function centerLocatedTarget(checkCategory, targetId) {
+  function centerLocatedTarget(checkCategory, targetId, record) {
     var State = root.State;
     var canvas = document.getElementById('mainCanvas');
     var w = canvas ? (canvas.width || 900) : 900;
@@ -170,6 +170,8 @@
     var tx = null, ty = null;
     if ((checkCategory === 'via_coverage' || checkCategory === 'special_shape') && via) {
       tx = via.x; ty = via.y;
+    } else if (checkCategory === 'trace_ref_margin' && record && record.missingPoint) {
+      tx = record.missingPoint.x; ty = record.missingPoint.y;
     } else if (checkCategory === 'trace_ref_margin' && trace && trace.bbox) {
       tx = (trace.bbox.minX + trace.bbox.maxX) / 2; ty = (trace.bbox.minY + trace.bbox.maxY) / 2;
     } else if (shape && shape.bbox) {
@@ -201,7 +203,7 @@
     root.switchTab('tabCanvas');
     safeRAF(function () {
       if (typeof root.resizeCanvas === 'function') root.resizeCanvas();
-      centerLocatedTarget(checkCategory, targetId);
+      centerLocatedTarget(checkCategory, targetId, result);
       if (itemKey) renderPourCanvasReviewBox(itemKey);
       if (typeof root.renderCanvas === 'function') root.renderCanvas();
     });

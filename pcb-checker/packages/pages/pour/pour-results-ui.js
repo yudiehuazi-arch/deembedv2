@@ -140,10 +140,10 @@
   function formatResultStatus(r) {
     return r.pass ? '符合' : ('不符合' + (r.failCount ? ' · ' + r.failCount + ' 层未检出' : ''));
   }
-
   function formatTraceReferenceIssue(record) {
     var issues = [], distance = record.minMargin != null ? record.minMargin + ' mil' : '规则距离';
-    if (record.footprintCovered === false) issues.push('完整走线投影缺铜');
+    var missingAt = record.missingPoint ? '（首个缺铜点 [' + (Math.round(record.missingPoint.x * 10) / 10) + ', ' + (Math.round(record.missingPoint.y * 10) / 10) + ']）' : '';
+    if (record.footprintCovered === false) issues.push('完整走线投影缺铜' + missingAt);
     if (record.leftSideCopper === false) issues.push('走线左侧 ' + distance + ' 内无铜');
     if (record.rightSideCopper === false) issues.push('走线右侧 ' + distance + ' 内无铜');
     return issues.join('、') || '参考铜不符合要求';
@@ -513,9 +513,9 @@
       '<h3><span>③ 走线参考层投影覆盖与两侧邻近铜 — 缺陷规律与工程分析</span>' +
       '<span class="badge-tag ' + (b.traceMarginDefects > 0 ? 'bad' : 'ok') + '">' + b.traceMarginDefects + ' 处参考层异常</span></h3>' +
       '<div class="pattern-box">' +
-        '<strong>投影缺铜与回流风险：</strong>走线完整线宽投影未被参考铜覆盖，或整条走线任一侧在规则距离内完全无铜时，回流路径会被拉长并增加阻抗突变与边缘辐射风险。' +
-      '</div>' +
-      '<div class="hint"><strong>整改措施：</strong>补齐走线完整投影范围的上下参考铜，并确保整条走线左右两侧各有铜皮落在设定搜索距离内，避免跨越平面分割。</div>' +
+        '<strong>投影缺铜与回流风险：</strong>除同网络且跨该参考层的 Via 端点反焊盘外，走线完整线宽投影未被参考铜覆盖，或整条走线任一侧在规则距离内完全无铜时，回流路径会被拉长并增加阻抗突变与边缘辐射风险。' +
+        '</div>' +
+      '<div class="hint"><strong>整改措施：</strong>补齐端点反焊盘以外走线完整投影范围的上下参考铜，并确保整条走线左右两侧各有铜皮落在设定搜索距离内，避免跨越平面分割。</div>' +
     '</div>';
 
     h += '<div class="pattern-card">' +
@@ -570,7 +570,7 @@
       '- 整改措施: 核查指定层异型铜皮自动生成规则并修复反焊盘切割区域。',
       '',
       '### ③ 走线参考层投影覆盖与两侧邻近铜检查: ' + b.traceMarginDefects + ' 处超标',
-      '- 整改措施: 补齐完整走线投影范围的参考铜，并确保整条走线左右两侧各有铜皮位于规则距离内。',
+      '- 整改措施: 补齐端点反焊盘以外的完整走线投影参考铜，并确保整条走线左右两侧各有铜皮位于规则距离内。',
       '',
       '### ④ 孤立小铜皮检查: ' + b.smallCopperDefects + ' 处超标',
       '- 整改措施: 开启铺铜孤立死铜自动移除策略。',

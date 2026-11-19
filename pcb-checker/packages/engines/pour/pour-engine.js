@@ -439,9 +439,12 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
       } else if (g.checkCategory === 'trace_ref_margin') {
         const failedSubs = subs.filter(s => !s.pass);
         const s0 = subs[0];
+        const endpointViaIds = [...new Set(subs.flatMap(s => s.endpointAntipadViaIds || []))];
+        const firstMissing = failedSubs.find(s => s.missingPoint);
         const issueText = s => {
           const issues = [];
-          if (s.footprintCovered === false) issues.push('完整走线投影缺铜');
+          const missingAt = s.missingPoint ? `（首个缺铜点 [${roundN(s.missingPoint.x, 1)}, ${roundN(s.missingPoint.y, 1)}]）` : '';
+          if (s.footprintCovered === false) issues.push(`完整走线投影缺铜${missingAt}`);
           if (s.leftSideCopper === false) issues.push(`走线左侧 ${s.minMargin} mil 内无铜`);
           if (s.rightSideCopper === false) issues.push(`走线右侧 ${s.minMargin} mil 内无铜`);
           return issues.join('、') || '参考铜不符合要求';
@@ -450,15 +453,19 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
         g.layer = s0.traceLayer;
         g.layerListStr = `信号层: ${s0.traceLayer} (${subs.map(s => `${s.refType}:${s.refLayer}`).join(', ')})`;
         g.minMargin = s0.minMargin;
+        g.missingPoint = firstMissing ? firstMissing.missingPoint : null;
+        g.endpointAntipadViaIds = endpointViaIds;
+        g.endpointAntipadExemptionCount = endpointViaIds.length;
+        const exemptionText = endpointViaIds.length ? `；已豁免端点 Via #${endpointViaIds.join('、#')} 的反焊盘` : '';
         if (allPass) {
           g.actualMargin = s0.minMargin;
-          g.metricsStr = `各参考层均完整覆盖走线投影，且走线左右两侧边缘外 ${s0.minMargin} mil 内各存在铜皮`;
-          g.message = `✅ 符合：走线【${s0.traceNet}】在上下参考层的完整投影均有铜，且左右两侧规则距离内均有铜`;
+          g.metricsStr = `各参考层除端点反焊盘外均完整覆盖走线投影，且走线左右两侧边缘外 ${s0.minMargin} mil 内各存在铜皮${exemptionText}`;
+          g.message = `✅ 符合：走线【${s0.traceNet}】在上下参考层除端点反焊盘外的完整投影均有铜，且左右两侧规则距离内均有铜${exemptionText}`;
         } else {
           const failDesc = failedSubs.map(s => `${s.refType}【${s.refLayer}】：${issueText(s)}`).join('；');
           g.actualMargin = 0;
-          g.metricsStr = failDesc;
-          g.message = `❌ 不符合：走线【${s0.traceNet}】${failDesc}`;
+          g.metricsStr = failDesc + exemptionText;
+          g.message = `❌ 不符合：走线【${s0.traceNet}】${failDesc}${exemptionText}`;
         }
       } else if (g.checkCategory === 'isolated_copper') {
         const s0 = subs[0];
@@ -509,7 +516,7 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
     const minArcRadius = config.minArcRadius != null ? config.minArcRadius : 10.0;
     const res1 = checkViaLayerCoverage(vias, shapes, viaCovRules, layers);
     const res2 = checkSpecialShapedCopper(vias, shapes, specialShapeTemplates);
-    const res3 = checkTraceReferenceMargin(traces, shapes, traceMarginRules);
+    const res3 = checkTraceReferenceMargin(traces, shapes, traceMarginRules, vias);
     const res4 = checkIsolatedSmallCopper(shapes, vias, smallCopperAreaThreshold);
     const res5 = checkCopperArcRadius(shapes, minArcRadius);
     const allDefects = [

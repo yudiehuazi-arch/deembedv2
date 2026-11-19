@@ -47,6 +47,10 @@
   function defectMarker(record) {
     var State = root.State;
     if (!record) return null;
+    if (record.checkCategory === 'trace_ref_margin' && record.missingPoint &&
+        isFinite(record.missingPoint.x) && isFinite(record.missingPoint.y)) {
+      return { x: record.missingPoint.x, y: record.missingPoint.y, targetId: record.traceId, targetLabel: 'Trace #' + record.traceId + ' 缺铜点' };
+    }
     if (record.viaCoord && isFinite(record.viaCoord[0]) && isFinite(record.viaCoord[1])) {
       return { x: record.viaCoord[0], y: record.viaCoord[1], targetId: record.viaId, targetLabel: 'Via #' + record.viaId };
     }

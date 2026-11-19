@@ -179,7 +179,7 @@
   function pointInPolygon(px, py, ring) {
     if (!ring || ring.length < 3) return false;
     let edges = null;
-    if (ring.length >= 256) {
+    if (ring.length >= 32) {
       let index = polygonRayIndexCache.get(ring);
       if (!index) { index = buildPolygonRayIndex(ring); polygonRayIndexCache.set(ring, index); }
       edges = (index.cells.get(Math.floor(py / index.cellSize)) || []).concat(index.longEdges);
@@ -246,7 +246,7 @@
   }
 
   function buildVoidRingIndex(rings) {
-    const cellSize = 100, cells = new Map(), large = [];
+    const cellSize = 25, cells = new Map(), large = [];
     for (let i = 1; i < rings.length; i++) {
       const bbox = ringBBox(rings[i]);
       const minGX = Math.floor(bbox.minX / cellSize), maxGX = Math.floor(bbox.maxX / cellSize);
@@ -262,6 +262,41 @@
       }
     }
     return { cellSize, cells, large };
+  }
+
+  function voidRingEntriesAtPoint(px, py, shape) {
+    const rings = shapeRings(shape);
+    if (rings.length <= 1 || !pointInPolygon(px, py, rings[0])) return [];
+    let index = shapeVoidIndexCache.get(shape);
+    if (!index) { index = buildVoidRingIndex(rings); shapeVoidIndexCache.set(shape, index); }
+    const key = Math.floor(px / index.cellSize) + ',' + Math.floor(py / index.cellSize);
+    return index.large.concat(index.cells.get(key) || []).filter(entry => {
+      const b = entry.bbox;
+      return px >= b.minX && px <= b.maxX && py >= b.minY && py <= b.maxY && pointInPolygon(px, py, entry.ring);
+    });
+  }
+
+  /** 返回覆盖指定点的 Void 轮廓，供识别走线端点反焊盘。 */
+  function shapeVoidRingsAtPoint(px, py, shape) {
+    return voidRingEntriesAtPoint(px, py, shape).map(entry => entry.ring);
+  }
+
+  /** 按包围盒查询 Shape 的 Void 轮廓，避免长走线逐一遍历整板反焊盘。 */
+  function shapeVoidRingEntriesInBBox(minX, minY, maxX, maxY, shape) {
+    const rings = shapeRings(shape);
+    if (rings.length <= 1) return [];
+    let index = shapeVoidIndexCache.get(shape);
+    if (!index) { index = buildVoidRingIndex(rings); shapeVoidIndexCache.set(shape, index); }
+    const candidates = new Set(index.large);
+    for (let gx = Math.floor(minX / index.cellSize); gx <= Math.floor(maxX / index.cellSize); gx++) {
+      for (let gy = Math.floor(minY / index.cellSize); gy <= Math.floor(maxY / index.cellSize); gy++) {
+        (index.cells.get(gx + ',' + gy) || []).forEach(entry => candidates.add(entry));
+      }
+    }
+    return Array.from(candidates).filter(entry => {
+      const b = entry.bbox;
+      return b.maxX >= minX && b.minX <= maxX && b.maxY >= minY && b.minY <= maxY;
+    });
   }
 
   /** 与 Canvas evenodd 填充一致；Void 按包围盒网格检索，避免逐点扫描整板全部反焊盘。 */
@@ -461,6 +496,8 @@
     pointInPolygon: pointInPolygon,
     shapeRing: shapeRing,
     shapeRings: shapeRings,
+    shapeVoidRingsAtPoint: shapeVoidRingsAtPoint,
+    shapeVoidRingEntriesInBBox: shapeVoidRingEntriesInBBox,
     pointInShape: pointInShape,
     pointToShapeBoundaryDistance: pointToShapeBoundaryDistance,
     pointToShapeDistance: pointToShapeDistance,
