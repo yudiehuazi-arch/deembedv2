@@ -245,18 +245,22 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
     { id: 'narrow_search', name: '修改后搜索距离过小模板', padstack: 'TYPE_A', differentialCenterDistance: 2, hdiSearchRadiusMm: 0.05, layer: 'L2', expectedArea: 999, areaTolerance: 1 }
   ];
   const res = checkSpecialShapedCopper(vias, shapes, templates);
-  assert.strictEqual(res.length, 3, '三颗有合格同网络 HDI 孔的目标 Via 应各自选择一个中心距模板');
-  assert.deepStrictEqual(res.map(item => item.viaId).sort((a, b) => a - b), [20, 21, 23]);
-  assert.deepStrictEqual(res.map(item => item.templateId).sort(), ['distance_2', 'distance_5', 'inclusive_boundary']);
-  assert.ok(res.every(item => item.pass && item.hdiSearchRadiusMm === null), '未配置搜索距离时仅应用中心距约束');
+  const matched = res.filter(item => !item.associationFailed);
+  const unmatched = res.filter(item => item.associationFailed);
+  assert.strictEqual(res.length, 4, '三颗命中模板的 Via 与一颗未命中模板的 Via 都应生成结果');
+  assert.deepStrictEqual(matched.map(item => item.viaId).sort((a, b) => a - b), [20, 21, 23]);
+  assert.deepStrictEqual(matched.map(item => item.templateId).sort(), ['distance_2', 'distance_5', 'inclusive_boundary']);
+  assert.ok(matched.every(item => item.pass && item.hdiSearchRadiusMm === null), '未配置搜索距离时仅应用中心距约束');
   assert.strictEqual(res.find(item => item.viaId === 20).actualHdiViaId, 30, '多个/等距候选必须稳定选择最近且 ID 较小的 HDI Via');
   assert.strictEqual(res.find(item => item.viaId === 20).actualDifferentialCenterDistance, 2);
   assert.strictEqual(res.find(item => item.viaId === 21).actualHdiViaId, 34, '网络匹配应忽略大小写');
   assert.ok(Math.abs(res.find(item => item.viaId === 23).actualDifferentialCenterDistance - defaultRadiusMil) < 1e-9, '未配置搜索距离时仍应按中心距找到同网络 HDI 孔');
-  assert.ok(!res.some(item => item.viaId === 22), '无同网络 HDI 候选的目标 Via 不应匹配模板');
+  assert.strictEqual(unmatched.length, 1, '无同网络 HDI 候选的目标 Via 不得静默消失');
+  assert.strictEqual(unmatched[0].viaId, 22);
+  assert.ok(!unmatched[0].pass && /未找到同网络 HDI 孔/.test(unmatched[0].associationSummary));
   assert.ok(!res.some(item => item.templateId === 'narrow_search'), '缩小可配置搜索距离后不得关联范围外 HDI Via');
   assert.ok(res.every(item => item.pairedViaId == null && item.pairedHdiViaId == null), '规则 2 不得依赖 _P/_N 目标孔配对');
-  console.log('  PASS  第二项：目标 Via 到最近同网络 HDI Via 的独立中心距、边界与可配置搜索距离');
+  console.log('  PASS  第二项：目标 Via 独立关联同网络 HDI，未命中模板时生成不符合结果');
 }
 
 // 4.1 差分孔中心距与 HDI 搜索距离分别可选，且只应用已配置字段
@@ -328,6 +332,32 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   assert.deepStrictEqual([...new Set(results.map(result => result.viaId))].sort(), [300, 301, 302, 303]);
   assert.strictEqual(results.filter(result => !result.pass).length, 2, '0.125 mm 偏移孔的两层面积异常应被检出');
   console.log('  PASS  第二项：PTH-SIG L5/L10 四种 HDI 偏移模板完整覆盖');
+}
+
+// 4.3 实板同规模回归：模板关联条件未命中时 592 颗 PTH-SIG 也不得静默消失
+{
+  const vias = [];
+  for (let index = 0; index < 592; index++) {
+    const x = index * 20;
+    vias.push({ id: 1000 + index, x, y: 0, padstack: 'PTH-SIG-150drill-ring0_L5_L10', net: `REAL_PTH_${index}` });
+    vias.push({ id: 2000 + index, x: x + 0.98425, y: 0, padstack: 'BGA-HDI-SIG-045drill-ring3', net: `REAL_PTH_${index}` });
+  }
+  const shapes = [
+    { id: 4000, layer: '05G02P', area: 50.26548, centroid: { x: 0, y: 0 } },
+    { id: 4001, layer: '10G07P', area: 50.26548, centroid: { x: 0, y: 0 } }
+  ];
+  const templates = [
+    { id: 'legacy_pth_1', name: 'L5/10特定异型泪滴铜皮', padstack: 'PTH-SIG-150drill-ring0_L5_L10', differentialCenterDistance: 23.62, hdiSearchRadiusMm: 0.175, layer: 'L10,L5', expectedArea: 50.3, areaTolerance: 1 },
+    { id: 'legacy_pth_2', name: 'L5/10特定异型泪滴铜皮', padstack: 'PTH-SIG-150drill-ring0_L5_L10', differentialCenterDistance: 27.56, hdiSearchRadiusMm: 0.175, layer: 'L10,L5', expectedArea: 97.4, areaTolerance: 1 },
+    { id: 'legacy_pth_3', name: 'L5/10特定异型泪滴铜皮', padstack: 'PTH-SIG-150drill-ring0_L5_L10', differentialCenterDistance: 19.685, hdiSearchRadiusMm: 0.175, layer: 'L10,L5', expectedArea: 113.1, areaTolerance: 1 }
+  ];
+  const results = checkSpecialShapedCopper(vias, shapes, templates);
+  const grouped = groupResultsByTargetObject(results);
+  assert.strictEqual(results.length, 1184, '592 颗目标孔在 L5/L10 均应生成未命中结果');
+  assert.strictEqual(grouped.length, 592, '按目标对象汇总后必须完整保留 592 颗 PTH-SIG');
+  assert.ok(results.every(result => result.associationFailed && !result.pass));
+  assert.ok(/0.984 mil/.test(grouped[0].metricsStr) && /19.685 \/ 23.62 \/ 27.56 mil/.test(grouped[0].metricsStr));
+  console.log('  PASS  第二项：592 颗 PTH-SIG 未命中模板时全部生成明确不符合结果');
 }
 
 // 5. 第三项：完整走线投影覆盖与整条走线左右两侧邻近铜检查

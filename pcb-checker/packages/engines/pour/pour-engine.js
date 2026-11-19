@@ -94,6 +94,56 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
     });
     return nearest ? { via: nearest, distance: nearestDistance } : null;
   }
+  function nearestHdiCandidate(via, candidates) {
+    let nearest = null;
+    let distance = Infinity;
+    (candidates || []).forEach(candidate => {
+      const candidateDistance = dist2D(via.x, via.y, candidate.x, candidate.y);
+      const stableTie = Math.abs(candidateDistance - distance) <= 1e-9 && (!nearest ||
+        String(candidate.id).localeCompare(String(nearest.id), undefined, { numeric: true }) < 0);
+      if (candidateDistance < distance - 1e-9 || stableTie) {
+        nearest = candidate; distance = candidateDistance;
+      }
+    });
+    return nearest ? { via: nearest, distance } : null;
+  }
+  function unmatchedAssociationSummary(via, templates, nearestHdi) {
+    const centers = [...new Set(templates.map(template => parseFloat(template.differentialCenterDistance))
+      .filter(value => value > 0).map(value => roundN(value, 4)))].sort((a, b) => a - b);
+    const radii = [...new Set(templates.map(template => parseFloat(template.hdiSearchRadiusMm))
+      .filter(value => value > 0).map(value => roundN(value, 4)))].sort((a, b) => a - b);
+    const actual = nearestHdi
+      ? `最近同网络 HDI 孔 #${nearestHdi.via.id} 中心距 ${roundN(nearestHdi.distance, 3)} mil`
+      : '未找到同网络 HDI 孔';
+    const configured = [];
+    if (centers.length) configured.push(`模板中心距 ${centers.join(' / ')} mil`);
+    if (radii.length) configured.push(`HDI 搜索距离 ${radii.join(' / ')} mm`);
+    return `孔 #${via.id} ${actual}，未满足${configured.join('、') || '模板关联条件'}`;
+  }
+  function buildUnmatchedAssociationResults(candidates, matchedVias, hdiByNet) {
+    const results = [];
+    candidates.forEach((info, via) => {
+      if (matchedVias.has(via)) return;
+      const netKey = String(via.net || '').trim().toLowerCase();
+      const nearestHdi = nearestHdiCandidate(via, hdiByNet.get(netKey));
+      const associationSummary = unmatchedAssociationSummary(via, info.templates, nearestHdi);
+      info.layers.forEach(layer => results.push({
+        checkCategory: 'special_shape', checkCategoryName: '② 特定异型铜皮比对检查',
+        templateIndex: null, templateId: 'special_shape_unmatched', templateName: '未匹配到适用异型铜皮模板',
+        viaId: via.id, viaPadstack: via.padstack, viaNet: via.net, viaCoord: [via.x, via.y],
+        actualHdiViaId: nearestHdi ? nearestHdi.via.id : null,
+        actualHdiViaPadstack: nearestHdi ? nearestHdi.via.padstack : null,
+        hdiAssociationDistance: nearestHdi ? nearestHdi.distance : null,
+        actualDifferentialCenterDistance: nearestHdi ? nearestHdi.distance : null,
+        expectedDifferentialCenterDistance: null, hdiSearchRadiusMm: null,
+        layer, targetShapeId: null, targetShapeIds: [], actualShapeItemCount: 0,
+        expectedShapeItemCount: null, actualArea: null, expectedArea: null, areaTolerance: null,
+        associationFailed: true, associationSummary, pass: false,
+        message: `❌ 不符合：${associationSummary}`
+      }));
+    });
+    return results;
+  }
   function checkSpecialShapedCopper(vias, shapes, templates = []) {
     const results = [];
     const shapesByLayer = new Map();
@@ -111,6 +161,8 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
     });
     const hdiIndexes = new Map();
     hdiByNet.forEach((netVias, net) => hdiIndexes.set(net, buildPointGrid(netVias, 20)));
+    const associationCandidates = new Map();
+    const matchedAssociationVias = new Set();
     templates.forEach((tmpl, tIdx) => {
       const padPattern = (tmpl.padstack || '').trim().toLowerCase();
       const targetLayers = [...new Set(expandLayerRange(tmpl.layer, [...shapesByLayer.keys()])
@@ -129,12 +181,22 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
       const tolArea = tmpl.areaTolerance != null ? parseFloat(tmpl.areaTolerance) : 30.0;
       const matchedVias = vias.filter(via => !padPattern || padPattern === '*' ||
         via.padstack.toLowerCase().includes(padPattern));
+      if (padPattern && padPattern !== '*') matchedVias.forEach(via => {
+        let info = associationCandidates.get(via);
+        if (!info) {
+          info = { templates: [], layers: new Set() };
+          associationCandidates.set(via, info);
+        }
+        info.templates.push(tmpl);
+        targetLayers.forEach(layer => info.layers.add(layer));
+      });
       matchedVias.forEach(via => {
         const netKey = String(via.net || '').trim().toLowerCase();
         const needsHdi = expectedCenterDistance != null || hdiSearchRadiusMm != null;
         const nearbyHdi = needsHdi ? findNearbySameNetHdi(via, hdiIndexes.get(netKey), hdiLookupRadiusMil) : null;
         if (needsHdi && !nearbyHdi) return;
         if (expectedCenterDistance != null && Math.abs(nearbyHdi.distance - expectedCenterDistance) > SPECIAL_SHAPE_CENTER_DISTANCE_TOLERANCE) return;
+        matchedAssociationVias.add(via);
         targetLayers.forEach(targetLayer => {
           const bestShape = findAssociatedShapeItems(via, shapeIndexes.get(targetLayer), expectedItemCount);
           const bestShapeIds = bestShape ? (bestShape.itemIds || [bestShape.id]) : [];
@@ -170,6 +232,7 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
         });
       });
     });
+    results.push(...buildUnmatchedAssociationResults(associationCandidates, matchedAssociationVias, hdiByNet));
     return results;
   }
   function checkIsolatedSmallCopper(shapes, vias, maxAreaThreshold = 500.0) {
@@ -336,10 +399,11 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
         if (s0.actualHdiViaId != null) hdiMetrics.push(`目标孔 #${s0.viaId} → HDI #${s0.actualHdiViaId}，实测中心距 ${roundN(s0.actualDifferentialCenterDistance, 2)} mil`);
         if (s0.expectedDifferentialCenterDistance != null) hdiMetrics.push(`中心距规则 ${s0.expectedDifferentialCenterDistance} mil`);
         if (s0.hdiSearchRadiusMm != null) hdiMetrics.push(`搜索距离 ≤ ${s0.hdiSearchRadiusMm} mm`);
-        g.metricsStr = (hdiMetrics.length ? hdiMetrics.join('；') + '；' : '') + subs.map(s => `${s.layer} 实测面积 ${roundN(s.actualArea, 1)} sq mil`).join('；');
-        g.message = allPass
+        g.metricsStr = s0.associationFailed ? s0.associationSummary :
+          (hdiMetrics.length ? hdiMetrics.join('；') + '；' : '') + subs.map(s => `${s.layer} 实测面积 ${roundN(s.actualArea, 1)} sq mil`).join('；');
+        g.message = s0.associationFailed ? s0.message : (allPass
           ? `✅ 符合：孔 #${g.viaId} 在目标层【${g.layerListStr}】的铜皮均匹配异型模板【${s0.templateName}】`
-          : failedSubs.map(s => s.message).join('；');
+          : failedSubs.map(s => s.message).join('；'));
       } else if (g.checkCategory === 'trace_ref_margin') {
         const failedSubs = subs.filter(s => !s.pass);
         const s0 = subs[0];

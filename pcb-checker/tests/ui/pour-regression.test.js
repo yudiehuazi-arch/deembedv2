@@ -182,6 +182,17 @@ test('【一键复制全部内容】导出浮窗复制功能 Fail-Safe 验证', 
   }
 });
 
+test('规则 2 模板关联未命中时显示实际 HDI 中心距原因', () => {
+  const problem = w.formatPourResultProblem({
+    checkCategory: 'special_shape', layer: '05G02P', pass: false,
+    associationFailed: true,
+    associationSummary: '孔 #31836 最近同网络 HDI 孔 #31866 中心距 4.921 mil，未满足模板中心距 19.685 / 23.62 / 27.56 mil'
+  });
+  if (!problem.includes('模板关联条件未命中') || !problem.includes('4.921 mil') || !problem.includes('19.685 / 23.62 / 27.56 mil')) {
+    throw new Error('规则 2 未显示模板关联失败的实际中心距原因');
+  }
+});
+
 test('【目标对象汇总展示】同一目标对象的多层问题自动汇总聚合', () => {
   w.State.viaCoverageRules = [
     { id: 'cov_hdi', padstack: 'HDI_045drill', layers: 'L1-L4', coverageRadius: 50.0 }

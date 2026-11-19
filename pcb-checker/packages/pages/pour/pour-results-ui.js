@@ -163,7 +163,7 @@
     var layerText = layers.length ? layers.join('、') + ' 层' : '目标层';
     var hasProblem = failed.length > 0;
     if (r.checkCategory === 'via_coverage') return layerText + (hasProblem ? '缺铜皮' : '铜皮覆盖符合要求');
-    if (r.checkCategory === 'special_shape') return layerText + (hasProblem ? '异型铜皮不匹配' : '异型铜皮匹配');
+    if (r.checkCategory === 'special_shape') return selected[0] && selected[0].associationFailed ? layerText + '模板关联条件未命中：' + selected[0].associationSummary : layerText + (hasProblem ? '异型铜皮不匹配' : '异型铜皮匹配');
     if (r.checkCategory === 'trace_ref_margin') {
       if (!hasProblem) {
         var margin = r.minMargin != null ? r.minMargin : (selected[0] && selected[0].minMargin);
@@ -410,7 +410,7 @@
       if (r.checkCategory === 'via_coverage') {
         reasonHtml = '<b style="color:var(--bad)">搜索范围内未检出铜皮</b> · 孔心 ' + esc(r.requiredDist || 50) + ' mil 范围内无铜皮';
       } else if (r.checkCategory === 'special_shape') {
-        reasonHtml = '<b style="color:var(--bad)">异型面积超差</b> · 期望 ' + esc(r.expectedArea) + ' ± ' + esc(r.areaTolerance) + ' sq mil';
+        reasonHtml = r.associationFailed ? '<b style="color:var(--bad)">模板关联条件未命中</b> · ' + esc(r.associationSummary) : '<b style="color:var(--bad)">异型面积超差</b> · 期望 ' + esc(r.expectedArea) + ' ± ' + esc(r.areaTolerance) + ' sq mil';
       } else if (r.checkCategory === 'trace_ref_margin') {
         reasonHtml = '<b style="color:var(--bad)">参考层铺铜不符合</b> · ' + esc(r.refType) + ' ' + esc(r.refLayer) + '：' + esc(formatTraceReferenceIssue(r));
       } else if (r.checkCategory === 'isolated_copper') {
