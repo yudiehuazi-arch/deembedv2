@@ -510,7 +510,7 @@ function runPourEngine(ctx) {
             layer: r.traceLayer,
             item: `参考层 (${r.refLayer}) 走线投影覆盖与两侧邻近铜`,
             actual: issueText,
-            rule: `除同网络且跨该参考层的 Via 端点反焊盘外完整走线投影有铜，且左右两侧各在 ${reqM.toFixed(1)} mil 内存在铜皮`,
+            rule: `除走线首尾端在所有被检查层上的反焊盘外完整走线投影有铜，且左右两侧各在 ${reqM.toFixed(1)} mil 内存在铜皮`,
             pass: false,
             deviation: issueText,
             reason: `参考层 ${r.refLayer}：${issueText}`,

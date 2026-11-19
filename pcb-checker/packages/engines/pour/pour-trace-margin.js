@@ -387,8 +387,8 @@
       if (viaIds.indexOf(inspection.via.id) < 0) viaIds.push(inspection.via.id);
       check.status = 'exempted';
       check.reason = inspection.spansReferenceLayer
-        ? '已豁免同网络 Via #' + inspection.via.id + ' 在 ' + refLayer + ' 的端点反焊盘（层跨 ' + viaSpanText(inspection.via) + ' 经过该层）'
-        : '端点实际落在 ' + refLayer + ' 的 Void 内，已按反焊盘豁免；' + inspection.reason + '，层跨仅作诊断，不推翻已存在的 Void 几何';
+        ? '按“首尾端所有被检查层反焊盘均豁免”规则，端点落在 ' + refLayer + ' 的 Void 内，已豁免同网络 Via #' + inspection.via.id + '（层跨 ' + viaSpanText(inspection.via) + ' 经过该层）'
+        : '按“首尾端所有被检查层反焊盘均豁免”规则，端点落在 ' + refLayer + ' 的 Void 内，已豁免同网络 Via #' + inspection.via.id + '；' + inspection.reason + '，层跨仅作诊断，不限制其他层的端点反焊盘豁免';
       checks.push(check);
     });
     return { regions: regions, viaIds: viaIds, checks: checks };
@@ -504,8 +504,8 @@
             failureKinds: failureKinds,
             pass: coverage.pass,
             message: coverage.pass
-              ? '✅ 符合：走线【' + trace.net + '】在 ' + ref.type + '【' + ref.name + '】除端点反焊盘外的完整投影有铜，且走线左右两侧边缘外 ' + margin + ' mil 内均存在铜皮' +
-                (coverage.endpointAntipadExemptionCount ? '（已豁免端点 Via #' + coverage.endpointAntipadViaIds.join('、#') + ' 的反焊盘）' : '')
+              ? '✅ 符合：走线【' + trace.net + '】在 ' + ref.type + '【' + ref.name + '】除首尾端所有被检查层反焊盘豁免区外的完整投影有铜，且走线左右两侧边缘外 ' + margin + ' mil 内均存在铜皮' +
+                (coverage.endpointAntipadExemptionCount ? '（本层已豁免端点 Via #' + coverage.endpointAntipadViaIds.join('、#') + ' 的反焊盘）' : '')
               : '❌ 不符合：走线【' + trace.net + '】在 ' + ref.type + '【' + ref.name + '】' + issues.join('；')
           });
         });

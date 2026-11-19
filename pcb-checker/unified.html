@@ -4,12 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PCB 综合一体化检查</title>
-<link rel="stylesheet" href="assets/styles/tokens.css?v=47">
-<link rel="stylesheet" href="assets/styles/eda-shell.css?v=47">
-<link rel="stylesheet" href="assets/styles/eda-dock.css?v=47">
-<link rel="stylesheet" href="assets/styles/components.css?v=47">
-<link rel="stylesheet" href="assets/styles/pages/unified.css?v=47">
-<link rel="stylesheet" href="assets/styles/pages/unified-config.css?v=47">
+<link rel="stylesheet" href="assets/styles/tokens.css?v=48">
+<link rel="stylesheet" href="assets/styles/eda-shell.css?v=48">
+<link rel="stylesheet" href="assets/styles/eda-dock.css?v=48">
+<link rel="stylesheet" href="assets/styles/components.css?v=48">
+<link rel="stylesheet" href="assets/styles/pages/unified.css?v=48">
+<link rel="stylesheet" href="assets/styles/pages/unified-config.css?v=48">
 </head>
 <body class="eda-workbench">
 
@@ -497,7 +497,7 @@
             </div>
 
             <!-- Rule 3 Snippet -->
-            <div style="font-size:12px;margin-bottom:4px;font-weight:600">规则 3：走线上/下参考层投影覆盖与两侧邻近铜规则 <span class="eda-tip" tabindex="0" data-tip="每个参考层除同网络且跨越该层的 Via 端点反焊盘外必须覆盖完整走线投影；整条走线左右两侧还必须各有任意铜皮位于设定距离内，不要求边缘至该距离的范围连续铺满；支持多规则配置">?</span>:</div>
+            <div style="font-size:12px;margin-bottom:4px;font-weight:600">规则 3：走线上/下参考层投影覆盖与两侧邻近铜规则 <span class="eda-tip" tabindex="0" data-tip="走线首尾端在所有被检查参考层上的反焊盘均豁免；豁免区外必须覆盖完整走线投影，且整条走线左右两侧各有任意铜皮位于设定距离内；支持多规则配置">?</span>:</div>
             <div class="table-wrap" style="margin-bottom:8px">
               <table id="tblPourRule3">
                 <thead>
@@ -1289,51 +1289,51 @@
   </div>
 </div>
 
-<script src="packages/shared/xlsx-export.js?v=47"></script>
-<script src="packages/shared/shape-preview-canvas.js?v=47"></script>
-<script src="packages/geometry/pad-primitives.js?v=47"></script>
-<script src="packages/geometry/pad-region.js?v=47"></script>
-<script src="packages/engines/copper/via-constraint-inference.js?v=47"></script><script src="packages/engines/copper/copper-engine.js?v=47"></script>
-<script src="packages/engines/copper/constraint-parser.js?v=47"></script>
-<script src="packages/engines/dfm/dfm-layers.js?v=47"></script>
-<script src="packages/engines/dfm/dfm-parser.js?v=47"></script>
-<script src="packages/engines/dfm/dfm-engine.js?v=47"></script>
-<script src="packages/engines/dfm/dfm-pattern.js?v=47"></script>
-<script src="packages/engines/fanout/fanout-parser.js?v=47"></script>
-<script src="packages/engines/fanout/fanout-palette.js?v=47"></script>
-<script src="packages/engines/fanout/fanout-scheme.js?v=47"></script>
-<script src="packages/engines/fanout/fanout-clustering.js?v=47"></script>
-<script src="packages/engines/fanout/fanout-topology.js?v=47"></script>
-<script src="packages/engines/fanout/fanout-inspector.js?v=47"></script>
-<script src="packages/engines/fanout/fanout-layout.js?v=47"></script>
-<script src="packages/engines/fanout/fanout-canvas.js?v=47"></script>
-<script src="packages/engines/pour/pour-geom.js?v=47"></script>
-<script src="packages/engines/pour/pour-parser.js?v=47"></script>
-<script src="packages/engines/pour/pour-trace-margin.js?v=47"></script>
-<script src="packages/engines/pour/pour-engine.js?v=47"></script>
-<script src="packages/pages/unified/unified-constraint-parse.js?v=47"></script>
-<script src="packages/pages/unified/unified-defaults.js?v=47"></script>
-<script src="packages/pages/unified/unified-state.js?v=47"></script>
-<script src="packages/pages/unified/unified-data-ingest.js?v=47"></script>
-<script src="packages/pages/unified/unified-sample-data.js?v=47"></script>
-<script src="packages/pages/unified/unified-rules-constraint.js?v=47"></script>
-<script src="packages/pages/unified/unified-rules-dfm.js?v=47"></script>
-<script src="packages/pages/unified/unified-fanout-library.js?v=47"></script>
-<script src="packages/pages/unified/unified-fanout-batch.js?v=47"></script>
-<script src="packages/pages/unified/unified-fanout-naming.js?v=47"></script>
-<script src="packages/pages/unified/unified-fanout-viewer.js?v=47"></script>
-<script src="packages/pages/unified/unified-fanout-io.js?v=47"></script>
-<script src="packages/pages/unified/unified-rules-pour.js?v=47"></script>
-<script src="packages/pages/unified/unified-rules-render.js?v=47"></script>
-<script src="packages/pages/unified/unified-trace-analysis.js?v=47"></script>
-<script src="packages/pages/unified/unified-runner.js?v=47"></script>
-<script src="packages/pages/unified/unified-dashboard.js?v=47"></script>
-<script src="packages/pages/unified/unified-canvas-viewer.js?v=47"></script>
-<script src="packages/pages/unified/unified-rules-io.js?v=47"></script>
-<script src="packages/pages/unified/unified-report-export.js?v=47"></script>
-<script src="packages/pages/unified/unified-bootstrap.js?v=47"></script>
-<script src="packages/shared/eda-tooltip.js?v=47"></script>
-<script src="packages/shared/eda-shell.js?v=47"></script>
-<script src="packages/shared/ui-prefs.js?v=47"></script>
+<script src="packages/shared/xlsx-export.js?v=48"></script>
+<script src="packages/shared/shape-preview-canvas.js?v=48"></script>
+<script src="packages/geometry/pad-primitives.js?v=48"></script>
+<script src="packages/geometry/pad-region.js?v=48"></script>
+<script src="packages/engines/copper/via-constraint-inference.js?v=48"></script><script src="packages/engines/copper/copper-engine.js?v=48"></script>
+<script src="packages/engines/copper/constraint-parser.js?v=48"></script>
+<script src="packages/engines/dfm/dfm-layers.js?v=48"></script>
+<script src="packages/engines/dfm/dfm-parser.js?v=48"></script>
+<script src="packages/engines/dfm/dfm-engine.js?v=48"></script>
+<script src="packages/engines/dfm/dfm-pattern.js?v=48"></script>
+<script src="packages/engines/fanout/fanout-parser.js?v=48"></script>
+<script src="packages/engines/fanout/fanout-palette.js?v=48"></script>
+<script src="packages/engines/fanout/fanout-scheme.js?v=48"></script>
+<script src="packages/engines/fanout/fanout-clustering.js?v=48"></script>
+<script src="packages/engines/fanout/fanout-topology.js?v=48"></script>
+<script src="packages/engines/fanout/fanout-inspector.js?v=48"></script>
+<script src="packages/engines/fanout/fanout-layout.js?v=48"></script>
+<script src="packages/engines/fanout/fanout-canvas.js?v=48"></script>
+<script src="packages/engines/pour/pour-geom.js?v=48"></script>
+<script src="packages/engines/pour/pour-parser.js?v=48"></script>
+<script src="packages/engines/pour/pour-trace-margin.js?v=48"></script>
+<script src="packages/engines/pour/pour-engine.js?v=48"></script>
+<script src="packages/pages/unified/unified-constraint-parse.js?v=48"></script>
+<script src="packages/pages/unified/unified-defaults.js?v=48"></script>
+<script src="packages/pages/unified/unified-state.js?v=48"></script>
+<script src="packages/pages/unified/unified-data-ingest.js?v=48"></script>
+<script src="packages/pages/unified/unified-sample-data.js?v=48"></script>
+<script src="packages/pages/unified/unified-rules-constraint.js?v=48"></script>
+<script src="packages/pages/unified/unified-rules-dfm.js?v=48"></script>
+<script src="packages/pages/unified/unified-fanout-library.js?v=48"></script>
+<script src="packages/pages/unified/unified-fanout-batch.js?v=48"></script>
+<script src="packages/pages/unified/unified-fanout-naming.js?v=48"></script>
+<script src="packages/pages/unified/unified-fanout-viewer.js?v=48"></script>
+<script src="packages/pages/unified/unified-fanout-io.js?v=48"></script>
+<script src="packages/pages/unified/unified-rules-pour.js?v=48"></script>
+<script src="packages/pages/unified/unified-rules-render.js?v=48"></script>
+<script src="packages/pages/unified/unified-trace-analysis.js?v=48"></script>
+<script src="packages/pages/unified/unified-runner.js?v=48"></script>
+<script src="packages/pages/unified/unified-dashboard.js?v=48"></script>
+<script src="packages/pages/unified/unified-canvas-viewer.js?v=48"></script>
+<script src="packages/pages/unified/unified-rules-io.js?v=48"></script>
+<script src="packages/pages/unified/unified-report-export.js?v=48"></script>
+<script src="packages/pages/unified/unified-bootstrap.js?v=48"></script>
+<script src="packages/shared/eda-tooltip.js?v=48"></script>
+<script src="packages/shared/eda-shell.js?v=48"></script>
+<script src="packages/shared/ui-prefs.js?v=48"></script>
 </body>
 </html>

@@ -4,12 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PCB 铜皮检查工具</title>
-<link rel="stylesheet" href="assets/styles/tokens.css?v=47">
-<link rel="stylesheet" href="assets/styles/eda-shell.css?v=47">
-<link rel="stylesheet" href="assets/styles/eda-dock.css?v=47">
-<link rel="stylesheet" href="assets/styles/components.css?v=47">
-<link rel="stylesheet" href="assets/styles/pages/pour.css?v=47">
-<link rel="stylesheet" href="assets/styles/check-guide.css?v=47">
+<link rel="stylesheet" href="assets/styles/tokens.css?v=48">
+<link rel="stylesheet" href="assets/styles/eda-shell.css?v=48">
+<link rel="stylesheet" href="assets/styles/eda-dock.css?v=48">
+<link rel="stylesheet" href="assets/styles/components.css?v=48">
+<link rel="stylesheet" href="assets/styles/pages/pour.css?v=48">
+<link rel="stylesheet" href="assets/styles/check-guide.css?v=48">
 </head>
 <body class="eda-workbench">
 
@@ -160,7 +160,7 @@
       <div class="card">
         <div class="row" style="justify-content:space-between;margin-bottom:6px">
           <div>
-            <h2>3. 走线上下参考层投影覆盖与两侧邻近铜规则 <span class="badge-tag copper" id="lblR3Count">2 条规则</span> <span class="eda-tip" tabindex="0" data-tip="每个参考层除同网络且跨越该层的 Via 端点反焊盘外，都必须覆盖整条走线的完整线宽投影；另外，整条走线的左右两侧必须各有任意铜皮位于设定距离内，不要求边缘至该距离的范围连续铺满">?</span></h2>
+            <h2>3. 走线上下参考层投影覆盖与两侧邻近铜规则 <span class="badge-tag copper" id="lblR3Count">2 条规则</span> <span class="eda-tip" tabindex="0" data-tip="走线首尾端在所有被检查参考层上的反焊盘均豁免；豁免区外必须覆盖整条走线的完整线宽投影，且整条走线左右两侧必须各有任意铜皮位于设定距离内">?</span></h2>
           </div>
           <button type="button" class="btn pri small" onclick="openAddRule3Modal()">+ 新增走线参考层规则</button>
         </div>
@@ -603,24 +603,24 @@
   </div>
 </div>
 
-<script src="packages/shared/check-guide.js?v=47"></script>
-<script src="packages/shared/dom-utils.js?v=47"></script>
-<script src="packages/shared/shape-preview-canvas.js?v=47"></script>
-<script src="packages/engines/pour/pour-geom.js?v=47"></script>
-<script src="packages/engines/pour/pour-parser.js?v=47"></script>
-<script src="packages/engines/pour/pour-trace-margin.js?v=47"></script>
-<script src="packages/engines/pour/pour-engine.js?v=47"></script>
-<script src="packages/pages/pour/pour-state.js?v=47"></script><script src="packages/pages/pour/pour-check-runner.js?v=47"></script>
-<script src="packages/pages/pour/pour-rules-ui.js?v=47"></script>
-<script src="packages/pages/pour/pour-results-ui.js?v=47"></script>
-<script src="packages/pages/pour/pour-results-filters.js?v=47"></script>
-<script src="packages/pages/pour/pour-results-column-filters.js?v=47"></script>
-<script src="packages/pages/pour/pour-canvas-viewer.js?v=47"></script>
-<script src="packages/pages/pour/pour-canvas-defects.js?v=47"></script>
-<script src="packages/pages/pour/pour-canvas-navigation.js?v=47"></script>
-<script src="packages/pages/pour/pour-defect-summary.js?v=47"></script>
-<script src="packages/shared/eda-tooltip.js?v=47"></script>
-<script src="packages/shared/eda-shell.js?v=47"></script>
-<script src="packages/shared/ui-prefs.js?v=47"></script>
+<script src="packages/shared/check-guide.js?v=48"></script>
+<script src="packages/shared/dom-utils.js?v=48"></script>
+<script src="packages/shared/shape-preview-canvas.js?v=48"></script>
+<script src="packages/engines/pour/pour-geom.js?v=48"></script>
+<script src="packages/engines/pour/pour-parser.js?v=48"></script>
+<script src="packages/engines/pour/pour-trace-margin.js?v=48"></script>
+<script src="packages/engines/pour/pour-engine.js?v=48"></script>
+<script src="packages/pages/pour/pour-state.js?v=48"></script><script src="packages/pages/pour/pour-check-runner.js?v=48"></script>
+<script src="packages/pages/pour/pour-rules-ui.js?v=48"></script>
+<script src="packages/pages/pour/pour-results-ui.js?v=48"></script>
+<script src="packages/pages/pour/pour-results-filters.js?v=48"></script>
+<script src="packages/pages/pour/pour-results-column-filters.js?v=48"></script>
+<script src="packages/pages/pour/pour-canvas-viewer.js?v=48"></script>
+<script src="packages/pages/pour/pour-canvas-defects.js?v=48"></script>
+<script src="packages/pages/pour/pour-canvas-navigation.js?v=48"></script>
+<script src="packages/pages/pour/pour-defect-summary.js?v=48"></script>
+<script src="packages/shared/eda-tooltip.js?v=48"></script>
+<script src="packages/shared/eda-shell.js?v=48"></script>
+<script src="packages/shared/ui-prefs.js?v=48"></script>
 </body>
 </html>

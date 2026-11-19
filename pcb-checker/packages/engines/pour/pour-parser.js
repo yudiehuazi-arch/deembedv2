@@ -398,7 +398,7 @@
     };
   }
 
-  /** 解析 Via 块（含反焊盘归属判定所需的 Padstack 层跨）。 */
+  /** 解析 Via 块（保留端点反焊盘诊断所需的 Padstack 层跨）。 */
   function parseViaBlock(itemNum, block) {
     const origM = block.match(/(?:Origin-xy|Location|xy):\s*\[\s*([\d\.\-]+)\s*,\s*([\d\.\-]+)\s*\]/i);
     if (!origM) return null;

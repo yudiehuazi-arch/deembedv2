@@ -32,7 +32,7 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   assert.strictEqual(parsed.vias.length, 1, '应解析出 1 个 Via');
   assert.strictEqual(parsed.vias[0].hasDefinedSpan, true);
   assert.deepStrictEqual([parsed.vias[0].minLayerNum, parsed.vias[0].maxLayerNum], [1, 9999],
-    'Via 必须保留 Padstack Defined 层跨供端点反焊盘归属判定');
+    'Via 必须保留 Padstack Defined 层跨供端点反焊盘诊断显示');
   assert.strictEqual(parsed.shapes[0].layer, 'Top');
   assert.strictEqual(parsed.shapes[0].area, 907.92028);
   assert.strictEqual(parsed.shapes[0].arcs.length, 1);
@@ -415,7 +415,7 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   console.log('  PASS  第二项：592 颗 PTH-SIG 按同网络 HDI 搜索与 HDI 差分孔距完整判定');
 }
 
-// 5. 第三项：端点反焊盘外的完整走线投影覆盖与整条走线左右两侧邻近铜检查
+// 5. 第三项：首尾端所有层反焊盘外的完整走线投影覆盖与整条走线左右两侧邻近铜检查
 {
   const traces = [
     {
@@ -473,7 +473,7 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   ];
   const sparse = checkTraceReferenceMargin([trace], footprintAndSparseSideCopper, rule)[0];
   assert.strictEqual(sparse.pass, true, '走线投影完整且左右两侧各有一处微小的 100mil 内铜皮时应通过');
-  assert.match(sparse.message, /除端点反焊盘外的完整投影有铜，且走线左右两侧边缘外 100 mil 内均存在铜皮/);
+  assert.match(sparse.message, /除首尾端所有被检查层反焊盘豁免区外的完整投影有铜，且走线左右两侧边缘外 100 mil 内均存在铜皮/);
 
   const footprintOnly = [
     { id: 414, layer: 'L3', bbox: { minX: -5, minY: -5, maxX: 205, maxY: 5 } }
@@ -497,10 +497,10 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   assert.strictEqual(footprintGap.pass, false, '左右两侧均有邻近铜也不能弥补走线投影缺铜');
   assert.deepStrictEqual(footprintGap.failureKinds, ['footprint']);
   assert.match(footprintGap.message, /完整线宽投影存在缺铜/);
-  console.log('  PASS  第三项语义：端点反焊盘外完整投影必须有铜，两侧仅需整条走线各存在一处邻近铜');
+  console.log('  PASS  第三项语义：首尾端所有层反焊盘外完整投影必须有铜，两侧仅需整条走线各存在一处邻近铜');
 }
 
-// 5.2 同网络 Via + 端点实际 Void 即豁免（层跨文本仅诊断），线路中途 Void 仍必须报错
+// 5.2 首尾端在所有被检查层的实际反焊盘均豁免（层跨仅诊断），线路中途 Void 仍必须报错
 {
   const rectBoundary = (minX, minY, maxX, maxY) => [
     { type: 'line', x1: minX, y1: minY, x2: maxX, y2: minY },
@@ -537,8 +537,21 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   const wrongSpan = checkTraceReferenceMargin([trace], [endpointVoids], rule,
     vias.map(via => Object.assign({}, via, { startLayer: 'L4', endLayer: 'L4', minLayerNum: 4, maxLayerNum: 4 })))[0];
   assert.strictEqual(wrongSpan.pass, true, '同网络 Via 端点的参考层 Void 是直接几何证据，不应被 Padstack 层跨信息推翻');
-  assert.match(wrongSpan.endpointAntipadChecks[0].reason, /层跨 L4–L4 不经过参考层 L3.*不推翻已存在的 Void 几何/,
-    '结果必须说明层跨不经过当前层但实际端点 Void 仍获豁免');
+  assert.match(wrongSpan.endpointAntipadChecks[0].reason, /首尾端所有被检查层反焊盘均豁免.*层跨 L4–L4 不经过参考层 L3.*不限制其他层的端点反焊盘豁免/,
+    '结果必须说明层跨不经过当前层仍不能限制首尾端所有层反焊盘豁免');
+
+  const allLayerVoids = [endpointVoids, Object.assign({}, endpointVoids, { id: 434, layer: 'L5' })];
+  const allLayerResults = checkTraceReferenceMargin([trace], allLayerVoids, [{
+    traceLayer: 'L4', upperRefLayer: 'L3', lowerRefLayer: 'L5', minMargin: 20
+  }], vias);
+  assert.strictEqual(allLayerResults.length, 2);
+  assert.ok(allLayerResults.every(result => result.pass), '走线首尾端在所有被检查参考层上的反焊盘都应豁免');
+  assert.ok(allLayerResults.every(result => result.endpointAntipadExemptionCount === 2));
+  const allLayerL5 = allLayerResults.find(result => result.refLayer === 'L5');
+  assert.deepStrictEqual(allLayerL5.endpointAntipadViaIds, [901, 902]);
+  assert.match(allLayerL5.endpointAntipadChecks[0].reason, /所有被检查层反焊盘均豁免.*L5.*层跨 L1–L4 不经过参考层 L5/,
+    'Via 层跨止于 L4 时，L5 实际端点反焊盘仍必须按所有层规则豁免');
+
   const wrongNet = checkTraceReferenceMargin([trace], [endpointVoids], rule,
     vias.map(via => Object.assign({}, via, { net: '' })))[0];
   assert.strictEqual(wrongNet.pass, false, '空白或未知网络 Via 不能授权端点反焊盘豁免');
@@ -564,7 +577,7 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   assert.deepStrictEqual(reverseResult.endpointAntipadViaIds.slice().sort(), [901, 902]);
 
   const exemptedGroup = groupResultsByTargetObject([exempted])[0];
-  assert.match(exemptedGroup.metricsStr, /已豁免端点 Via #901、#902 的反焊盘/);
+  assert.match(exemptedGroup.metricsStr, /首尾端所有被检查层.*Via #901、#902 对应的反焊盘/);
 
   const withInteriorVoid = Object.assign({}, endpointVoids, {
     id: 431,
@@ -591,7 +604,7 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   });
   assert.strictEqual(checkTraceReferenceMargin([trace], [nearbyVoid], rule, vias)[0].pass, false,
     '靠近但不包含端点 Via 的普通 Void 不得视为端点反焊盘');
-  console.log('  PASS  第三项端点反焊盘豁免：同网络 Via + 实际端点 Void 优先于层跨文本，中途或外延缺铜仍检出');
+  console.log('  PASS  第三项端点反焊盘豁免：首尾端所有被检查层实际反焊盘均豁免，中途或外延缺铜仍检出');
 }
 
 // 5.3 Trace #35034 实板几何：04G01P U 形走线两端的 L3 反焊盘必须豁免

@@ -458,11 +458,11 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
         g.endpointAntipadChecks = subs.flatMap(s => s.endpointAntipadChecks || []);
         g.endpointAntipadViaIds = endpointViaIds;
         g.endpointAntipadExemptionCount = endpointViaIds.length;
-        const exemptionText = endpointViaIds.length ? `；已豁免端点 Via #${endpointViaIds.join('、#')} 的反焊盘` : '';
+        const exemptionText = endpointViaIds.length ? `；已按规则豁免首尾端所有被检查层中 Via #${endpointViaIds.join('、#')} 对应的反焊盘` : '';
         if (allPass) {
           g.actualMargin = s0.minMargin;
-          g.metricsStr = `各参考层除端点反焊盘外均完整覆盖走线投影，且走线左右两侧边缘外 ${s0.minMargin} mil 内各存在铜皮${exemptionText}`;
-          g.message = `✅ 符合：走线【${s0.traceNet}】在上下参考层除端点反焊盘外的完整投影均有铜，且左右两侧规则距离内均有铜${exemptionText}`;
+          g.metricsStr = `各参考层除首尾端所有层反焊盘豁免区外均完整覆盖走线投影，且走线左右两侧边缘外 ${s0.minMargin} mil 内各存在铜皮${exemptionText}`;
+          g.message = `✅ 符合：走线【${s0.traceNet}】在上下参考层除首尾端所有层反焊盘豁免区外的完整投影均有铜，且左右两侧规则距离内均有铜${exemptionText}`;
         } else {
           const failDesc = failedSubs.map(s => `${s.refType}【${s.refLayer}】：${issueText(s)}`).join('；');
           g.actualMargin = 0;
