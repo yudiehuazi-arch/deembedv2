@@ -144,6 +144,63 @@ test('快捷改名关键词重复点选拼接、放大查看无重叠标注、�
   assert.strictEqual(main.lastElementChild, legend);
 });
 
+test('Connections 非空信号孔才参与检查，无连接信号孔保留显示但不组群', () => {
+  assert.ok(document.getElementById('fanoutConnectionsEligibilityHint').textContent.includes('Connections 非空'),
+    '导入页应明确展示信号孔检查资格规则');
+
+  const mixedTxt = `
+Item 1 < Via >
+  Origin-xy: [1000, 1000]
+  Net: SIG
+  Padstack Name: TEST_SIG_PAD
+  Connections:
+    Trace: 1 (Top)
+Item 2 < Via >
+  Origin-xy: [1000, 1030]
+  Net: GND
+  Padstack Name: TEST_GND_PAD
+Item 3 < Via >
+  Origin-xy: [1030, 1000]
+  Net: GND
+  Padstack Name: TEST_GND_PAD
+Item 4 < Via >
+  Origin-xy: [1030, 1030]
+  Net: GND
+  Padstack Name: TEST_GND_PAD
+Item 5 < Via >
+  Origin-xy: [1010, 1010]
+  Net: IDLE_SIG
+  Padstack Name: TEST_SIG_PAD
+`;
+  document.getElementById('txtViaInput').value = mixedTxt;
+  window.executeFanoutCheck();
+  assert.strictEqual(window.State.summary.totalParsedSignalVias, 2);
+  assert.strictEqual(window.State.summary.totalSignalVias, 1);
+  assert.strictEqual(window.State.summary.excludedSignalVias, 1);
+  assert.strictEqual(window.State.clusters.length, 1, '已连接信号孔应正常创建一个检查组');
+  assert.deepStrictEqual(Array.from(window.State.clusters[0].signalVias, v => v.id), [1]);
+  assert.ok(!window.State.clusters[0].vias.some(v => v.id === 5), '无连接信号孔不得污染已检查组');
+  assert.ok(window.State.clusters[0].vias.some(v => v.net === 'GND'), '附近 GND 应继续关联为伴随地孔');
+  assert.ok(document.getElementById('lblImportParseHint').textContent.includes('可检查 1 / 无 Connections 1 不参与'));
+
+  const noConnectedTxt = mixedTxt.replace('  Connections:\n    Trace: 1 (Top)\n', '');
+  document.getElementById('txtViaInput').value = noConnectedTxt;
+  window.executeFanoutCheck();
+  assert.strictEqual(window.State.vias.length, 5, '全部过孔仍应保留供导入概览和视口显示');
+  assert.strictEqual(window.State.summary.totalSignalVias, 0);
+  assert.strictEqual(window.State.summary.totalClusters, 0);
+  assert.strictEqual(window.State.clusters.length, 0, '没有 Connections 信号孔时不得回退组群');
+  assert.strictEqual(document.getElementById('statTotalClusters').textContent, '0');
+  assert.strictEqual(document.getElementById('cntFilterAll').textContent, '0');
+  assert.ok(document.getElementById('lblImportParseHint').textContent.includes('可检查 0 / 无 Connections 2 不参与'));
+
+  window.switchTab('tabCanvas');
+  window.fitCanvasToLayout();
+  assert.strictEqual(window.State.activeTab, 'tabCanvas');
+  assert.ok(Number.isFinite(window.State.canvas.zoom) && window.State.canvas.zoom > 0,
+    '零检查组时仍应可按全部导入过孔缩放视口');
+});
+
 test('页面运行期零脚本错误', () => {
   assert.strictEqual(ctx.errors.length, 0, ctx.errors.join(' | '));
 });

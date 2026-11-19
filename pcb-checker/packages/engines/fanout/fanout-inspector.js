@@ -190,6 +190,8 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
         summary: {
           totalVias: 0,
           totalSignalVias: 0,
+          totalParsedSignalVias: 0,
+          excludedSignalVias: 0,
           totalTraces: traceSummary.totalTraces,
           totalTraceSegments: traceSummary.totalTraceSegments,
           traceLineCount: traceSummary.traceLineCount,
@@ -218,10 +220,8 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
     const allowMirror = options.allowMirror !== false;
     const gndVias = vias.filter(v => v.net && v.net.toUpperCase().includes('GND'));
     const allSignalVias = vias.filter(v => !v.net || !v.net.toUpperCase().includes('GND'));
-    let activeSignalVias = allSignalVias.filter(v => v.hasConnections);
-    if (activeSignalVias.length === 0) {
-      activeSignalVias = allSignalVias;
-    }
+    // 扇出方案只评估 Item 中具有非空 Connections 的信号孔；无连接时不得回退到全部信号孔。
+    const activeSignalVias = allSignalVias.filter(v => v.hasConnections);
     const gndIndex = buildGndSpatialIndex(gndVias, 35);
     const signalUnits = groupSignalUnits(activeSignalVias, 35.0);
     let passCount = 0;
@@ -526,6 +526,8 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
     const summary = {
       totalVias: vias.length,
       totalSignalVias: activeSignalVias.length,
+      totalParsedSignalVias: allSignalVias.length,
+      excludedSignalVias: allSignalVias.length - activeSignalVias.length,
       totalTraces: traceSummary.totalTraces,
       totalTraceSegments: traceSummary.totalTraceSegments,
       traceLineCount: traceSummary.traceLineCount,

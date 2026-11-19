@@ -165,7 +165,7 @@
         <div class="dropzone" id="dropzoneVia" onclick="document.getElementById('fileViaInput').click()" data-tip="支持 .txt / .csv / .dat 文件拖拽或点击上传">
           <input type="file" id="fileViaInput" accept=".txt,.csv,.dat" style="display:none" onchange="handleViaFileUpload(event)">
           <div class="t1">点击上传过孔与走线 TXT 文件，或拖拽至此处</div>
-          <div class="t2">同时读取 Via、Trace 与 Trace Seg 坐标及连接层数据</div>
+          <div class="t2" id="fanoutConnectionsEligibilityHint">仅 Item 中 Connections 非空的信号孔参与方案检查；附近 GND 孔仍可作为伴随地孔</div>
         </div>
 
         <details class="eda-fold" open>

@@ -95,7 +95,7 @@
     if (tabId === 'tabCanvas') {
       var run = function () {
         if (root.resizeCanvas) root.resizeCanvas();
-        if (!State.canvas.hasInitialFit && (State.clusters.length > 0 || (State.traces && State.traces.length > 0))) {
+        if (!State.canvas.hasInitialFit && ((State.vias && State.vias.length > 0) || State.clusters.length > 0 || (State.traces && State.traces.length > 0))) {
           if (root.fitCanvasToLayout) root.fitCanvasToLayout();
           State.canvas.hasInitialFit = true;
         } else if (root.renderCanvas) {

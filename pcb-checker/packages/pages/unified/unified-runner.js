@@ -394,7 +394,8 @@ function runFanoutEngine(ctx) {
     const allowSubset = $('cfgAllowSubsetMatch') ? $('cfgAllowSubsetMatch').checked : true;
     const redundantPolicy = $('cfgRedundantPolicy') ? $('cfgRedundantPolicy').value : 'ANY_GND_REDUNDANT';
 
-    const fRes = fanoutEngine.runFanoutInspection(parsedDfmFanout.vias, fanoutLib, {
+    // 保留原始 Item 的 Connections 信息，确保仅有实际出线连接的信号孔参与扇出检查。
+    const fRes = fanoutEngine.runFanoutInspection(tDfmFanout, fanoutLib, {
       clusterThreshold: clusterDistMil,
       distanceTolerance: centerDistTolMil,
       allowRotation: true,

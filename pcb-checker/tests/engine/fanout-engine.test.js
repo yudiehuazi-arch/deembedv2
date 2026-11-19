@@ -443,6 +443,116 @@ Item 4 < Via >
   console.log('  PASS  信号孔定位与伴随地孔方案精准匹配');
 }
 
+// 8b. 仅 Connections 非空的信号孔组群；无连接信号孔不得污染已连接组
+{
+  const mixedConnections = `
+Item 1 < Via >
+  Origin-xy: [1000.0, 1000.0]
+  Net: ROUTED_P
+  Padstack Name: SIG_PAD
+  Connections:
+    Trace: 1 (Top)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Item 2 < Via >
+  Origin-xy: [1020.0, 1000.0]
+  Net: ROUTED_N
+  Padstack Name: SIG_PAD
+  Connections: Top
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Item 3 < Via >
+  Origin-xy: [1000.0, 1020.0]
+  Net: GND
+  Padstack Name: GND_PAD
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Item 4 < Via >
+  Origin-xy: [1020.0, 1020.0]
+  Net: GND
+  Padstack Name: GND_PAD
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Item 5 < Via >
+  Origin-xy: [1010.0, 1010.0]
+  Net: ROUTED_P
+  Padstack Name: UNCONNECTED_SIG_PAD
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Item 6 < Via >
+  Origin-xy: [1500.0, 1500.0]
+  Net: ORPHAN_SIG
+  Padstack Name: UNCONNECTED_SIG_PAD
+  Connections:
+  Backdrill:
+    Start Layer: Top
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`;
+  const parsed = FanoutChecker.parseViaData(mixedConnections);
+  assert.deepStrictEqual(parsed.map(v => v.hasConnections), [true, true, false, false, false, false],
+    '仅非空 Connections 段应标记为有连接，空段不得误读后续 Backdrill');
+  assert.deepStrictEqual(parsed[0].connectedTraceLayers, ['Top']);
+  assert.deepStrictEqual(parsed[1].connectedTraceLayers, ['Top'], '同行 Connections 格式仍应兼容');
+
+  const library = new FanoutChecker.FanoutLibrary();
+  library.addScheme(new FanoutChecker.FanoutScheme({
+    id: 'connections_only_scheme',
+    name: 'CONNECTIONS-ONLY-DIFF',
+    vias: [
+      { id: 1, x: 1000, y: 1000, net: 'ROUTED_P', padstack: 'SIG_PAD' },
+      { id: 2, x: 1020, y: 1000, net: 'ROUTED_N', padstack: 'SIG_PAD' },
+      { id: 3, x: 1000, y: 1020, net: 'GND', padstack: 'GND_PAD' },
+      { id: 4, x: 1020, y: 1020, net: 'GND', padstack: 'GND_PAD' }
+    ]
+  }));
+
+  const res = FanoutChecker.runFanoutInspection(mixedConnections, library);
+  assert.strictEqual(res.success, true);
+  assert.strictEqual(res.summary.totalParsedSignalVias, 4, '应统计全部解析出的信号孔');
+  assert.strictEqual(res.summary.totalSignalVias, 2, '仅两个 Connections 非空的信号孔有检查资格');
+  assert.strictEqual(res.summary.excludedSignalVias, 2, '两个无连接信号孔应被排除');
+  assert.strictEqual(res.clusters.length, 1, '无连接信号孔不得另建组或污染已连接组');
+  assert.deepStrictEqual(res.clusters[0].signalVias.map(v => v.id).sort((a, b) => a - b), [1, 2]);
+  assert.deepStrictEqual(res.clusters[0].vias.map(v => v.id).sort((a, b) => a - b), [1, 2, 3, 4],
+    '附近 GND 仍应作为已连接信号组的伴随地孔');
+  assert.strictEqual(res.clusters[0].matchResult.pass, true);
+  console.log('  PASS  混合数据仅检查 Connections 非空信号孔，且保留附近伴随 GND');
+}
+
+// 8c. 没有信号孔含 Connections 时保持零检查组，不回退检查全部信号孔
+{
+  const noConnectedSignals = `
+Item 1 < Via >
+  Origin-xy: [2000.0, 2000.0]
+  Net: IDLE_P
+  Padstack Name: SIG_PAD
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Item 2 < Via >
+  Origin-xy: [2020.0, 2000.0]
+  Net: IDLE_N
+  Padstack Name: SIG_PAD
+  Connections:
+  Backdrill:
+    Start Layer: Top
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Item 3 < Via >
+  Origin-xy: [2000.0, 2020.0]
+  Net: GND
+  Padstack Name: GND_PAD
+  Connections:
+    Shape: 1 (Top)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`;
+  const library = new FanoutChecker.FanoutLibrary();
+  library.loadStandardPresets();
+  const res = FanoutChecker.runFanoutInspection(noConnectedSignals, library);
+  assert.strictEqual(res.success, true);
+  assert.strictEqual(res.vias.length, 3, '过孔仍应完整解析并供视口显示');
+  assert.strictEqual(res.summary.totalParsedSignalVias, 2);
+  assert.strictEqual(res.summary.totalSignalVias, 0);
+  assert.strictEqual(res.summary.excludedSignalVias, 2);
+  assert.strictEqual(res.summary.totalClusters, 0);
+  assert.strictEqual(res.summary.passCount, 0);
+  assert.strictEqual(res.summary.failCount, 0);
+  assert.deepStrictEqual(res.clusters, [], '不得回退到全部无连接信号孔进行方案检查');
+  console.log('  PASS  无 Connections 信号孔时零组返回且不执行旧版回退');
+}
+
 // 9. 导入 Trace (走线) 数据解析与孔群关联测试
 {
   const fs = require('fs');

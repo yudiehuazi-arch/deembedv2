@@ -57,6 +57,24 @@ var api = factory();
     const factor = Math.pow(10, n);
     return Math.round(val * factor) / factor;
   }
+  function parseConnectionsSection(block) {
+    const lines = String(block || '').split(/\r?\n/);
+    for (let i = 0; i < lines.length; i++) {
+      const heading = lines[i].match(/^(\s*)Connections\s*:\s*(.*)$/i);
+      if (!heading) continue;
+      const headingIndent = heading[1].replace(/\t/g, '    ').length;
+      const inlineText = heading[2].trim();
+      const entries = inlineText ? [inlineText] : [];
+      for (let j = i + 1; j < lines.length; j++) {
+        if (!lines[j].trim()) continue;
+        const indent = (lines[j].match(/^\s*/) || [''])[0].replace(/\t/g, '    ').length;
+        if (indent <= headingIndent) break;
+        entries.push(lines[j].trim());
+      }
+      return { entries, inlineText };
+    }
+    return { entries: [], inlineText: '' };
+  }
   function parseViaData(text) {
     if (!text || typeof text !== 'string') return [];
     
@@ -89,11 +107,16 @@ var api = factory();
       const rotation = rotM ? parseFloat(rotM[1]) : 0;
       const mirM = block.match(RE_MIRROR);
       const mirror = mirM ? mirM[1].trim() : 'N';
-      const hasConnections = /Connections:\s*\r?\n\s*\w+/i.test(block);
-      const traceConnM = block.match(/Connections:[\s\S]*?Trace:\s*\d+\s*\(([^)]+)\)/i);
-      const connectedTraceLayers = traceConnM
-        ? traceConnM[1].trim().split(/[\s,]+/).filter(Boolean)
-        : [];
+      const connections = parseConnectionsSection(block);
+      const hasConnections = connections.entries.length > 0;
+      const connectedTraceLayers = [];
+      connections.entries.forEach(entry => {
+        const traceM = entry.match(/Trace:\s*\d+\s*\(([^)]+)\)/i);
+        if (traceM) connectedTraceLayers.push(...traceM[1].trim().split(/[\s,]+/).filter(Boolean));
+      });
+      if (connectedTraceLayers.length === 0 && connections.inlineText) {
+        connectedTraceLayers.push(...connections.inlineText.split(/[\s,]+/).filter(Boolean));
+      }
       const isSignal = !net.toUpperCase().includes('GND');
       vias.push({
         id: itemNum,

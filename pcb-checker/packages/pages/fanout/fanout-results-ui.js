@@ -188,13 +188,18 @@
     State.previewTraces = tList;
     syncTraceLayerSelectors(ts);
 
-    var sigViaCnt = vList.filter(function (v) { return !v.net || v.net.toUpperCase().indexOf('GND') < 0; }).length;
+    var signalVias = vList.filter(function (v) { return !v.net || v.net.toUpperCase().indexOf('GND') < 0; });
+    var sigViaCnt = signalVias.length;
+    var eligibleSigViaCnt = signalVias.filter(function (v) { return Boolean(v.hasConnections); }).length;
+    var excludedSigViaCnt = sigViaCnt - eligibleSigViaCnt;
     var gndViaCnt = vList.length - sigViaCnt;
+    var signalHint = '信号孔 ' + sigViaCnt + '（可检查 ' + eligibleSigViaCnt +
+      (excludedSigViaCnt > 0 ? ' / 无 Connections ' + excludedSigViaCnt + ' 不参与' : '') + '） / 地孔 ' + gndViaCnt;
     var hint = document.getElementById('lblImportParseHint');
     if (hint) {
       hint.textContent = tList.length > 0
-        ? ('共读取 ' + vList.length + ' 个过孔 · 信号孔 ' + sigViaCnt + ' / 地孔 ' + gndViaCnt + ' 与 ' + ts.totalTraces + ' 条走线 / ' + ts.totalTraceSegments + ' 段。')
-        : ('共读取 ' + vList.length + ' 个过孔 · 信号孔 ' + sigViaCnt + ' / 地孔 ' + gndViaCnt + '，未含走线块。');
+        ? ('共读取 ' + vList.length + ' 个过孔 · ' + signalHint + ' 与 ' + ts.totalTraces + ' 条走线 / ' + ts.totalTraceSegments + ' 段。')
+        : ('共读取 ' + vList.length + ' 个过孔 · ' + signalHint + '，未含走线块。');
     }
 
     var metricsEl = document.getElementById('pnlImportTraceMetrics');
