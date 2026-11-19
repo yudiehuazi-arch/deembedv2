@@ -383,11 +383,13 @@
         if (!bboxInView(trace.bbox, viewBounds)) return;
         ctx.save();
         var col = getNetColor(trace.net);
+        var isLocatedTrace = activeProblem && activeProblem.checkCategory === 'trace_ref_margin' && String(activeProblem.targetId) === String(trace.id);
+        if (activeProblem && activeProblem.checkCategory === 'trace_ref_margin' && !isLocatedTrace) ctx.globalAlpha = 0.28;
         ctx.strokeStyle = col;
         ctx.fillStyle = col;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
-        var traceWidth = Math.max(1.8, (trace.width || 6.0) * State.canvas.zoom);
+        var traceWidth = Math.max(1.8, (trace.width || 6.0) * State.canvas.zoom) + (isLocatedTrace ? 3 : 0);
         ctx.lineWidth = traceWidth;
         trace.segments.forEach(function (seg) {
           if (seg.type === 'line') {
@@ -424,6 +426,26 @@
     /* 4. 五类异常位置标记 */
     if (State.canvas.showDefects && State.summary && typeof root.drawPourDefectMarkers === 'function') {
       root.drawPourDefectMarkers(ctx, worldToScreen, viewBounds);
+    }
+    /* 定位结果时单独突出当前首个缺铜点，避免与同类异常标记混在一起。 */
+    if (activeProblem && activeProblem.checkCategory === 'trace_ref_margin' && activeProblem.x != null && activeProblem.y != null) {
+      var missingScreen = worldToScreen(activeProblem.x, activeProblem.y);
+      var markerRadius = 24;
+      var markerText = '当前缺铜点 · ' + (activeProblem.refLayer || '参考层') + ' [' +
+        Number(activeProblem.x).toFixed(1) + ', ' + Number(activeProblem.y).toFixed(1) + ']';
+      ctx.save();
+      ctx.strokeStyle = '#fb7185'; ctx.fillStyle = 'rgba(251,113,133,.18)'; ctx.lineWidth = 4;
+      ctx.setLineDash([7, 4]); ctx.beginPath(); ctx.arc(missingScreen.x, missingScreen.y, markerRadius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.setLineDash([]); ctx.beginPath();
+      ctx.moveTo(missingScreen.x - markerRadius - 10, missingScreen.y); ctx.lineTo(missingScreen.x + markerRadius + 10, missingScreen.y);
+      ctx.moveTo(missingScreen.x, missingScreen.y - markerRadius - 10); ctx.lineTo(missingScreen.x, missingScreen.y + markerRadius + 10); ctx.stroke();
+      ctx.font = 'bold 12px monospace';
+      var markerWidth = ctx.measureText(markerText).width + 14;
+      var labelX = Math.max(4, Math.min(w - markerWidth - 4, missingScreen.x + 30));
+      var labelY = Math.max(22, missingScreen.y - 34);
+      ctx.fillStyle = 'rgba(15,23,42,.94)'; ctx.fillRect(labelX, labelY - 16, markerWidth, 22);
+      ctx.fillStyle = '#fecdd3'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(markerText, labelX + 7, labelY - 5);
+      ctx.restore();
     }
     /* 5. 两点测距标尺 */
     if (State.canvas.measurePoints.length > 0) {

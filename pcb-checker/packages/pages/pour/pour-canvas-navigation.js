@@ -71,12 +71,7 @@
         if (id != null && ids.indexOf(String(id)) < 0) ids.push(String(id));
       });
     });
-    if (!ids.length && record.checkCategory === 'trace_ref_margin') {
-      var failedLayers = candidates.map(function (sub) { return String(sub.refLayer || '').toUpperCase(); });
-      (root.State.shapes || []).forEach(function (shape) {
-        if (failedLayers.indexOf(String(shape.layer || '').toUpperCase()) >= 0) ids.push(String(shape.id));
-      });
-    }
+    // 投影缺铜是“没有铜”的位置，不对应某个问题 Shape；不要把整层所有铜皮误标成红色。
     return ids;
   }
 
@@ -132,6 +127,14 @@
       : 'background:rgba(245,158,11,0.15);border:1px solid rgba(251,191,36,0.45);';
     var safeKey = esc(itemKey);
     var visibleLayerNotice = '';
+    var diagnosticRecord = r && r.subRecords && r.subRecords.length
+      ? (r.subRecords.find(function (sub) { return sub.missingPoint; }) || r.subRecords[0]) : r;
+    var reasonHtml = diagnosticRecord && diagnosticRecord.checkCategory === 'trace_ref_margin' && diagnosticRecord.missingReason
+      ? '<div style="padding:7px 9px;margin-bottom:8px;border:1px solid #f59e0b;border-radius:6px;background:rgba(245,158,11,.12);color:#fde68a;font-size:11px;line-height:1.55"><b>为什么判定缺铜：</b>' + esc(diagnosticRecord.missingReason) + '</div>' : '';
+    var endpointChecks = diagnosticRecord && diagnosticRecord.endpointAntipadChecks || [];
+    var endpointHtml = endpointChecks.length
+      ? '<div style="padding:7px 9px;margin-bottom:8px;border:1px solid rgba(148,163,184,.35);border-radius:6px;color:#cbd5e1;font-size:11px;line-height:1.55"><b>端点反焊盘判定：</b>' +
+        endpointChecks.map(function (check) { return esc(check.endpoint + '：' + check.reason); }).join('<br>') + '</div>' : '';
     if (State.canvas.shapeLayerMode === 'problem' && (State.canvas.problemShapeLayers || []).length) {
       visibleLayerNotice = '当前仅显示问题层铜皮：' + State.canvas.problemShapeLayers.join('、');
     } else if (State.canvas.shapeLayerMode === 'layer' && (State.canvas.visibleShapeLayers || []).length) {
@@ -144,7 +147,7 @@
           '<span>' + (isReviewed ? '已复核 · 明细已同步' : '勾选复核此项') + '</span></label>' +
         '<button type="button" class="btn small" onclick="toggleReviewItem(\'' + safeKey + '\', ' + (!isReviewed) + ')" style="padding:3px 9px;font-size:11px;border:none;background:' + (isReviewed ? '#334155' : '#10b981') + ';color:#ffffff">' +
           (isReviewed ? '取消复核' : '确认复核') + '</button></div>' +
-      (r ? '<div style="font-size:11px;color:#cbd5e1;line-height:1.5;margin-bottom:8px">' + esc(cleanMsg(r.message)) + '</div>' : '') +
+      (r ? '<div style="font-size:11px;color:#cbd5e1;line-height:1.5;margin-bottom:8px">' + esc(cleanMsg(r.message)) + '</div>' : '') + reasonHtml + endpointHtml +
       (visibleLayerNotice
         ? '<div style="font-size:11px;color:#bfdbfe;margin-bottom:8px">' + esc(visibleLayerNotice) + '</div>' : '') +
       ((State.canvas.highlightShapeIds || []).length
@@ -190,11 +193,17 @@
     var problemLayers = collectProblemShapeLayers(result);
     if (itemKey) rememberPourResultPosition(itemKey);
     root.State.canvas.highlightShapeIds = collectProblemShapeIds(result);
+    var locatedRecord = result && result.subRecords && result.subRecords.length
+      ? (result.subRecords.find(function (sub) { return sub.missingPoint; }) || result.subRecords[0]) : result;
     root.State.canvas.activeProblem = result ? {
       itemKey: itemKey,
       checkCategory: checkCategory,
-      x: result.viaCoord ? result.viaCoord[0] : null,
-      y: result.viaCoord ? result.viaCoord[1] : null,
+      targetId: targetId,
+      x: locatedRecord && locatedRecord.missingPoint ? locatedRecord.missingPoint.x : (result.viaCoord ? result.viaCoord[0] : null),
+      y: locatedRecord && locatedRecord.missingPoint ? locatedRecord.missingPoint.y : (result.viaCoord ? result.viaCoord[1] : null),
+      refLayer: locatedRecord && locatedRecord.refLayer,
+      missingReason: locatedRecord && locatedRecord.missingReason,
+      endpointAntipadChecks: locatedRecord && locatedRecord.endpointAntipadChecks || [],
       requiredDist: result.requiredDist || (result.subRecords && result.subRecords[0] ? result.subRecords[0].requiredDist : null),
       layers: problemLayers
     } : null;

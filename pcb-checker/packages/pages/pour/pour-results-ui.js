@@ -143,7 +143,7 @@
   function formatTraceReferenceIssue(record) {
     var issues = [], distance = record.minMargin != null ? record.minMargin + ' mil' : '规则距离';
     var missingAt = record.missingPoint ? '（首个缺铜点 [' + (Math.round(record.missingPoint.x * 10) / 10) + ', ' + (Math.round(record.missingPoint.y * 10) / 10) + ']）' : '';
-    if (record.footprintCovered === false) issues.push('完整走线投影缺铜' + missingAt);
+    if (record.footprintCovered === false) issues.push('完整走线投影缺铜' + missingAt + (record.missingReason ? '；原因：' + record.missingReason : ''));
     if (record.leftSideCopper === false) issues.push('走线左侧 ' + distance + ' 内无铜');
     if (record.rightSideCopper === false) issues.push('走线右侧 ' + distance + ' 内无铜');
     return issues.join('、') || '参考铜不符合要求';

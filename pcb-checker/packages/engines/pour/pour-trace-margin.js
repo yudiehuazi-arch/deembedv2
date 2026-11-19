@@ -285,47 +285,127 @@
     });
   }
 
-  function findEndpointVia(point, trace, refLayer, viaIndex) {
-    if (!viaIndex || !point) return null;
-    var traceNet = String(trace.net || '').trim().toUpperCase();
-    var candidates = geom.queryPointGrid(viaIndex, point.x - 1, point.y - 1, point.x + 1, point.y + 1);
-    var nearest = null, nearestDist = Infinity;
-    candidates.forEach(function (via) {
-      var viaNet = String(via.net || '').trim().toUpperCase();
-      if (!traceNet || !viaNet || traceNet !== viaNet || !viaSpansReferenceLayer(via, refLayer)) return;
-      var distance = Math.hypot(via.x - point.x, via.y - point.y);
-      if (distance <= 1 && distance < nearestDist) { nearest = via; nearestDist = distance; }
+  function traceTerminalPoints(segments) {
+    var nodes = [];
+    function add(x, y, width) {
+      var node = nodes.find(function (item) { return Math.hypot(item.x - x, item.y - y) <= 0.01; });
+      if (!node) { node = { x: x, y: y, width: Number(width || 6), degree: 0 }; nodes.push(node); }
+      node.degree++;
+      node.width = Math.max(node.width, Number(width || 6));
+    }
+    (segments || []).forEach(function (seg) {
+      add(seg.x1, seg.y1, seg.width); add(seg.x2, seg.y2, seg.width);
     });
-    return nearest;
+    var terminals = nodes.filter(function (node) { return node.degree === 1; });
+    if (terminals.length === 2) return terminals;
+    if (!(segments || []).length) return [];
+    var first = segments[0], last = segments[segments.length - 1];
+    return [{ x: first.x1, y: first.y1, width: first.width }, { x: last.x2, y: last.y2, width: last.width }];
+  }
+
+  function viaSpanText(via) {
+    if (!via) return '未知';
+    if (via.startLayer || via.endLayer) return (via.startLayer || '?') + '–' + (via.endLayer || '?');
+    if (via.minLayerNum != null && via.maxLayerNum != null) return 'L' + via.minLayerNum + '–L' + via.maxLayerNum;
+    return '未知';
+  }
+
+  function inspectEndpointVia(point, trace, refLayer, viaIndex) {
+    if (!viaIndex || !point) return { via: null, eligible: false, status: 'no_via_data', reason: '未导入 Via 数据，无法确认端点反焊盘归属' };
+    var traceNet = String(trace.net || '').trim().toUpperCase();
+    var candidates = geom.queryPointGrid(viaIndex, point.x - 20, point.y - 20, point.x + 20, point.y + 20).map(function (via) {
+      var distance = Math.hypot(via.x - point.x, via.y - point.y);
+      var tolerance = Math.max(1, Number(point.width || 6) / 2 + Number(via.drill || 0) / 2 + 0.5);
+      return { via: via, distance: distance, near: distance <= tolerance };
+    }).filter(function (item) { return item.near; }).sort(function (a, b) { return a.distance - b.distance; });
+    if (!candidates.length) return { via: null, eligible: false, status: 'no_via', reason: '端点 ' + pointLabel(point) + ' 附近没有连接 Via' };
+    var sameNet = candidates.filter(function (item) {
+      return traceNet && String(item.via.net || '').trim().toUpperCase() === traceNet;
+    });
+    if (!sameNet.length) {
+      var nearest = candidates[0];
+      return { via: nearest.via, distance: nearest.distance, eligible: false, status: 'net_mismatch',
+        reason: '附近 Via #' + nearest.via.id + ' 的网络「' + (nearest.via.net || '空') + '」与走线网络「' + (trace.net || '空') + '」不同' };
+    }
+    var selected = sameNet[0], via = selected.via;
+    var spansReferenceLayer = viaSpansReferenceLayer(via, refLayer);
+    return {
+      via: via, distance: selected.distance, eligible: true, status: 'matched',
+      spanKnown: !!via.hasDefinedSpan, spansReferenceLayer: spansReferenceLayer,
+      reason: spansReferenceLayer
+        ? '同网络 Via #' + via.id + ' 的层跨 ' + viaSpanText(via) + ' 经过参考层 ' + refLayer
+        : via.hasDefinedSpan
+          ? '同网络 Via #' + via.id + ' 的层跨 ' + viaSpanText(via) + ' 不经过参考层 ' + refLayer
+          : '同网络 Via #' + via.id + ' 缺少 Padstack Defined 层跨'
+    };
+  }
+
+  function pointLabel(point) {
+    return '[' + geom.roundN(point.x, 1) + ', ' + geom.roundN(point.y, 1) + ']';
+  }
+
+  function ringBBox(ring) {
+    var bbox = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+    ring.forEach(function (p) {
+      bbox.minX = Math.min(bbox.minX, p[0]); bbox.maxX = Math.max(bbox.maxX, p[0]);
+      bbox.minY = Math.min(bbox.minY, p[1]); bbox.maxY = Math.max(bbox.maxY, p[1]);
+    });
+    return bbox;
   }
 
   function endpointAntipadExemptions(trace, refLayer, shapeIndex, viaIndex) {
-    var segments = trace.segments || [];
-    if (!segments.length || !viaIndex) return { regions: [], viaIds: [] };
-    var first = segments[0], last = segments[segments.length - 1];
-    var endpoints = [{ x: first.x1, y: first.y1 }, { x: last.x2, y: last.y2 }];
-    var regions = [], knownRings = [], viaIds = [];
-    endpoints.forEach(function (point) {
-      var via = findEndpointVia(point, trace, refLayer, viaIndex);
-      if (!via) return;
+    var endpoints = traceTerminalPoints(trace.segments || []);
+    if (!endpoints.length) return { regions: [], viaIds: [], checks: [] };
+    var regions = [], knownRings = [], viaIds = [], checks = [];
+    endpoints.forEach(function (point, index) {
+      var inspection = inspectEndpointVia(point, trace, refLayer, viaIndex);
       var endpointRings = [];
       geom.queryBBoxGrid(shapeIndex, point.x, point.y, point.x, point.y).forEach(function (shape) {
         endpointRings.push.apply(endpointRings, geom.shapeVoidRingsAtPoint(point.x, point.y, shape));
       });
-      if (!endpointRings.length) return;
-      var accepted = false;
+      var check = {
+        endpoint: index === 0 ? '首端' : '尾端', point: { x: point.x, y: point.y },
+        viaId: inspection.via ? inspection.via.id : null, viaNet: inspection.via ? inspection.via.net : '',
+        viaSpan: viaSpanText(inspection.via), viaDistance: inspection.distance,
+        hasVoid: endpointRings.length > 0, voidBBoxes: endpointRings.map(ringBBox), status: inspection.status, reason: inspection.reason
+      };
+      if (!endpointRings.length) {
+        check.status = inspection.eligible ? 'no_void' : inspection.status;
+        check.reason = inspection.eligible
+          ? '同网络 Via #' + inspection.via.id + ' 已匹配，但端点未落在参考层 ' + refLayer + ' 的 Void 内，无需反焊盘豁免'
+          : inspection.reason;
+        checks.push(check); return;
+      }
+      if (!inspection.eligible) {
+        check.reason = inspection.reason + '，因此端点所在 Void 不予豁免';
+        checks.push(check); return;
+      }
       endpointRings.forEach(function (ring) {
-        if (knownRings.indexOf(ring) >= 0) { accepted = true; return; }
-        var bbox = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
-        ring.forEach(function (p) {
-          bbox.minX = Math.min(bbox.minX, p[0]); bbox.maxX = Math.max(bbox.maxX, p[0]);
-          bbox.minY = Math.min(bbox.minY, p[1]); bbox.maxY = Math.max(bbox.maxY, p[1]);
-        });
-        knownRings.push(ring); regions.push({ ring: ring, bbox: bbox }); accepted = true;
+        if (knownRings.indexOf(ring) >= 0) return;
+        knownRings.push(ring); regions.push({ ring: ring, bbox: ringBBox(ring) });
       });
-      if (accepted && viaIds.indexOf(via.id) < 0) viaIds.push(via.id);
+      if (viaIds.indexOf(inspection.via.id) < 0) viaIds.push(inspection.via.id);
+      check.status = 'exempted';
+      check.reason = inspection.spansReferenceLayer
+        ? '已豁免同网络 Via #' + inspection.via.id + ' 在 ' + refLayer + ' 的端点反焊盘（层跨 ' + viaSpanText(inspection.via) + ' 经过该层）'
+        : '端点实际落在 ' + refLayer + ' 的 Void 内，已按反焊盘豁免；' + inspection.reason + '，层跨仅作诊断，不推翻已存在的 Void 几何';
+      checks.push(check);
     });
-    return { regions: regions, viaIds: viaIds };
+    return { regions: regions, viaIds: viaIds, checks: checks };
+  }
+
+  function explainMissingPoint(missing, checks) {
+    if (!missing) return '';
+    var blocked = (checks || []).find(function (check) {
+      return check.status !== 'exempted' && (check.voidBBoxes || []).some(function (bbox) {
+        return missing.x >= bbox.minX && missing.x <= bbox.maxX && missing.y >= bbox.minY && missing.y <= bbox.maxY;
+      });
+    });
+    if (blocked) return '缺铜点位于走线' + blocked.endpoint + '的 Void 内，但该 Void 未获豁免：' + blocked.reason;
+    var exempted = (checks || []).filter(function (check) { return check.status === 'exempted'; });
+    return exempted.length
+      ? '缺铜点不在已豁免的端点反焊盘内，属于反焊盘范围外或走线中途的实际缺铜'
+      : '缺铜点不在任何走线端点 Void 内，属于反焊盘范围外或走线中途的实际缺铜';
   }
 
   function traceMarginCoverage(trace, index, margin, viaIndex, refLayer) {
@@ -348,8 +428,10 @@
       footprintCovered: footprintCovered,
       leftSideCopper: left,
       rightSideCopper: right,
+      missingReason: explainMissingPoint(missing, exemptions.checks),
       endpointAntipadExemptionCount: exemptions.viaIds.length,
-      endpointAntipadViaIds: exemptions.viaIds
+      endpointAntipadViaIds: exemptions.viaIds,
+      endpointAntipadChecks: exemptions.checks
     };
   }
 
@@ -387,14 +469,15 @@
           var coverage = index ? traceMarginCoverage(trace, index, margin, viaIndex, ref.name) : {
             pass: false, missing: null, footprintCovered: false,
             leftSideCopper: false, rightSideCopper: false,
-            endpointAntipadExemptionCount: 0, endpointAntipadViaIds: []
+            missingReason: '参考层 ' + ref.name + ' 没有导入可用于检查的铜皮 Shape',
+            endpointAntipadExemptionCount: 0, endpointAntipadViaIds: [], endpointAntipadChecks: []
           };
           var location = coverage.missing
             ? '，首个走线投影缺铜点 [' + geom.roundN(coverage.missing.x, 1) + ', ' + geom.roundN(coverage.missing.y, 1) + ']'
             : '';
           var issues = [], failureKinds = [];
           if (!coverage.footprintCovered) {
-            issues.push('走线正上方的完整线宽投影存在缺铜' + location);
+            issues.push('走线正上方的完整线宽投影存在缺铜' + location + (coverage.missingReason ? '（判定原因：' + coverage.missingReason + '）' : ''));
             failureKinds.push('footprint');
           }
           if (!coverage.leftSideCopper) {
@@ -414,8 +497,10 @@
             leftSideCopper: coverage.leftSideCopper,
             rightSideCopper: coverage.rightSideCopper,
             missingPoint: coverage.missing,
+            missingReason: coverage.missingReason,
             endpointAntipadExemptionCount: coverage.endpointAntipadExemptionCount,
             endpointAntipadViaIds: coverage.endpointAntipadViaIds,
+            endpointAntipadChecks: coverage.endpointAntipadChecks,
             failureKinds: failureKinds,
             pass: coverage.pass,
             message: coverage.pass

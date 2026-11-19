@@ -444,7 +444,7 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
         const issueText = s => {
           const issues = [];
           const missingAt = s.missingPoint ? `（首个缺铜点 [${roundN(s.missingPoint.x, 1)}, ${roundN(s.missingPoint.y, 1)}]）` : '';
-          if (s.footprintCovered === false) issues.push(`完整走线投影缺铜${missingAt}`);
+          if (s.footprintCovered === false) issues.push(`完整走线投影缺铜${missingAt}${s.missingReason ? `；原因：${s.missingReason}` : ''}`);
           if (s.leftSideCopper === false) issues.push(`走线左侧 ${s.minMargin} mil 内无铜`);
           if (s.rightSideCopper === false) issues.push(`走线右侧 ${s.minMargin} mil 内无铜`);
           return issues.join('、') || '参考铜不符合要求';
@@ -454,6 +454,8 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
         g.layerListStr = `信号层: ${s0.traceLayer} (${subs.map(s => `${s.refType}:${s.refLayer}`).join(', ')})`;
         g.minMargin = s0.minMargin;
         g.missingPoint = firstMissing ? firstMissing.missingPoint : null;
+        g.missingReason = firstMissing ? firstMissing.missingReason : '';
+        g.endpointAntipadChecks = subs.flatMap(s => s.endpointAntipadChecks || []);
         g.endpointAntipadViaIds = endpointViaIds;
         g.endpointAntipadExemptionCount = endpointViaIds.length;
         const exemptionText = endpointViaIds.length ? `；已豁免端点 Via #${endpointViaIds.join('、#')} 的反焊盘` : '';

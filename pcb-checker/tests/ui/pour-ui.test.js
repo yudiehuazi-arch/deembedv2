@@ -91,14 +91,62 @@ test('几何视口可独立取消并恢复网络名与目标对象编号', () =>
   if (!w.State.canvas.showNetLabels || !w.State.canvas.showObjectIds) throw new Error('网络名或目标对象编号未恢复显示');
 });
 
-test('走线投影异常标记定位首个真实缺铜点而非走线中点', () => {
+test('走线投影异常定位首个真实缺铜点，并说明该点位于端点反焊盘之外', () => {
   const marker = w.getPourDefectMarker({
-    checkCategory: 'trace_ref_margin', traceId: 35034,
-    missingPoint: { x: 19356.7, y: 34300 }
+    checkCategory: 'trace_ref_margin', traceId: 35144,
+    missingPoint: { x: 30963.5, y: 35252 }
   });
-  if (!marker || marker.x !== 19356.7 || marker.y !== 34300 || !marker.targetLabel.includes('缺铜点')) {
+  if (!marker || marker.x !== 30963.5 || marker.y !== 35252 || !marker.targetLabel.includes('缺铜点')) {
     throw new Error('走线投影异常未定位到首个真实缺铜点');
   }
+
+  const savedGrouped = w.State.groupedResults;
+  const savedFiltered = w.State.filteredResults;
+  const savedActiveProblem = w.State.canvas.activeProblem;
+  const savedReviewKey = w.State.activeReviewKey;
+  const savedShapeLayerMode = w.State.canvas.shapeLayerMode;
+  const savedVisibleShapeLayers = (w.State.canvas.visibleShapeLayers || []).slice();
+  const savedProblemShapeLayers = (w.State.canvas.problemShapeLayers || []).slice();
+  const diagnostic = {
+    groupKey: 'mock_margin_diagnostic', checkCategory: 'trace_ref_margin', checkCategoryName: '③ 走线参考层投影覆盖与两侧邻近铜',
+    targetLabel: '- / NET_A / 走线 #35144', traceId: 35144, pass: false, refLayer: 'L3',
+    missingPoint: { x: 30963.5, y: 35252 },
+    missingReason: '缺铜点不在任何走线端点 Void 内，属于反焊盘范围外或走线中途的实际缺铜',
+    endpointAntipadChecks: [{ endpoint: '首端', reason: '同网络 Via #32513 已匹配，但端点未落在参考层 L3 的 Void 内，无需反焊盘豁免' }],
+    message: 'L3 完整走线投影缺铜'
+  };
+  w.State.groupedResults = [diagnostic];
+  w.State.filteredResults = [diagnostic];
+  w.locateElementInCanvas('trace_ref_margin', 35144, diagnostic.groupKey);
+  if (!w.State.canvas.activeProblem || w.State.canvas.activeProblem.x !== 30963.5 || w.State.canvas.activeProblem.refLayer !== 'L3') {
+    throw new Error('定位后没有把当前首个缺铜点设为独立高亮目标');
+  }
+  if (w.State.canvas.highlightShapeIds.length || w.State.canvas.activeProblem.targetId !== 35144) {
+    throw new Error('定位走线缺铜时错误地把参考层全部 Shape 标红，或未突出目标走线');
+  }
+  w.renderPourCanvasReviewBox(diagnostic.groupKey);
+  const reviewText = $('pourCanvasRevBody').textContent;
+  if (!reviewText.includes('为什么判定缺铜') || !reviewText.includes('反焊盘范围外') || !reviewText.includes('端点反焊盘判定')) {
+    throw new Error('几何视图未说明实际缺铜点与端点反焊盘的关系');
+  }
+
+  const labels = [];
+  const canvas = $('mainCanvas');
+  const originalGetContext = canvas.getContext;
+  canvas.getContext = () => ({
+    clearRect() {}, fillRect() {}, save() {}, restore() {}, beginPath() {}, moveTo() {}, lineTo() {}, closePath() {},
+    fill() {}, stroke() {}, arc() {}, setLineDash() {}, measureText() { return { width: 180 }; }, fillText(text) { labels.push(String(text)); }
+  });
+  w.renderCanvas();
+  canvas.getContext = originalGetContext;
+  if (!labels.some(text => text.includes('当前缺铜点') && text.includes('L3'))) throw new Error('画布未用醒目标注显示当前缺铜点及参考层');
+  w.State.groupedResults = savedGrouped;
+  w.State.filteredResults = savedFiltered;
+  w.State.canvas.activeProblem = savedActiveProblem;
+  w.State.activeReviewKey = savedReviewKey;
+  w.State.canvas.shapeLayerMode = savedShapeLayerMode;
+  w.State.canvas.visibleShapeLayers = savedVisibleShapeLayers;
+  w.State.canvas.problemShapeLayers = savedProblemShapeLayers;
 });
 
 test('几何视口的六个异常筛选按钮均可再次点击取消选中', () => {

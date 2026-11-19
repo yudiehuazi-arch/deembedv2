@@ -500,7 +500,7 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   console.log('  PASS  第三项语义：端点反焊盘外完整投影必须有铜，两侧仅需整条走线各存在一处邻近铜');
 }
 
-// 5.2 同网络 Via 连接端点内的参考层反焊盘豁免，线路中途 Void 仍必须报错
+// 5.2 同网络 Via + 端点实际 Void 即豁免（层跨文本仅诊断），线路中途 Void 仍必须报错
 {
   const rectBoundary = (minX, minY, maxX, maxY) => [
     { type: 'line', x1: minX, y1: minY, x2: maxX, y2: minY },
@@ -529,12 +529,16 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
 
   const withoutViaContext = checkTraceReferenceMargin([trace], [endpointVoids], rule)[0];
   assert.strictEqual(withoutViaContext.pass, false, '没有同网络 Via 佐证时不能把普通端点缺铜当成反焊盘豁免');
+  assert.match(withoutViaContext.missingReason, /未导入 Via 数据/, '结果必须解释未豁免是因为缺少 Via 数据');
   const unknownSpan = checkTraceReferenceMargin([trace], [endpointVoids], rule,
     vias.map(via => ({ id: via.id, x: via.x, y: via.y, net: via.net })))[0];
-  assert.strictEqual(unknownSpan.pass, false, '无法证明经过参考层的 Via 不能授权该层 Void 豁免');
+  assert.strictEqual(unknownSpan.pass, true, '同网络 Via 端点已落在参考层 Void 内时，不应因缺少层跨文本拒绝反焊盘豁免');
+  assert.match(unknownSpan.endpointAntipadChecks[0].reason, /缺少 Padstack Defined 层跨/, '诊断仍应保留端点 Via 层跨未知信息');
   const wrongSpan = checkTraceReferenceMargin([trace], [endpointVoids], rule,
-    vias.map(via => Object.assign({}, via, { minLayerNum: 4, maxLayerNum: 4 })))[0];
-  assert.strictEqual(wrongSpan.pass, false, '不经过 L3 参考层的端点 Via 不能授权 L3 Void 豁免');
+    vias.map(via => Object.assign({}, via, { startLayer: 'L4', endLayer: 'L4', minLayerNum: 4, maxLayerNum: 4 })))[0];
+  assert.strictEqual(wrongSpan.pass, true, '同网络 Via 端点的参考层 Void 是直接几何证据，不应被 Padstack 层跨信息推翻');
+  assert.match(wrongSpan.endpointAntipadChecks[0].reason, /层跨 L4–L4 不经过参考层 L3.*不推翻已存在的 Void 几何/,
+    '结果必须说明层跨不经过当前层但实际端点 Void 仍获豁免');
   const wrongNet = checkTraceReferenceMargin([trace], [endpointVoids], rule,
     vias.map(via => Object.assign({}, via, { net: '' })))[0];
   assert.strictEqual(wrongNet.pass, false, '空白或未知网络 Via 不能授权端点反焊盘豁免');
@@ -545,6 +549,20 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   assert.strictEqual(exempted.endpointAntipadExemptionCount, 2);
   assert.deepStrictEqual(exempted.endpointAntipadViaIds, [901, 902]);
   assert.match(exempted.message, /已豁免端点 Via #901、#902 的反焊盘/);
+  assert.ok(exempted.endpointAntipadChecks.every(check => check.status === 'exempted'), '首尾端点均应记录明确的豁免依据');
+
+  const slightlyOffsetVias = vias.map((via, index) => Object.assign({}, via, { x: index === 0 ? 2.5 : 197.5, drill: 3.94 }));
+  const offsetExempted = checkTraceReferenceMargin([trace], [endpointVoids], rule, slightlyOffsetVias)[0];
+  assert.strictEqual(offsetExempted.pass, true, '端点落在 Via 焊盘连接范围内时，不应因坐标存在 2.5 mil 小偏差漏掉反焊盘豁免');
+
+  const reverseSegmentTrace = Object.assign({}, trace, { id: 305, segments: [
+    { type: 'line', x1: 100, y1: 0, x2: 200, y2: 0, width: 4, len: 100 },
+    { type: 'line', x1: 100, y1: 0, x2: 0, y2: 0, width: 4, len: 100 }
+  ] });
+  const reverseResult = checkTraceReferenceMargin([reverseSegmentTrace], [endpointVoids], rule, vias)[0];
+  assert.strictEqual(reverseResult.pass, true, '线段方向相反时仍应按拓扑度数找到真实首尾端点并豁免两端反焊盘');
+  assert.deepStrictEqual(reverseResult.endpointAntipadViaIds.slice().sort(), [901, 902]);
+
   const exemptedGroup = groupResultsByTargetObject([exempted])[0];
   assert.match(exemptedGroup.metricsStr, /已豁免端点 Via #901、#902 的反焊盘/);
 
@@ -559,6 +577,7 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   assert.ok(interiorGap.missingPoint && interiorGap.missingPoint.x >= 95 && interiorGap.missingPoint.x <= 105,
     '应记录中途 Void 内的首个真实缺铜点');
   assert.match(interiorGap.message, /首个走线投影缺铜点/);
+  assert.match(interiorGap.missingReason, /不在已豁免的端点反焊盘内/, '中途缺铜必须明确说明不属于端点豁免范围');
 
   const extendedGap = Object.assign({}, endpointVoids, {
     id: 432,
@@ -572,7 +591,7 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   });
   assert.strictEqual(checkTraceReferenceMargin([trace], [nearbyVoid], rule, vias)[0].pass, false,
     '靠近但不包含端点 Via 的普通 Void 不得视为端点反焊盘');
-  console.log('  PASS  第三项端点反焊盘豁免：仅豁免同网络且跨参考层的端点 Via，中途或外延缺铜仍检出');
+  console.log('  PASS  第三项端点反焊盘豁免：同网络 Via + 实际端点 Void 优先于层跨文本，中途或外延缺铜仍检出');
 }
 
 // 5.3 Trace #35034 实板几何：04G01P U 形走线两端的 L3 反焊盘必须豁免
