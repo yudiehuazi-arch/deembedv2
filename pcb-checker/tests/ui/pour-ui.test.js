@@ -60,6 +60,33 @@ test('三栏 EDA 壳层完整、悬浮 Tips 正常、静态标题/标签无括�
   w.EdaTooltip.hide();
 });
 
+test('五类检查均提供折叠式操作流程、验证标准与输出说明', () => {
+  const expected = {
+    via_coverage: ['筛选对象', '计算距离', '每一个目标层', 'Void 区域不算铜'],
+    special_shape: ['锁定目标孔', '选择模板', '0.01 mil', '两个独立条件'],
+    trace_ref_margin: ['检查完整投影', '检查两侧与豁免', '左侧、右侧各至少检出一处', '中途反焊盘'],
+    isolated_copper: ['筛选小铜皮', '核实过孔位置', '面积阈值是当前自动判定条件'],
+    arc_radius: ['提取圆弧', '测量半径', '等于阈值时符合']
+  };
+  const guides = [...d.querySelectorAll('.pour-check-guide')];
+  if (guides.length !== 5) throw new Error('检查说明数量应为 5，实际 ' + guides.length);
+  guides.forEach(guide => {
+    const key = guide.dataset.guideKey;
+    if (!expected[key]) throw new Error('出现未知检查说明：' + key);
+    if (guide.open) throw new Error('检查说明默认应折叠，避免形成大段文字：' + key);
+    if (!guide.querySelector('summary .pour-guide-badge') || guide.querySelectorAll('.pour-guide-step').length !== 3) {
+      throw new Error('检查说明缺少摘要或三步流程：' + key);
+    }
+    if (guide.querySelectorAll('.pour-guide-standard').length !== 3) throw new Error('验证标准未按三块展示：' + key);
+    const text = guide.textContent;
+    expected[key].forEach(keyword => {
+      if (!text.includes(keyword)) throw new Error(key + ' 检查说明缺少关键口径：' + keyword);
+    });
+  });
+  const pageHtml = fs.readFileSync(path.join(__dirname, '../../pour.html'), 'utf8');
+  if (!pageHtml.includes('assets/styles/pages/pour-check-guides.css')) throw new Error('检查说明未加载独立视觉样式');
+});
+
 test('几何视口可独立取消并恢复网络名与目标对象编号', () => {
   const netButton = $('btnToggleNetLabels');
   const idButton = $('btnToggleObjectIds');

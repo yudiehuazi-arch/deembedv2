@@ -1,0 +1,273 @@
+/* pour-check-guides.css —— 铜皮五类检查的折叠式流程与判定说明 */
+.pour-check-guide-host {
+  margin: 8px 0 12px;
+}
+
+.pour-check-guide {
+  overflow: hidden;
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #f8fafc 0%, #ffffff 72%);
+}
+
+.pour-check-guide[open] {
+  border-color: var(--pri-border);
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.06);
+}
+
+.pour-check-guide summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 8px 11px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.pour-check-guide summary::-webkit-details-marker {
+  display: none;
+}
+
+.pour-check-guide summary:hover {
+  background: #f1f5f9;
+}
+
+.pour-guide-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 8px;
+  border: 1px solid var(--pri-border);
+  border-radius: 999px;
+  background: var(--pri-soft);
+  color: var(--pri);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.pour-guide-summary {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.pour-guide-summary strong {
+  overflow: hidden;
+  color: var(--heading);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pour-guide-summary small {
+  color: var(--sub);
+  font-size: 11px;
+}
+
+.pour-guide-toggle {
+  width: 8px;
+  height: 8px;
+  margin-right: 3px;
+  transform: rotate(45deg);
+  border-right: 2px solid var(--sub);
+  border-bottom: 2px solid var(--sub);
+  transition: transform 0.16s ease;
+}
+
+.pour-check-guide[open] .pour-guide-toggle {
+  transform: rotate(225deg);
+}
+
+.pour-guide-body {
+  padding: 11px;
+  border-top: 1px solid #e2e8f0;
+  background: #ffffff;
+}
+
+.pour-guide-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.pour-guide-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--surface-subtle);
+  color: var(--txt);
+  font-size: 11px;
+}
+
+.pour-guide-meta b {
+  color: var(--pri-d);
+  font-weight: 700;
+}
+
+.pour-guide-section-title {
+  margin: 8px 0 6px;
+  color: var(--sub);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.pour-guide-flow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20px minmax(0, 1fr) 20px minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.pour-guide-step {
+  display: grid;
+  grid-template-columns: 25px minmax(0, 1fr);
+  gap: 8px;
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  background: #f8fafc;
+}
+
+.pour-guide-step-no {
+  display: inline-flex;
+  width: 25px;
+  height: 25px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--pri);
+  color: #ffffff;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pour-guide-step strong {
+  display: block;
+  margin: 2px 0 4px;
+  color: var(--heading);
+  font-size: 12px;
+}
+
+.pour-guide-step p,
+.pour-guide-standard p {
+  margin: 0;
+  color: var(--txt);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.pour-guide-arrow {
+  position: relative;
+  align-self: center;
+  height: 1px;
+  background: #94a3b8;
+}
+
+.pour-guide-arrow::after {
+  position: absolute;
+  top: -3px;
+  right: 0;
+  width: 6px;
+  height: 6px;
+  transform: rotate(45deg);
+  border-top: 1px solid #94a3b8;
+  border-right: 1px solid #94a3b8;
+  content: '';
+}
+
+.pour-guide-standards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.pour-guide-standard {
+  padding: 8px 9px;
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.pour-guide-standard > span {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pour-guide-standard.pass {
+  border-left-color: var(--ok);
+  background: #f0fdf4;
+}
+
+.pour-guide-standard.pass > span {
+  color: var(--ok);
+}
+
+.pour-guide-standard.fail {
+  border-left-color: var(--bad);
+  background: #fef2f2;
+}
+
+.pour-guide-standard.fail > span {
+  color: var(--bad);
+}
+
+.pour-guide-standard.note {
+  border-left-color: var(--copper);
+  background: #fffbeb;
+}
+
+.pour-guide-standard.note > span {
+  color: #92400e;
+}
+
+.form-grid .pour-guide-flow,
+.form-grid .pour-guide-standards {
+  grid-template-columns: 1fr;
+}
+
+.form-grid .pour-guide-arrow {
+  width: 1px;
+  height: 14px;
+  justify-self: center;
+}
+
+.form-grid .pour-guide-arrow::after {
+  top: auto;
+  right: -3px;
+  bottom: 0;
+  transform: rotate(135deg);
+}
+
+@media (max-width: 900px) {
+  .pour-guide-flow,
+  .pour-guide-standards {
+    grid-template-columns: 1fr;
+  }
+
+  .pour-guide-arrow {
+    width: 1px;
+    height: 14px;
+    justify-self: center;
+  }
+
+  .pour-guide-arrow::after {
+    top: auto;
+    right: -3px;
+    bottom: 0;
+    transform: rotate(135deg);
+  }
+}

@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="assets/styles/eda-dock.css?v=46">
 <link rel="stylesheet" href="assets/styles/components.css?v=46">
 <link rel="stylesheet" href="assets/styles/pages/pour.css?v=46">
+<link rel="stylesheet" href="assets/styles/pages/pour-check-guides.css?v=46">
 </head>
 <body class="eda-workbench">
 
@@ -107,6 +108,7 @@
           </div>
           <button type="button" class="btn pri small" onclick="openAddRule1Modal()">+ 新增孔铺铜规则</button>
         </div>
+        <div class="pour-check-guide-host" data-pour-check-guide="via_coverage"></div>
         <div class="tbl-wrap">
           <table>
             <thead>
@@ -130,6 +132,7 @@
           </div>
           <button type="button" class="btn pri small" onclick="openAddRule2Modal()" data-tip="粘贴 EDA Shape Item 文本自动提取边界与基准面积">+ 导入异型铜皮模板</button>
         </div>
+        <div class="pour-check-guide-host" data-pour-check-guide="special_shape"></div>
         <div class="tbl-wrap">
           <table>
             <thead>
@@ -157,6 +160,7 @@
           </div>
           <button type="button" class="btn pri small" onclick="openAddRule3Modal()">+ 新增走线参考层规则</button>
         </div>
+        <div class="pour-check-guide-host" data-pour-check-guide="trace_ref_margin"></div>
         <div class="tbl-wrap">
           <table>
             <thead>
@@ -176,9 +180,10 @@
 
       <div class="form-grid">
         <div class="card" style="margin-bottom:0">
-          <h2>4. 孤立小铜皮面积阈值规则 <span class="eda-tip" tabindex="0" data-tip="面积小于阈值且轮廓内无同层有效过孔连接的铜皮判为孤立浮空碎铜">?</span></h2>
+          <h2>4. 孤立小铜皮面积阈值规则 <span class="eda-tip" tabindex="0" data-tip="面积小于阈值的铜皮进入异常清单，并记录同层过孔是否落在实铜轮廓内供复核">?</span></h2>
+          <div class="pour-check-guide-host" data-pour-check-guide="isolated_copper"></div>
           <div class="form-item" style="margin-top:8px">
-            <label for="rule4InpArea" data-tip="单位 sq mil，小于该面积且无过孔连接的铜皮判为异常">小铜皮最大面积阈值 sq mil</label>
+            <label for="rule4InpArea" data-tip="单位 sq mil，小于该面积的 Shape 进入异常清单；轮廓内同层过孔作为复核证据单独记录">小铜皮最大面积阈值 sq mil</label>
             <input type="number" id="rule4InpArea" value="500.0" step="50.0" min="10.0" max="50000.0" onchange="recordHistory('r4_area', this.value)">
             <div class="chip-bar" id="chipsRule4Area"></div>
           </div>
@@ -186,6 +191,7 @@
 
         <div class="card" style="margin-bottom:0">
           <h2>5. 铜皮最小圆弧半径规则 <span class="eda-tip" tabindex="0" data-tip="核查铜皮边界所有 Arc seg 半径，防范过小内凹圆弧造成湿法蚀刻药水滞留侧蚀">?</span></h2>
+          <div class="pour-check-guide-host" data-pour-check-guide="arc_radius"></div>
           <div class="form-item" style="margin-top:8px">
             <label for="rule5InpRadius" data-tip="单位 mil，轮廓圆弧半径低于该值判为尖角超标">铜皮最小圆弧半径 mil</label>
             <input type="number" id="rule5InpRadius" value="10.0" step="1.0" min="1.0" max="100.0" onchange="recordHistory('r5_radius', this.value)">
@@ -588,6 +594,7 @@
 <script src="packages/engines/pour/pour-parser.js?v=46"></script>
 <script src="packages/engines/pour/pour-trace-margin.js?v=46"></script>
 <script src="packages/engines/pour/pour-engine.js?v=46"></script>
+<script src="packages/pages/pour/pour-check-guides.js?v=46"></script>
 <script src="packages/pages/pour/pour-state.js?v=46"></script><script src="packages/pages/pour/pour-check-runner.js?v=46"></script>
 <script src="packages/pages/pour/pour-rules-ui.js?v=46"></script>
 <script src="packages/pages/pour/pour-results-ui.js?v=46"></script>
