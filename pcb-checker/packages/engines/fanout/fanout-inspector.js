@@ -5,10 +5,11 @@
 var parser = (typeof module === "object" && module.exports) ? require("./fanout-parser.js") : root.FanoutChecker;
   var schemeMod = (typeof module === "object" && module.exports) ? require("./fanout-scheme.js") : root.FanoutChecker;
   var clusterMod = (typeof module === "object" && module.exports) ? require("./fanout-clustering.js") : root.FanoutChecker;
-  var api = factory(parser, schemeMod, clusterMod);
+  var topologyMod = (typeof module === "object" && module.exports) ? require("./fanout-topology.js") : root.FanoutChecker;
+  var api = factory(parser, schemeMod, clusterMod, topologyMod);
   if (typeof module === "object" && module.exports) module.exports = api;
   root.FanoutChecker = Object.assign(root.FanoutChecker || {}, api);
-})(typeof globalThis !== "undefined" ? globalThis : this, function (parser, schemeMod, clusterMod) {
+})(typeof globalThis !== "undefined" ? globalThis : this, function (parser, schemeMod, clusterMod, topologyMod) {
   "use strict";
   var MM_PER_MIL = parser.MM_PER_MIL;
   var MIL_PER_MM = parser.MIL_PER_MM;
@@ -18,6 +19,9 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
   var parseViaData = parser.parseViaData;
   var parseTraceData = parser.parseTraceData;
   var isSignalVia = parser.isSignalVia;
+  var selectTraceConnectedSignalVias = topologyMod.selectTraceConnectedSignalVias;
+  var collapseSignalStacks = topologyMod.collapseSignalStacks;
+  var signalStackAudit = topologyMod.signalStackAudit;
   var parseFanoutInputData = parser.parseFanoutInputData;
   var summarizeTraceData = parser.summarizeTraceData;
   var associateTracesWithClusters = parser.associateTracesWithClusters;
@@ -104,9 +108,7 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
       for (let i = 0; i < n; i++) {
         for (let j = i + 1; j < n; j++) {
           const d = Math.hypot(vlist[i].x - vlist[j].x, vlist[i].y - vlist[j].y);
-          if (d <= maxDiffDistMil) {
-            union(i, j);
-          }
+          if (d <= maxDiffDistMil) union(i, j);
         }
       }
       const compMap = new Map();
@@ -190,6 +192,7 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
         summary: {
           totalVias: 0,
           totalSignalVias: 0,
+          totalEligibleSignalViaItems: 0,
           totalParsedSignalVias: 0,
           excludedSignalVias: 0,
           totalTraces: traceSummary.totalTraces,
@@ -220,8 +223,9 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
     const allowMirror = options.allowMirror !== false;
     const gndVias = vias.filter(v => v.net && v.net.toUpperCase().includes('GND'));
     const allSignalVias = vias.filter(v => !v.net || !v.net.toUpperCase().includes('GND'));
-    // 扇出方案只评估 Item 中具有非空 Connections 的信号孔；无连接时不得回退到全部信号孔。
-    const activeSignalVias = allSignalVias.filter(v => v.hasConnections);
+    // Trace 连接孔段是检查锚点；同网络 Via Connections 可带入完整堆叠，但不能让无 Trace 孔群自行建组。
+    const activePhysicalSignalVias = selectTraceConnectedSignalVias(allSignalVias);
+    const activeSignalVias = collapseSignalStacks(activePhysicalSignalVias);
     const gndIndex = buildGndSpatialIndex(gndVias, 35);
     const signalUnits = groupSignalUnits(activeSignalVias, 35.0);
     let passCount = 0;
@@ -235,9 +239,11 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
     for (let uIdx = 0; uIdx < signalUnits.length; uIdx++) {
       const unit = signalUnits[uIdx];
       const unitSigVias = unit.signalVias;
+      const physicalSignalVias = unitSigVias.flatMap(via => via.physicalVias || [via]);
+      const stackAudit = signalStackAudit(unitSigVias);
       const nearbyGndItems = gndIndex.findGndNear(unit.centroid.x, unit.centroid.y, 80.0);
       const nearbyGnd = nearbyGndItems.map(item => item.via);
-      const candidateVias = [...unit.signalVias, ...nearbyGnd];
+      const candidateVias = [...physicalSignalVias, ...nearbyGnd];
       let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
       candidateVias.forEach(v => {
         if (v.x < minX) minX = v.x;
@@ -404,13 +410,15 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
           advice: '信号孔未匹配方案库模板，无需进行伴随地孔分析。',
           padMismatchList: [],
           missingVias: [],
-          viaAudit: []
+          viaAudit: [],
+          signalStackAudit: stackAudit
         };
         clusterUnits.push({
           id: `sig_unit_${uIdx + 1}`,
           vias: candidateVias,
           viaCount: candidateVias.length,
           signalVias: unit.signalVias,
+          physicalSignalVias,
           signalNet: unit.net,
           centroid: unit.centroid,
           bbox: { minX, maxX, minY, maxY, spanX, spanY, maxSpan },
@@ -455,13 +463,15 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
           advice: '信号孔与伴随地孔完全符合方案规范，无需调整。',
           padMismatchList: [],
           missingVias: [],
-          viaAudit: bestEval.audit
+          viaAudit: bestEval.audit,
+          signalStackAudit: stackAudit
         };
         clusterUnits.push({
           id: `sig_unit_${uIdx + 1}`,
           vias: candidateVias,
           viaCount: candidateVias.length,
           signalVias: unit.signalVias,
+          physicalSignalVias,
           signalNet: unit.net,
           centroid: unit.centroid,
           bbox: { minX, maxX, minY, maxY, spanX, spanY, maxSpan },
@@ -505,13 +515,15 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
           advice: adviceText,
           padMismatchList,
           missingVias,
-          viaAudit: bestEval.audit
+          viaAudit: bestEval.audit,
+          signalStackAudit: stackAudit
         };
         clusterUnits.push({
           id: `sig_unit_${uIdx + 1}`,
           vias: candidateVias,
           viaCount: candidateVias.length,
           signalVias: unit.signalVias,
+          physicalSignalVias,
           signalNet: unit.net,
           centroid: unit.centroid,
           bbox: { minX, maxX, minY, maxY, spanX, spanY, maxSpan },
@@ -526,8 +538,9 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
     const summary = {
       totalVias: vias.length,
       totalSignalVias: activeSignalVias.length,
+      totalEligibleSignalViaItems: activePhysicalSignalVias.length,
       totalParsedSignalVias: allSignalVias.length,
-      excludedSignalVias: allSignalVias.length - activeSignalVias.length,
+      excludedSignalVias: allSignalVias.length - activePhysicalSignalVias.length,
       totalTraces: traceSummary.totalTraces,
       totalTraceSegments: traceSummary.totalTraceSegments,
       traceLineCount: traceSummary.traceLineCount,

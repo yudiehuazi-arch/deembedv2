@@ -70,7 +70,7 @@ const FAMILIES = {
   },
   fanout: {
     files: ['engines/fanout/fanout-parser.js', 'engines/fanout/fanout-palette.js', 'engines/fanout/fanout-scheme.js',
-      'engines/fanout/fanout-clustering.js', 'engines/fanout/fanout-inspector.js', 'engines/fanout/fanout-layout.js',
+      'engines/fanout/fanout-clustering.js', 'engines/fanout/fanout-topology.js', 'engines/fanout/fanout-inspector.js', 'engines/fanout/fanout-layout.js',
       'engines/fanout/fanout-canvas.js'],
     globals: { FanoutChecker: ['parseFanoutInputData', 'runFanoutInspection', 'computeSchemeViewLayout', 'renderSchemeEnlargedCanvas'] },
     nodeEntry: 'engines/fanout',

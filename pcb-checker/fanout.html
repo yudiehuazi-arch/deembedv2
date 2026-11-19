@@ -165,7 +165,7 @@
         <div class="dropzone" id="dropzoneVia" onclick="document.getElementById('fileViaInput').click()" data-tip="支持 .txt / .csv / .dat 文件拖拽或点击上传">
           <input type="file" id="fileViaInput" accept=".txt,.csv,.dat" style="display:none" onchange="handleViaFileUpload(event)">
           <div class="t1">点击上传过孔与走线 TXT 文件，或拖拽至此处</div>
-          <div class="t2" id="fanoutConnectionsEligibilityHint">仅 Item 中 Connections 非空的信号孔参与方案检查；附近 GND 孔仍可作为伴随地孔</div>
+          <div class="t2" id="fanoutConnectionsEligibilityHint">以 Connections 中含 Trace 的信号孔段作为检查锚点，并沿同网络 Via Connections 纳入完整盲埋孔堆叠；没有连接走线的孔群不参与检查</div>
         </div>
 
         <details class="eda-fold" open>
@@ -284,6 +284,7 @@
       <div class="card" style="padding:12px">
         <div class="canvas-container" id="canvasContainer">
           <div class="canvas-toolbar">
+            <button type="button" id="btnReturnFanoutResults" onclick="returnToFanoutResults()" style="display:none" data-tip="返回检查结果明细，并恢复定位前的条目位置">返回检查结果明细</button>
             <button type="button" onclick="resetCanvasView()">居中重置</button>
             <button type="button" onclick="zoomCanvas(1.2)">放大</button>
             <button type="button" onclick="zoomCanvas(0.8)">缩小</button>
@@ -319,7 +320,6 @@
         </div>
       </div>
     </section>
-
     <!-- ================= ⑤ 方案覆盖率与规律分析 ================= -->
     <section id="tabAnalysis" class="tab">
       <div class="card">
@@ -586,7 +586,6 @@
     </div>
   </div>
 </div>
-
 <!-- 模态弹窗：星座图放大查看与孔心距测量 -->
 <div class="modal-mask" id="modalViewScheme">
   <div class="modal-box" style="max-width:1140px;width:96%;max-height:92vh;display:flex;flex-direction:column;overflow:hidden">
@@ -642,12 +641,12 @@
     </div>
   </div>
 </div>
-
 <script src="packages/shared/dom-utils.js?v=46"></script>
 <script src="packages/engines/fanout/fanout-parser.js?v=46"></script>
 <script src="packages/engines/fanout/fanout-palette.js?v=46"></script>
 <script src="packages/engines/fanout/fanout-scheme.js?v=46"></script>
 <script src="packages/engines/fanout/fanout-clustering.js?v=46"></script>
+<script src="packages/engines/fanout/fanout-topology.js?v=46"></script>
 <script src="packages/engines/fanout/fanout-inspector.js?v=46"></script>
 <script src="packages/engines/fanout/fanout-layout.js?v=46"></script>
 <script src="packages/engines/fanout/fanout-canvas.js?v=46"></script>
@@ -656,6 +655,7 @@
 <script src="packages/pages/fanout/fanout-scheme-viewer.js?v=46"></script>
 <script src="packages/pages/fanout/fanout-results-ui.js?v=46"></script>
 <script src="packages/pages/fanout/fanout-analysis-ui.js?v=46"></script>
+<script src="packages/pages/fanout/fanout-canvas-review.js?v=46"></script>
 <script src="packages/pages/fanout/fanout-canvas-viewer.js?v=46"></script>
 <script src="packages/shared/eda-tooltip.js?v=46"></script>
 <script src="packages/shared/eda-shell.js?v=46"></script>

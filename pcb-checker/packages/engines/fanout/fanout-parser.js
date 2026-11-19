@@ -110,13 +110,22 @@ var api = factory();
       const connections = parseConnectionsSection(block);
       const hasConnections = connections.entries.length > 0;
       const connectedTraceLayers = [];
+      const connectedViaIds = [];
+      let explicitTraceCount = 0;
       connections.entries.forEach(entry => {
         const traceM = entry.match(/Trace:\s*\d+\s*\(([^)]+)\)/i);
-        if (traceM) connectedTraceLayers.push(...traceM[1].trim().split(/[\s,]+/).filter(Boolean));
+        const viaM = entry.match(/Via:\s*#?(\d+)/i);
+        if (viaM) connectedViaIds.push(parseInt(viaM[1], 10));
+        if (traceM) {
+          explicitTraceCount++;
+          connectedTraceLayers.push(...traceM[1].trim().split(/[\s,]+/).filter(Boolean));
+        }
       });
-      if (connectedTraceLayers.length === 0 && connections.inlineText) {
-        connectedTraceLayers.push(...connections.inlineText.split(/[\s,]+/).filter(Boolean));
-      }
+      const inlineTokens = connections.inlineText.split(/[\s,]+/).filter(Boolean);
+      const inlineTraceLayers = inlineTokens.length && inlineTokens.every(layer =>
+        /^(?:TOP|BOTTOM|BOT|L0*\d+|0*\d{1,3}[A-Z][A-Z0-9_-]*)$/i.test(layer)) ? inlineTokens : [];
+      if (explicitTraceCount === 0 && inlineTraceLayers.length) connectedTraceLayers.push(...inlineTraceLayers);
+      const hasTraceConnections = explicitTraceCount > 0 || inlineTraceLayers.length > 0;
       const isSignal = !net.toUpperCase().includes('GND');
       vias.push({
         id: itemNum,
@@ -129,7 +138,9 @@ var api = factory();
         rotation,
         mirror,
         hasConnections,
+        hasTraceConnections,
         connectedTraceLayers,
+        connectedViaIds: [...new Set(connectedViaIds)],
         isSignal
       });
     }

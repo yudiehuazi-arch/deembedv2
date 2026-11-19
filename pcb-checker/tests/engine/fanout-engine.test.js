@@ -443,7 +443,7 @@ Item 4 < Via >
   console.log('  PASS  信号孔定位与伴随地孔方案精准匹配');
 }
 
-// 8b. 仅 Connections 非空的信号孔组群；无连接信号孔不得污染已连接组
+// 8b. 仅 Connections 中含 Trace 的信号孔组群；其他连接不得污染已连接组
 {
   const mixedConnections = `
 Item 1 < Via >
@@ -482,10 +482,19 @@ Item 6 < Via >
   Backdrill:
     Start Layer: Top
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Item 7 < Via >
+  Origin-xy: [1800.0, 1800.0]
+  Net: SHAPE_ONLY_SIG
+  Padstack Name: UNCONNECTED_SIG_PAD
+  Connections:
+    Shape: 1 (03G02P)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 `;
   const parsed = FanoutChecker.parseViaData(mixedConnections);
-  assert.deepStrictEqual(parsed.map(v => v.hasConnections), [true, true, false, false, false, false],
-    '仅非空 Connections 段应标记为有连接，空段不得误读后续 Backdrill');
+  assert.deepStrictEqual(parsed.map(v => v.hasConnections), [true, true, false, false, false, false, true],
+    '非空 Connections 应保留，空段不得误读后续 Backdrill');
+  assert.deepStrictEqual(parsed.map(v => v.hasTraceConnections), [true, true, false, false, false, false, false],
+    '只有 Trace 连接或同行走线层格式可赋予信号孔检查资格，Shape 连接不得创建孔群');
   assert.deepStrictEqual(parsed[0].connectedTraceLayers, ['Top']);
   assert.deepStrictEqual(parsed[1].connectedTraceLayers, ['Top'], '同行 Connections 格式仍应兼容');
 
@@ -503,15 +512,15 @@ Item 6 < Via >
 
   const res = FanoutChecker.runFanoutInspection(mixedConnections, library);
   assert.strictEqual(res.success, true);
-  assert.strictEqual(res.summary.totalParsedSignalVias, 4, '应统计全部解析出的信号孔');
-  assert.strictEqual(res.summary.totalSignalVias, 2, '仅两个 Connections 非空的信号孔有检查资格');
-  assert.strictEqual(res.summary.excludedSignalVias, 2, '两个无连接信号孔应被排除');
+  assert.strictEqual(res.summary.totalParsedSignalVias, 5, '应统计全部解析出的信号孔');
+  assert.strictEqual(res.summary.totalSignalVias, 2, '仅两个 Connections 中含 Trace 的信号孔有检查资格');
+  assert.strictEqual(res.summary.excludedSignalVias, 3, '无连接或仅连接 Shape 的信号孔应被排除');
   assert.strictEqual(res.clusters.length, 1, '无连接信号孔不得另建组或污染已连接组');
   assert.deepStrictEqual(res.clusters[0].signalVias.map(v => v.id).sort((a, b) => a - b), [1, 2]);
   assert.deepStrictEqual(res.clusters[0].vias.map(v => v.id).sort((a, b) => a - b), [1, 2, 3, 4],
     '附近 GND 仍应作为已连接信号组的伴随地孔');
   assert.strictEqual(res.clusters[0].matchResult.pass, true);
-  console.log('  PASS  混合数据仅检查 Connections 非空信号孔，且保留附近伴随 GND');
+  console.log('  PASS  混合数据仅检查 Connections 中含 Trace 的信号孔，且保留附近伴随 GND');
 }
 
 // 8c. 没有信号孔含 Connections 时保持零检查组，不回退检查全部信号孔
@@ -550,7 +559,41 @@ Item 3 < Via >
   assert.strictEqual(res.summary.passCount, 0);
   assert.strictEqual(res.summary.failCount, 0);
   assert.deepStrictEqual(res.clusters, [], '不得回退到全部无连接信号孔进行方案检查');
-  console.log('  PASS  无 Connections 信号孔时零组返回且不执行旧版回退');
+  console.log('  PASS  无 Trace 连接信号孔时零组返回且不执行旧版回退');
+}
+
+// 8d. 两个空间孔群中仅检查有连接走线的下方孔群，并兼容三段盲埋孔堆叠
+{
+  const viaBlock = (id, x, y, net, connection) => `Item ${id} < Via >\n  Origin-xy: [${x}, ${y}]\n  Net: ${net}\n  Padstack Name: STACK_SEG_${id}\n  Connections:\n    ${connection}\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`;
+  const stackedGroups = [
+    viaBlock(1, 0, 300, 'TOP_P', 'Via: 2 (03G02P)'),
+    viaBlock(2, 20, 300, 'TOP_N', 'Shape: 1 (03G02P)'),
+    viaBlock(3, 0, 0, 'STACK_P', 'Trace: 1 (04G01P)\n    Via: 4 (05G02P)'),
+    viaBlock(4, 0, 0, 'STACK_P', 'Via: 5 (06G03P)'),
+    viaBlock(5, 0, 0, 'STACK_P', 'Shape: 1 (06G03P)'),
+    viaBlock(6, 20, 0, 'STACK_N', 'Trace: 1 (04G01P)\n    Via: 7 (05G02P)'),
+    viaBlock(7, 20, 0, 'STACK_N', 'Via: 8 (06G03P)'),
+    viaBlock(8, 20, 0, 'STACK_N', 'Shape: 1 (06G03P)'),
+    viaBlock(9, 10, 320, 'GND', ''),
+    viaBlock(10, 10, 20, 'GND', '')
+  ].join('\n');
+  const library = new FanoutChecker.FanoutLibrary();
+  const res = FanoutChecker.runFanoutInspection(stackedGroups, library);
+  assert.deepStrictEqual(res.vias.find(v => v.id === 3).connectedViaIds, [4], '应解析 Via Connections 引用');
+  assert.strictEqual(res.summary.totalParsedSignalVias, 8);
+  assert.strictEqual(res.summary.totalSignalVias, 2, '两个三段堆叠应折叠为两个逻辑信号孔');
+  assert.strictEqual(res.summary.totalEligibleSignalViaItems, 6, '六个物理盲埋孔段均应沿 Trace 锚点拓扑纳入');
+  assert.strictEqual(res.summary.excludedSignalVias, 2, '上方 Shape/Via-only 信号孔保持不参与');
+  assert.strictEqual(res.clusters.length, 1, '上方无 Trace 锚点的孔群不得创建检查组');
+  const cluster = res.clusters[0];
+  assert.deepStrictEqual(cluster.signalVias.map(v => v.id).sort((a, b) => a - b), [3, 6]);
+  assert.deepStrictEqual(cluster.signalVias.map(v => v.physicalViaIds), [[3, 4, 5], [6, 7, 8]]);
+  assert.deepStrictEqual(cluster.physicalSignalVias.map(v => v.id).sort((a, b) => a - b), [3, 4, 5, 6, 7, 8]);
+  assert.ok(cluster.vias.every(v => ![1, 2, 9].includes(v.id)), '未连接上方组及其附近地孔不得污染下方检查组');
+  assert.deepStrictEqual(cluster.matchResult.signalStackAudit.map(a => a.physicalViaIds), [[3, 4, 5], [6, 7, 8]],
+    '检查审计应保留每个逻辑孔对应的全部物理盲埋孔段');
+  assert.strictEqual(cluster.centroid.y, 0, '唯一待检孔群应为有连接走线的下方孔群');
+  console.log('  PASS  双孔群与三段盲埋孔堆叠：仅连接 Trace 的下方孔群参与检查');
 }
 
 // 9. 导入 Trace (走线) 数据解析与孔群关联测试

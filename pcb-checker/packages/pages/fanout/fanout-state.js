@@ -76,6 +76,7 @@
       showBadges: true,
       measureMode: false,
       measurePoints: [],
+      returnPosition: null,
       hasInitialFit: false
     },
     modalVias: []

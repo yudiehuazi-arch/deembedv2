@@ -190,11 +190,13 @@
 
     var signalVias = vList.filter(function (v) { return !v.net || v.net.toUpperCase().indexOf('GND') < 0; });
     var sigViaCnt = signalVias.length;
-    var eligibleSigViaCnt = signalVias.filter(function (v) { return Boolean(v.hasConnections); }).length;
+    var eligibleSigViaCnt = signalVias.filter(function (v) {
+      return Boolean(v.isFanoutEligible != null ? v.isFanoutEligible : (v.hasConnections && v.hasTraceConnections));
+    }).length;
     var excludedSigViaCnt = sigViaCnt - eligibleSigViaCnt;
     var gndViaCnt = vList.length - sigViaCnt;
-    var signalHint = '信号孔 ' + sigViaCnt + '（可检查 ' + eligibleSigViaCnt +
-      (excludedSigViaCnt > 0 ? ' / 无 Connections ' + excludedSigViaCnt + ' 不参与' : '') + '） / 地孔 ' + gndViaCnt;
+    var signalHint = '信号孔段 ' + sigViaCnt + '（参与检查 ' + eligibleSigViaCnt +
+      (excludedSigViaCnt > 0 ? ' / 未关联连接走线 ' + excludedSigViaCnt + ' 不参与' : '') + '） / 地孔 ' + gndViaCnt;
     var hint = document.getElementById('lblImportParseHint');
     if (hint) {
       hint.textContent = tList.length > 0
@@ -259,7 +261,11 @@
     State.traceSummary = res.traceSummary || null;
     State.clusters = res.clusters;
     State.summary = res.summary;
+    State.selectedClusterId = null;
     State.selectedTraceId = null;
+    State.canvas.returnPosition = null;
+    var returnButton = document.getElementById('btnReturnFanoutResults');
+    if (returnButton) returnButton.style.display = 'none';
     if (root.buildCanvasSpatialGrid) root.buildCanvasSpatialGrid();
     State.page = 1;
     State.canvas.hasInitialFit = false;
@@ -351,6 +357,17 @@
     }
   }
 
+  function summarizeClusterSignals(cluster) {
+    var sigVias = cluster.signalVias || cluster.vias.filter(function (v) { return v.net && v.net.toUpperCase().indexOf('GND') < 0; });
+    var physicalSigVias = cluster.physicalSignalVias || sigVias;
+    var sigStr = sigVias.map(function (v) {
+      var segmentIds = v.physicalViaIds || [v.id];
+      var stackText = segmentIds.length > 1 ? '（孔段 #' + segmentIds.join('/#') + '）' : '';
+      return '#' + v.id + ' ' + escapeHtml(v.net) + stackText;
+    }).join(', ');
+    return { sigVias: sigVias, physicalSigVias: physicalSigVias, sigStr: sigStr, gndCount: cluster.vias.length - physicalSigVias.length };
+  }
+
   function renderResultsTable() {
     var tbody = document.getElementById('tblResultsBody');
     if (!tbody) return;
@@ -394,9 +411,9 @@
             ? ('<span class="badge-tag warn">孔距/伴随孔偏差 · ' + escapeHtml(res.schemeName) + '</span>')
             : '<span class="badge-tag bad">未匹配预设方案</span>'));
 
-      var sigVias = c.signalVias || c.vias.filter(function (v) { return v.net && v.net.toUpperCase().indexOf('GND') < 0; });
-      var sigStr = sigVias.map(function (v) { return '#' + v.id + ' ' + escapeHtml(v.net); }).join(', ');
-      var gndCount = c.vias.length - sigVias.length;
+      var signalView = summarizeClusterSignals(c);
+      var sigVias = signalView.sigVias, physicalSigVias = signalView.physicalSigVias;
+      var sigStr = signalView.sigStr, gndCount = signalView.gndCount;
       var ts = c.traceSummary || null;
       var traceInfoHtml = (ts && (ts.segmentCount > 0 || (ts.layers && ts.layers.length > 0)))
         ? ('<div style="margin-top:3px;padding:2px 6px;background:#f8fafc;border:1px solid var(--line);border-radius:4px;color:var(--pri-d);font-size:11px">' +
@@ -408,8 +425,8 @@
 
       return '<tr class="' + rowClass + '" id="row_' + c.id + '">' +
         '<td><input type="checkbox" data-no-persist ' + (isReviewed ? 'checked' : '') + ' onchange="toggleReviewCluster(\'' + c.id + '\', this.checked)"></td>' +
-        '<td><strong style="color:var(--pri);cursor:pointer" onclick="locateClusterInCanvas(\'' + c.id + '\')">' + escapeHtml(c.id) + '</strong></td>' +
-        '<td><span class="badge-tag purple">' + c.viaCount + '孔 · 信' + sigVias.length + '/地' + gndCount + '</span></td>' +
+        '<td><strong style="color:var(--pri);cursor:pointer" onclick="locateClusterInCanvas(\'' + c.id + '\', this)">' + escapeHtml(c.id) + '</strong></td>' +
+        '<td><span class="badge-tag purple">' + c.viaCount + '孔段 · 信' + sigVias.length + '孔/' + physicalSigVias.length + '段 · 地' + gndCount + '</span></td>' +
         '<td><div style="font-family:var(--mono);font-size:11px">[' + c.centroid.x.toFixed(1) + ', ' + c.centroid.y.toFixed(1) + ']</div>' +
           '<div style="font-size:11px;color:var(--sub)">跨度: ' + (maxSpan * 0.0254).toFixed(2) + ' mm</div></td>' +
         '<td style="max-width:210px;font-size:11px">' +
@@ -424,7 +441,7 @@
           '<input type="checkbox" data-no-persist ' + (isReviewed ? 'checked' : '') + ' onchange="toggleReviewCluster(\'' + c.id + '\', this.checked)">' +
           '<span>' + (isReviewed ? '已复核' : '待复核') + '</span></label></td>' +
         '<td><div style="display:flex;gap:4px">' +
-          '<button type="button" class="btn small sec" onclick="locateClusterInCanvas(\'' + c.id + '\')">定位</button>' +
+          '<button type="button" class="btn small sec" onclick="locateClusterInCanvas(\'' + c.id + '\', this)">定位</button>' +
           '<button type="button" class="btn small sec" onclick="saveClusterAsScheme(\'' + c.id + '\')">存方案</button></div></td></tr>';
     }).join('');
 
@@ -459,9 +476,14 @@
   function saveClusterAsScheme(clusterId) {
     var cluster = State.clusters.find(function (c) { return c.id === clusterId; });
     if (!cluster) return;
-    var scheme = FC.FanoutScheme.fromVias('扇出方案_' + cluster.id + '_' + cluster.viaCount + '孔', cluster.vias, {
+    var schemeVias = cluster.vias;
+    if (cluster.physicalSignalVias && cluster.signalVias) {
+      var gndVias = cluster.vias.filter(function (v) { return v.net && v.net.toUpperCase().indexOf('GND') >= 0; });
+      schemeVias = cluster.signalVias.concat(gndVias);
+    }
+    var scheme = FC.FanoutScheme.fromVias('扇出方案_' + cluster.id + '_' + schemeVias.length + '孔', schemeVias, {
       category: '提取方案',
-      description: '自 ' + cluster.id + ' 提取'
+      description: '自 ' + cluster.id + ' 提取（盲埋孔堆叠按逻辑信号孔折叠）'
     });
     State.library.addScheme(scheme);
     root.renderSchemeCards();

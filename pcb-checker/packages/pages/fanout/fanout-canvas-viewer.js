@@ -253,7 +253,7 @@
         '<table><thead><tr><th>孔号</th><th>网络</th><th>实测 Padstack</th><th>方案要求</th><th>结果</th></tr></thead>' +
         '<tbody>' + (auditRows || '<tr><td colspan="5" style="text-align:center">无比对记录</td></tr>') + '</tbody></table></div>' +
       '<div style="display:flex;gap:6px"><button type="button" class="btn small pri" onclick="saveClusterAsScheme(\'' + cluster.id + '\')" style="flex:1">存为新方案</button>' +
-      '<button type="button" class="btn small sec" onclick="switchTab(\'tabResults\')" style="flex:1">结果明细</button></div>';
+      '<button type="button" class="btn small sec" onclick="returnToFanoutResults()" style="flex:1">返回检查结果明细</button></div>';
 
     box.classList.add('active');
     renderCanvas();
@@ -276,9 +276,10 @@
     locateClusterInCanvas(pool[nextIdx].id);
   }
 
-  function locateClusterInCanvas(clusterId) {
+  function locateClusterInCanvas(clusterId, sourceElement) {
     var cluster = State.clusters.find(function (c) { return c.id === clusterId; });
     if (!cluster) return;
+    if (sourceElement && root.rememberFanoutResultPosition) root.rememberFanoutResultPosition(sourceElement, clusterId);
     root.switchTab('tabCanvas');
     var run = function () {
       resizeCanvas();
@@ -426,6 +427,11 @@
       ctx.fillStyle = '#0f172a';
       ctx.fill();
     });
+
+    var selectedCluster = State.clusters.find(function (cluster) { return cluster.id === State.selectedClusterId; });
+    if (selectedCluster && root.drawFanoutClusterIssueMarkers) {
+      root.drawFanoutClusterIssueMarkers(ctx, selectedCluster, worldToScreen, padRad);
+    }
 
     if (State.canvas.measurePoints.length === 2) {
       var ptsM = State.canvas.measurePoints.map(function (p) { return worldToScreen(p.x, p.y); });

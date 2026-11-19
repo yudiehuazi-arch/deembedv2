@@ -168,6 +168,16 @@ tr.row-pass td {
   background: #ffffff;
 }
 
+tr.fanout-located-flash td {
+  opacity: 1 !important;
+  background: #dbeafe !important;
+  border-top: 2px solid #2563eb;
+  border-bottom: 2px solid #2563eb;
+}
+
+tr.fanout-located-flash td:first-child { border-left: 2px solid #2563eb; }
+tr.fanout-located-flash td:last-child { border-right: 2px solid #2563eb; }
+
 .badge-tag.purple {
   background: #f5f3ff;
   color: var(--purple);

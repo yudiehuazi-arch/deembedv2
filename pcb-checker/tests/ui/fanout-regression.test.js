@@ -365,6 +365,45 @@ test('检查结果明细定位到空间几何视图后复核并自动同步勾�
   assert.strictEqual(rowReset.querySelectorAll('input[type="checkbox"]')[1].checked, false, '取消复核后明细表也应同步取消勾选');
 });
 
+test('结果定位标记具体问题点，返回后恢复原条目并特别框选', () => {
+  const exactMarkers = window.getFanoutClusterIssueMarkers({
+    vias: [{ id: 88, x: 10, y: 20 }], signalVias: [], centroid: { x: 0, y: 0 },
+    matchResult: {
+      pass: false,
+      padMismatchList: [{ viaId: 88 }],
+      missingVias: [{ expectedX: 30, expectedY: 40 }],
+      viaAudit: []
+    }
+  });
+  assert.deepStrictEqual(Array.from(exactMarkers, marker => marker.kind), ['padstack', 'missing'],
+    'Padstack 异常孔和缺失补孔建议坐标应生成独立问题点标记');
+  assert.deepStrictEqual(Array.from(exactMarkers, marker => [marker.x, marker.y]), [[10, 20], [30, 40]]);
+  const canvasViewerSource = fs.readFileSync(path.join(CHECKER_DIR, 'packages/pages/fanout/fanout-canvas-viewer.js'), 'utf8');
+  assert.ok(canvasViewerSource.includes('drawFanoutClusterIssueMarkers'), '几何视图渲染流程必须实际绘制问题点标记');
+
+  window.setResultFilter('all');
+  const abnormal = window.State.filteredClusters.find(c => !(c.matchResult && c.matchResult.pass));
+  assert.ok(abnormal, '应存在可定位的异常孔群');
+  window.State.page = Math.floor(window.State.filteredClusters.indexOf(abnormal) / window.State.pageSize) + 1;
+  window.renderResultsTable();
+  const sourceRow = document.getElementById(`row_${abnormal.id}`);
+  sourceRow.getBoundingClientRect = () => ({ top: 240 });
+  const locateButton = [...sourceRow.querySelectorAll('button')].find(button => button.textContent.trim() === '定位');
+  assert.ok(locateButton, '检查结果条目应提供定位按钮');
+  locateButton.click();
+
+  assert.strictEqual(window.State.activeTab, 'tabCanvas', '定位后应切换到空间几何视图');
+  assert.strictEqual(window.State.selectedClusterId, abnormal.id);
+  assert.ok(window.getFanoutClusterIssueMarkers(abnormal).length > 0, '异常孔群应至少生成一个问题点标记');
+  assert.notStrictEqual(document.getElementById('btnReturnFanoutResults').style.display, 'none', '定位后应显示返回检查结果按钮');
+  assert.ok(document.getElementById('infoBoxContent').textContent.includes('返回检查结果明细'), '孔群详情应提供返回入口');
+
+  window.returnToFanoutResults();
+  assert.strictEqual(window.State.activeTab, 'tabResults', '返回后应切回检查结果明细');
+  const returnedRow = document.getElementById(`row_${abnormal.id}`);
+  assert.ok(returnedRow.classList.contains('fanout-located-flash'), '返回的原定位条目应显示特别框选');
+});
+
 // 14. 扇出方案库快捷改名：预设关键词完备性、按顺序下划线拼接、同一关键词点选两次及新增自定义关键词测试
 test('扇出方案快捷改名：关键词点选顺序拼接、同一词点选两次与新增关键词', () => {
   const requiredKws = ['BGA', 'SMA', 'TZ', 'top', 'L2', 'L4', 'L3', 'L12', 'L11', 'L13', 'diff', 'single', '05pitch', '06pitch', '07pitch', '08pitch'];
