@@ -121,7 +121,7 @@
     var blob = (padstacks || []).join(' ');
     if (/BGA/i.test(blob)) return 'BGA';
     if (/SMA/i.test(blob)) return 'SMA';
-    return '';
+    return '其他';
   }
 
   function distMil(a, b) {

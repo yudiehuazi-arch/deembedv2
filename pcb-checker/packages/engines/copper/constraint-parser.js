@@ -214,7 +214,7 @@
     var src = String(raw || '').replace(/^\uFEFF/, '');
     if (!/反焊盘/.test(src)) return null;
     var lines = src.split(/\r?\n/);
-    var group = '', item = '', padName = '焊盘半径', rows = [], used = {}, out = [], headerSeen = false;
+    var group = '', item = '', explicitTitle = '', padName = '焊盘半径', rows = [], used = {}, out = [], headerSeen = false;
 
     function flush() {
       if (!item || !rows.length) return;
@@ -237,19 +237,19 @@
       if (start) parts.push(start);
       if (endLayer) parts.push('L' + endLayer);
       if (pitch) parts.push(pitch + 'mm');
-      var title = parts.join('-');
+      var title = explicitTitle || parts.join('-');
       if (used[title]) { used[title]++; title += '(' + used[title] + ')'; }
       else used[title] = 1;
 
       var rules = [];
       rows.forEach(function (r) {
-        var anti = String(r.anti || '').trim();
-        var pad = String(r.pad || '').trim();
+        var anti = String(r.anti || '').trim().replace(/^(?:—|–|-|不加)$/i, '无');
+        var pad = String(r.pad || '').trim().replace(/^(?:—|–|-|不加)$/i, '无');
         if (anti) rules.push({ cat: '反焊盘尺寸', name: '反焊盘半径', scope: 'L' + r.layer, value: anti, unit: 'mil', raw: 'L' + r.layer + ' 反焊盘 ' + anti + 'mil' });
         if (pad) rules.push({ cat: '焊盘尺寸', name: padName, scope: 'L' + r.layer, value: pad, unit: 'mil', raw: 'L' + r.layer + ' 焊盘 ' + pad });
       });
       if (!rules.length) return;
-      out.push({ kind: kind, title: title, group: grp, item: it, txtHead: it, source: filename || '导入文本', sourceType: 'text', image: '', rules: rules });
+      out.push({ kind: kind, title: title, group: grp, item: it, txtHead: explicitTitle ? ('约束名称：' + explicitTitle) : it, source: filename || '导入文本', sourceType: 'text', image: '', rules: rules });
     }
 
     lines.forEach(function (line0) {
@@ -261,12 +261,14 @@
         headerSeen = true;
         return;
       }
-      if (headerSeen && cols.length >= 2 && /^L?\s*\d+$/i.test(cols[0]) && /[0-9]|无/.test(cols[1] || '')) {
+      if (headerSeen && cols.length >= 2 && /^L?\s*\d+$/i.test(cols[0])) {
         rows.push({ layer: +String(cols[0]).replace(/^L/i, ''), anti: cols[1], pad: cols[2] || '' });
         return;
       }
-      if (/^[一二三四五六七八九十]+\s*[、.．]/.test(line) && line.length <= 80) { flush(); group = line; item = ''; rows = []; return; }
-      if (/^\d+\s*[.、．]\s*\S/.test(line) && line.length <= 80) { flush(); item = line; rows = []; return; }
+      var named = line.match(/^约束名称\s*[:：]\s*(.+)$/);
+      if (named) { flush(); explicitTitle = named[1].trim(); item = explicitTitle; group = ''; rows = []; headerSeen = false; return; }
+      if (/^[一二三四五六七八九十]+\s*[、.．]/.test(line) && line.length <= 80) { flush(); explicitTitle = ''; group = line; item = ''; rows = []; return; }
+      if (/^\d+\s*[.、．]\s*\S/.test(line) && line.length <= 80) { flush(); explicitTitle = ''; item = line; rows = []; return; }
     });
     flush();
     return out.length ? out : null;
@@ -347,6 +349,7 @@
   function fanLayerOf(set) {
     var title = String(set && set.title || '');
     var head = String(set && (set.txtHead || set.item) || '');
+    if (/^L\s*\d+\s*-\s*L\s*\d+$/i.test(title.trim())) return 0;
     var m = title.match(/-L(\d+)(?:-|$)/i);
     if (m) return +m[1];
     m = (head + ' ' + title).match(/L\s*(\d+)\s*层?\s*扇出/i);

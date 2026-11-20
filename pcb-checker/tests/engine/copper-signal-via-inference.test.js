@@ -184,6 +184,15 @@ t('解析 Padstack Defined from/to 作为名称层号不足时的层跨后备', 
   assert(span.start === 2 && span.end === 12, JSON.stringify(span));
 });
 
+t('未标 BGA/SMA 的换层 SIG Via 按“其他”类型和完整层跨匹配用户命名约束', () => {
+  const genericP = { id: 65, type: 'via', origin: [0, 0], net: 'CHANGE_P', padstack: 'CHANGE-SIG_L3_L29', traceLayers: [] };
+  const genericN = { id: 66, type: 'via', origin: [mil(0.5), 0], net: 'CHANGE_N', padstack: 'CHANGE-SIG_L3_L29', traceLayers: [] };
+  const genericSet = { kind: '其他', title: 'L3-L29', constraints: [] };
+  const out = C.runCopperCheck([genericP, genericN], [genericSet], { layerCount: 44 });
+  assert(out.groups.length === 2 && out.groups.every(g => g.rule && g.rule.title === 'L3-L29'),
+    JSON.stringify(out.groups.map(g => g.rule && g.rule.title)));
+});
+
 t('L1-L5 孔段读取 L13 同心 Shape，但不借此改变约束匹配层跨', () => {
   const p = { id: 70, type: 'via', origin: [0, 0], net: '37_P', padstack: 'BGA-HDI-SIG_L1_L5', traceLayers: [] };
   const n = { id: 71, type: 'via', origin: [mil(0.5), 0], net: '37_N', padstack: 'BGA-HDI-SIG_L1_L5', traceLayers: [] };

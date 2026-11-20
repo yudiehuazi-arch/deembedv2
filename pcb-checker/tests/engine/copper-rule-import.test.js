@@ -5,6 +5,7 @@ const CP = require("../../packages/engines/copper");
 const SAMPLE_DIR = path.resolve(__dirname, "../../sample");
 const sampleText = fs.readFileSync(path.join(SAMPLE_DIR, "约束示例_表格型.txt"), "utf8");
 const legacyText = fs.readFileSync(path.join(SAMPLE_DIR, "L17层扇出SMA.txt"), "utf8");
+const changeLayerText = fs.readFileSync(path.join(SAMPLE_DIR, "rule-changelayervia.txt"), "utf8");
 
 let passed = 0, failed = 0;
 function t(name, fn) {
@@ -116,6 +117,36 @@ const sets = parseAndFill(sampleText);
     eq([CP.fanLayerOf(byName('SMA-Top-L2')), CP.fanLayerOf(byName('SMA-Bot-L11'))], [2, 11]);
   });
 
+  console.log('== 已命名的多段换层孔约束表 ==');
+  const changeSets = parseAndFill(changeLayerText);
+  t('按“约束名称”直接识别为 6 条约束，而不是把层值拆成多列', () => {
+    eq(changeSets.map(s => s.title), ['L3-L29', 'L5-L31', 'L7-L33', 'L10-L36', 'L12-L38', 'L14-L40']);
+    eq(changeSets.map(s => s.constraints.map(c => c.name)), Array(6).fill(['反焊盘半径', '焊盘半径']));
+    eq(changeSets.map(s => CP.fanLayerOf(s)), [0, 0, 0, 0, 0, 0], '层跨名称不得误标为出线层');
+  });
+  t('每条约束完整读取 L1-L44 反焊盘及 5 个明确焊盘值', () => {
+    changeSets.forEach(s => {
+      eq(s.rules.filter(r => r.cat === '反焊盘尺寸').length, 44, s.title + ' 反焊盘层数');
+      eq(s.rules.filter(r => r.cat === '焊盘尺寸').length, 5, s.title + ' 焊盘层数');
+    });
+  });
+  t('L3-L29 原值直读：端点和“不加”为无，L5 焊盘为 8 mil', () => {
+    const s = changeSets[0];
+    eq([cellOf(s, '反焊盘半径', 1), cellOf(s, '反焊盘半径', 3), cellOf(s, '反焊盘半径', 21), cellOf(s, '反焊盘半径', 44)],
+      ['16', '无', '无', '16']);
+    eq([cellOf(s, '焊盘半径', 5), cellOf(s, '焊盘半径', 7), cellOf(s, '焊盘半径', 14)], ['8', '8', '8']);
+  });
+  t('其余五条约束保留各自名称、端点与焊盘层，不互相串列', () => {
+    const cases = [
+      ['L5-L31', 5, 31, 29], ['L7-L33', 7, 33, 31], ['L10-L36', 10, 36, 33],
+      ['L12-L38', 12, 38, 36], ['L14-L40', 14, 40, 38]
+    ];
+    cases.forEach(([name, start, end, padLayer]) => {
+      const s = changeSets.find(x => x.title === name);
+      eq([cellOf(s, '反焊盘半径', start), cellOf(s, '反焊盘半径', end), cellOf(s, '焊盘半径', padLayer)], ['无', '无', '8'], name);
+    });
+  });
+
   console.log('== GBK 编码 ==');
   t('GBK 字节（B7B4 BAB8 C5CC）能解成「反焊盘」', () => {
     const out = CP.decodeBuffer(new Uint8Array([0xB7, 0xB4, 0xBA, 0xB8, 0xC5, 0xCC]));
@@ -127,6 +158,13 @@ const sets = parseAndFill(sampleText);
     const dec = CP.decodeBuffer(gbk);
     eq(dec.enc, 'GB18030');
     eq(parseAndFill(dec.text).length, 22);
+  });
+  t('GBK 换层孔文件解码后仍保留 6 个用户命名和 44 层数据', () => {
+    const dec = CP.decodeBuffer(gbkBytes(changeLayerText));
+    const decodedSets = parseAndFill(dec.text);
+    eq(dec.enc, 'GB18030');
+    eq(decodedSets.map(s => s.title), changeSets.map(s => s.title));
+    eq(decodedSets.map(s => s.rules.length), [49, 49, 49, 49, 49, 49]);
   });
 
   console.log('== 老格式不回归 ==');

@@ -12,6 +12,7 @@ const { openPage, readPageCss, CHECKER_DIR } = require('../helpers/open-page');
 const ctx = openPage('copper.html');
 const { w, d } = ctx;
 const sampleText = fs.readFileSync(path.join(CHECKER_DIR, 'sample/约束示例_表格型.txt'), 'utf8');
+const changeLayerText = fs.readFileSync(path.join(CHECKER_DIR, 'sample/rule-changelayervia.txt'), 'utf8');
 
 let passed = 0, failed = 0;
 function t(name, fn) {
@@ -86,6 +87,26 @@ setTimeout(() => {
     if (!/flex-wrap:\s*wrap/.test(block)) throw new Error('没有横向换行：' + block);
     if (!/width:\s*100%/.test(block)) throw new Error('没有占满整行：' + block);
     if (/max-width:\s*250px/.test(block)) throw new Error('还是竖列宽度：' + block);
+  });
+
+  w.eval('(function(txt){S.queue=[{id:2,name:"rule-changelayervia.txt",text:txt,status:""}];rebuild();})')(changeLayerText);
+
+  t('换层孔 TXT 按用户命名渲染 6 个约束卡和 12 列参数', () => {
+    eq([].map.call(d.querySelectorAll('#sets .setTitle'), el => el.value),
+      ['L3-L29', 'L5-L31', 'L7-L33', 'L10-L36', 'L12-L38', 'L14-L40']);
+    eq(d.querySelectorAll('#sets .set').length, 6, '约束卡');
+    eq([].map.call(d.querySelectorAll('#sets .set'), el => el.querySelectorAll('thead th').length), [3, 3, 3, 3, 3, 3], '层列加反焊盘/焊盘两列');
+    const hint = d.getElementById('genHint').textContent;
+    if (!/6 条约束 \/ 12 列参数/.test(hint)) throw new Error(hint);
+  });
+
+  t('换层孔 TXT 自动显示 L1-L44，端点不加、焊盘 8 mil 均落在正确单元格', () => {
+    eq(w.eval('layerCount()'), 44, '自动层数');
+    eq(d.querySelectorAll('#set-0 tbody tr').length, 44, 'L1-L44');
+    if (d.querySelector('#set-0 tbody tr:nth-child(29) .lname').textContent.includes('出线层')) throw new Error('L3-L29 被误当成出线层约束');
+    const value = (si, ci, key) => d.querySelector(`.cCell[data-si="${si}"][data-ci="${ci}"][data-key="${key}"]`).value;
+    eq([value(0, 0, 'L1'), value(0, 0, 'L3'), value(0, 0, 'L21'), value(0, 1, 'L5')], ['16', '无', '无', '8']);
+    eq([value(5, 0, 'L14'), value(5, 0, 'L40'), value(5, 1, 'L38')], ['无', '无', '8']);
   });
 
   t('命名说明不在页头，落在页尾，内容含命名与填法规则', () => {
