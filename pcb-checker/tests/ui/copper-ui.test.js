@@ -149,8 +149,10 @@ setTimeout(() => {
       '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
     ].join('\n');
     w.__padTxtFail = padTxtFail;
+    $('inpN').value = '8';
     w.eval("S.sets=[{kind:'BGA',title:'BGA-L2',fanLayer:2,constraints:[{cat:'反焊盘尺寸',name:'反焊盘半径',unit:'mil',values:{L1:'12',L2:'10'}}]}]; UI.items=CopperCheck.parseBoardItems(window.__padTxtFail); runCheck(true); renderResults();");
     const g = w.eval('UI.result.groups[0]');
+    $('inpN').value = '';
     const padRow = g.rows.find(r => r.checkType === 'Padstack层名');
     if (!padRow || padRow.status !== '不符合' || !padRow.reason.includes('缺少连接层 L8')) {
       throw new Error('Padstack 连接层核对异常：' + JSON.stringify(padRow));
@@ -161,7 +163,7 @@ setTimeout(() => {
     }
     const missL2 = g.rows.find(r => r.layer === 2 && r.missing);
     if (!missL2 || missL2.actual !== '无铜皮' || missL2.status !== '不符合' || missL2.sourcePadstack !== 'test BGA SIG 3510 L2 ring3mil') {
-      throw new Error('L2 缺失层未补齐并标明来源');
+      throw new Error('L2 缺失层未补齐并标明来源：' + JSON.stringify(missL2));
     }
   });
 

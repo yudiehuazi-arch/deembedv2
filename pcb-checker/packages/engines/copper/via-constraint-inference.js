@@ -94,6 +94,19 @@
     return list.filter(function (via) { return viaCoversLayer(via, layer, n); });
   }
 
+  function sourceOwnersForShape(owners, layer, n) {
+    var list = sourceOwnersForLayer(owners, 0, n);
+    var covering = sourceOwnersForLayer(list, layer, n);
+    if (covering.length || !(typeof layer === 'number' && layer > 0)) return covering.length ? covering : list;
+    var ranked = list.map(function (via) {
+      var span = spanOfVia(via, n);
+      var distance = span.start && span.end ? (layer < span.start ? span.start - layer : layer - span.end) : Infinity;
+      return { via: via, distance: distance };
+    });
+    var nearest = Math.min.apply(null, ranked.map(function (item) { return item.distance; }));
+    return isFinite(nearest) ? ranked.filter(function (item) { return item.distance === nearest; }).map(function (item) { return item.via; }) : list;
+  }
+
   function sourceSegments(vias, n) {
     return sourceOwnersForLayer(vias, 0, n).map(function (via) {
       var span = spanOfVia(via, n);
@@ -329,6 +342,7 @@
     spanOfVia: spanOfVia,
     viaCoversLayer: viaCoversLayer,
     sourceOwnersForLayer: sourceOwnersForLayer,
+    sourceOwnersForShape: sourceOwnersForShape,
     sourceSegments: sourceSegments,
     isSegmentDistance: isSegmentDistance,
     groupVias: groupVias,

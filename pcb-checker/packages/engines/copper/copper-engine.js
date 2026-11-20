@@ -301,7 +301,7 @@
             var list = circleGrid[cx + ',' + cy];
             if (list) list.forEach(function (sh) {
               var sourceLayer = subsetToLayer(sh.subset, n);
-              if (!sourceLayer || !VI.viaCoversLayer(part, sourceLayer, n) || dist(part.origin, sh.center) > posTol) return;
+              if (!sourceLayer || dist(part.origin, sh.center) > posTol) return;
               if (!nearSeen[sh.id]) { nearSeen[sh.id] = 1; near.push(sh); used[sh.id] = 1; }
               var owners = nearOwners[sh.id] || (nearOwners[sh.id] = []);
               if (!owners.some(function (v) { return String(v.id) === String(part.id); })) owners.push(part);
@@ -391,7 +391,7 @@
               rows.push({
                 shapeId: 'none', subset: '—', layer: ln, checkType: ctype,
                 actual: '无铜皮', expect: String(v), status: '不符合',
-                constraint: c.name || '', reason: '规则要求检查该层，但没有匹配到属于覆盖该层孔段的铜皮数据',
+                constraint: c.name || '', reason: '规则要求检查该层，但没有匹配到同心铜皮数据',
                 missing: true, enabled: true
               });
             }
@@ -399,7 +399,7 @@
         });
       }
 
-      // 全部规则层都检查；层跨外没有合资格 Shape 时判缺失且不借用最近 Padstack。
+      // 匹配规则后显示 L1-Ln；同心 Shape 全部读取，来源优先取覆盖层、否则取最近孔段。
       if (unit.signal && unit.startLayer && unit.endLayer) {
         var spanTypes = {}, spanPresent = {};
         rows.forEach(function (r) {
@@ -413,7 +413,7 @@
             if (ctype && enabled[ctype] !== false) spanTypes[ctype] = 1;
           });
         }
-        for (var spanLayer = unit.startLayer; spanLayer <= unit.endLayer; spanLayer++) {
+        for (var spanLayer = sel.rule ? 1 : unit.startLayer; spanLayer <= (sel.rule ? n : unit.endLayer); spanLayer++) {
           Object.keys(spanTypes).forEach(function (ctype) {
             var spanKey = spanLayer + ':' + ctype;
             if (spanPresent[spanKey]) return;
@@ -502,7 +502,7 @@
       rows.forEach(function (row) {
         var owners = nearOwners[row.shapeId] || unit.vias;
         if (row.namingViaId != null) owners = unit.vias.filter(function (part) { return String(part.id) === String(row.namingViaId); });
-        else if (!row.isPadstackCheck) owners = VI.sourceOwnersForLayer(owners, row.layer, n);
+        else if (!row.isPadstackCheck) owners = nearOwners[row.shapeId] ? VI.sourceOwnersForShape(owners, row.layer, n) : VI.sourceOwnersForLayer(owners, row.layer, n);
         var sourceSegments = VI.sourceSegments(owners, n);
         row.sourceViaIds = sourceSegments.map(function (part) { return part.viaId; });
         row.sourceViaSpans = sourceSegments.map(function (part) { return 'Via ' + part.viaId + ' · ' + part.spanText; }).join(' / ') || '无孔段覆盖该层';

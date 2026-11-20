@@ -111,12 +111,12 @@ t('同封装与完整层跨下选择中心距最近的 BGA-L2-L12-0.6mm 约束',
   assert(nGroup.rule && nGroup.rule.title === 'BGA-L2-L12-0.6mm', nGroup.rule && nGroup.rule.title);
 });
 
-t('完整孔只吸收各孔段自身层跨内的 Route Keepout', () => {
+t('完整孔读取各孔段同心位置的全部 Route Keepout，不按 Padstack 层跨裁掉 Shape', () => {
   const real = pGroup.rows.filter(r => !r.missing && !r.isPadstackCheck);
-  assert(real.length === 6, '配对 Route Keepout=' + real.length);
+  assert(real.length === 8, '配对 Route Keepout=' + real.length);
   assert(real.every(r => r.status === '符合'), real.map(r => `${r.layer}:${r.status}`).join(','));
-  assert(!real.some(r => r.layer === 1 || r.layer === 14), 'L2-L12 整合孔不应借用 Top/Bottom Shape');
-  assert(result.unmatchedCircles.some(s => s.id === 24) && result.unmatchedCircles.some(s => s.id === 25), '层跨外 Shape 应保持未配对');
+  assert(real.some(r => r.layer === 1 && r.shapeId === 24) && real.some(r => r.layer === 14 && r.shapeId === 25), '同心 Top/Bottom Shape 未纳入');
+  assert(!result.unmatchedCircles.some(s => s.id === 24 || s.id === 25), '同心层跨外 Shape 不应保持未配对');
 });
 
 t('L5/L10 交界层的每条 Route Keepout 只追溯实际所在孔段', () => {
@@ -141,7 +141,7 @@ t('逐层来源严格取覆盖本层的孔段，不向最近端点越层借用',
   assert(l11.sourcePadstack === 'BGA-HDI-SIG_L10_L12' && l11.sourceViaSpans === 'Via 3 · L10-L12', JSON.stringify(l11));
 });
 
-t('14 层约束逐层全检，孔段层跨外仍判缺失但不借用来源 Padstack', () => {
+t('14 层叠层逐层全检，同心层跨外 Shape 使用最近物理孔段作为来源', () => {
   const geometryRows = pGroup.rows.filter(r => !r.isPadstackCheck);
   for (let layer = 1; layer <= 14; layer++) {
     assert(geometryRows.some(r => r.layer === layer), '结果缺少 L' + layer);
@@ -150,12 +150,11 @@ t('14 层约束逐层全检，孔段层跨外仍判缺失但不借用来源 Pads
   assert(sparse && sparse.missing && sparse.status === '不符合', JSON.stringify(sparse));
   assert(sparse.actual === '无铜皮' && sparse.expect === '10', JSON.stringify(sparse));
   assert(sparse.sourcePadstack === 'BGA-HDI-SIG_L2_L5' && sparse.sourceViaIds.join('/') === '1', JSON.stringify(sparse));
-  [1, 13, 14].forEach(layer => {
-    const outside = geometryRows.find(r => r.layer === layer);
-    assert(outside && outside.missing && outside.status === '不符合', JSON.stringify(outside));
-    assert(outside.sourceViaIds.length === 0 && outside.sourceViaSpans === '无孔段覆盖该层', JSON.stringify(outside));
-    assert(outside.sourcePadstack === '无覆盖 Padstack', JSON.stringify(outside));
-  });
+  const top = geometryRows.find(r => r.shapeId === 24), bottom = geometryRows.find(r => r.shapeId === 25);
+  assert(top && top.layer === 1 && top.sourceViaIds.join('/') === '1' && top.sourcePadstack === 'BGA-HDI-SIG_L2_L5', JSON.stringify(top));
+  assert(bottom && bottom.layer === 14 && bottom.sourceViaIds.join('/') === '3' && bottom.sourcePadstack === 'BGA-HDI-SIG_L10_L12', JSON.stringify(bottom));
+  const l13 = geometryRows.find(r => r.layer === 13);
+  assert(l13 && l13.missing && l13.status === '不符合' && !l13.sourceViaIds.length, JSON.stringify(l13));
 });
 
 t('不含 SIG 的过孔保留显示，但不推算约束且配对 Keepout 为未检查', () => {
@@ -185,7 +184,7 @@ t('解析 Padstack Defined from/to 作为名称层号不足时的层跨后备', 
   assert(span.start === 2 && span.end === 12, JSON.stringify(span));
 });
 
-t('L1-L5 孔段只提供 L1-L5 数据，不用 L13 同心 Shape 补长层跨', () => {
+t('L1-L5 孔段读取 L13 同心 Shape，但不借此改变约束匹配层跨', () => {
   const p = { id: 70, type: 'via', origin: [0, 0], net: '37_P', padstack: 'BGA-HDI-SIG_L1_L5', traceLayers: [] };
   const n = { id: 71, type: 'via', origin: [mil(0.5), 0], net: '37_N', padstack: 'BGA-HDI-SIG_L1_L5', traceLayers: [] };
   const circles = [p, n].flatMap((via, index) => [
@@ -201,8 +200,11 @@ t('L1-L5 孔段只提供 L1-L5 数据，不用 L13 同心 Shape 补长层跨', (
   const top = group.rows.find(row => row.shapeId === 80);
   assert(group.rule && group.rule.title === 'BGA-Top-L5-0.5mm', group.rule && group.rule.title);
   assert(top && top.sourcePadstack === 'BGA-HDI-SIG_L1_L5' && top.status === '不符合', JSON.stringify(top));
-  assert(!group.rows.some(row => row.layer === 13), 'L13 Shape 不得塞入 L1-L5 检查表');
-  assert(out.unmatchedCircles.some(shape => shape.id === 81), 'L13 Shape 应保持未配对，等待覆盖该层的其他孔段');
+  const l13 = group.rows.find(row => row.shapeId === 81);
+  assert(l13 && l13.layer === 13 && l13.actual === 10 && l13.status === '无约束', JSON.stringify(l13));
+  assert(l13.sourceViaIds.join('/') === '70' && l13.sourcePadstack === 'BGA-HDI-SIG_L1_L5', JSON.stringify(l13));
+  for (let layer = 1; layer <= 14; layer++) assert(group.rows.some(row => row.layer === layer), '结果缺少 L' + layer);
+  assert(!out.unmatchedCircles.some(shape => shape.id === 81), 'L13 同心 Shape 应纳入整合孔');
 });
 
 console.log(`\n结果: ${passed} 通过, ${failed} 失败`);
