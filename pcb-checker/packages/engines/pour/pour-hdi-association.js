@@ -68,9 +68,13 @@
         if (maxDistanceMil != null && distance > maxDistanceMil + 1e-9) return;
         const candidateTolerance = viaShapeContactTolerance(candidate);
         if (!components.some(shape => pointToShapeDistance(candidate.x, candidate.y, shape) <= candidateTolerance)) return;
+        const connectionShapeNets = [...new Set(components.map(shape => String(shape.net || '').trim()).filter(Boolean))];
+        const referenceNets = connectionShapeNets.length ? connectionShapeNets : [String(via.net || '').trim()].filter(Boolean);
+        const candidateNet = String(candidate.net || '').trim();
         const association = {
           via: candidate, distance, associationMode: 'copper_connected', connectionLayer: actualLayer,
-          connectionShapeIds: components.map(shape => shape.id)
+          connectionShapeIds: components.map(shape => shape.id), connectionShapeNets,
+          hdiNetMismatch: referenceNets.length > 0 && !referenceNets.some(net => net.toLowerCase() === candidateNet.toLowerCase())
         };
         const previous = found.get(candidate);
         if (!previous || distance < previous.distance - 1e-9 ||
@@ -97,7 +101,7 @@
     const byVia = new Map();
     source.filter(candidate => candidate !== via).forEach(candidate => byVia.set(candidate, {
       via: candidate, distance: dist2D(via.x, via.y, candidate.x, candidate.y), associationMode: 'same_net',
-      connectionLayer: '', connectionShapeIds: []
+      connectionLayer: '', connectionShapeIds: [], connectionShapeNets: [], hdiNetMismatch: false
     }));
     (copperCandidates || []).forEach(item => byVia.set(item.via, item));
     const nearby = Array.from(byVia.values())

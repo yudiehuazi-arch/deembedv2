@@ -4,12 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PCB 铜皮检查工具</title>
-<link rel="stylesheet" href="assets/styles/tokens.css?v=74">
-<link rel="stylesheet" href="assets/styles/eda-shell.css?v=74">
-<link rel="stylesheet" href="assets/styles/eda-dock.css?v=74">
-<link rel="stylesheet" href="assets/styles/components.css?v=74">
-<link rel="stylesheet" href="assets/styles/pages/pour.css?v=74">
-<link rel="stylesheet" href="assets/styles/check-guide.css?v=74">
+<link rel="stylesheet" href="assets/styles/tokens.css?v=75">
+<link rel="stylesheet" href="assets/styles/eda-shell.css?v=75">
+<link rel="stylesheet" href="assets/styles/eda-dock.css?v=75">
+<link rel="stylesheet" href="assets/styles/components.css?v=75">
+<link rel="stylesheet" href="assets/styles/pages/pour.css?v=75">
+<link rel="stylesheet" href="assets/styles/check-guide.css?v=75">
 </head>
 <body class="eda-workbench">
 
@@ -146,8 +146,8 @@
                 <th style="width:68px">缩略图</th>
                 <th>模板名称</th>
                 <th data-tip="目标过孔 Padstack 匹配关键字">过孔类型</th>
-                <th data-tip="可选；搜索范围内任一同 Net，或通过同一 Set=Shape 铜皮实际接触且层跨兼容、Padstack 名带 HDI 的孔，只要与对应差分网络 HDI 的中心距命中该值即可，单位 mil，容差 0.01 mil">差分孔中心距</th>
-                <th data-tip="可选；目标过孔到同 Net，或通过同一 Set=Shape 铜皮实际接触且层跨兼容、Padstack 名含 HDI 的孔的最大关联距离，留空不限制">HDI 搜索距离 mm</th>
+                <th data-tip="可选；搜索范围内任一同 Net，或通过同一 Set=Shape 铜皮实际接触且层跨兼容、Padstack 名带 HDI 的孔可作为候选；接触铜皮 Net 与 HDI Net 不一致仍判为异常。候选只要与对应差分网络 HDI 的中心距命中该值即可，单位 mil，容差 0.01 mil">差分孔中心距</th>
+                <th data-tip="可选；目标过孔到同 Net，或通过同一 Set=Shape 铜皮实际接触且层跨兼容、Padstack 名含 HDI 的候选孔的最大关联距离；接触铜皮 Net 与 HDI Net 不一致仍判为异常，留空不限制距离">HDI 搜索距离 mm</th>
                 <th data-tip="匹配 TXT Shape 的 Subset；Board Geometry 可填写 Soldermask Top、Silkscreen Top 或 Outline；多个值使用逗号、分号或斜杠分隔">目标层别</th>
                 <th data-tip="只匹配 Shape Item 中 Set 字段相同的对象">异型铜皮 Set 类别</th>
                 <th>基准面积与容差</th>
@@ -506,12 +506,12 @@
         <div class="chip-bar" id="chipsModalR2Padstack"></div>
       </div>
       <div class="form-item">
-        <label for="modalR2InpDiffDist" data-tip="可选；搜索范围内任一同 Net，或通过同一 Set=Shape 铜皮实际接触且层跨兼容、Padstack 名带 HDI 的孔，只要与对应差分网络 HDI 的中心距命中该值即可，单位 mil，容差 0.01 mil">差分孔中心距</label>
+        <label for="modalR2InpDiffDist" data-tip="可选；搜索范围内任一同 Net，或通过同一 Set=Shape 铜皮实际接触且层跨兼容、Padstack 名带 HDI 的孔可作为候选；接触铜皮 Net 与 HDI Net 不一致仍判为异常。候选只要与对应差分网络 HDI 的中心距命中该值即可，单位 mil，容差 0.01 mil">差分孔中心距</label>
         <input type="number" id="modalR2InpDiffDist" value="" placeholder="留空则不检查中心距" step="0.01" min="0.01" data-no-persist>
         <div class="chip-bar" id="chipsModalR2DiffDist"></div>
       </div>
       <div class="form-item">
-        <label for="modalR2InpHdiRadius" data-tip="可选；目标过孔到同 Net，或通过同一 Set=Shape 铜皮实际接触且层跨兼容、Padstack 名含 HDI 的孔的最大关联距离，留空不限制">HDI 搜索距离 mm</label>
+        <label for="modalR2InpHdiRadius" data-tip="可选；目标过孔到同 Net，或通过同一 Set=Shape 铜皮实际接触且层跨兼容、Padstack 名含 HDI 的候选孔的最大关联距离；接触铜皮 Net 与 HDI Net 不一致仍判为异常，留空不限制距离">HDI 搜索距离 mm</label>
         <input type="number" id="modalR2InpHdiRadius" value="" placeholder="留空则不限制搜索距离" step="0.001" min="0.001" data-no-persist>
         <div class="chip-bar" id="chipsModalR2HdiRadius"></div>
       </div>
@@ -613,26 +613,26 @@
   </div>
 </div>
 
-<script src="packages/shared/check-guide.js?v=74"></script>
-<script src="packages/shared/dom-utils.js?v=74"></script>
-<script src="packages/shared/shape-preview-canvas.js?v=74"></script>
-<script src="packages/engines/pour/pour-geom.js?v=74"></script>
-<script src="packages/engines/pour/pour-parser.js?v=74"></script>
-<script src="packages/engines/pour/pour-trace-margin.js?v=74"></script>
-<script src="packages/engines/pour/pour-hdi-association.js?v=74"></script>
-<script src="packages/engines/pour/pour-engine.js?v=74"></script>
-<script src="packages/pages/pour/pour-state.js?v=74"></script><script src="packages/pages/pour/pour-check-runner.js?v=74"></script>
-<script src="packages/pages/pour/pour-rules-ui.js?v=74"></script>
-<script src="packages/pages/pour/pour-result-problem.js?v=74"></script>
-<script src="packages/pages/pour/pour-results-ui.js?v=74"></script>
-<script src="packages/pages/pour/pour-results-filters.js?v=74"></script>
-<script src="packages/pages/pour/pour-results-column-filters.js?v=74"></script>
-<script src="packages/pages/pour/pour-canvas-viewer.js?v=74"></script>
-<script src="packages/pages/pour/pour-canvas-defects.js?v=74"></script>
-<script src="packages/pages/pour/pour-canvas-navigation.js?v=74"></script>
-<script src="packages/pages/pour/pour-defect-summary.js?v=74"></script>
-<script src="packages/shared/eda-tooltip.js?v=74"></script>
-<script src="packages/shared/eda-shell.js?v=74"></script>
-<script src="packages/shared/ui-prefs.js?v=74"></script>
+<script src="packages/shared/check-guide.js?v=75"></script>
+<script src="packages/shared/dom-utils.js?v=75"></script>
+<script src="packages/shared/shape-preview-canvas.js?v=75"></script>
+<script src="packages/engines/pour/pour-geom.js?v=75"></script>
+<script src="packages/engines/pour/pour-parser.js?v=75"></script>
+<script src="packages/engines/pour/pour-trace-margin.js?v=75"></script>
+<script src="packages/engines/pour/pour-hdi-association.js?v=75"></script>
+<script src="packages/engines/pour/pour-engine.js?v=75"></script>
+<script src="packages/pages/pour/pour-state.js?v=75"></script><script src="packages/pages/pour/pour-check-runner.js?v=75"></script>
+<script src="packages/pages/pour/pour-rules-ui.js?v=75"></script>
+<script src="packages/pages/pour/pour-result-problem.js?v=75"></script>
+<script src="packages/pages/pour/pour-results-ui.js?v=75"></script>
+<script src="packages/pages/pour/pour-results-filters.js?v=75"></script>
+<script src="packages/pages/pour/pour-results-column-filters.js?v=75"></script>
+<script src="packages/pages/pour/pour-canvas-viewer.js?v=75"></script>
+<script src="packages/pages/pour/pour-canvas-defects.js?v=75"></script>
+<script src="packages/pages/pour/pour-canvas-navigation.js?v=75"></script>
+<script src="packages/pages/pour/pour-defect-summary.js?v=75"></script>
+<script src="packages/shared/eda-tooltip.js?v=75"></script>
+<script src="packages/shared/eda-shell.js?v=75"></script>
+<script src="packages/shared/ui-prefs.js?v=75"></script>
 </body>
 </html>

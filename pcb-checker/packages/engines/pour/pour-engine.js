@@ -116,7 +116,7 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
         actualHdiViaNet: nearestHdi ? nearestHdi.via.net : null,
         hdiAssociationDistance: nearestHdi ? nearestHdi.distance : null,
         hdiAssociationMode: nearestHdi ? 'same_net' : null,
-        hdiConnectionLayer: null, hdiConnectionShapeIds: [],
+        hdiConnectionLayer: null, hdiConnectionShapeIds: [], hdiConnectionShapeNets: [], hdiNetMismatch: false,
         pairedHdiViaId: pairedHdi ? pairedHdi.via.id : null,
         pairedHdiViaPadstack: pairedHdi ? pairedHdi.via.padstack : null,
         actualDifferentialCenterDistance: pairedHdi ? pairedHdi.distance : null,
@@ -194,8 +194,12 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
           const bestShapeIds = bestShape ? (bestShape.itemIds || [bestShape.id]) : [];
           let targetDesc = `孔 #${via.id}`;
           if (nearbyHdi) {
+            const connectionNets = (nearbyHdi.connectionShapeNets || []).join(' / ') || via.net || '-';
+            const netStatus = nearbyHdi.hdiNetMismatch
+              ? `接触铜皮 Net=${connectionNets}，HDI Net=${nearbyHdi.via.net || '-'}，网络不一致`
+              : `HDI Net=${nearbyHdi.via.net || '-'}`;
             targetDesc += nearbyHdi.associationMode === 'copper_connected'
-              ? ` 在 ${roundN(nearbyHdi.distance, 3)} mil 内通过 ${nearbyHdi.connectionLayer} 层铜皮 Shape #${nearbyHdi.connectionShapeIds.join(' + #')} 关联 HDI 孔 #${nearbyHdi.via.id}（HDI Net=${nearbyHdi.via.net || '-'}）`
+              ? ` 在 ${roundN(nearbyHdi.distance, 3)} mil 内通过 ${nearbyHdi.connectionLayer} 层铜皮 Shape #${nearbyHdi.connectionShapeIds.join(' + #')} 关联 HDI 孔 #${nearbyHdi.via.id}（${netStatus}）`
               : ` 在 ${roundN(nearbyHdi.distance, 3)} mil 内关联同网络 HDI 孔 #${nearbyHdi.via.id}`;
           }
           if (pairedHdi) targetDesc += `，HDI 孔 #${nearbyHdi.via.id} 与差分 HDI 孔 #${pairedHdi.via.id} 中心距 ${roundN(pairedHdi.distance, 3)} mil`;
@@ -213,6 +217,12 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
               failReason = `铜皮 Shape #${bestShapeIds.join(' + #')} 合计面积为 ${roundN(bestShape.area, 1)} sq mil，与模板期望面积 ${roundN(expectedArea, 1)} sq mil 偏差 ${roundN(areaDiff, 1)} sq mil (超出容差 ±${tolArea})`;
             }
           }
+          if (nearbyHdi && nearbyHdi.hdiNetMismatch) {
+            const connectionNets = (nearbyHdi.connectionShapeNets || []).join(' / ') || via.net || '-';
+            const netMismatchReason = `实际接触的 ${nearbyHdi.connectionLayer} 层铜皮 Net=${connectionNets}，但 HDI 孔 #${nearbyHdi.via.id} Net=${nearbyHdi.via.net || '-'}，网络不一致，按异常处理`;
+            isMatch = false;
+            failReason = netMismatchReason + (failReason ? `；${failReason}` : '');
+          }
           results.push({
             checkCategory: 'special_shape', checkCategoryName: '② 特定异型铜皮比对检查',
             templateIndex: tIdx + 1, templateId: tmpl.id || `special_shape_${tIdx + 1}`, templateName: tmplName,
@@ -223,6 +233,8 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
             hdiAssociationMode: nearbyHdi ? nearbyHdi.associationMode : null,
             hdiConnectionLayer: nearbyHdi ? nearbyHdi.connectionLayer : null,
             hdiConnectionShapeIds: nearbyHdi ? nearbyHdi.connectionShapeIds : [],
+            hdiConnectionShapeNets: nearbyHdi ? nearbyHdi.connectionShapeNets : [],
+            hdiNetMismatch: nearbyHdi ? nearbyHdi.hdiNetMismatch : false,
             pairedHdiViaId: pairedHdi ? pairedHdi.via.id : null,
             pairedHdiViaPadstack: pairedHdi ? pairedHdi.via.padstack : null,
             hdiSearchRadiusMm,
@@ -407,8 +419,12 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
         g.passCount = subs.length - failedSubs.length;
         const hdiMetrics = [];
         if (s0.actualHdiViaId != null) {
+          const connectionNets = (s0.hdiConnectionShapeNets || []).join(' / ') || s0.viaNet || '-';
+          const netMetric = s0.hdiNetMismatch
+            ? `接触铜皮 Net=${connectionNets}，HDI Net=${s0.actualHdiViaNet || '-'}，网络不一致（异常）`
+            : `HDI Net=${s0.actualHdiViaNet || '-'}`;
           hdiMetrics.push(s0.hdiAssociationMode === 'copper_connected'
-            ? `目标孔 #${s0.viaId} → ${s0.hdiConnectionLayer} 层铜皮 Shape #${(s0.hdiConnectionShapeIds || []).join(' + #')} → HDI #${s0.actualHdiViaId}（Net=${s0.actualHdiViaNet || '-'}），关联距离 ${roundN(s0.hdiAssociationDistance, 3)} mil`
+            ? `目标孔 #${s0.viaId} → ${s0.hdiConnectionLayer} 层铜皮 Shape #${(s0.hdiConnectionShapeIds || []).join(' + #')} → HDI #${s0.actualHdiViaId}（${netMetric}），关联距离 ${roundN(s0.hdiAssociationDistance, 3)} mil`
             : `目标孔 #${s0.viaId} → 同网络 HDI #${s0.actualHdiViaId}，关联距离 ${roundN(s0.hdiAssociationDistance, 3)} mil`);
         }
         if (s0.pairedHdiViaId != null) hdiMetrics.push(`HDI #${s0.actualHdiViaId} ↔ 差分 HDI #${s0.pairedHdiViaId}，实测中心距 ${roundN(s0.actualDifferentialCenterDistance, 3)} mil`);

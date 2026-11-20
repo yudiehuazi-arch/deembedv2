@@ -439,7 +439,7 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   console.log('  PASS  第二项：via2_8-top 在 0.5334 mm 内按 23.62 mil HDI 差分孔距检查 Top 面 103.6 sq mil 铜皮');
 }
 
-// 4.1b 封装内外 Net 改名时，允许通过目标孔同网络铜皮的真实几何连通关联 HDI
+// 4.1b 封装内外 Net 改名时，通过实际铜皮定位 HDI，但网络不一致仍必须判为异常
 {
   const topShape = {
     id: 21848, layer: 'Top', set: 'Shape', net: '25_N', area: 109.78617,
@@ -469,14 +469,17 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
     layer: 'L1', set: 'Shape', expectedArea: 109.78617, areaTolerance: 0.001
   }]);
   assert.strictEqual(results.length, 1);
-  assert.strictEqual(results[0].pass, true);
+  assert.strictEqual(results[0].pass, false, '实际接触铜皮与 HDI 的 Net 不一致时，即使孔距和面积正确也必须判为异常');
   assert.strictEqual(results[0].actualHdiViaId, 54649, '应选择落入 Top 铜皮且层跨兼容的 HDI，而不是同坐标 L10 堆叠孔');
   assert.strictEqual(results[0].pairedHdiViaId, 54532, '差分 HDI 也必须与已关联 HDI 的层跨兼容');
   assert.strictEqual(results[0].hdiAssociationMode, 'copper_connected');
   assert.strictEqual(results[0].hdiConnectionLayer, 'Top');
   assert.deepStrictEqual(results[0].hdiConnectionShapeIds, [21848]);
-  assert.ok(/通过 Top 层铜皮 Shape #21848 关联 HDI 孔 #54649/.test(results[0].message));
-  console.log('  PASS  第二项：封装内外 Net 改名时按同一 Top 铜皮几何连通关联层跨兼容的 HDI 差分孔');
+  assert.deepStrictEqual(results[0].hdiConnectionShapeNets, ['25_N']);
+  assert.strictEqual(results[0].hdiNetMismatch, true);
+  assert.ok(/接触铜皮 Net=25_N，HDI Net=33_P，网络不一致/.test(results[0].message));
+  assert.ok(/网络不一致，按异常处理/.test(results[0].message));
+  console.log('  PASS  第二项：按 Top 铜皮定位改名 HDI 与兼容差分孔，并将铜皮/HDI 网络不一致明确判为异常');
 }
 
 // 4.2 差分孔中心距与 HDI 搜索距离分别可选，且只应用已配置字段
