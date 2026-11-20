@@ -57,7 +57,7 @@
       var layer = record.layer || record.refLayer || record.traceLayer;
       if (layer) row.layers[String(layer)] = 1;
     });
-    return Object.keys(map).map(function (key) {
+    var baseRows = Object.keys(map).map(function (key) {
       var row = map[key];
       var objects = groupedObjects(row.records);
       row.objectCount = objects.length;
@@ -73,6 +73,34 @@
         var pointKey = marker.targetLabel + '|' + marker.x + '|' + marker.y;
         if (!row.pointKeys[pointKey]) { row.pointKeys[pointKey] = 1; row.points.push(marker); }
       });
+      row.fixes = rowFixes(row);
+      return row;
+    });
+    var merged = {}, mergedOrder = [];
+    baseRows.forEach(function (row) {
+      var mergeKey = JSON.stringify([row.category, Object.keys(row.layers).sort(), row.fixes.slice().sort()]);
+      if (!merged[mergeKey]) {
+        row.padstacks = {}; row.padstacks[row.padstack] = 1;
+        row.networks = {}; row.networks[row.network] = 1;
+        merged[mergeKey] = row; mergedOrder.push(row);
+        return;
+      }
+      var target = merged[mergeKey];
+      target.padstacks[row.padstack] = 1; target.networks[row.network] = 1;
+      target.records = target.records.concat(row.records);
+      Object.keys(row.pointKeys).forEach(function (pointKey) {
+        if (target.pointKeys[pointKey]) return;
+        target.pointKeys[pointKey] = 1;
+        target.points.push(row.points.find(function (point) {
+          return point.targetLabel + '|' + point.x + '|' + point.y === pointKey;
+        }));
+      });
+    });
+    return mergedOrder.map(function (row) {
+      row.padstack = Object.keys(row.padstacks).join('、');
+      row.network = Object.keys(row.networks).join('、');
+      row.detailCount = row.records.length;
+      row.objectCount = groupedObjects(row.records).length;
       return row;
     }).sort(function (a, b) {
       return a.config.order - b.config.order || b.objectCount - a.objectCount || b.detailCount - a.detailCount || a.network.localeCompare(b.network);
@@ -177,7 +205,7 @@
   }
 
   function renderFixes(row) {
-    return '<div style="display:flex;flex-direction:column;gap:5px">' + rowFixes(row).map(function (fix, index) {
+    return '<div style="display:flex;flex-direction:column;gap:5px">' + (row.fixes || rowFixes(row)).map(function (fix, index) {
       return '<div><b>' + (index + 1) + '.</b> ' + esc(fix) + '</div>';
     }).join('') + '</div>';
   }
@@ -315,7 +343,7 @@
     var totalDetails = (defects || []).length;
     currentModel = { rows: rows, bounds: boardBounds(State), vias: State.vias || [] };
     var h = '<div class="card pour-defect-summary"><div class="pour-defect-summary-head">' +
-      '<div><h3>缺陷总结表</h3><div class="hint">按孔 Padstack、网络与异常类型归纳，共 ' + rows.length + ' 类、' + totalObjects + ' 个异常目标对象、' + totalDetails + ' 条失败明细；同一对象的多模板或多层失败不重复计入对象数。位置图显示全部 ' + currentModel.vias.length + ' 个孔。</div></div></div>';
+      '<div><h3>缺陷总结表</h3><div class="hint">异常类型与修改动作相同的对象合并为一行，共 ' + rows.length + ' 类、' + totalObjects + ' 个异常目标对象、' + totalDetails + ' 条失败明细；同一对象的多模板或多层失败不重复计入对象数。位置图显示全部 ' + currentModel.vias.length + ' 个孔。</div></div></div>';
     if (!rows.length) return h + '<div class="hint pour-defect-summary-empty">当前没有异常记录。</div></div>';
     h += '<div class="tbl-wrap"><table class="pour-defect-summary-table"><thead><tr>' +
       '<th>孔 Padstack</th><th>网络</th><th>异常类型</th><th>如何修改</th><th>板上位置</th></tr></thead><tbody>';

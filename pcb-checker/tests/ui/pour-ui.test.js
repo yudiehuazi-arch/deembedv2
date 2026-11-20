@@ -1025,6 +1025,44 @@ test('规则 2 缺陷总结直接列出网络、缺铜与面积的具体修改�
   w.renderAnalysisTab();
 });
 
+test('缺陷总结将异常类型和修改动作相同的不同网络合并到一行', () => {
+  const saved = {
+    rawResults: w.State.rawResults,
+    summary: w.State.summary,
+    analysisCategoryFilter: w.State.analysisCategoryFilter
+  };
+  const defects = [];
+  [['100_N', 56841, 32627.8], ['100_P', 56843, 32077.8]].forEach(([net, traceId, x]) => {
+    ['TOP', 'L3'].forEach((refLayer, index) => defects.push({
+      checkCategory: 'trace_ref_margin', checkCategoryName: '③ 走线参考层覆盖与邻近铜检查', pass: false,
+      ruleIndex: 1, traceId, traceNet: net, traceLayer: 'L8', refLayer, refType: index ? '下参考层' : '上参考层',
+      minMargin: 100, footprintCovered: false, leftSideCopper: true, rightSideCopper: true,
+      missingPoint: { x: x + index, y: 26535.6 }
+    }));
+  });
+  w.State.rawResults = defects;
+  w.State.summary = Object.assign({}, saved.summary || {}, {
+    totalDefects: 4,
+    breakdown: { viaCoverageDefects: 0, specialShapeDefects: 0, traceMarginDefects: 4, smallCopperDefects: 0, arcRadiusDefects: 0 }
+  });
+  w.State.analysisCategoryFilter = 'trace_ref_margin';
+  w.renderAnalysisTab();
+
+  const rows = d.querySelectorAll('.pour-defect-summary-table tbody tr');
+  if (rows.length !== 1) throw new Error('相同异常类型与修改动作应合并为一行，实际 ' + rows.length + ' 行');
+  const rowText = rows[0].textContent.replace(/\s+/g, ' ').trim();
+  if (!rowText.includes('100_N、100_P') || !rowText.includes('2 个对象 / 4 条失败明细') ||
+      !rowText.includes('补齐 TOP 的完整走线投影铜') || !rowText.includes('补齐 L3 的完整走线投影铜') ||
+      !rowText.includes('Trace #56841') || !rowText.includes('Trace #56843')) {
+    throw new Error('合并行未完整保留网络、统计、修改动作或板上位置：' + rowText);
+  }
+
+  w.State.rawResults = saved.rawResults;
+  w.State.summary = saved.summary;
+  w.State.analysisCategoryFilter = saved.analysisCategoryFilter || 'via_coverage';
+  w.renderAnalysisTab();
+});
+
 test('大文件仅在文本框显示截断预览，并通过 Web Worker 后台执行几何检查', () => {
   const input = $('txtDataInput');
   const originalText = input.value;
@@ -1038,7 +1076,7 @@ test('大文件仅在文本框显示截断预览，并通过 Web Worker 后台�
 
   const workerSource = fs.readFileSync(path.join(__dirname, '../../packages/pages/pour/pour-check-worker.js'), 'utf8');
   if (!workerSource.includes('importScripts') || !workerSource.includes('runAllCopperChecks')) throw new Error('后台检查线程未加载铜皮引擎');
-  if ((workerSource.match(/\?v=79/g) || []).length !== 5) throw new Error('后台检查线程未使用当前铜皮引擎缓存版本');
+  if ((workerSource.match(/\?v=80/g) || []).length !== 5) throw new Error('后台检查线程未使用当前铜皮引擎缓存版本');
   const OriginalWorker = w.Worker;
   let workerUrl = '', postedText = '', terminated = false;
   function FakeWorker(url) { workerUrl = url; }
