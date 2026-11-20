@@ -212,10 +212,43 @@ test('拖动画布后保留检视浮窗、选中孔群与特殊问题标记', ()
 
 // 9. 规律分析页渲染测试
 test('规律分析页 (Tab 5) 渲染测试', () => {
-  window.switchTab('tabAnalysis');
-  assert.strictEqual(window.State.activeTab, 'tabAnalysis', '应切换到规律分析页');
-  const pnlDefect = document.getElementById('pnlDefectRanking');
-  assert.ok(pnlDefect.textContent.includes('Padstack 不符') || pnlDefect.textContent.includes('中心距超差'));
+  const proto = window.HTMLCanvasElement.prototype;
+  const originalGetContext = proto.getContext;
+  let markerCount = 0;
+  proto.getContext = function () {
+    return {
+      clearRect() {}, fillRect() {}, strokeRect() {}, drawImage() {},
+      beginPath() {}, moveTo() {}, lineTo() {}, closePath() {}, stroke() {},
+      fill() { markerCount++; }, set fillStyle(value) {}, set strokeStyle(value) {}, set lineWidth(value) {}
+    };
+  };
+  try {
+    window.switchTab('tabAnalysis');
+    assert.strictEqual(window.State.activeTab, 'tabAnalysis', '应切换到规律分析页');
+    const pnlDefect = document.getElementById('pnlDefectRanking');
+    assert.ok(pnlDefect.textContent.includes('Padstack 不符') || pnlDefect.textContent.includes('中心距超差'));
+    const headers = [...document.querySelectorAll('#tabAnalysis table thead th')].map(th => th.textContent.trim());
+    assert.strictEqual(headers[headers.length - 1], '板上位置', '规律分析表最后一列应为板上位置');
+    const boardButton = document.querySelector('#tblDiffAnalysisBody .fanout-analysis-board-open');
+    const boardCanvas = boardButton && boardButton.querySelector('.fanout-analysis-board');
+    assert.ok(boardButton && boardCanvas, '每条规律分析记录应显示板上位置缩略图');
+    assert.ok(boardButton.parentElement.textContent.includes('孔群 [') && boardButton.parentElement.textContent.includes('#'),
+      '板上位置应显示孔群中心坐标与信号孔编号');
+    boardButton.click();
+    const zoom = document.getElementById('fanoutAnalysisBoardZoom');
+    assert.ok(zoom && !zoom.hidden && zoom.style.display === 'flex', '板上位置应支持放大查看');
+    assert.strictEqual(zoom.querySelector('canvas').width, 960, '放大位置图应使用高清画布');
+    assert.ok(markerCount > 0, '放大位置图应在全板过孔背景上绘制当前孔群标记');
+    zoom.querySelector('.fanout-analysis-board-close').click();
+    assert.ok(zoom.hidden, '板上位置放大窗口应可关闭');
+    window.exportDiffAnalysisCSV();
+    const analysisCsv = document.getElementById('exportModalText').value;
+    assert.ok(analysisCsv.split('\n')[0].endsWith(',板上位置') && analysisCsv.includes('孔群 ['),
+      '导出的规律分析 CSV 应同步包含可追溯的板上位置');
+    window.closeExportBox();
+  } finally {
+    proto.getContext = originalGetContext;
+  }
 });
 
 // 10. 导出方案库与导出弹窗测试
