@@ -5,17 +5,22 @@
 var geom = (typeof module === "object" && module.exports) ? require("./pour-geom.js") : root.PourChecker;
   var parser = (typeof module === "object" && module.exports) ? require("./pour-parser.js") : root.PourChecker;
   var traceMargin = (typeof module === "object" && module.exports) ? require("./pour-trace-margin.js") : root.PourChecker;
-  var api = factory(geom, parser, traceMargin);
+  var hdiAssociation = (typeof module === "object" && module.exports) ? require("./pour-hdi-association.js") : root.PourChecker;
+  var api = factory(geom, parser, traceMargin, hdiAssociation);
   if (typeof module === "object" && module.exports) module.exports = api;
   root.PourChecker = Object.assign(root.PourChecker || {}, api);
-})(typeof globalThis !== "undefined" ? globalThis : this, function (geom, parser, traceMargin) {
+})(typeof globalThis !== "undefined" ? globalThis : this, function (geom, parser, traceMargin, hdiAssociation) {
   "use strict";
   var MM_PER_MIL = geom.MM_PER_MIL, MIL_PER_MM = geom.MIL_PER_MM, dist2D = geom.dist2D, roundN = geom.roundN;
   var pointToShapeDistance = geom.pointToShapeDistance, shapeRing = geom.shapeRing, pointInShape = geom.pointInShape, checkTraceReferenceMargin = traceMargin.checkTraceReferenceMargin;
   var buildPointGrid = geom.buildPointGrid, queryPointGrid = geom.queryPointGrid,
     buildBBoxGrid = geom.buildBBoxGrid, queryBBoxGrid = geom.queryBBoxGrid, physicalLayerAlias = geom.physicalLayerAlias;
   var expandLayerRange = parser.expandLayerRange, parsePcbElements = parser.parsePcbElements, normalizeSpecialShapeSet = parser.normalizeSpecialShapeSet, SPECIAL_SHAPE_SETS = parser.SPECIAL_SHAPE_SETS;
-  var parseShapeBlock = parser.parseShapeBlock, findAssociatedShapeItems = parser.findAssociatedShapeItems, buildShapePointIndexes = parser.buildShapePointIndexes, SPECIAL_SHAPE_CENTER_DISTANCE_TOLERANCE = 0.01;
+  var parseShapeBlock = parser.parseShapeBlock, findAssociatedShapeItems = parser.findAssociatedShapeItems, buildShapePointIndexes = parser.buildShapePointIndexes;
+  var findCopperConnectedHdiCandidates = hdiAssociation.findCopperConnectedHdiCandidates,
+    findTemplateHdiAssociation = hdiAssociation.findTemplateHdiAssociation,
+    nearestHdiCandidate = hdiAssociation.nearestHdiCandidate,
+    findDifferentialHdiPair = hdiAssociation.findDifferentialHdiPair;
   function checkViaLayerCoverage(vias, shapes, rules = [], availableLayers = []) {
     const results = [];
     const shapesByLayer = new Map();
@@ -74,54 +79,6 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
     }
     return results;
   }
-  function findTemplateHdiAssociation(via, hdiCandidates, hdiIndex, maxDistanceMil, hdiByNet, expectedCenterDistance) {
-    const bounded = maxDistanceMil != null;
-    const source = bounded && hdiIndex ? queryPointGrid(hdiIndex, via.x - maxDistanceMil, via.y - maxDistanceMil,
-      via.x + maxDistanceMil, via.y + maxDistanceMil) : (hdiCandidates || []);
-    const nearby = source.filter(candidate => candidate !== via)
-      .map(candidate => ({ via: candidate, distance: dist2D(via.x, via.y, candidate.x, candidate.y) }))
-      .filter(item => !bounded || item.distance <= maxDistanceMil + 1e-9)
-      .sort((a, b) => a.distance - b.distance || String(a.via.id).localeCompare(String(b.via.id), undefined, { numeric: true }));
-    if (!nearby.length) return null;
-    if (expectedCenterDistance == null) return { nearbyHdi: nearby[0], pairedHdi: null };
-    for (const item of nearby) {
-      const mateNet = differentialMateNetName(item.via.net);
-      const mates = mateNet ? (hdiByNet.get(mateNet.toLowerCase()) || []).map(candidate => ({
-        via: candidate, distance: dist2D(item.via.x, item.via.y, candidate.x, candidate.y)
-      })).filter(candidate => Math.abs(candidate.distance - expectedCenterDistance) <= SPECIAL_SHAPE_CENTER_DISTANCE_TOLERANCE)
-        .sort((a, b) => Math.abs(a.distance - expectedCenterDistance) - Math.abs(b.distance - expectedCenterDistance) ||
-          String(a.via.id).localeCompare(String(b.via.id), undefined, { numeric: true })) : [];
-      if (mates.length) return { nearbyHdi: item, pairedHdi: mates[0] };
-    }
-    return null;
-  }
-  function differentialMateNetName(net) {
-    const value = String(net || '');
-    const pairs = [
-      [/_P$/i, '_N'], [/_N$/i, '_P'], [/_\+$/i, '_-'], [/_-$/i, '_+'],
-      [/\.P$/i, '.N'], [/\.N$/i, '.P'], [/\+$/i, '-'], [/-$/i, '+'], [/P$/i, 'N'], [/N$/i, 'P']
-    ];
-    for (const pair of pairs) if (pair[0].test(value)) return value.replace(pair[0], pair[1]);
-    return '';
-  }
-  function nearestHdiCandidate(via, candidates) {
-    let nearest = null;
-    let distance = Infinity;
-    (candidates || []).forEach(candidate => {
-      const candidateDistance = dist2D(via.x, via.y, candidate.x, candidate.y);
-      const stableTie = Math.abs(candidateDistance - distance) <= 1e-9 && (!nearest ||
-        String(candidate.id).localeCompare(String(nearest.id), undefined, { numeric: true }) < 0);
-      if (candidateDistance < distance - 1e-9 || stableTie) {
-        nearest = candidate; distance = candidateDistance;
-      }
-    });
-    return nearest ? { via: nearest, distance } : null;
-  }
-  function findDifferentialHdiPair(hdi, hdiByNet) {
-    if (!hdi) return null;
-    const mateNet = differentialMateNetName(hdi.net);
-    return mateNet ? nearestHdiCandidate(hdi, hdiByNet.get(mateNet.toLowerCase())) : null;
-  }
   function unmatchedAssociationSummary(via, templates, nearestHdi, pairedHdi) {
     const radii = [...new Set(templates.map(template => parseFloat(template.hdiSearchRadiusMm))
       .filter(value => value > 0).map(value => roundN(value, 4)))].sort((a, b) => a - b);
@@ -156,7 +113,10 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
         viaId: via.id, viaPadstack: via.padstack, viaNet: via.net, viaCoord: [via.x, via.y],
         actualHdiViaId: nearestHdi ? nearestHdi.via.id : null,
         actualHdiViaPadstack: nearestHdi ? nearestHdi.via.padstack : null,
+        actualHdiViaNet: nearestHdi ? nearestHdi.via.net : null,
         hdiAssociationDistance: nearestHdi ? nearestHdi.distance : null,
+        hdiAssociationMode: nearestHdi ? 'same_net' : null,
+        hdiConnectionLayer: null, hdiConnectionShapeIds: [],
         pairedHdiViaId: pairedHdi ? pairedHdi.via.id : null,
         pairedHdiViaPadstack: pairedHdi ? pairedHdi.via.padstack : null,
         actualDifferentialCenterDistance: pairedHdi ? pairedHdi.distance : null,
@@ -176,13 +136,14 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
     const shapeIndexesBySet = new Map(SPECIAL_SHAPE_SETS.map(set => [set,
       buildShapePointIndexes(shapes.filter(shape => normalizeSpecialShapeSet(
         shape.set, shape.set == null ? 'Shape' : '') === set))]));
-    const hdiByNet = new Map();
+    const hdiByNet = new Map(), allHdiVias = [];
     vias.forEach(via => {
       if (!String(via.padstack || '').toLowerCase().includes('hdi')) return;
+      allHdiVias.push(via);
       const net = String(via.net || '').trim().toLowerCase();
       if (!hdiByNet.has(net)) hdiByNet.set(net, []); hdiByNet.get(net).push(via);
     });
-    const hdiIndexes = new Map();
+    const hdiIndexes = new Map(), allHdiIndex = buildPointGrid(allHdiVias, 20);
     hdiByNet.forEach((netVias, net) => hdiIndexes.set(net, buildPointGrid(netVias, 20)));
     const associationCandidates = new Map();
     const matchedAssociationVias = new Set();
@@ -216,8 +177,10 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
       matchedVias.forEach(via => {
         const netKey = String(via.net || '').trim().toLowerCase();
         const needsHdi = expectedCenterDistance != null || hdiSearchRadiusMm != null;
+        const copperConnectedHdis = !needsHdi ? [] : findCopperConnectedHdiCandidates(via, targetLayers,
+          shapeIndexesBySet.get('Shape'), allHdiIndex, hdiSearchRadiusMil);
         const association = !needsHdi ? null : findTemplateHdiAssociation(via, hdiByNet.get(netKey),
-          hdiIndexes.get(netKey), hdiSearchRadiusMil, hdiByNet, expectedCenterDistance);
+          hdiIndexes.get(netKey), hdiSearchRadiusMil, hdiByNet, expectedCenterDistance, copperConnectedHdis);
         const nearbyHdi = association && association.nearbyHdi;
         const pairedHdi = association && association.pairedHdi;
         if (needsHdi && !nearbyHdi) return;
@@ -229,8 +192,12 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
             .map(item => ({ set: item.set, shape: findAssociatedShapeItems(via, item.indexes && item.indexes.get(targetLayer)) })).find(item => item.shape);
           const alternateSet = alternate && alternate.set, alternateShape = alternate && alternate.shape;
           const bestShapeIds = bestShape ? (bestShape.itemIds || [bestShape.id]) : [];
-          let targetDesc = nearbyHdi
-            ? `孔 #${via.id} 在 ${roundN(nearbyHdi.distance, 3)} mil 内关联同网络 HDI 孔 #${nearbyHdi.via.id}` : `孔 #${via.id}`;
+          let targetDesc = `孔 #${via.id}`;
+          if (nearbyHdi) {
+            targetDesc += nearbyHdi.associationMode === 'copper_connected'
+              ? ` 在 ${roundN(nearbyHdi.distance, 3)} mil 内通过 ${nearbyHdi.connectionLayer} 层铜皮 Shape #${nearbyHdi.connectionShapeIds.join(' + #')} 关联 HDI 孔 #${nearbyHdi.via.id}（HDI Net=${nearbyHdi.via.net || '-'}）`
+              : ` 在 ${roundN(nearbyHdi.distance, 3)} mil 内关联同网络 HDI 孔 #${nearbyHdi.via.id}`;
+          }
           if (pairedHdi) targetDesc += `，HDI 孔 #${nearbyHdi.via.id} 与差分 HDI 孔 #${pairedHdi.via.id} 中心距 ${roundN(pairedHdi.distance, 3)} mil`;
           let isMatch = false;
           let failReason = '';
@@ -251,7 +218,11 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
             templateIndex: tIdx + 1, templateId: tmpl.id || `special_shape_${tIdx + 1}`, templateName: tmplName,
             viaId: via.id, viaPadstack: via.padstack, viaNet: via.net, viaCoord: [via.x, via.y],
             actualHdiViaId: nearbyHdi ? nearbyHdi.via.id : null, actualHdiViaPadstack: nearbyHdi ? nearbyHdi.via.padstack : null,
+            actualHdiViaNet: nearbyHdi ? nearbyHdi.via.net : null,
             hdiAssociationDistance: nearbyHdi ? nearbyHdi.distance : null,
+            hdiAssociationMode: nearbyHdi ? nearbyHdi.associationMode : null,
+            hdiConnectionLayer: nearbyHdi ? nearbyHdi.connectionLayer : null,
+            hdiConnectionShapeIds: nearbyHdi ? nearbyHdi.connectionShapeIds : [],
             pairedHdiViaId: pairedHdi ? pairedHdi.via.id : null,
             pairedHdiViaPadstack: pairedHdi ? pairedHdi.via.padstack : null,
             hdiSearchRadiusMm,
@@ -435,7 +406,11 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
         g.failCount = failedSubs.length;
         g.passCount = subs.length - failedSubs.length;
         const hdiMetrics = [];
-        if (s0.actualHdiViaId != null) hdiMetrics.push(`目标孔 #${s0.viaId} → 同网络 HDI #${s0.actualHdiViaId}，关联距离 ${roundN(s0.hdiAssociationDistance, 3)} mil`);
+        if (s0.actualHdiViaId != null) {
+          hdiMetrics.push(s0.hdiAssociationMode === 'copper_connected'
+            ? `目标孔 #${s0.viaId} → ${s0.hdiConnectionLayer} 层铜皮 Shape #${(s0.hdiConnectionShapeIds || []).join(' + #')} → HDI #${s0.actualHdiViaId}（Net=${s0.actualHdiViaNet || '-'}），关联距离 ${roundN(s0.hdiAssociationDistance, 3)} mil`
+            : `目标孔 #${s0.viaId} → 同网络 HDI #${s0.actualHdiViaId}，关联距离 ${roundN(s0.hdiAssociationDistance, 3)} mil`);
+        }
         if (s0.pairedHdiViaId != null) hdiMetrics.push(`HDI #${s0.actualHdiViaId} ↔ 差分 HDI #${s0.pairedHdiViaId}，实测中心距 ${roundN(s0.actualDifferentialCenterDistance, 3)} mil`);
         if (s0.expectedDifferentialCenterDistance != null) hdiMetrics.push(`HDI 中心距规则 ${s0.expectedDifferentialCenterDistance} mil`);
         if (s0.hdiSearchRadiusMm != null) hdiMetrics.push(`搜索距离 ≤ ${s0.hdiSearchRadiusMm} mm`);

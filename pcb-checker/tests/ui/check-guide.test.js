@@ -67,7 +67,8 @@ test('共享检查说明用白话写清操作步骤、判断依据与验证标�
     '走线首端和尾端在所有被检查参考层上的反焊盘都豁免',
     '不要求 Padstack 层跨经过该层', 'Set=Shape、Set=Route Keepout 或 Set=Board Geometry',
     '实际 Shape Item 的 Set 字段必须与模板一致', 'Board Geometry 的 Soldermask Top、Silkscreen Top、Outline 与 Top/L1 是不同 Subset', '旧规则没有 Set 字段时按 Shape 读取',
-    '范围内任一同网络 HDI 与差分 HDI 组成规则孔距即可关联', '不使用 Shape 几何中心是否与孔心重合作为合并条件', '模板只保存一个总面积时也会收集全部连通项', '明确区分铜皮缺失、Set 类别不符和面积超差'].forEach(keyword => {
+    '封装内外 Net 改名', '同一 Set=Shape 铜皮的真实接触', '仅仅空间靠近、铜皮未接触的异 Net HDI 不会参与',
+    '不使用 Shape 几何中心是否与孔心重合作为合并条件', '模板只保存一个总面积时也会收集全部连通项', '明确区分铜皮缺失、Set 类别不符和面积超差'].forEach(keyword => {
     assert(js.includes(keyword), '检查说明未写清关键判断依据：' + keyword);
   });
   ['正交旋转', '刚体变换', '方案姿态', '连通分量'].forEach(jargon => {

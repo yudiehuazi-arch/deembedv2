@@ -439,6 +439,46 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   console.log('  PASS  第二项：via2_8-top 在 0.5334 mm 内按 23.62 mil HDI 差分孔距检查 Top 面 103.6 sq mil 铜皮');
 }
 
+// 4.1b 封装内外 Net 改名时，允许通过目标孔同网络铜皮的真实几何连通关联 HDI
+{
+  const topShape = {
+    id: 21848, layer: 'Top', set: 'Shape', net: '25_N', area: 109.78617,
+    areaReported: 109.78617, areaComputed: 109.78617, areaMm2: 109.78617 * 0.0254 * 0.0254,
+    boundary: [
+      { type: 'line', x1: -2, y1: -2, x2: 20, y2: -2 },
+      { type: 'line', x1: 20, y1: -2, x2: 20, y2: 2 },
+      { type: 'line', x1: 20, y1: 2, x2: -2, y2: 2 },
+      { type: 'line', x1: -2, y1: 2, x2: -2, y2: -2 }
+    ],
+    voids: [], arcs: [], centroid: { x: 9, y: 0 },
+    bbox: { minX: -2, minY: -2, maxX: 20, maxY: 2, spanX: 22, spanY: 4 }
+  };
+  const vias = [
+    { id: 53534, x: 0, y: 0, padstack: 'via2_8-top', net: '25_N', connectedLayers: ['Top'], minLayerNum: 1, maxLayerNum: 1 },
+    // 同坐标堆叠孔：L10-L12 的较小 ID 不得被 Top 铜皮错误选中。
+    { id: 54648, x: 18.56374, y: 0, padstack: 'BGA-HDI-SIG-045drill-ring3_L10_L12', net: '33_P', minLayerNum: 10, maxLayerNum: 12 },
+    { id: 54649, x: 18.56374, y: 0, padstack: 'BGA-HDI-SIG-045drill-ring3_L1_L5', net: '33_P', minLayerNum: 1, maxLayerNum: 5 },
+    { id: 54531, x: 18.56374, y: 19.6851, padstack: 'BGA-HDI-SIG-045drill-ring3_L10_L12', net: '33_N', minLayerNum: 10, maxLayerNum: 12 },
+    { id: 54532, x: 18.56374, y: 19.6851, padstack: 'BGA-HDI-SIG-045drill-ring3_L1_L5', net: '33_N', minLayerNum: 1, maxLayerNum: 5 },
+    // 搜索范围内但不落入目标铜皮，不能仅凭距离或差分网络名进入关联。
+    { id: 54651, x: 5, y: 10, padstack: 'BGA-HDI-SIG-UNCONNECTED', net: '33_P', minLayerNum: 1, maxLayerNum: 5 }
+  ];
+  const results = checkSpecialShapedCopper(vias, [topShape], [{
+    id: 'via2_8_top_net_rename', name: 'TOP特定异型泪滴铜皮', padstack: 'via2_8-top',
+    differentialCenterDistance: 19.6851, hdiSearchRadiusMm: 0.5334,
+    layer: 'L1', set: 'Shape', expectedArea: 109.78617, areaTolerance: 0.001
+  }]);
+  assert.strictEqual(results.length, 1);
+  assert.strictEqual(results[0].pass, true);
+  assert.strictEqual(results[0].actualHdiViaId, 54649, '应选择落入 Top 铜皮且层跨兼容的 HDI，而不是同坐标 L10 堆叠孔');
+  assert.strictEqual(results[0].pairedHdiViaId, 54532, '差分 HDI 也必须与已关联 HDI 的层跨兼容');
+  assert.strictEqual(results[0].hdiAssociationMode, 'copper_connected');
+  assert.strictEqual(results[0].hdiConnectionLayer, 'Top');
+  assert.deepStrictEqual(results[0].hdiConnectionShapeIds, [21848]);
+  assert.ok(/通过 Top 层铜皮 Shape #21848 关联 HDI 孔 #54649/.test(results[0].message));
+  console.log('  PASS  第二项：封装内外 Net 改名时按同一 Top 铜皮几何连通关联层跨兼容的 HDI 差分孔');
+}
+
 // 4.2 差分孔中心距与 HDI 搜索距离分别可选，且只应用已配置字段
 {
   const vias = [

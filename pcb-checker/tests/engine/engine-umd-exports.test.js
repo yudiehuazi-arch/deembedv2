@@ -77,7 +77,8 @@ const FAMILIES = {
     unionGlobal: 'FanoutChecker'
   },
   pour: {
-    files: ['engines/pour/pour-geom.js', 'engines/pour/pour-parser.js', 'engines/pour/pour-trace-margin.js', 'engines/pour/pour-engine.js'],
+    files: ['engines/pour/pour-geom.js', 'engines/pour/pour-parser.js', 'engines/pour/pour-trace-margin.js',
+      'engines/pour/pour-hdi-association.js', 'engines/pour/pour-engine.js'],
     globals: { PourChecker: ['parsePcbElements', 'runAllCopperChecks', 'checkIsolatedSmallCopper'] },
     nodeEntry: 'engines/pour',
     unionGlobal: 'PourChecker'
