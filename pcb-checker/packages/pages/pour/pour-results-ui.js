@@ -163,7 +163,7 @@
     var layerText = layers.length ? layers.join('、') + ' 层' : '目标层';
     var hasProblem = failed.length > 0;
     if (r.checkCategory === 'via_coverage') return layerText + (hasProblem ? '缺铜皮' : '铜皮覆盖符合要求');
-    if (r.checkCategory === 'special_shape') return selected.map(root.formatPourSpecialShapeIssue).filter(function (value, index, values) { return values.indexOf(value) === index; }).join('；');
+    if (r.checkCategory === 'special_shape') return root.formatPourSpecialShapeIssues(selected);
     if (r.checkCategory === 'trace_ref_margin') {
       if (!hasProblem) {
         var margin = r.minMargin != null ? r.minMargin : (selected[0] && selected[0].minMargin);

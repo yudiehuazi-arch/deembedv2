@@ -6,21 +6,24 @@
     return typeof clean === 'function' ? clean(value) : String(value == null ? '' : value).replace(/^[\s✅❌⚠️]+/u, '').trim();
   }
   function formatNetworkMismatch(record) {
-    var layer = record.hdiConnectionLayer || '接触';
+    var layer = record.hdiConnectionLayer || '接触层';
     var shapeNets = record.hdiConnectionShapeNets && record.hdiConnectionShapeNets.length
       ? record.hdiConnectionShapeNets.join(' / ') : (record.viaNet || '-');
     var shapeIds = record.hdiConnectionShapeIds && record.hdiConnectionShapeIds.length
-      ? ' Shape #' + record.hdiConnectionShapeIds.join(' + #') : '';
-    return '网络不一致：实际接触的 ' + layer + ' 层铜皮' + shapeIds + ' Net=' + shapeNets +
-      '，但 HDI 孔 #' + (record.actualHdiViaId == null ? '-' : record.actualHdiViaId) +
-      ' Net=' + (record.actualHdiViaNet || '-') + '，按异常处理';
+      ? ' #' + record.hdiConnectionShapeIds.join(' + #') : '';
+    return '网络不一致：' + layer + ' 铜皮' + shapeIds + ' 为 ' + shapeNets +
+      '，HDI #' + (record.actualHdiViaId == null ? '-' : record.actualHdiViaId) + ' 为 ' + (record.actualHdiViaNet || '-');
   }
-  function formatSpecialShapeIssue(record) {
+  function networkMismatchKey(record) {
+    return [record.hdiConnectionLayer || '', (record.hdiConnectionShapeIds || []).join(','),
+      (record.hdiConnectionShapeNets || []).join(','), record.actualHdiViaId, record.actualHdiViaNet].join('|');
+  }
+  function formatSpecialShapeIssue(record, skipNetworkMismatch) {
     var prefix = (record.layer || '目标') + ' 层【' + (record.templateName || '异型模板') + '】';
     if (record.pass) return prefix + '异型铜皮匹配';
     if (record.associationFailed) return prefix + '模板关联条件未命中：' + record.associationSummary;
     var issues = [];
-    if (record.hdiNetMismatch) issues.push(formatNetworkMismatch(record));
+    if (record.hdiNetMismatch && !skipNetworkMismatch) issues.push(formatNetworkMismatch(record));
     if (record.targetShapeId == null) {
       var expectedSet = record.expectedSet ? 'Set=' + record.expectedSet + ' 的 ' : '';
       var alternateSet = record.actualSet ? '；同位置仅有 Set=' + record.actualSet : '';
@@ -37,7 +40,25 @@
         }
       }
     }
-    return issues.length ? prefix + issues.join('；') : prefix + '异型铜皮不匹配：' + cleanMessage(record.message);
+    if (issues.length) return prefix + issues.join('；');
+    if (skipNetworkMismatch && record.hdiNetMismatch) return '';
+    return prefix + '异型铜皮不匹配：' + cleanMessage(record.message);
+  }
+  function formatSpecialShapeIssues(records) {
+    var list = records || [], networkIssues = [], details = [], seenNetworks = Object.create(null);
+    list.forEach(function (record) {
+      if (record.hdiNetMismatch) {
+        var key = networkMismatchKey(record);
+        if (!seenNetworks[key]) {
+          seenNetworks[key] = true;
+          networkIssues.push(formatNetworkMismatch(record));
+        }
+      }
+      var detail = formatSpecialShapeIssue(record, !!record.hdiNetMismatch);
+      if (detail && details.indexOf(detail) < 0) details.push(detail);
+    });
+    return networkIssues.concat(details).join('；');
   }
   root.formatPourSpecialShapeIssue = formatSpecialShapeIssue;
+  root.formatPourSpecialShapeIssues = formatSpecialShapeIssues;
 })(typeof window !== 'undefined' ? window : globalThis);
