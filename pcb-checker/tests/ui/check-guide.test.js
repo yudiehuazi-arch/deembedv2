@@ -20,8 +20,8 @@ const CASES = [
 test('五个检查模块均提供独立、可切换且默认收起的检查说明页', () => {
   CASES.forEach(item => {
     const source = fs.readFileSync(path.join(CHECKER_DIR, item.page), 'utf8');
-    assert.match(source, /assets\/styles\/check-guide\.css\?v=64/, item.page + ' 未加载检查说明样式');
-    assert.match(source, /packages\/shared\/check-guide\.js\?v=64/, item.page + ' 未加载检查说明脚本');
+    assert.match(source, /assets\/styles\/check-guide\.css\?v=65/, item.page + ' 未加载检查说明样式');
+    assert.match(source, /packages\/shared\/check-guide\.js\?v=65/, item.page + ' 未加载检查说明脚本');
 
     const ctx = openPage(item.page, { syncCheck: true });
     const { d } = ctx;
@@ -65,7 +65,8 @@ test('共享检查说明用白话写清操作步骤、判断依据与验证标�
     'Connections 可以包含 Trace、Via 或 Shape', '只要任一物理孔段含有非空 Connections',
     '方案比对会展开其中全部物理段', '方案足迹内未被方案使用的 GND 视为数量不符',
     '走线首端和尾端在所有被检查参考层上的反焊盘都豁免',
-    '不要求 Padstack 层跨经过该层'].forEach(keyword => {
+    '不要求 Padstack 层跨经过该层', 'Set=Shape 或 Set=Route Keepout',
+    '实际 Shape Item 的 Set 字段必须与模板一致', '旧规则没有 Set 字段时按 Shape 读取'].forEach(keyword => {
     assert(js.includes(keyword), '检查说明未写清关键判断依据：' + keyword);
   });
   ['正交旋转', '刚体变换', '方案姿态', '连通分量'].forEach(jargon => {

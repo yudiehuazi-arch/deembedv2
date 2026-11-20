@@ -178,12 +178,13 @@ async function test(name, fn) {
       { differentialCenterDistance: '', hdiSearchRadiusMm: '' },
       { differentialCenterDistance: 10 },
       { hdiSearchRadiusMm: 0.15 },
-      { differentialCenterDistance: 10, hdiSearchRadiusMm: 0.15 }
+      { differentialCenterDistance: 10, hdiSearchRadiusMm: 0.15, set: 'route   keepout' }
     ]);
     if (normalizedTemplates[0].differentialCenterDistance !== null || normalizedTemplates[0].hdiSearchRadiusMm !== null ||
         normalizedTemplates[1].differentialCenterDistance !== 10 || normalizedTemplates[1].hdiSearchRadiusMm !== null ||
-        normalizedTemplates[2].differentialCenterDistance !== null || normalizedTemplates[2].hdiSearchRadiusMm !== 0.15) {
-      throw new Error('规则 2 四种可选字段组合未按空值归一化');
+        normalizedTemplates[2].differentialCenterDistance !== null || normalizedTemplates[2].hdiSearchRadiusMm !== 0.15 ||
+        normalizedTemplates[0].set !== 'Shape' || normalizedTemplates[3].set !== 'Route Keepout') {
+      throw new Error('规则 2 可选字段与 Set 类别未按兼容规则归一化');
     }
     w.renderRulesUI();
     const rule2Headers = [...d.querySelectorAll('#tblPourRule2 th')].map(th => th.textContent.trim());
@@ -194,6 +195,10 @@ async function test(name, fn) {
     if (!rule2Headers.includes('HDI 搜索距离 mm')) {
       throw new Error('规则 2 表格缺少可修改的 HDI 搜索距离列');
     }
+    if (!rule2Headers.includes('异型铜皮 Set 类别')) throw new Error('规则 2 表格缺少 Set 类别列');
+    if (!$('modalPourShapeInpSet') || [...$('modalPourShapeInpSet').options].map(option => option.value).join('|') !== 'Shape|Route Keepout') {
+      throw new Error('规则 2 弹窗缺少 Shape 与 Route Keepout 选项');
+    }
     if (!w.State.rules.specialShapeTemplates.every(t => t.differentialCenterDistance > 0 && t.hdiSearchRadiusMm > 0)) {
       throw new Error('默认异型模板缺少差分孔中心距或 HDI 搜索距离');
     }
@@ -201,25 +206,30 @@ async function test(name, fn) {
     const copyBefore = w.State.rules.specialShapeTemplates.length;
     w.duplicatePourShapeTemplate(0);
     if ($('modalPourShapeInpPadstack').value !== copySource.padstack) throw new Error('综合页复制加层未保留过孔类型');
+    if ($('modalPourShapeInpSet').value !== copySource.set) throw new Error('综合页复制加层未保留 Set 类别');
     $('modalPourShapeInpLayer').value = 'L3';
+    $('modalPourShapeInpSet').value = 'Route Keepout';
     w.savePourShapeFromModal();
     const layerCopy = w.State.rules.specialShapeTemplates[copyBefore];
-    if (!layerCopy || layerCopy.padstack !== copySource.padstack || layerCopy.layer !== 'L3' || layerCopy.expectedArea !== copySource.expectedArea) {
-      throw new Error('综合页未将同一过孔的新增层要求保存为独立模板');
+    if (!layerCopy || layerCopy.padstack !== copySource.padstack || layerCopy.layer !== 'L3' || layerCopy.set !== 'Route Keepout' || layerCopy.expectedArea !== copySource.expectedArea) {
+      throw new Error('综合页未将同一过孔的新增层与 Set 要求保存为独立模板');
     }
     w.State.rules.specialShapeTemplates.splice(copyBefore, 1);
     const before = w.State.rules.specialShapeTemplates.length;
     w.openAddPourShapeModal();
     if ($('modalPourShapeInpDiffDist').value !== '' || $('modalPourShapeInpHdiRadius').value !== '') throw new Error('综合页新增模板不应预填可选字段默认值');
+    if ($('modalPourShapeInpSet').value !== 'Shape') throw new Error('综合页新增模板未默认选择 Shape');
     $('modalPourShapeInpName').value = '中心距模板测试';
     $('modalPourShapeInpDiffDist').value = '19.68';
     $('modalPourShapeInpHdiRadius').value = '0.15';
+    $('modalPourShapeInpSet').value = 'Route Keepout';
     w.savePourShapeFromModal();
     const added = w.State.rules.specialShapeTemplates[before];
-    if (!added || added.differentialCenterDistance !== 19.68 || added.hdiSearchRadiusMm !== 0.15) throw new Error('弹窗未保存差分孔中心距或 HDI 搜索距离');
+    if (!added || added.differentialCenterDistance !== 19.68 || added.hdiSearchRadiusMm !== 0.15 || added.set !== 'Route Keepout') throw new Error('弹窗未保存差分孔中心距、搜索距离或 Set 类别');
     w.editPourShapeTemplate(before);
     if ($('modalPourShapeInpDiffDist').value !== '19.68') throw new Error('编辑弹窗未回填差分孔中心距');
-    ['modalPourShapeInpPadstack', 'modalPourShapeInpDiffDist', 'modalPourShapeInpHdiRadius', 'modalPourShapeInpLayer', 'modalPourShapeTxt'].forEach(id => {
+    if ($('modalPourShapeInpSet').value !== 'Route Keepout') throw new Error('编辑弹窗未回填 Set 类别');
+    ['modalPourShapeInpPadstack', 'modalPourShapeInpDiffDist', 'modalPourShapeInpHdiRadius', 'modalPourShapeInpLayer', 'modalPourShapeInpSet', 'modalPourShapeTxt'].forEach(id => {
       if ($(id).disabled) throw new Error('综合页规则 2 字段不可手动输入：' + id);
     });
     const editedShapeTxt = `Item 2  < Shape >\n  Subset: 19IS08\n  Area: 321.12345 (sq mil)\n  Exterior Boundary:\n    Arc seg: xy [23274.13, 27990.27]  xy [23274.13, 27990.27]\n      Center-xy: [23286.13, 27990.27] Radius (12.0000) CCW`;
@@ -227,11 +237,12 @@ async function test(name, fn) {
     $('modalPourShapeInpDiffDist').value = '23.62';
     $('modalPourShapeInpHdiRadius').value = '0.125';
     $('modalPourShapeInpLayer').value = '19IS08, L5';
+    $('modalPourShapeInpSet').value = 'Shape';
     $('modalPourShapeTxt').value = editedShapeTxt;
     w.savePourShapeFromModal();
     const edited = w.State.rules.specialShapeTemplates[before];
-    if (edited.padstack !== 'BGA_EDITABLE' || edited.differentialCenterDistance !== 23.62 || edited.hdiSearchRadiusMm !== 0.125 || edited.layer !== '19IS08, L5') {
-      throw new Error('综合页编辑弹窗未保存过孔、中心距、HDI 搜索距离与目标层');
+    if (edited.padstack !== 'BGA_EDITABLE' || edited.differentialCenterDistance !== 23.62 || edited.hdiSearchRadiusMm !== 0.125 || edited.layer !== '19IS08, L5' || edited.set !== 'Shape') {
+      throw new Error('综合页编辑弹窗未保存过孔、中心距、搜索距离、目标层与 Set 类别');
     }
     if (edited.rawTxt !== editedShapeTxt || Math.abs(edited.expectedArea - 321.12345) > 0.001 || !edited.shape) {
       throw new Error('综合页编辑弹窗未保存修改后的 Shape TXT 数据');
@@ -272,8 +283,8 @@ async function test(name, fn) {
     if (optionalInputs[0].value !== '' || optionalInputs[1].value !== '') throw new Error('综合页规则表未内联保留可选字段空值');
     w.exportPourRulesPrompt();
     const exported = JSON.parse($('txtModalExportContent').value);
-    if (exported.specialShapeTemplates[before].differentialCenterDistance !== null || exported.specialShapeTemplates[before].hdiSearchRadiusMm !== null || exported.specialShapeTemplates[before].rawTxt !== '') {
-      throw new Error('铜皮规则 JSON 未保留可选字段与 Shape TXT 的空值');
+    if (exported.specialShapeTemplates[before].differentialCenterDistance !== null || exported.specialShapeTemplates[before].hdiSearchRadiusMm !== null || exported.specialShapeTemplates[before].rawTxt !== '' || exported.specialShapeTemplates[before].set !== 'Shape') {
+      throw new Error('铜皮规则 JSON 未保留可选字段、Set 类别与 Shape TXT 空值');
     }
     w.State.rules.specialShapeTemplates.splice(before, 1);
     w.renderRulesUI();

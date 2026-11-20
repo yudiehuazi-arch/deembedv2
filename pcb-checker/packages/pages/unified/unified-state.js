@@ -48,6 +48,7 @@ function normalizeSpecialShapeTemplates(templates) {
     const hdiRadius = parseFloat(normalized.hdiSearchRadiusMm);
     normalized.differentialCenterDistance = centerDistance > 0 ? centerDistance : null;
     normalized.hdiSearchRadiusMm = hdiRadius > 0 ? hdiRadius : null;
+    normalized.set = PourChecker.normalizeSpecialShapeSet(normalized.set, 'Shape');
     return normalized;
   });
 }

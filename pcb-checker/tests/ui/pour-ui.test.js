@@ -262,6 +262,11 @@ test('规则 1/2/3 多规则配置表格与历史快捷标签初始化正常', (
     throw new Error('规则 2 的“差分孔中心距”未紧邻“过孔类型”右侧');
   }
   if (!rule2Headers.includes('HDI 搜索距离 mm')) throw new Error('规则 2 缺少可修改的 HDI 搜索距离');
+  if (!rule2Headers.includes('异型铜皮 Set 类别')) throw new Error('规则 2 缺少异型铜皮 Set 类别列');
+  if (!w.State.specialShapeTemplates.every(rule => rule.set === 'Shape')) throw new Error('默认与旧版兼容模板未归一化为 Shape');
+  if (!$('modalR2InpSet') || [...$('modalR2InpSet').options].map(option => option.value).join('|') !== 'Shape|Route Keepout') {
+    throw new Error('规则 2 弹窗缺少 Shape 与 Route Keepout 两类 Set 选项');
+  }
 
   const chipBars = [
     'chipsModalR1Padstack', 'chipsModalR1Layers', 'chipsModalR1Dist',
@@ -289,12 +294,14 @@ test('同一过孔类型可复制为另一层异型铜皮要求', () => {
   w.duplicateRule2ForLayer(0);
   if (!$('modalRule2').classList.contains('open')) throw new Error('复制加层后未打开新模板编辑框');
   if ($('modalR2InpPadstack').value !== source.padstack) throw new Error('复制加层未保留过孔类型');
+  if ($('modalR2InpSet').value !== source.set) throw new Error('复制加层未保留异型铜皮 Set 类别');
   $('modalR2InpName').value = '同过孔 L3 异型铜皮';
   $('modalR2InpLayer').value = 'L3';
+  $('modalR2InpSet').value = 'Route Keepout';
   w.saveRule2FromModal();
   const copy = w.State.specialShapeTemplates[1];
-  if (w.State.specialShapeTemplates.length !== before + 1 || copy.padstack !== source.padstack || copy.layer !== 'L3') {
-    throw new Error('同一过孔的新增层要求未作为独立模板保存');
+  if (w.State.specialShapeTemplates.length !== before + 1 || copy.padstack !== source.padstack || copy.layer !== 'L3' || copy.set !== 'Route Keepout') {
+    throw new Error('同一过孔的新增层要求未保存目标层与 Set 类别');
   }
   if (copy.expectedArea !== sourceArea) throw new Error('无原始 Shape TXT 的模板复制后丢失基准面积');
   if (!$('tblRule2Body').textContent.includes('复制加层')) throw new Error('规则表缺少复制加层操作');
@@ -354,6 +361,21 @@ test('异型铜皮模板读取并预览全部 Shape Item，而非只取第一个
     throw new Error('多 Item 数量、组合几何或合计面积未保存到规则 2');
   }
   w.deleteRule2(savedIndex);
+
+  let setOccurrence = 0;
+  const mixedSetText = MULTI_SHAPE_TXT.replace(/Set:\s*Shape/g, match => (++setOccurrence === 2 ? 'Set:                Route Keepout' : match));
+  const beforeMixedSave = w.State.specialShapeTemplates.length;
+  let mixedAlert = '';
+  w.alert = message => { mixedAlert = String(message); };
+  w.openAddRule2Modal();
+  $('modalR2InpName').value = '混合 Set 模板';
+  $('modalR2TxtShape').value = mixedSetText;
+  w.saveRule2FromModal();
+  if (w.State.specialShapeTemplates.length !== beforeMixedSave || !mixedAlert.includes('同一个 Set 类别')) {
+    throw new Error('混合 Shape 与 Route Keepout 的多 Item 模板未被阻止');
+  }
+  w.closeModal('modalRule2');
+  w.alert = () => {};
 });
 
 test('铜皮主画布与缩略图以 evenodd 复合路径镂空全部 Void', () => {
@@ -515,13 +537,16 @@ test('规则 JSON 快照导出、本地恢复与导出复制兜底验证', () =>
   if (!json.specialShapeTemplates.some(t => t.differentialCenterDistance === null && t.hdiSearchRadiusMm === null)) {
     throw new Error('导出 JSON 未保留规则 2 的可选字段空值');
   }
+  if (!json.specialShapeTemplates.every(t => t.set === 'Shape' || t.set === 'Route Keepout')) {
+    throw new Error('导出 JSON 未保留规则 2 的 Set 类别');
+  }
   if ($('lblRuleFileStatus').style.display === 'none') throw new Error('状态提示未显示');
 
   w.applyRuleSnapshot({
     version: '1.0',
     tool: 'pcb_pour_checker',
     viaCoverageRules: [{ id: 'custom_cov_1', padstack: 'TEST_CUSTOM_VIA_STACK', layers: 'L1-L12', coverageRadius: 60.0 }],
-    specialShapeTemplates: [{ id: 'custom_tmpl_1', name: '测试专用异型铜皮模板', padstack: 'TEST_CUSTOM_VIA_STACK', differentialCenterDistance: 23.62, hdiSearchRadiusMm: 0.15, layer: '19IS08', expectedArea: 320.0, areaTolerance: 15.0, rawShapeText: '' }],
+    specialShapeTemplates: [{ id: 'custom_tmpl_1', name: '测试专用异型铜皮模板', padstack: 'TEST_CUSTOM_VIA_STACK', differentialCenterDistance: 23.62, hdiSearchRadiusMm: 0.15, layer: '19IS08', set: 'Route Keepout', expectedArea: 320.0, areaTolerance: 15.0, rawShapeText: '' }],
     traceMarginRules: [{ id: 'custom_margin_1', traceLayer: '08IS03', upperRefLayer: 'Top', lowerRefLayer: 'Bottom', minMargin: 55.0 }],
     smallCopperAreaThreshold: 350.0,
     minArcRadius: 8.5,
@@ -529,10 +554,10 @@ test('规则 JSON 快照导出、本地恢复与导出复制兜底验证', () =>
   }, true);
 
   if (w.State.viaCoverageRules[0].padstack !== 'TEST_CUSTOM_VIA_STACK') throw new Error('规则 1 恢复失败');
-  if (w.State.specialShapeTemplates[0].name !== '测试专用异型铜皮模板' || w.State.specialShapeTemplates[0].differentialCenterDistance !== 23.62 || w.State.specialShapeTemplates[0].hdiSearchRadiusMm !== 0.15) throw new Error('规则 2 的中心距与 HDI 搜索距离恢复失败');
+  if (w.State.specialShapeTemplates[0].name !== '测试专用异型铜皮模板' || w.State.specialShapeTemplates[0].differentialCenterDistance !== 23.62 || w.State.specialShapeTemplates[0].hdiSearchRadiusMm !== 0.15 || w.State.specialShapeTemplates[0].set !== 'Route Keepout') throw new Error('规则 2 的中心距、搜索距离或 Set 类别恢复失败');
   const restoredTemplates = w.State.specialShapeTemplates;
   w.applyRuleSnapshot({ specialShapeTemplates: [{ id: 'legacy', name: '旧规则', padstack: 'BGA', differentialCenterDistance: 10, layer: 'L2' }] }, false);
-  if (w.State.specialShapeTemplates[0].differentialCenterDistance !== 10 || w.State.specialShapeTemplates[0].hdiSearchRadiusMm !== null) throw new Error('导入缺失的 HDI 搜索距离未保持为空');
+  if (w.State.specialShapeTemplates[0].differentialCenterDistance !== 10 || w.State.specialShapeTemplates[0].hdiSearchRadiusMm !== null || w.State.specialShapeTemplates[0].set !== 'Shape') throw new Error('旧模板空搜索距离或默认 Shape 类别兼容失败');
   w.State.specialShapeTemplates = restoredTemplates;
   w.renderRule2Table();
   if (w.State.traceMarginRules[0].minMargin !== 55.0) throw new Error('规则 3 恢复失败');

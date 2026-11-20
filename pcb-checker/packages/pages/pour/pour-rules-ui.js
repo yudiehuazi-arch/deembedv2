@@ -24,6 +24,12 @@
     return number > 0 ? number : null;
   }
 
+  function normalizeRule2Set(value) {
+    var PC = root.PourChecker;
+    return PC && PC.normalizeSpecialShapeSet ? PC.normalizeSpecialShapeSet(value, 'Shape') :
+      (String(value || '').toLowerCase() === 'route keepout' ? 'Route Keepout' : 'Shape');
+  }
+
   /* ---------- 规则 1 / 2 / 3 列表与缩略图 ---------- */
   function renderAllRuleTables() {
     renderRule1Table();
@@ -78,6 +84,7 @@
         '<td><strong>' + (centerText == null ? '<span class="hint">未启用</span>' : esc(centerText) + ' mil') + '</strong></td>' +
         '<td><strong>' + (radiusText == null ? '<span class="hint">未启用</span>' : esc(radiusText) + ' mm') + '</strong></td>' +
         '<td><span class="badge-tag gray">' + esc(t.layer) + '</span></td>' +
+        '<td><span class="badge-tag gray">' + esc(normalizeRule2Set(t.set)) + '</span></td>' +
         '<td><strong>' + esc(areaNum) + ' sq mil</strong> ±' + esc(t.areaTolerance) + '</td>' +
         '<td><div class="row" style="gap:4px;flex-wrap:nowrap">' +
           '<button type="button" class="btn sec small" onclick="duplicateRule2ForLayer(' + idx + ')">复制加层</button>' +
@@ -174,7 +181,7 @@
 
   function enableRule2Inputs() {
     ['modalR2InpName', 'modalR2InpPadstack', 'modalR2InpDiffDist', 'modalR2InpHdiRadius',
-      'modalR2InpLayer', 'modalR2InpTol', 'modalR2TxtShape'].forEach(function (id) {
+      'modalR2InpLayer', 'modalR2InpSet', 'modalR2InpTol', 'modalR2TxtShape'].forEach(function (id) {
       var el = document.getElementById(id);
       if (!el) return;
       el.disabled = false;
@@ -192,9 +199,10 @@
     document.getElementById('modalR2InpDiffDist').value = '';
     document.getElementById('modalR2InpHdiRadius').value = '';
     document.getElementById('modalR2InpLayer').value = '02G01P';
+    document.getElementById('modalR2InpSet').value = 'Shape';
     document.getElementById('modalR2InpTol').value = '30.0';
     document.getElementById('modalR2TxtShape').value =
-      'Item 2  < Shape >\n  Subset: 02G01P\n  Area: 452.38934  (sq mil)\nExterior Boundary:\n  Arc seg: xy [23274.13, 27990.27]  xy [23274.13, 27990.27]\n    Center-xy: [23286.13, 27990.27] Radius (12.0000) CCW';
+      'Item 2  < Shape >\n  Set: Shape\n  Subset: 02G01P\n  Area: 452.38934  (sq mil)\nExterior Boundary:\n  Arc seg: xy [23274.13, 27990.27]  xy [23274.13, 27990.27]\n    Center-xy: [23286.13, 27990.27] Radius (12.0000) CCW';
     previewModalShape();
     renderHistoryChips();
     openModal('modalRule2');
@@ -212,6 +220,7 @@
     document.getElementById('modalR2InpDiffDist').value = optionalPositive(t.differentialCenterDistance) || '';
     document.getElementById('modalR2InpHdiRadius').value = optionalPositive(t.hdiSearchRadiusMm) || '';
     document.getElementById('modalR2InpLayer').value = t.layer;
+    document.getElementById('modalR2InpSet').value = normalizeRule2Set(t.set);
     document.getElementById('modalR2InpTol').value = t.areaTolerance;
     document.getElementById('modalR2TxtShape').value = typeof t.rawShapeText === 'string'
       ? t.rawShapeText
@@ -234,7 +243,7 @@
       State.modalShapeParsed = s;
       var lineCnt = s.boundary.filter(function (b) { return b.type === 'line'; }).length;
       var itemCount = s.itemCount || 1;
-      title.textContent = '已解析 ' + itemCount + ' 个 Shape Item · 层 ' + s.layer;
+      title.textContent = '已解析 ' + itemCount + ' 个 Shape Item · Set ' + (s.set || '未提供') + ' · 层 ' + s.layer;
       desc.innerHTML =
         '<div>合计面积: <strong>' + PC.roundN(s.area, 2) + ' sq mil</strong> · ' + PC.roundN(s.areaMm2, 4) + ' mm²</div>' +
         '<div>边界段数: ' + s.boundary.length + ' 段 · 直线 ' + lineCnt + ' / 圆弧 ' + s.arcs.length + '</div>';
@@ -257,6 +266,7 @@
     var diffDist = optionalPositive(document.getElementById('modalR2InpDiffDist').value);
     var hdiSearchRadiusMm = optionalPositive(document.getElementById('modalR2InpHdiRadius').value);
     var layer = document.getElementById('modalR2InpLayer').value.trim();
+    var set = normalizeRule2Set(document.getElementById('modalR2InpSet').value);
     var tol = parseFloat(document.getElementById('modalR2InpTol').value) || 30.0;
     var rawTxt = document.getElementById('modalR2TxtShape').value;
     previewModalShape();
@@ -270,6 +280,10 @@
 
     var expectedArea = 0;
     var savedShape = State.modalShapeParsed;
+    if (savedShape && savedShape.hasMixedSets) {
+      root.alert('同一模板的多个 Shape Item 必须属于同一个 Set 类别');
+      return;
+    }
     if (savedShape && savedShape.area > 0) {
       expectedArea = savedShape.area;
     } else if (!rawTxt.trim() && State.editingRule2Original && !String(State.editingRule2Original.rawShapeText || '').trim()) {
@@ -284,6 +298,7 @@
       differentialCenterDistance: diffDist,
       hdiSearchRadiusMm: hdiSearchRadiusMm,
       layer: layer,
+      set: set,
       expectedArea: expectedArea,
       areaTolerance: tol,
       rawShapeText: rawTxt,
@@ -428,6 +443,7 @@
       State.specialShapeTemplates.forEach(function (t) {
         t.differentialCenterDistance = optionalPositive(t.differentialCenterDistance);
         t.hdiSearchRadiusMm = optionalPositive(t.hdiSearchRadiusMm);
+        t.set = normalizeRule2Set(t.set);
         if (t.rawShapeText && root.PourChecker && root.PourChecker.parsePcbElements) {
           try {
             var parsed = root.PourChecker.parsePcbElements(t.rawShapeText);

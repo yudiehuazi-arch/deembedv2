@@ -17,7 +17,7 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
   var checkTraceReferenceMargin = traceMargin.checkTraceReferenceMargin;
   var buildPointGrid = geom.buildPointGrid, queryPointGrid = geom.queryPointGrid;
   var buildBBoxGrid = geom.buildBBoxGrid, queryBBoxGrid = geom.queryBBoxGrid, physicalLayerAlias = geom.physicalLayerAlias;
-  var expandLayerRange = parser.expandLayerRange, parsePcbElements = parser.parsePcbElements;
+  var expandLayerRange = parser.expandLayerRange, parsePcbElements = parser.parsePcbElements, normalizeSpecialShapeSet = parser.normalizeSpecialShapeSet;
   var parseShapeBlock = parser.parseShapeBlock, findAssociatedShapeItems = parser.findAssociatedShapeItems, buildShapePointIndexes = parser.buildShapePointIndexes;
   var SPECIAL_SHAPE_CENTER_DISTANCE_TOLERANCE = 0.01;
   function checkViaLayerCoverage(vias, shapes, rules = [], availableLayers = []) {
@@ -160,7 +160,8 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
         pairedHdiViaPadstack: pairedHdi ? pairedHdi.via.padstack : null,
         actualDifferentialCenterDistance: pairedHdi ? pairedHdi.distance : null,
         expectedDifferentialCenterDistance: null, hdiSearchRadiusMm: null,
-        layer, targetShapeId: null, targetShapeIds: [], actualShapeItemCount: 0,
+        layer, expectedSet: Array.from(info.sets || []).join(' / ') || 'Shape', actualSet: null,
+        targetShapeId: null, targetShapeIds: [], actualShapeItemCount: 0,
         expectedShapeItemCount: null, actualArea: null, expectedArea: null, areaTolerance: null,
         associationFailed: true, associationSummary, pass: false,
         message: `❌ 不符合：${associationSummary}`
@@ -170,13 +171,10 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
   }
   function checkSpecialShapedCopper(vias, shapes, templates = []) {
     const results = [];
-    const shapesByLayer = new Map();
-    shapes.forEach(shape => {
-      const layer = shape.layer.toUpperCase();
-      if (!shapesByLayer.has(layer)) shapesByLayer.set(layer, []);
-      shapesByLayer.get(layer).push(shape);
-    });
-    const shapeIndexes = buildShapePointIndexes(shapes);
+    const availableShapeLayers = [...new Set(shapes.map(shape => String(shape.layer || '').toUpperCase()).filter(Boolean))];
+    const shapeIndexesBySet = new Map(['Shape', 'Route Keepout'].map(set => [set,
+      buildShapePointIndexes(shapes.filter(shape => normalizeSpecialShapeSet(
+        shape.set, shape.set == null ? 'Shape' : '') === set))]));
     const hdiByNet = new Map();
     vias.forEach(via => {
       if (!String(via.padstack || '').toLowerCase().includes('hdi')) return;
@@ -189,7 +187,8 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
     const matchedAssociationVias = new Set();
     templates.forEach((tmpl, tIdx) => {
       const padPattern = (tmpl.padstack || '').trim().toLowerCase();
-      const targetLayers = [...new Set(expandLayerRange(tmpl.layer, [...shapesByLayer.keys()])
+      const expectedSet = normalizeSpecialShapeSet(tmpl.set, 'Shape');
+      const targetLayers = [...new Set(expandLayerRange(tmpl.layer, availableShapeLayers)
         .map(layer => layer.trim().toUpperCase()))];
       const centerValue = parseFloat(tmpl.differentialCenterDistance);
       const radiusValue = parseFloat(tmpl.hdiSearchRadiusMm);
@@ -206,10 +205,11 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
       if (padPattern && padPattern !== '*') matchedVias.forEach(via => {
         let info = associationCandidates.get(via);
         if (!info) {
-          info = { templates: [], layers: new Set() };
+          info = { templates: [], layers: new Set(), sets: new Set() };
           associationCandidates.set(via, info);
         }
         info.templates.push(tmpl);
+        info.sets.add(expectedSet);
         targetLayers.forEach(layer => info.layers.add(layer));
       });
       matchedVias.forEach(via => {
@@ -225,7 +225,9 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
           Math.abs(pairedHdi.distance - expectedCenterDistance) > SPECIAL_SHAPE_CENTER_DISTANCE_TOLERANCE)) return;
         matchedAssociationVias.add(via);
         targetLayers.forEach(targetLayer => {
-          const bestShape = findAssociatedShapeItems(via, shapeIndexes.get(targetLayer), expectedItemCount);
+          const expectedIndexes = shapeIndexesBySet.get(expectedSet), bestShape = findAssociatedShapeItems(via, expectedIndexes && expectedIndexes.get(targetLayer), expectedItemCount);
+          const alternateSet = expectedSet === 'Shape' ? 'Route Keepout' : 'Shape', alternateIndexes = shapeIndexesBySet.get(alternateSet);
+          const alternateShape = bestShape ? null : findAssociatedShapeItems(via, alternateIndexes && alternateIndexes.get(targetLayer), expectedItemCount);
           const bestShapeIds = bestShape ? (bestShape.itemIds || [bestShape.id]) : [];
           let targetDesc = nearbyHdi
             ? `孔 #${via.id} 在 ${roundN(nearbyHdi.distance, 3)} mil 内关联同网络 HDI 孔 #${nearbyHdi.via.id}` : `孔 #${via.id}`;
@@ -233,7 +235,8 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
           let isMatch = false;
           let failReason = '';
           if (!bestShape) {
-            failReason = `在 ${targetLayer} 层未找到与孔 #${via.id} 关联的铜皮`;
+            failReason = `在 ${targetLayer} 层未找到与孔 #${via.id} 关联的 Set=${expectedSet} Shape Item`;
+            if (alternateShape) failReason += `；同位置存在 Set=${alternateSet}，不参与本模板匹配`;
           } else if (!(expectedArea > 0)) {
             isMatch = true;
           } else {
@@ -254,11 +257,13 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
             hdiSearchRadiusMm,
             actualDifferentialCenterDistance: pairedHdi ? pairedHdi.distance : null,
             expectedDifferentialCenterDistance: expectedCenterDistance,
-            layer: targetLayer, targetShapeId: bestShape ? bestShape.id : null, targetShapeIds: bestShapeIds, actualShapeItemCount: bestShapeIds.length, expectedShapeItemCount: expectedItemCount,
+            layer: targetLayer, expectedSet, actualSet: bestShape ? expectedSet : (alternateShape ? alternateSet : null),
+            targetShapeId: bestShape ? bestShape.id : null, targetShapeIds: bestShapeIds, actualShapeItemCount: bestShapeIds.length, expectedShapeItemCount: expectedItemCount,
+            mismatchedSetShapeIds: alternateShape ? (alternateShape.itemIds || [alternateShape.id]) : [],
             actualArea: bestShape ? bestShape.area : 0, expectedArea, areaTolerance: tolArea, pass: isMatch,
             message: isMatch
-              ? `✅ 符合：${targetDesc}，在 ${targetLayer} 层的铜皮与异型模板【${tmplName}】匹配 (${bestShapeIds.length} 个 Shape Item 合计面积 ${bestShape ? roundN(bestShape.area, 1) : '-'} sq mil)`
-              : `❌ 不符合：${targetDesc}，在 ${targetLayer} 层与异型模板【${tmplName}】不匹配 (${failReason})`
+              ? `✅ 符合：${targetDesc}，在 ${targetLayer} 层的 Set=${expectedSet} 铜皮与异型模板【${tmplName}】匹配 (${bestShapeIds.length} 个 Shape Item 合计面积 ${bestShape ? roundN(bestShape.area, 1) : '-'} sq mil)`
+              : `❌ 不符合：${targetDesc}，在 ${targetLayer} 层的 Set=${expectedSet} 铜皮与异型模板【${tmplName}】不匹配 (${failReason})`
           });
         });
       });
@@ -424,6 +429,7 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
         g.layer = layersChecked.join(', ');
         g.layerListStr = g.layer;
         g.templateNames = templateNames;
+        g.expectedSets = [...new Set(subs.map(s => s.expectedSet).filter(Boolean))]; g.actualSets = [...new Set(subs.map(s => s.actualSet).filter(Boolean))];
         g.expectedArea = templateNames.length === 1 ? s0.expectedArea : null;
         g.actualArea = templateNames.length === 1 ? s0.actualArea : null;
         g.failCount = failedSubs.length;
@@ -434,7 +440,7 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
         if (s0.expectedDifferentialCenterDistance != null) hdiMetrics.push(`HDI 中心距规则 ${s0.expectedDifferentialCenterDistance} mil`);
         if (s0.hdiSearchRadiusMm != null) hdiMetrics.push(`搜索距离 ≤ ${s0.hdiSearchRadiusMm} mm`);
         g.metricsStr = s0.associationFailed ? s0.associationSummary :
-          (hdiMetrics.length ? hdiMetrics.join('；') + '；' : '') + subs.map(s => `${s.layer}【${s.templateName}】实测 ${roundN(s.actualArea, 1)} / 要求 ${roundN(s.expectedArea, 1)} ±${s.areaTolerance} sq mil`).join('；');
+          (hdiMetrics.length ? hdiMetrics.join('；') + '；' : '') + subs.map(s => `${s.layer}【${s.templateName}】Set=${s.expectedSet}，实测 ${roundN(s.actualArea, 1)} / 要求 ${roundN(s.expectedArea, 1)} ±${s.areaTolerance} sq mil`).join('；');
         g.message = s0.associationFailed ? s0.message : (allPass
           ? `✅ 符合：孔 #${g.viaId} 在目标层【${g.layerListStr}】的 ${subs.length} 项异型铜皮要求均匹配【${templateNames.join('、')}】`
           : failedSubs.map(s => s.message).join('；'));
@@ -495,12 +501,12 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
   }
   function getDefaultSpecialShapeTemplates() {
     return [
-      { id: 'tmpl_1', name: 'L2特定异型泪滴铜皮', padstack: 'BGA_3510', differentialCenterDistance: 10.0, hdiSearchRadiusMm: 0.175, layer: '02G01P', expectedArea: 452.38, areaTolerance: 30.0, rawShapeText: '' },
-      { id: 'tmpl_2', name: 'L19特定异型铜皮', padstack: 'BGA_3510', differentialCenterDistance: 10.0, hdiSearchRadiusMm: 0.175, layer: '19IS08', expectedArea: 113.10, areaTolerance: 20.0, rawShapeText: '' },
-      { id: 'pth_l5_l10_050', name: 'PTH-SIG L5/L10 · HDI 孔距 0.5 mm', padstack: 'PTH-SIG-150drill-ring0_L5_L10', differentialCenterDistance: 19.685, hdiSearchRadiusMm: 0.175, layer: '05G02P, 10G07P', expectedArea: 113.09734, areaTolerance: 1.0, rawShapeText: '' },
-      { id: 'pth_l5_l10_060', name: 'PTH-SIG L5/L10 · HDI 孔距 0.6 mm', padstack: 'PTH-SIG-150drill-ring0_L5_L10', differentialCenterDistance: 23.62, hdiSearchRadiusMm: 0.175, layer: '05G02P, 10G07P', expectedArea: 50.26548, areaTolerance: 1.0, rawShapeText: '' },
-      { id: 'pth_l5_l10_070', name: 'PTH-SIG L5/L10 · HDI 孔距 0.7 mm', padstack: 'PTH-SIG-150drill-ring0_L5_L10', differentialCenterDistance: 27.56, hdiSearchRadiusMm: 0.175, layer: '05G02P, 10G07P', expectedArea: 97.38257, areaTolerance: 1.0, rawShapeText: '' },
-      { id: 'pth_l5_l10_080', name: 'PTH-SIG L5/L10 · HDI 孔距 0.8 mm', padstack: 'PTH-SIG-150drill-ring0_L5_L10', differentialCenterDistance: 31.496, hdiSearchRadiusMm: 0.175, layer: '05G02P, 10G07P', expectedArea: 101.16052, areaTolerance: 1.0, rawShapeText: '' }
+      { id: 'tmpl_1', name: 'L2特定异型泪滴铜皮', set: 'Shape', padstack: 'BGA_3510', differentialCenterDistance: 10.0, hdiSearchRadiusMm: 0.175, layer: '02G01P', expectedArea: 452.38, areaTolerance: 30.0, rawShapeText: '' },
+      { id: 'tmpl_2', name: 'L19特定异型铜皮', set: 'Shape', padstack: 'BGA_3510', differentialCenterDistance: 10.0, hdiSearchRadiusMm: 0.175, layer: '19IS08', expectedArea: 113.10, areaTolerance: 20.0, rawShapeText: '' },
+      { id: 'pth_l5_l10_050', name: 'PTH-SIG L5/L10 · HDI 孔距 0.5 mm', set: 'Shape', padstack: 'PTH-SIG-150drill-ring0_L5_L10', differentialCenterDistance: 19.685, hdiSearchRadiusMm: 0.175, layer: '05G02P, 10G07P', expectedArea: 113.09734, areaTolerance: 1.0, rawShapeText: '' },
+      { id: 'pth_l5_l10_060', name: 'PTH-SIG L5/L10 · HDI 孔距 0.6 mm', set: 'Shape', padstack: 'PTH-SIG-150drill-ring0_L5_L10', differentialCenterDistance: 23.62, hdiSearchRadiusMm: 0.175, layer: '05G02P, 10G07P', expectedArea: 50.26548, areaTolerance: 1.0, rawShapeText: '' },
+      { id: 'pth_l5_l10_070', name: 'PTH-SIG L5/L10 · HDI 孔距 0.7 mm', set: 'Shape', padstack: 'PTH-SIG-150drill-ring0_L5_L10', differentialCenterDistance: 27.56, hdiSearchRadiusMm: 0.175, layer: '05G02P, 10G07P', expectedArea: 97.38257, areaTolerance: 1.0, rawShapeText: '' },
+      { id: 'pth_l5_l10_080', name: 'PTH-SIG L5/L10 · HDI 孔距 0.8 mm', set: 'Shape', padstack: 'PTH-SIG-150drill-ring0_L5_L10', differentialCenterDistance: 31.496, hdiSearchRadiusMm: 0.175, layer: '05G02P, 10G07P', expectedArea: 101.16052, areaTolerance: 1.0, rawShapeText: '' }
     ];
   }
   function runAllCopperChecks(inputText, config = {}) {

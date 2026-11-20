@@ -476,6 +476,7 @@ function handlePourShapeTxtFile(e) {
             differentialCenterDistance: null,
             hdiSearchRadiusMm: null,
             layer: sh.layer || '02G01P',
+            set: PourChecker.normalizeSpecialShapeSet(sh.set, 'Shape'),
             expectedArea: parseFloat((sh.area || 452.4).toFixed(1)),
             areaTolerance: 30.0,
             rawTxt: sh.rawText || text,
@@ -494,6 +495,7 @@ function handlePourShapeTxtFile(e) {
           differentialCenterDistance: null,
           hdiSearchRadiusMm: null,
           layer: '02G01P',
+          set: 'Shape',
           expectedArea: 452.4,
           areaTolerance: 30.0
         });

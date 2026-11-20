@@ -55,6 +55,7 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   const shape = parsePcbElements(shapeTxt).shapes[0];
   assert.ok(shape, '应识别用户提供的异型铜皮 Shape');
   assert.strictEqual(shape.layer, '05G02P');
+  assert.strictEqual(shape.set, 'Shape');
   assert.strictEqual(shape.area, 97.38256);
   assert.strictEqual(shape.boundary.length, 11, '应识别 5 条 Seg 直线与 6 条 Arc seg 圆弧');
   assert.strictEqual(shape.arcs.length, 6);
@@ -82,6 +83,11 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   assert.ok(Math.abs(composite.area - 118.27433) < 1e-6, '模板面积应为两个 Item 报告面积之和');
   assert.strictEqual(composite.boundary.length, 5, '应保留圆形与矩形的全部五段边界');
   assert.strictEqual(composite.arcs.length, 1);
+  const mixedSetComposite = PourChecker.composeShapeItems([
+    parsed.shapes[0], Object.assign({}, parsed.shapes[1], { set: 'Route Keepout' })
+  ]);
+  assert.strictEqual(mixedSetComposite.hasMixedSets, true, '多 Item 模板必须识别混合 Set 类别并阻止保存');
+  assert.deepStrictEqual(mixedSetComposite.sets, ['Shape', 'Route Keepout']);
   assert.strictEqual(PourChecker.shapeItemsTouch(parsed.shapes[0], parsed.shapes[1], 0.05), true,
     '同层同网络的圆形与矩形 Item 应识别为相接铜皮');
   const vias = [
@@ -99,6 +105,49 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   assert.deepStrictEqual(checked[0].targetShapeIds, [1, 2]);
   assert.strictEqual(checked[0].actualShapeItemCount, 2);
   console.log('  PASS  多 Item 异型铜皮：完整预览、合计面积与实际相接 Shape 联合比对');
+}
+
+// 1.3 规则 2 必须按 Shape Item 的 Set 类别隔离候选
+{
+  const vias = [{ id: 20, x: 100, y: 100, padstack: 'SET_TARGET', net: 'SET_P' }];
+  const shapes = [
+    { id: 21, layer: 'L2', set: 'Shape', net: 'SET_P', area: 100, centroid: { x: 100, y: 100 } },
+    { id: 22, layer: 'L2', set: 'Route Keepout', net: 'SET_P', area: 200, centroid: { x: 100, y: 100 } }
+  ];
+  const base = { padstack: 'SET_TARGET', layer: 'L2', areaTolerance: 0.01 };
+  const results = checkSpecialShapedCopper(vias, shapes, [
+    Object.assign({ id: 'set_shape', name: 'Shape 模板', set: ' shape ', expectedArea: 100 }, base),
+    Object.assign({ id: 'set_keepout', name: 'Keepout 模板', set: 'ROUTE   KEEPOUT', expectedArea: 200 }, base)
+  ]);
+  assert.strictEqual(results.length, 2);
+  assert.ok(results.every(result => result.pass), '两类 Set 应各自只匹配同类别 Shape Item');
+  assert.deepStrictEqual(results.map(result => [result.expectedSet, result.actualSet, result.targetShapeId]), [
+    ['Shape', 'Shape', 21], ['Route Keepout', 'Route Keepout', 22]
+  ]);
+
+  const mismatch = checkSpecialShapedCopper(vias, shapes.slice(1), [
+    Object.assign({ id: 'shape_only', name: 'Shape 模板', set: 'Shape', expectedArea: 200 }, base)
+  ])[0];
+  assert.strictEqual(mismatch.pass, false, 'Route Keepout 不得代替 Shape 类别模板');
+  assert.strictEqual(mismatch.targetShapeId, null);
+  assert.strictEqual(mismatch.actualSet, 'Route Keepout');
+  assert.deepStrictEqual(mismatch.mismatchedSetShapeIds, [22]);
+  assert.match(mismatch.message, /Set=Shape.*Set=Route Keepout/);
+
+  const mixedCount = checkSpecialShapedCopper(vias, shapes, [
+    Object.assign({ id: 'mixed_count', name: '两 Item Shape 模板', set: 'Shape', expectedArea: 300, shapeItemCount: 2 }, base)
+  ])[0];
+  assert.strictEqual(mixedCount.actualShapeItemCount, 1, '多 Item 实测组合不得跨 Set 类别拼接');
+  assert.strictEqual(mixedCount.actualArea, 100);
+  assert.strictEqual(mixedCount.pass, false);
+
+  const legacy = checkSpecialShapedCopper(vias, shapes, [
+    Object.assign({ id: 'legacy_set', name: '旧模板', expectedArea: 100 }, base)
+  ])[0];
+  assert.strictEqual(legacy.expectedSet, 'Shape', '旧模板缺少 Set 时必须按 Shape 兼容');
+  assert.strictEqual(legacy.targetShapeId, 21);
+  assert.ok(legacy.pass);
+  console.log('  PASS  规则 2：Shape 与 Route Keepout 按 Set 类别隔离，旧模板默认 Shape');
 }
 
 // 2. 第一项：孔经过层铺铜覆盖检查 (Via Layer Coverage Check)

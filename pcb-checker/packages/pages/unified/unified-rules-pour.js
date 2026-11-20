@@ -28,8 +28,10 @@ function openAddPourShapeModal() {
   $('modalPourShapeInpLayer').value = '02G01P';
   $('modalPourShapeInpLayer').disabled = false;
   $('modalPourShapeInpLayer').style.background = '#ffffff';
+  $('modalPourShapeInpSet').value = 'Shape';
+  $('modalPourShapeInpSet').disabled = false;
   $('modalPourShapeInpTol').value = '30.0';
-  $('modalPourShapeTxt').value = `Item 2  < Shape >\n  Subset: 02G01P\n  Area: 452.38934 (sq mil)\n  Exterior Boundary:\n    Arc seg: xy [23274.13, 27990.27]  xy [23274.13, 27990.27]\n      Center-xy: [23286.13, 27990.27] Radius (12.0000) CCW`;
+  $('modalPourShapeTxt').value = `Item 2  < Shape >\n  Set: Shape\n  Subset: 02G01P\n  Area: 452.38934 (sq mil)\n  Exterior Boundary:\n    Arc seg: xy [23274.13, 27990.27]  xy [23274.13, 27990.27]\n      Center-xy: [23286.13, 27990.27] Radius (12.0000) CCW`;
   $('modalPourShapeTxt').disabled = false;
   $('modalPourShapeTxt').style.background = '#ffffff';
 
@@ -65,6 +67,8 @@ function editPourShapeTemplate(idx) {
   $('modalPourShapeInpLayer').value = t.layer || '02G01P';
   $('modalPourShapeInpLayer').disabled = false;
   $('modalPourShapeInpLayer').style.background = '#ffffff';
+  $('modalPourShapeInpSet').value = PourChecker.normalizeSpecialShapeSet(t.set, 'Shape');
+  $('modalPourShapeInpSet').disabled = false;
 
   $('modalPourShapeInpTol').value = t.areaTolerance || 30.0;
 
@@ -73,7 +77,7 @@ function editPourShapeTemplate(idx) {
     : (typeof t.rawShapeText === 'string' ? t.rawShapeText : null);
   $('modalPourShapeTxt').value = savedShapeTxt != null
     ? savedShapeTxt
-    : `Item 2  < Shape >\n  Subset: ${t.layer || '02G01P'}\n  Area: ${(t.expectedArea || 452.39).toFixed(5)} (sq mil)\n  Exterior Boundary:\n    Arc seg: xy [23274.13, 27990.27]  xy [23274.13, 27990.27]\n      Center-xy: [23286.13, 27990.27] Radius (12.0000) CCW`;
+    : `Item 2  < Shape >\n  Set: ${PourChecker.normalizeSpecialShapeSet(t.set, 'Shape')}\n  Subset: ${t.layer || '02G01P'}\n  Area: ${(t.expectedArea || 452.39).toFixed(5)} (sq mil)\n  Exterior Boundary:\n    Arc seg: xy [23274.13, 27990.27]  xy [23274.13, 27990.27]\n      Center-xy: [23286.13, 27990.27] Radius (12.0000) CCW`;
   $('modalPourShapeTxt').disabled = false;
   $('modalPourShapeTxt').style.background = '#ffffff';
 
@@ -101,7 +105,8 @@ function parseModalPourShapeText(txt) {
   if (typeof PourChecker !== 'undefined' && PourChecker.parsePcbElements) {
     try {
       const parsed = PourChecker.parsePcbElements(txt);
-      if (parsed.shapes && parsed.shapes.length) return parsed.shapes[0];
+      if (parsed.shapes && parsed.shapes.length) return PourChecker.composeShapeItems
+        ? PourChecker.composeShapeItems(parsed.shapes) : parsed.shapes[0];
     } catch (_) { /* 非完整文本继续尝试读取面积 */ }
   }
   const mArea = String(txt).match(/Area:\s*([0-9.]+)/i);
@@ -127,7 +132,7 @@ function previewModalPourShape() {
   const boundary = shape.boundary || [];
   const arcCount = (shape.arcs || []).length;
   if (typeof drawShapePreviewCanvas === 'function') drawShapePreviewCanvas($('modalPourShapeCanvas'), shape);
-  if (title) title.textContent = `已解析 Shape，所在层 ${shape.layer || layer}`;
+  if (title) title.textContent = `已解析 Shape，Set ${shape.set || '未提供'}，所在层 ${shape.layer || layer}`;
   if (stats) {
     stats.innerHTML = `实测面积: <b style="color:#ffffff">${area.toFixed(2)} sq mil</b> · ${(area * 0.00064516).toFixed(4)} mm²<br>` +
       `边界：${boundary.length} 段，直线 ${Math.max(0, boundary.length - arcCount)}、圆弧 ${arcCount}`;
@@ -147,10 +152,15 @@ function savePourShapeFromModal() {
   const hdiRadiusInput = parseFloat($('modalPourShapeInpHdiRadius').value);
   const hdiSearchRadiusMm = hdiRadiusInput > 0 ? hdiRadiusInput : null;
   const layer = $('modalPourShapeInpLayer').value.trim() || '02G01P';
+  const set = PourChecker.normalizeSpecialShapeSet($('modalPourShapeInpSet').value, 'Shape');
   const tol = parseFloat($('modalPourShapeInpTol').value) || 30.0;
   const rawTxt = $('modalPourShapeTxt').value;
 
   let parsedShape = parseModalPourShapeText(rawTxt);
+  if (parsedShape && parsedShape.hasMixedSets) {
+    alert('同一模板的多个 Shape Item 必须属于同一个 Set 类别');
+    return;
+  }
   let area = parsedShape && parsedShape.area > 0 ? parsedShape.area : 0;
   const sourceRaw = g_modalPourShapeSource && (g_modalPourShapeSource.rawTxt || g_modalPourShapeSource.rawShapeText || '');
   if (!rawTxt.trim() && !String(sourceRaw).trim() && g_modalPourShapeSource) {
@@ -165,6 +175,7 @@ function savePourShapeFromModal() {
     t.differentialCenterDistance = diffCenterDistance;
     t.hdiSearchRadiusMm = hdiSearchRadiusMm;
     t.layer = layer;
+    t.set = set;
     t.expectedArea = area;
     t.areaTolerance = tol;
     t.rawTxt = rawTxt;
@@ -180,6 +191,7 @@ function savePourShapeFromModal() {
       differentialCenterDistance: diffCenterDistance,
       hdiSearchRadiusMm,
       layer,
+      set,
       expectedArea: area,
       areaTolerance: tol,
       rawTxt,

@@ -16,6 +16,15 @@
   var flattenBoundary = geom.flattenBoundary;
   var polygonArea = geom.polygonArea;
   var polygonCentroid = geom.polygonCentroid;
+
+  /** 规则 2 只接受两类 Set；旧模板与缺失 Set 的测试对象按 Shape 兼容。 */
+  function normalizeSpecialShapeSet(value, fallback) {
+    const key = String(value == null ? '' : value).trim().replace(/\s+/g, ' ').toLowerCase();
+    if (key === 'shape') return 'Shape';
+    if (key === 'route keepout') return 'Route Keepout';
+    return fallback === 'Route Keepout' ? 'Route Keepout' : (fallback === 'Shape' ? 'Shape' : '');
+  }
+
   function expandLayerRange(layerInput, availableLayers = []) {
     if (Array.isArray(layerInput)) {
       return [...new Set(layerInput.flatMap(layer => expandLayerRange(String(layer), availableLayers)))];
@@ -276,7 +285,7 @@
     if (items.length === 1) return items[0];
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     let area = 0, areaComputed = 0, areaMm2 = 0, momentX = 0, momentY = 0, weightSum = 0;
-    const layers = new Set(), nets = new Set();
+    const layers = new Set(), nets = new Set(), sets = new Set();
     const boundary = [], voids = [], arcs = [];
     items.forEach(shape => {
       minX = Math.min(minX, shape.bbox.minX); minY = Math.min(minY, shape.bbox.minY);
@@ -290,6 +299,8 @@
       }
       if (shape.layer) layers.add(shape.layer);
       if (shape.net) nets.add(shape.net);
+      const shapeSet = normalizeSpecialShapeSet(shape.set, shape.set == null ? 'Shape' : '') || String(shape.set || '').trim();
+      if (shapeSet) sets.add(shapeSet);
       boundary.push.apply(boundary, shape.boundary || []);
       voids.push.apply(voids, shape.voids || []);
       arcs.push.apply(arcs, shape.arcs || []);
@@ -304,7 +315,9 @@
       layers: Array.from(layers),
       net: Array.from(nets).join(', '),
       nets: Array.from(nets),
-      set: items[0].set,
+      set: Array.from(sets).join(', '),
+      sets: Array.from(sets),
+      hasMixedSets: sets.size > 1,
       type: 'Shape(Multi-Item)',
       area,
       areaReported: area,
@@ -349,6 +362,9 @@
       const next = candidates.find(entry => {
         const shape = entry.shape, first = selected[0];
         if (used.has(shape) || String(shape.layer).toUpperCase() !== String(first.layer).toUpperCase()) return false;
+        const shapeSet = normalizeSpecialShapeSet(shape.set, shape.set == null ? 'Shape' : '');
+        const firstSet = normalizeSpecialShapeSet(first.set, first.set == null ? 'Shape' : '');
+        if (shapeSet !== firstSet) return false;
         if (shape.net && first.net && String(shape.net).toUpperCase() !== String(first.net).toUpperCase()) return false;
         return selected.some(current => shapeItemsTouch(current, shape, 0.05));
       });
@@ -495,6 +511,7 @@
   }
 
   return {
+    normalizeSpecialShapeSet: normalizeSpecialShapeSet,
     expandLayerRange: expandLayerRange,
     parsePcbElements: parsePcbElements,
     parseShapeContours: parseShapeContours,

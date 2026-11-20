@@ -88,6 +88,7 @@ function renderRulesUI() {
       differentialCenterDistance: null,
       hdiSearchRadiusMm: null,
       layer: '02G01P',
+      set: 'Shape',
       expectedArea: 452.4,
       areaTolerance: 30.0
     }
@@ -95,7 +96,7 @@ function renderRulesUI() {
   if (badgePour2) badgePour2.textContent = `${r2List.length} 条规则`;
   if (tbodyPour2) {
     if (r2List.length === 0) {
-      tbodyPour2.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:16px;color:#6b7280">暂未配置异型铜皮模板。可点击上方「导入异型铜皮模板」或下方「新增模板规则」。</td></tr>`;
+      tbodyPour2.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:16px;color:#6b7280">暂未配置异型铜皮模板。可点击上方「导入异型铜皮模板」或下方「新增模板规则」。</td></tr>`;
     } else {
       tbodyPour2.innerHTML = r2List.map((r, i) => `
         <tr>
@@ -123,6 +124,12 @@ function renderRulesUI() {
             <span style="background:#f1f5f9;color:#374151;border:1px solid #cbd5e1;padding:2px 8px;border-radius:4px;font-weight:600;font-family:var(--mono);display:inline-block">
               <input type="text" value="${escHtml(r.layer || '02G01P')}" onchange="State.rules.specialShapeTemplates[${i}].layer=this.value" style="background:transparent;border:none;color:#374151;font-weight:700;width:65px;font-family:var(--mono)">
             </span>
+          </td>
+          <td>
+            <select data-no-persist onchange="State.rules.specialShapeTemplates[${i}].set=PourChecker.normalizeSpecialShapeSet(this.value,'Shape')" style="width:110px">
+              <option value="Shape" ${PourChecker.normalizeSpecialShapeSet(r.set, 'Shape') === 'Shape' ? 'selected' : ''}>Shape</option>
+              <option value="Route Keepout" ${PourChecker.normalizeSpecialShapeSet(r.set, 'Shape') === 'Route Keepout' ? 'selected' : ''}>Route Keepout</option>
+            </select>
           </td>
           <td style="font-family:var(--mono);font-size:12px;font-weight:600;color:#111827">
             <input type="number" step="0.1" value="${r.expectedArea != null ? r.expectedArea : 452.4}" onchange="State.rules.specialShapeTemplates[${i}].expectedArea=parseFloat(this.value)" style="width:65px"> sq mil (±<input type="number" step="1" value="${r.areaTolerance || 30}" onchange="State.rules.specialShapeTemplates[${i}].areaTolerance=parseFloat(this.value)" style="width:40px">)
@@ -188,6 +195,7 @@ function addPourRule2Row() {
     differentialCenterDistance: null,
     hdiSearchRadiusMm: null,
     layer: '02G01P',
+    set: 'Shape',
     expectedArea: 452.4,
     areaTolerance: 30.0
   });
