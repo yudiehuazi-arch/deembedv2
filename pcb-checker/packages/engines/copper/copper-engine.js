@@ -381,7 +381,7 @@
             var lm = k.match(/^L(\d+)$/i);
             if (!lm) return;
             var ln = +lm[1];
-            if (unit.startLayer && unit.endLayer && (ln < unit.startLayer || ln > unit.endLayer)) return;
+            if (ln < 1 || ln > n) return;
             var v = vals[k];
             if (v == null || v === '' || v === '无') return;
             var num = parseFloat(v);
@@ -391,16 +391,15 @@
               rows.push({
                 shapeId: 'none', subset: '—', layer: ln, checkType: ctype,
                 actual: '无铜皮', expect: String(v), status: '不符合',
-                constraint: c.name || '', missing: true, enabled: true
+                constraint: c.name || '', reason: '规则要求检查该层，但没有匹配到属于覆盖该层孔段的铜皮数据',
+                missing: true, enabled: true
               });
             }
           });
         });
       }
 
-      // 结果表始终覆盖完整孔经过的每一层。规则有数值但没有铜皮数据时
-      // 仍按缺失判定；该层没有规则值时保留一条“未检查”占位行，避免
-      // 稀疏 Shape 数据让 L2-L12 完整孔只显示 L5/L10 等少数层。
+      // 全部规则层都检查；层跨外没有合资格 Shape 时判缺失且不借用最近 Padstack。
       if (unit.signal && unit.startLayer && unit.endLayer) {
         var spanTypes = {}, spanPresent = {};
         rows.forEach(function (r) {

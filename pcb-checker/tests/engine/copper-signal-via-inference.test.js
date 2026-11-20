@@ -38,7 +38,7 @@ const shapes = [
 const sets = [0.5, 0.6, 0.7].map(pitch => ({
   kind: 'BGA', title: `BGA-L2-L12-${pitch}mm`,
   constraints: [
-    { cat: '反焊盘尺寸', name: '反焊盘半径', unit: 'mil', values: { L1: '10', L2: '10', L5: '10', L10: '10', L12: '10', L14: '10' } }
+    { cat: '反焊盘尺寸', name: '反焊盘半径', unit: 'mil', values: { L1: '10', L2: '10', L3: '10', L4: '10', L5: '10', L6: '10', L7: '10', L8: '10', L9: '10', L10: '10', L11: '10', L12: '10', L13: '10', L14: '10' } }
   ]
 }));
 const result = C.runCopperCheck([...pParts, ...nParts, nonSig, ...shapes], sets, { layerCount: 14, posTol: 0.05, valTol: 0.01 });
@@ -141,15 +141,21 @@ t('逐层来源严格取覆盖本层的孔段，不向最近端点越层借用',
   assert(l11.sourcePadstack === 'BGA-HDI-SIG_L10_L12' && l11.sourceViaSpans === 'Via 3 · L10-L12', JSON.stringify(l11));
 });
 
-t('检查结果补齐完整孔经过的 L2-L12 所有层，稀疏 Shape 层不再被隐藏', () => {
+t('14 层约束逐层全检，孔段层跨外仍判缺失但不借用来源 Padstack', () => {
   const geometryRows = pGroup.rows.filter(r => !r.isPadstackCheck);
-  for (let layer = 2; layer <= 12; layer++) {
+  for (let layer = 1; layer <= 14; layer++) {
     assert(geometryRows.some(r => r.layer === layer), '结果缺少 L' + layer);
   }
   const sparse = geometryRows.find(r => r.layer === 3);
-  assert(sparse && sparse.spanPlaceholder && sparse.status === '未检查', JSON.stringify(sparse));
-  assert(sparse.actual === '无铜皮' && sparse.expect === '该层无约束', JSON.stringify(sparse));
+  assert(sparse && sparse.missing && sparse.status === '不符合', JSON.stringify(sparse));
+  assert(sparse.actual === '无铜皮' && sparse.expect === '10', JSON.stringify(sparse));
   assert(sparse.sourcePadstack === 'BGA-HDI-SIG_L2_L5' && sparse.sourceViaIds.join('/') === '1', JSON.stringify(sparse));
+  [1, 13, 14].forEach(layer => {
+    const outside = geometryRows.find(r => r.layer === layer);
+    assert(outside && outside.missing && outside.status === '不符合', JSON.stringify(outside));
+    assert(outside.sourceViaIds.length === 0 && outside.sourceViaSpans === '无孔段覆盖该层', JSON.stringify(outside));
+    assert(outside.sourcePadstack === '无覆盖 Padstack', JSON.stringify(outside));
+  });
 });
 
 t('不含 SIG 的过孔保留显示，但不推算约束且配对 Keepout 为未检查', () => {

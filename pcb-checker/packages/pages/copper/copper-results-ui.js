@@ -517,7 +517,7 @@
         (failCount ? ('<label class="grpRvw" data-tip="将本孔所有不符合项一次标为已复核"><input type="checkbox" class="grpBox" data-no-persist data-si="' + si + '">总复核</label>') : '') +
         '<span>约束 ' + (g.rule ? esc(g.rule.title) : (g.signal !== false ? '未推算到' : '非 SIG · 不检查')) + (g.namingError ? ' · <b class="bad">Padstack命名不符合</b>' : '') + '</span>' +
         '<button type="button" class="btn gray small copper-locate-btn" data-si="' + si + '" data-tip="在空间几何视口定位该完整孔">定位</button></div><div class="body">' +
-        '<div class="srcnote">孔段打包：' + esc(sourceBundle || '无可识别孔段') + '。共同匹配约束【' + esc(g.rule ? g.rule.title : '未推算到') + '】，以下逐层检查。提取：' + esc(keyTxt(g)) + (g.note ? ' · ' + esc(g.note) : '') + (g.via.connections ? ' · ' + esc(g.via.connections) : '') + '</div>';
+        '<div class="srcnote">孔段打包：' + esc(sourceBundle || '无可识别孔段') + '。共同匹配约束【' + esc(g.rule ? g.rule.title : '未推算到') + '】，以下检查约束已配置的全部板层。提取：' + esc(keyTxt(g)) + (g.note ? ' · ' + esc(g.note) : '') + (g.via.connections ? ' · ' + esc(g.via.connections) : '') + '</div>';
       if (!rows.length) {
         h += '<div class="hint">该过孔附近无圆形铜皮。</div>';
       } else {

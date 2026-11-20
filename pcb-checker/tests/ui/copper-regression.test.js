@@ -532,7 +532,7 @@ setTimeout(() => {
     if (g.rule !== 'BGA-L2-L8') throw new Error('选到 ' + g.rule);
     if (JSON.stringify(g.keys.fans) !== '[2,8]') throw new Error('层号候选 ' + JSON.stringify(g.keys.fans));
     if (g.keys.ring !== '3') throw new Error('ring ' + g.keys.ring);
-    if (g.rows.some(row => row.startsWith('L1:'))) throw new Error('L2-L8 孔段不应借用 Top Shape：' + JSON.stringify(g.rows));
+    if (g.rows.indexOf('L1:不符合:无铜皮/11.39') < 0) throw new Error('规则配置的 L1 应检查，但不得借用层跨外 Top Shape：' + JSON.stringify(g.rows));
     if (g.rows.indexOf('L8:不符合:无铜皮/5.2') < 0) throw new Error(JSON.stringify(g.rows));
     if (g.note.indexOf('连接 L2-L8') < 0) throw new Error('备注 ' + g.note);
   });
@@ -559,7 +559,7 @@ setTimeout(() => {
     $('inpN').value = '';
     if (g.rule !== 'Bot-SMA-L19-D2M6mil') throw new Error('选到 ' + g.rule);
     if (g.keys.side !== 'Bot' || g.keys.d2m !== '6') throw new Error(JSON.stringify(g.keys));
-    if (g.rows.some(row => row.startsWith('L1:'))) throw new Error('Bottom-L19 孔段不应借用 Top Shape：' + JSON.stringify(g.rows));
+    if (g.rows.indexOf('L1:不符合:无铜皮/11.39') < 0) throw new Error('规则配置的 L1 应检查，但不得借用 Top Shape：' + JSON.stringify(g.rows));
   });
   t('BGA_SIG_L1_L19_3510_ring3mil_L2pad_0907 → _L2pad_ 不算层号', () => {
     const k = w.eval("(function(){const k=CopperCheck.padKeys('BGA_SIG_L1_L19_3510_ring3mil_L2pad_0907');return {fan:k.fan, fans:k.fans, ring:k.ring};})()");
@@ -1146,8 +1146,8 @@ setTimeout(() => {
     w.eval("S.sets=" + JSON.stringify(rules) + "; UI.items=CopperCheck.parseBoardItems(window.__sampleTxt); UI.resLimit=1000; UI.resFilter=''; UI.resRule=''; UI.resSearch=''; UI.onlyBad=false; runCheck(true); renderResults();");
   });
 
-  console.log('== 三孔段整合为一张表，并逐层标明来源 Padstack ==');
-  t('L1-L5、L5-L10、L10-L12 三孔段打包匹配一条约束，层外 Shape 不得借用', () => {
+  console.log('== 三孔段整合为一张表，并按 14 层约束全检 ==');
+  t('L1-L5、L5-L10、L10-L12 三孔段打包后检查 L1-L14，层外 Shape 不得借用', () => {
     const p = [
       {id:770,type:'via',origin:[0,0],net:'37_P',padstack:'BGA-HDI-SIG_L1_L5',traceLayers:[],connections:''},
       {id:771,type:'via',origin:[2.952756,0],net:'37_P',padstack:'PTH-SIG_L5_L10',traceLayers:[],connections:''},
@@ -1168,13 +1168,20 @@ setTimeout(() => {
       {id:786,type:'shape',circle:true,center:[0,0],radius:10,set:'Route Keepout',subset:'L11',head:'Route Keepout'},
       {id:787,type:'shape',circle:true,center:[0,0],radius:10,set:'Route Keepout',subset:'L13',head:'Route Keepout'}
     ];
-    const values = {}; for (let layer = 1; layer <= 12; layer++) values['L' + layer] = '10';
+    const values = {}; for (let layer = 1; layer <= 14; layer++) values['L' + layer] = '10';
     const integratedRules = [{kind:'BGA',title:'BGA-Top-L12-0.5mm',constraints:[{cat:'反焊盘尺寸',name:'反焊盘半径',unit:'mil',values}]}];
     w.__integratedItems = p.concat(n, shapes);
     w.eval("S.sets=" + JSON.stringify(integratedRules) + "; UI.items=window.__integratedItems; UI.resLimit=1000; UI.resFilter=''; UI.resRule=''; UI.resSearch=''; UI.onlyBad=false; runCheck(true); renderResults();");
     const group = w.eval("UI.result.groups.find(function(g){return String(g.via.id)==='770/771/772';})");
     if (!group || !group.rule || group.rule.title !== 'BGA-Top-L12-0.5mm') throw new Error('三孔段未共同匹配 Top-L12');
-    if (group.rows.some(row => row.layer === 13)) throw new Error('L13 Shape 不得塞入 L1-L12 整合孔表');
+    for (let layer = 1; layer <= 14; layer++) {
+      if (!group.rows.some(row => row.layer === layer)) throw new Error('14 层约束漏检 L' + layer);
+    }
+    if (group.rows.some(row => row.shapeId === 787)) throw new Error('L13 Shape 不得借给层跨只到 L12 的整合孔');
+    [13, 14].forEach(layer => {
+      const row = group.rows.find(item => item.layer === layer);
+      if (!row || !row.missing || row.status !== '不符合' || row.sourceViaIds.length || row.sourcePadstack !== '无覆盖 Padstack') throw new Error(JSON.stringify(row));
+    });
     const sources = [1,6,11].map(layer => group.rows.find(row => row.layer === layer));
     if (sources.map(row => row.sourcePadstack).join('|') !== 'BGA-HDI-SIG_L1_L5|PTH-SIG_L5_L10|BGA-HDI-SIG_L10_L12') throw new Error(JSON.stringify(sources));
     const card = [...d.querySelectorAll('#checkOut .set')].find(el => el.textContent.includes('整合孔 Via 770/771/772'));
@@ -1186,7 +1193,7 @@ setTimeout(() => {
     if (!tableHeaders.includes('本层来源 Via') || !tableHeaders.includes('本层来源 Padstack')) throw new Error('逐层表缺来源 Via 或来源 Padstack 列');
   });
 
-  console.log('== 逐层检查只覆盖整合孔实际层跨 ==');
+  console.log('== 约束配置层全检，同时保持 Padstack 来源层跨 ==');
   const botD2M5Rules = [{
     kind: 'SMA', title: 'Bot-SMA-L19-D2M5mil', fanLayer: 19,
     constraints: [
@@ -1238,29 +1245,36 @@ setTimeout(() => {
     '~ ~ ~ ~ ~ ~ ~ ~ ~ ~End~ ~ ~ ~ ~ ~ ~ ~ ~ ~'
   ].join('\n');
 
-  t('Bottom-L19 孔段只检查 L19-L21，规则中的 L1-L18 不得越层套用', () => {
+  t('Bottom-L19 孔段按规则检查 L1-L18/L20/L21，层跨外缺失行不借用来源', () => {
     $('tabs').querySelector('[data-tab="result"]').click();
     w.__vData = via21598Data;
     w.eval("S.sets=" + JSON.stringify(botD2M5Rules) + "; UI.items=CopperCheck.parseBoardItems(window.__vData); UI.resLimit=1000; UI.resFilter=''; UI.resRule=''; UI.resSearch=''; UI.onlyBad=false; runCheck(true); renderResults();");
     const g = w.eval("UI.result.groups[0]");
     if (!g.rule || g.rule.title !== 'Bot-SMA-L19-D2M5mil') throw new Error('规则未匹配：' + (g.rule && g.rule.title));
-    if (g.rows.length !== 4) throw new Error('应为 Padstack + L19/L20/L21 共 4 行，实际 ' + g.rows.length);
-    if (g.rows.some(row => typeof row.layer === 'number' && row.layer < 19)) throw new Error('孔段层跨外的 L1-L18 被错误检查');
+    if (g.rows.length !== 22) throw new Error('应为 Padstack + L1-L21 共 22 行，实际 ' + g.rows.length);
+    for (let layer = 1; layer <= 18; layer++) {
+      const row = g.rows.find(item => item.layer === layer);
+      if (!row || row.actual !== '无铜皮' || row.status !== '不符合') throw new Error(JSON.stringify(row));
+      if (row.sourceViaIds.length || row.sourcePadstack !== '无覆盖 Padstack') throw new Error('层跨外错误借用来源：' + JSON.stringify(row));
+    }
     const l19 = g.rows.find(r => r.layer === 19 && r.spanPlaceholder);
     if (!l19 || l19.status !== '未检查' || l19.sourcePadstack !== 'SMA_SIG_Bot-L19_d2m5mil_via') throw new Error(JSON.stringify(l19));
     [20, 21].forEach(layer => {
       const row = g.rows.find(r => r.layer === layer);
       if (!row || row.status !== '符合' || row.sourcePadstack !== 'SMA_SIG_Bot-L19_d2m5mil_via') throw new Error(JSON.stringify(row));
     });
+    if (g.failCount !== 18) throw new Error('L1-L18 应有 18 条缺失不符合，实际 ' + g.failCount);
     if (w.eval('UI.result.unmatchedCircles.some(function(shape){return shape.id===1;})') !== true) throw new Error('Top Shape 应保持未配对');
   });
 
-  t('④ 结果表只显示孔段实际层跨，并在每层标明同一来源 Padstack', () => {
+  t('④ 结果表显示全部规则层，且层跨外行明确没有来源 Padstack', () => {
     const card = d.querySelector('#checkOut .set');
     if (!card) throw new Error('未找到结果卡片');
-    if (card.querySelectorAll('tbody tr').length !== 4 || card.querySelectorAll('tr.fail').length !== 0) throw new Error('结果表未收敛到 L19-L21');
-    const sourceCells = [...card.querySelectorAll('td.padstack-source')].map(cell => cell.textContent);
-    if (!sourceCells.every(text => text.includes('SMA_SIG_Bot-L19_d2m5mil_via'))) throw new Error(sourceCells.join('|'));
+    if (card.querySelectorAll('tbody tr').length !== 22 || card.querySelectorAll('tr.fail').length !== 18) throw new Error('结果表未显示完整规则层');
+    const rowFor = layer => [...card.querySelectorAll('tbody tr')].find(row => row.children[1] && row.children[1].textContent === 'L' + layer);
+    const l1 = rowFor(1), l20 = rowFor(20);
+    if (!l1 || l1.querySelector('.via-source').textContent !== '无孔段覆盖该层' || l1.querySelector('.padstack-source').textContent !== '无覆盖 Padstack') throw new Error('L1 错误借用来源');
+    if (!l20 || !l20.querySelector('.via-source').textContent.includes('L19-L21') || !l20.querySelector('.padstack-source').textContent.includes('SMA_SIG_Bot-L19_d2m5mil_via')) throw new Error('L20 缺少实际来源');
     w.__sampleTxt = sampleTxt;
     w.eval("S.sets=" + JSON.stringify(rules) + "; UI.items=CopperCheck.parseBoardItems(window.__sampleTxt); UI.resLimit=1000; UI.resFilter=''; UI.resRule=''; UI.resSearch=''; UI.onlyBad=false; runCheck(true); renderResults();");
   });

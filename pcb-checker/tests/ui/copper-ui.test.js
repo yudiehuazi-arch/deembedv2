@@ -138,7 +138,7 @@ setTimeout(() => {
     $('expMask').style.display = 'none';
   });
 
-  t('只补齐孔段实际层跨内的缺失层，并检测 Padstack 连接层缺失', () => {
+  t('检查规则配置的全部层，并保持 Padstack 来源层跨与连接层检测', () => {
     const padTxtFail = [
       'Item 1 < Via >',
       '  Origin-xy: [100.0, 100.0]',
@@ -155,7 +155,10 @@ setTimeout(() => {
     if (!padRow || padRow.status !== '不符合' || !padRow.reason.includes('缺少连接层 L8')) {
       throw new Error('Padstack 连接层核对异常：' + JSON.stringify(padRow));
     }
-    if (g.rows.some(r => r.layer === 1)) throw new Error('L2 孔段错误检查了层跨外的 L1');
+    const missL1 = g.rows.find(r => r.layer === 1 && r.missing);
+    if (!missL1 || missL1.actual !== '无铜皮' || missL1.status !== '不符合' || missL1.sourceViaIds.length || missL1.sourcePadstack !== '无覆盖 Padstack') {
+      throw new Error('规则 L1 未检查，或错误借用了 L2 Padstack');
+    }
     const missL2 = g.rows.find(r => r.layer === 2 && r.missing);
     if (!missL2 || missL2.actual !== '无铜皮' || missL2.status !== '不符合' || missL2.sourcePadstack !== 'test BGA SIG 3510 L2 ring3mil') {
       throw new Error('L2 缺失层未补齐并标明来源');

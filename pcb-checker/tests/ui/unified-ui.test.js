@@ -78,7 +78,7 @@ async function test(name, fn) {
     const S = w.State;
     const byCat = {};
     S.allChecks.forEach(c => { byCat[c.category] = (byCat[c.category] || 0) + 1; });
-    const want = { trace: 16, copper: 4, dfm: 11, fanout: 1, pour: 138 };
+    const want = { trace: 16, copper: 40, dfm: 11, fanout: 1, pour: 138 };
     for (const k of Object.keys(want)) {
       if (byCat[k] !== want[k]) throw new Error(`${k} 检查项应为 ${want[k]}，实际 ${byCat[k]}`);
     }
@@ -108,10 +108,10 @@ async function test(name, fn) {
     }
 
     const fails = S.allChecks.filter(c => !c.pass).length;
-    // 铜皮引擎只检查每颗物理 Via 的真实 Padstack 层跨，不再把 L19 规则扩展到 L1-L18。
-    if (fails !== 156) throw new Error('不符合项应为 156，实际 ' + fails);
-    if ($('kpiTotalChecks').textContent !== '170') throw new Error('遥测总检查项异常：' + $('kpiTotalChecks').textContent);
-    if ($('kpiDefectCount').textContent !== '156') throw new Error('遥测缺陷数异常：' + $('kpiDefectCount').textContent);
+    // 约束中配置的全叠层都要检查；物理 Via 层跨只限制 Shape 来源归属，不能裁掉规则层。
+    if (fails !== 192) throw new Error('不符合项应为 192，实际 ' + fails);
+    if ($('kpiTotalChecks').textContent !== '206') throw new Error('遥测总检查项异常：' + $('kpiTotalChecks').textContent);
+    if ($('kpiDefectCount').textContent !== '192') throw new Error('遥测缺陷数异常：' + $('kpiDefectCount').textContent);
     ['trace', 'copper', 'dfm', 'fanout', 'pour'].forEach(k => {
       if (!S.results[k] || !S.results[k].hasData) throw new Error('引擎无数据：' + k);
     });
