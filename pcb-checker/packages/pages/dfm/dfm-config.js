@@ -266,6 +266,7 @@
     var thruCount = State.vias.filter(function (v) { return (v.viaSpanType || 'thru') === 'thru'; }).length;
     var blindCount = State.vias.filter(function (v) { return v.viaSpanType === 'blind'; }).length;
     var buriedCount = State.vias.filter(function (v) { return v.viaSpanType === 'buried'; }).length;
+    var surfaceCount = State.vias.filter(function (v) { return v.viaSpanType === 'surface'; }).length;
     var uniqueSpans = Array.from(new Set(State.vias.map(function (v) { return v.spanLabel || '通孔'; })));
 
     var summaryCard = $('dataSummaryCard');
@@ -274,7 +275,7 @@
       $('dataSummaryContent').innerHTML =
         '<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:13px;align-items:center">' +
           '<div><b>过孔：</b><span class="tag-badge ok">' + State.vias.length + ' · GND ' + State.vias.filter(function (v) { return v.isGnd; }).length + ' / 信号 ' + State.vias.filter(function (v) { return !v.isGnd; }).length + '</span></div>' +
-          '<div><b>孔型：</b><span class="tag-badge info">通孔 ' + thruCount + ' | 盲孔 ' + blindCount + ' | 埋孔 ' + buriedCount + '</span></div>' +
+          '<div><b>孔型：</b><span class="tag-badge info">通孔 ' + thruCount + ' | 盲孔 ' + blindCount + ' | 埋孔 ' + buriedCount + ' | 单层焊盘 ' + surfaceCount + '</span></div>' +
           '<div><b>走线段：</b><span class="tag-badge ok">' + State.traces.length + ' 段</span></div>' +
           '<div><b>层数：</b><span class="tag-badge ok">' + State.layers.length + ' 层</span></div>' +
         '</div>' +

@@ -4,11 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>PCB 扇出方案检查工具</title>
-<link rel="stylesheet" href="assets/styles/tokens.css?v=36">
-<link rel="stylesheet" href="assets/styles/eda-shell.css?v=36">
-<link rel="stylesheet" href="assets/styles/eda-dock.css?v=36">
-<link rel="stylesheet" href="assets/styles/components.css?v=36">
-<link rel="stylesheet" href="assets/styles/pages/fanout.css?v=36">
+<link rel="stylesheet" href="assets/styles/tokens.css?v=87">
+<link rel="stylesheet" href="assets/styles/eda-shell.css?v=87">
+<link rel="stylesheet" href="assets/styles/eda-dock.css?v=87">
+<link rel="stylesheet" href="assets/styles/components.css?v=87">
+<link rel="stylesheet" href="assets/styles/pages/fanout.css?v=87"><link rel="stylesheet" href="assets/styles/check-guide.css?v=87">
 </head>
 <body class="eda-workbench">
 
@@ -29,19 +29,19 @@
       <a href="copper.html" data-code="CON" data-tip="叠层约束表解析、过孔配对与反焊盘逐层尺寸核对">约束检查</a>
       <a href="dfm.html" data-code="DFM" data-tip="孔-孔、线-孔及异网孔盘 Airgap 几何间距测量与分层判定">加工能力检查</a>
       <a href="fanout.html" class="active" data-code="FAN" data-tip="过孔连通聚类、刚体变换方案匹配与孔心距分色预览">扇出方案检查</a>
-      <a href="pour.html" data-code="POR" data-tip="孔经过层铺铜、异型铜皮比对、参考层超宽、碎铜与圆弧半径核对">铜皮检查</a>
+      <a href="pour.html" data-code="POR" data-tip="孔经过层铺铜、异型铜皮比对、参考层走线投影与两侧邻近铜、碎铜与圆弧半径核对">铜皮检查</a>
       <a href="unified.html" data-code="UNI" data-tip="四槽位数据输入与五大检查引擎联动汇总工作台">综合一体化检查</a>
     </div>
   </div>
 
   <div class="eda-rail-section">
-    <div class="eda-rail-label">工序流程 <span data-tip="支持快捷键 Alt+1..5 快速切换工序">Alt+1..5</span></div>
+    <div class="eda-rail-label">工序流程 <span data-tip="支持快捷键 Alt+1..6 快速切换工序">Alt+1..6</span></div>
     <nav id="tabs">
-      <button type="button" data-tab="tabLibrary" class="active" data-tip="定义、预览、改名或批量导入标准扇出过孔拓扑模板"><span>① 扇出方案库</span><span class="badge" id="badgeSchemeCount">6</span></button>
+      <button type="button" data-tab="tabLibrary" class="active" data-tip="定义、对比、预览、改名或批量导入标准扇出过孔拓扑模板"><span>① 扇出方案库</span><span class="badge" id="badgeSchemeCount">6</span></button>
       <button type="button" data-tab="tabImport" data-tip="导入过孔与走线 TXT 并配置连通聚类阈值与旋转容差"><span>② 检查数据导入</span></button>
       <button type="button" data-tab="tabResults" data-tip="核对各孔群拓扑与 Padstack 匹配结论并执行人工复核"><span>③ 检查结果与异常分析</span><span class="badge" id="badgeClusterCount">0</span></button>
       <button type="button" data-tab="tabCanvas" data-tip="浏览 2D 孔群包络、扇出走线与缺失地孔坐标提示"><span>④ 空间几何 2D 视口</span></button>
-      <button type="button" data-tab="tabAnalysis" data-tip="统计各方案命中覆盖率与差分网络扇出异常分布"><span>⑤ 方案覆盖率与规律分析</span></button>
+      <button type="button" data-tab="tabAnalysis" data-tip="统计各方案命中覆盖率与差分网络扇出异常分布"><span>⑤ 方案覆盖率与规律分析</span></button><button type="button" data-tab="tabGuide" data-tip="查看本模块完整操作流程、检查方案与符合/不符合验证标准"><span>⑥ 检查说明</span></button>
     </nav>
   </div>
 
@@ -62,7 +62,7 @@
     </div>
   </div>
 
-  <main>
+  <main><section class="tab" id="tabGuide"><div data-check-guide-module="fanout"></div></section>
     <div class="summary-grid">
       <div class="stat-box">
         <div class="lbl">导入过孔总数</div>
@@ -94,18 +94,20 @@
     <section id="tabLibrary" class="tab active">
       <div class="card">
         <div class="row" style="justify-content:space-between">
-          <h2>扇出方案库管理 <span class="eda-tip" tabindex="0" data-tip="每套方案定义信号孔与伴随屏蔽地孔的相对坐标拓扑、孔心距谱与逐孔 Padstack 名称">?</span></h2>
+          <h2>扇出方案库管理 <span class="eda-tip" tabindex="0" data-tip="每套方案定义信号孔与伴随屏蔽地孔的相对坐标、孔心距谱与逐孔 Padstack；对比两侧可选库方案或手动粘贴 TXT">?</span></h2>
           <div class="row" style="gap:6px">
             <button type="button" class="btn pri small" onclick="openSchemeModal()">+ 新建扇出方案</button>
+            <button type="button" class="btn sec small" id="btnCompareSchemes" onclick="openFanoutSchemeCompare()" data-tip="方案库或手动粘贴 TXT 均可作为 A/B 两侧，对比孔数、Padstack、孔心距谱、几何跨度和逐孔明细">对比方案</button>
             <button type="button" class="btn ghost small" onclick="openBatchFanoutModal()" data-tip="按 ~~~end~~~ 分界符一次性解析导入多套方案">批量导入多方案</button>
             <button type="button" class="btn sec small" onclick="loadPresets()">载入标准预设</button>
             <button type="button" class="btn sec small" onclick="exportLibraryJSON()">导出 JSON</button>
             <label class="btn sec small">导入 JSON<input type="file" id="fileImportScheme" accept=".json" style="display:none" onchange="importLibraryJSON(event)"></label>
             <button type="button" class="btn bad small" onclick="clearLibrary()">清空方案库</button>
           </div>
-        </div>
+        </div><div class="scheme-library-search" role="search"><label for="inpSchemeLibrarySearch">方案名搜索</label><input type="search" id="inpSchemeLibrarySearch" list="schemeLibraryNameOptions" placeholder="输入扇出方案名" autocomplete="off" data-no-persist oninput="filterSchemeLibrary()" onchange="locateSchemeByName()" onkeydown="handleSchemeSearchKeydown(event)"><datalist id="schemeLibraryNameOptions"></datalist><button type="button" class="btn pri small" onclick="locateSchemeByName()">定位方案</button><button type="button" class="btn sec small" onclick="clearSchemeLibrarySearch()">清除</button><span id="schemeLibrarySearchStatus" class="scheme-library-search-status" aria-live="polite"></span></div>
         <div class="scheme-grid" id="schemeContainer"></div>
       </div>
+      <div id="libraryPadstackLegendBar" style="margin-top:14px"></div>
     </section>
 
     <!-- ================= ② 检查数据导入 ================= -->
@@ -151,13 +153,9 @@
           </div>
 
           <div class="form-item">
-            <label data-tip="允许大孔群局部子集匹配标准方案并识别外围多余伴随孔">子集匹配与冗余孔策略</label>
-            <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px">
-              <label class="fld" style="font-size:12px"><input type="checkbox" id="chkAllowSubsetMatch" checked> 允许子集局部拓扑匹配</label>
-              <select id="selRedundantPolicy" style="font-size:12px">
-                <option value="ANY_GND_REDUNDANT" selected>仅允许 GND 冗余地孔</option>
-                <option value="ALLOW_ANY">允许任意冗余孔</option>
-              </select>
+            <label data-tip="信号孔先锁定方案姿态，再逐一核验周围伴随 GND">完整拓扑匹配策略</label>
+            <div class="fld" style="font-size:12px;line-height:1.55;margin-top:4px">
+              不允许子集或冗余孔匹配；伴随 GND 的数量、Padstack 与中心位置必须在容差内逐一一致。
             </div>
           </div>
         </div>
@@ -165,7 +163,7 @@
         <div class="dropzone" id="dropzoneVia" onclick="document.getElementById('fileViaInput').click()" data-tip="支持 .txt / .csv / .dat 文件拖拽或点击上传">
           <input type="file" id="fileViaInput" accept=".txt,.csv,.dat" style="display:none" onchange="handleViaFileUpload(event)">
           <div class="t1">点击上传过孔与走线 TXT 文件，或拖拽至此处</div>
-          <div class="t2">同时读取 Via、Trace 与 Trace Seg 坐标及连接层数据</div>
+          <div class="t2" id="fanoutConnectionsEligibilityHint">仅 Connections 中含 Trace 的 Via 触发检查；合规多段孔直接参与，附近 Shape-only 顶层 Pin 唯一命中完整方案的 Padstack 与中心位置时作为伴随信号对象纳入；独立 Shape-only 孔不建组</div>
         </div>
 
         <details class="eda-fold" open>
@@ -235,7 +233,6 @@
           <div class="row" style="gap:4px">
             <button type="button" class="btn small pri" id="btnFilterAll" onclick="setResultFilter('all')">全部 · <span id="cntFilterAll">0</span></button>
             <button type="button" class="btn small sec" id="btnFilterPass" onclick="setResultFilter('pass')">匹配通过 · <span id="cntFilterPass">0</span></button>
-            <button type="button" class="btn small sec" id="btnFilterSubset" onclick="setResultFilter('subset')">子集匹配 · <span id="cntFilterSubset">0</span></button>
             <button type="button" class="btn small sec" id="btnFilterFail" onclick="setResultFilter('fail')">异常 · <span id="cntFilterFail">0</span></button>
             <button type="button" class="btn small sec" id="btnFilterPadstack" onclick="setResultFilter('padstack')">Padstack 不符 · <span id="cntFilterPadstack">0</span></button>
             <button type="button" class="btn small sec" id="btnFilterDist" onclick="setResultFilter('dist')">中心距超差 · <span id="cntFilterDist">0</span></button>
@@ -247,7 +244,7 @@
           </select>
 
           <input type="text" id="inpSearch" placeholder="搜索孔号 / 网络 / Padstack / 方案…" style="margin-left:auto;width:220px" oninput="applyFilters()" data-no-persist>
-        </div>
+        </div><div id="fanoutLibraryStaleNotice" class="fanout-library-stale-notice" hidden><span><strong>方案库已更新。</strong>当前结果仍使用上次运行时的方案库，新增方案不会追溯修改旧结果。</span><button type="button" class="btn pri small" onclick="executeFanoutCheck()">用当前方案库重新检查</button></div>
 
         <div class="table-wrap">
           <table>
@@ -284,6 +281,7 @@
       <div class="card" style="padding:12px">
         <div class="canvas-container" id="canvasContainer">
           <div class="canvas-toolbar">
+            <button type="button" id="btnReturnFanoutResults" onclick="returnToFanoutResults()" style="display:none" data-tip="返回检查结果明细，并恢复定位前的条目位置">返回检查结果明细</button>
             <button type="button" onclick="resetCanvasView()">居中重置</button>
             <button type="button" onclick="zoomCanvas(1.2)">放大</button>
             <button type="button" onclick="zoomCanvas(0.8)">缩小</button>
@@ -319,7 +317,6 @@
         </div>
       </div>
     </section>
-
     <!-- ================= ⑤ 方案覆盖率与规律分析 ================= -->
     <section id="tabAnalysis" class="tab">
       <div class="card">
@@ -353,6 +350,7 @@
                 <th>位置错误</th>
                 <th>调整建议</th>
                 <th style="width:80px">操作</th>
+                <th style="width:260px">板上位置</th>
               </tr>
             </thead>
             <tbody id="tblDiffAnalysisBody"></tbody>
@@ -381,8 +379,6 @@
       </div>
     </section>
 
-    <!-- 方案库全局 Padstack 统一色卡（保持位于 main 最末尾） -->
-    <div id="libraryPadstackLegendBar" style="margin-top:14px"></div>
   </main>
 </div>
 
@@ -586,7 +582,6 @@
     </div>
   </div>
 </div>
-
 <!-- 模态弹窗：星座图放大查看与孔心距测量 -->
 <div class="modal-mask" id="modalViewScheme">
   <div class="modal-box" style="max-width:1140px;width:96%;max-height:92vh;display:flex;flex-direction:column;overflow:hidden">
@@ -642,23 +637,24 @@
     </div>
   </div>
 </div>
-
-<script src="packages/shared/dom-utils.js?v=36"></script>
-<script src="packages/engines/fanout/fanout-parser.js?v=36"></script>
-<script src="packages/engines/fanout/fanout-palette.js?v=36"></script>
-<script src="packages/engines/fanout/fanout-scheme.js?v=36"></script>
-<script src="packages/engines/fanout/fanout-clustering.js?v=36"></script>
-<script src="packages/engines/fanout/fanout-inspector.js?v=36"></script>
-<script src="packages/engines/fanout/fanout-layout.js?v=36"></script>
-<script src="packages/engines/fanout/fanout-canvas.js?v=36"></script>
-<script src="packages/pages/fanout/fanout-state.js?v=36"></script>
-<script src="packages/pages/fanout/fanout-library-ui.js?v=36"></script>
-<script src="packages/pages/fanout/fanout-scheme-viewer.js?v=36"></script>
-<script src="packages/pages/fanout/fanout-results-ui.js?v=36"></script>
-<script src="packages/pages/fanout/fanout-analysis-ui.js?v=36"></script>
-<script src="packages/pages/fanout/fanout-canvas-viewer.js?v=36"></script>
-<script src="packages/shared/eda-tooltip.js?v=36"></script>
-<script src="packages/shared/eda-shell.js?v=36"></script>
-<script src="packages/shared/ui-prefs.js?v=36"></script>
+<script src="packages/shared/check-guide.js?v=87"></script><script src="packages/shared/dom-utils.js?v=87"></script>
+<script src="packages/engines/fanout/fanout-parser.js?v=87"></script>
+<script src="packages/engines/fanout/fanout-palette.js?v=87"></script>
+<script src="packages/engines/fanout/fanout-scheme.js?v=87"></script>
+<script src="packages/engines/fanout/fanout-clustering.js?v=87"></script>
+<script src="packages/engines/fanout/fanout-topology.js?v=87"></script>
+<script src="packages/engines/fanout/fanout-inspector.js?v=87"></script>
+<script src="packages/engines/fanout/fanout-layout.js?v=87"></script>
+<script src="packages/engines/fanout/fanout-canvas.js?v=87"></script>
+<script src="packages/pages/fanout/fanout-state.js?v=87"></script>
+<script src="packages/pages/fanout/fanout-library-ui.js?v=87"></script><script src="packages/pages/fanout/fanout-scheme-compare.js?v=87"></script>
+<script src="packages/pages/fanout/fanout-scheme-viewer.js?v=87"></script>
+<script src="packages/pages/fanout/fanout-result-details.js?v=87"></script><script src="packages/pages/fanout/fanout-results-ui.js?v=87"></script>
+<script src="packages/pages/fanout/fanout-analysis-ui.js?v=87"></script>
+<script src="packages/pages/fanout/fanout-canvas-review.js?v=87"></script>
+<script src="packages/pages/fanout/fanout-canvas-viewer.js?v=87"></script>
+<script src="packages/shared/eda-tooltip.js?v=87"></script>
+<script src="packages/shared/eda-shell.js?v=87"></script>
+<script src="packages/shared/ui-prefs.js?v=87"></script>
 </body>
 </html>

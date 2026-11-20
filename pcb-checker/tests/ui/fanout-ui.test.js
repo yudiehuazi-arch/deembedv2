@@ -44,6 +44,144 @@ test('页面初始化与预设 6 套扇出方案库加载', () => {
   assert.ok(document.getElementById('statSchemeCount').textContent.includes('6'));
 });
 
+test('方案库按名称即时搜索并定位到唯一方案卡片', () => {
+  const input = document.getElementById('inpSchemeLibrarySearch');
+  const status = document.getElementById('schemeLibrarySearchStatus');
+  const options = document.querySelectorAll('#schemeLibraryNameOptions option');
+  const target = window.State.library.schemes[2];
+  assert.ok(input && input.hasAttribute('data-no-persist'), '方案库缺少临时名称搜索框');
+  assert.strictEqual(options.length, 6, '搜索候选应覆盖全部方案名');
+
+  input.value = target.name.toUpperCase();
+  window.filterSchemeLibrary();
+  const visible = [...document.querySelectorAll('.scheme-card')].filter(card => !card.hidden);
+  assert.strictEqual(visible.length, 1, '完整方案名应只保留对应卡片');
+  assert.strictEqual(visible[0].getAttribute('data-scheme-id'), target.id);
+  assert.ok(status.textContent.includes('匹配 1 / 6'));
+  assert.strictEqual(window.locateSchemeByName(), target.id, '定位应返回并高亮准确方案');
+  assert.ok(visible[0].classList.contains('scheme-search-target'));
+
+  input.value = '不存在的扇出方案';
+  window.filterSchemeLibrary();
+  assert.strictEqual([...document.querySelectorAll('.scheme-card')].filter(card => !card.hidden).length, 0);
+  assert.ok(status.textContent.includes('未找到'));
+
+  window.clearSchemeLibrarySearch();
+  assert.strictEqual(input.value, '');
+  assert.strictEqual([...document.querySelectorAll('.scheme-card')].filter(card => !card.hidden).length, 6,
+    '清除搜索后应恢复全部方案卡片');
+  assert.strictEqual(status.textContent, '共 6 套方案');
+});
+
+test('方案库可选择两套方案并逐项对比关键指标、等比例图形与逐孔明细', () => {
+  const button = document.getElementById('btnCompareSchemes');
+  assert.ok(button && !button.disabled, '方案库缺少双方案对比入口');
+  window.openFanoutSchemeCompare();
+  const modal = document.getElementById('modalSchemeCompare');
+  const selectA = document.getElementById('selCompareSchemeA');
+  const selectB = document.getElementById('selCompareSchemeB');
+  assert.ok(modal.classList.contains('open'));
+  assert.strictEqual(selectA.options.length, 7);
+  assert.strictEqual(selectB.options.length, 7);
+  assert.strictEqual(selectA.options[6].value, '__manual__');
+  assert.notStrictEqual(selectA.value, selectB.value, '默认应选择两套不同方案');
+  assert.strictEqual(document.querySelectorAll('[data-compare-metric]').length, 9);
+  assert.strictEqual(document.querySelectorAll('.scheme-compare-different').length, 1,
+    '两个 SMA 十字方案应仅在 Padstack 构成上不同');
+  assert.ok(document.getElementById('schemeCompareStatus').textContent.includes('1 项关键差异'));
+  assert.strictEqual(document.querySelectorAll('.scheme-compare-preview-grid canvas').length, 2);
+  assert.strictEqual(document.querySelectorAll('.scheme-compare-via-card').length, 2);
+  assert.ok(document.getElementById('schemeCompareOutput').textContent.includes('孔心距谱'));
+
+  selectB.value = selectA.value;
+  window.updateFanoutSchemeComparison('b');
+  assert.notStrictEqual(selectA.value, selectB.value, '不允许把同一套方案作为 A、B 对比对象');
+  const previousA = selectA.value, previousB = selectB.value;
+  window.swapFanoutSchemeComparison();
+  assert.strictEqual(selectA.value, previousB);
+  assert.strictEqual(selectB.value, previousA);
+  window.closeFanoutSchemeCompare();
+  assert.ok(!modal.classList.contains('open'));
+});
+
+test('对比两侧均可粘贴 TXT，解析失败保留有效结果且不会修改方案库', () => {
+  window.openFanoutSchemeCompare();
+  const selectA = document.getElementById('selCompareSchemeA');
+  const selectB = document.getElementById('selCompareSchemeB');
+  const initialLibraryLength = window.State.library.schemes.length;
+  const initialLibraryJson = JSON.stringify(window.State.library.toJSON());
+  const manualA = `
+Item 101 < Via >
+  Origin-xy: [1000, 1000]
+  Net: SIG_A
+  Padstack Name: MANUAL_SIG_A
+Item 102 < Via >
+  Origin-xy: [1030, 1000]
+  Net: GND
+  Padstack Name: MANUAL_GND
+Item 103 < Via >
+  Origin-xy: [1000, 1040]
+  Net: GND
+  Padstack Name: MANUAL_GND
+`;
+  const manualB = `
+Item 201 < Via >
+  Origin-xy: [2000, 2000]
+  Net: SIG_B
+  Padstack Name: MANUAL_SIG_B
+Item 202 < Via >
+  Origin-xy: [2050, 2000]
+  Net: GND
+  Padstack Name: MANUAL_GND_B
+`;
+
+  selectA.value = '__manual__';
+  window.updateFanoutSchemeComparison('a');
+  assert.strictEqual(document.getElementById('schemeCompareManualA').hidden, false);
+  assert.ok(document.getElementById('schemeCompareStatus').textContent.includes('等待手动 TXT'));
+  document.getElementById('inpCompareManualNameA').value = '临时手动方案 A';
+  document.getElementById('txtCompareManualA').value = manualA;
+  const parsedA = window.parseFanoutCompareManual('a');
+  assert.strictEqual(parsedA.viaCount, 3);
+  assert.strictEqual(window.State.library.schemes.length, initialLibraryLength, '手动方案不得写入方案库');
+  assert.strictEqual(document.querySelectorAll('[data-compare-metric]').length, 9);
+  assert.ok(document.getElementById('schemeCompareOutput').textContent.includes('临时手动方案 A'));
+  assert.strictEqual(document.querySelectorAll('.scheme-compare-via-card:first-child tbody tr').length, 3);
+
+  document.getElementById('txtCompareManualA').value = '不是有效的 Via TXT';
+  const rejected = window.parseFanoutCompareManual('a');
+  assert.strictEqual(rejected, null);
+  assert.ok(document.getElementById('schemeCompareParseStatusA').textContent.includes('仍保留上次成功解析'));
+  assert.strictEqual(document.querySelectorAll('[data-compare-metric]').length, 9, '无效 TXT 不得替换已生效的对比结果');
+  assert.ok(document.getElementById('schemeCompareOutput').textContent.includes('临时手动方案 A'));
+
+  selectB.value = '__manual__';
+  window.updateFanoutSchemeComparison('b');
+  assert.strictEqual(document.getElementById('schemeCompareManualB').hidden, false);
+  assert.strictEqual(window.parseFanoutCompareManual('b'), null);
+  assert.ok(document.getElementById('schemeCompareParseStatusB').textContent.includes('请先粘贴'));
+  assert.ok(document.getElementById('schemeCompareStatus').textContent.includes('等待手动 TXT'));
+  document.getElementById('inpCompareManualNameB').value = '临时手动方案 B';
+  document.getElementById('txtCompareManualB').value = manualB;
+  const parsedB = window.parseFanoutCompareManual('b');
+  assert.strictEqual(parsedB.viaCount, 2);
+  assert.strictEqual(document.querySelectorAll('[data-compare-metric]').length, 9);
+  assert.strictEqual(document.querySelectorAll('.scheme-compare-via-card:last-child tbody tr').length, 2);
+  assert.strictEqual(window.State.library.schemes.length, initialLibraryLength);
+
+  const libraryId = String(window.State.library.schemes[0].id);
+  selectA.value = libraryId;
+  window.updateFanoutSchemeComparison('a');
+  assert.strictEqual(selectB.value, '__manual__');
+  window.swapFanoutSchemeComparison();
+  assert.strictEqual(selectA.value, '__manual__', '库方案 / 手动方案交换后 A 应为手动方案');
+  assert.strictEqual(selectB.value, libraryId, '库方案 / 手动方案交换后 B 应为原库方案');
+  assert.ok(document.getElementById('schemeCompareOutput').textContent.includes('临时手动方案 B'));
+  assert.strictEqual(window.State.library.schemes.length, initialLibraryLength);
+  assert.strictEqual(JSON.stringify(window.State.library.toJSON()), initialLibraryJson, '手动对比不得修改库方案内容');
+  window.closeFanoutSchemeCompare();
+});
+
 test('新建自定义扇出方案模态框与保存、聚类单位切换', () => {
   window.openSchemeModal();
   const modal = document.getElementById('modalScheme');
@@ -99,7 +237,156 @@ test('26 孔 + 71 段走线导入、聚类比对、结果筛选、2D 视口同�
   assert.ok(document.getElementById('pnlDefectRanking').textContent.includes('Padstack 不符'));
 });
 
-test('快捷改名关键词重复点选拼接、放大查看无重叠标注、孔心距测量与全局色卡置底', () => {
+test('检查后新增方案明确标记旧结果，并可用当前方案库重新检查', () => {
+  const target = window.State.clusters.find(c => c.matchResult.status === 'NO_MATCH_TOPOLOGY');
+  const libraryCountAtCheck = window.getFanoutResultLibrary().schemes.length;
+  assert.ok(target, '样本应包含可存为方案的未匹配孔群');
+  window.saveClusterAsScheme(target.id);
+  const extractedName = '扇出方案_' + target.id + '_' + target.vias.length + '孔';
+  assert.strictEqual(window.State.resultsStale, true, '方案库变化后旧检查结果必须标记为过期');
+  assert.strictEqual(document.getElementById('fanoutLibraryStaleNotice').hidden, false);
+  assert.strictEqual(window.getFanoutResultLibrary().schemes.length, libraryCountAtCheck,
+    '旧结果归因必须继续使用运行检查时的方案库快照');
+  assert.ok(!window.FanoutResultDetails.toText(target, window.getFanoutResultLibrary(), window.State.distTolerance).includes(extractedName),
+    '未重新检查前不得用新增方案解释旧判定');
+
+  window.executeFanoutCheck();
+  const refreshed = window.State.clusters.find(c => c.id === target.id);
+  assert.strictEqual(window.State.resultsStale, false);
+  assert.strictEqual(document.getElementById('fanoutLibraryStaleNotice').hidden, true);
+  assert.strictEqual(refreshed.matchResult.status, 'MATCH_PASS', '重新检查后原孔群应匹配刚提取的方案');
+  assert.strictEqual(refreshed.matchResult.schemeName, extractedName);
+});
+
+test('检查结果逐孔说明 Padstack、位置、缺孔和多孔问题及目标修改值', () => {
+  const scheme = {
+    name: '测试差分双孔方案',
+    vias: [
+      { id: 1, x: 0, y: 0, padstack: 'EXPECTED_P', net: 'DIFF_P', role: '差分P孔' },
+      { id: 2, x: 20, y: 0, padstack: 'EXPECTED_N', net: 'DIFF_N', role: '差分N孔' }
+    ]
+  };
+  const library = { schemes: [scheme] };
+  const mismatch = {
+    vias: [{ id: 11, x: 100, y: 100, padstack: 'WRONG_P', net: 'NET_P' }],
+    signalVias: [{ id: 11, x: 100, y: 100, padstack: 'WRONG_P', net: 'NET_P' }],
+    matchResult: {
+      pass: false,
+      status: 'PADSTACK_MISMATCH',
+      message: 'Padstack 比对不通过',
+      padMismatchList: [{ viaId: 11, x: 100, y: 100, actualPadstack: 'WRONG_P', expectedPadstack: 'EXPECTED_P', role: '差分P孔' }],
+      missingVias: [{ expectedX: 120, expectedY: 100, expectedPadstack: 'EXPECTED_N', role: '差分N孔' }]
+    }
+  };
+  const mismatchText = window.FanoutResultDetails.toText(mismatch, library, 2);
+  assert.ok(mismatchText.includes('孔 #11') && mismatchText.includes('当前「WRONG_P」') && mismatchText.includes('应改为「EXPECTED_P」'));
+  assert.ok(mismatchText.includes('[120, 100]') && mismatchText.includes('EXPECTED_N'), '缺孔应写清目标坐标与 Padstack');
+
+  const missingWithRedundant = {
+    vias: [
+      { id: 31, x: 140, y: 100, padstack: 'GND_NEARBY', net: 'GND' },
+      { id: 32, x: 160, y: 100, padstack: 'GND_REDUNDANT', net: 'GND' }
+    ],
+    signalVias: [],
+    matchResult: {
+      pass: false,
+      status: 'DISTANCE_MISMATCH',
+      message: '缺少 2 个伴随地孔',
+      viaAudit: [],
+      missingVias: [
+        { expectedX: 120, expectedY: 100, expectedPadstack: 'GND_TARGET', role: '伴随地孔1' },
+        { expectedX: 120, expectedY: 120, expectedPadstack: 'GND_TARGET', role: '伴随地孔2' }
+      ]
+    }
+  };
+  const missingDetail = window.FanoutResultDetails.build(missingWithRedundant, library, 2);
+  const missingMarkers = window.getFanoutClusterIssueMarkers(missingWithRedundant);
+  assert.strictEqual(missingDetail.issues.filter(issue => issue.kind === 'missing').length, 2, '两个未命中方案位置应保持为两条缺孔');
+  assert.deepStrictEqual(Array.from(missingMarkers, marker => marker.kind), ['missing', 'missing'], '结果明细与定位视图都应只显示两个缺孔');
+  assert.ok(!missingDetail.issues.some(issue => issue.kind === 'position' || issue.kind === 'extra'), '附近冗余地孔不得被结果层猜成位置不对或多出孔');
+
+  const explicitGeometry = {
+    vias: [], signalVias: [],
+    matchResult: {
+      pass: false,
+      status: 'DISTANCE_MISMATCH',
+      message: '伴随地孔位置异常',
+      positionMismatches: [{ viaId: 31, actualX: 140, actualY: 100, expectedX: 120, expectedY: 100, deviation: 20, expectedPadstack: 'GND_TARGET' }],
+      extraVias: [{ viaId: 32, x: 160, y: 100, actualPadstack: 'GND_EXTRA' }]
+    }
+  };
+  const explicitText = window.FanoutResultDetails.toText(explicitGeometry, library, 2);
+  assert.ok(explicitText.includes('位置不对') && explicitText.includes('孔 #31') && explicitText.includes('应移到 [120, 100]'), '引擎明确输出的位置问题应显示具体孔号和目标位置');
+  assert.ok(explicitText.includes('多出孔') && explicitText.includes('孔 #32'), '只有引擎明确输出的多余孔才显示为多出孔');
+
+  const noMatch = {
+    vias: [
+      { id: 21, x: 0, y: 0, padstack: 'EXPECTED_P', net: 'NET_P' },
+      { id: 22, x: 30, y: 0, padstack: 'WRONG_N', net: 'NET_N' },
+      { id: 23, x: 45, y: 0, padstack: 'EXTRA', net: 'NET_A' }
+    ],
+    signalVias: null,
+    matchResult: { pass: false, status: 'NO_MATCH_TOPOLOGY', message: '未匹配方案' }
+  };
+  const noMatchDetail = window.FanoutResultDetails.build(noMatch, library, 2);
+  const noMatchText = window.FanoutResultDetails.toText(noMatch, library, 2);
+  assert.ok(noMatchText.includes('信号孔多出') && noMatchText.includes('多出 1 个'), '应明确说明孔多了多少');
+  assert.ok(noMatchText.includes('孔 #22') && noMatchText.includes('WRONG_N') && noMatchText.includes('EXPECTED_N'), '应逐孔说明 Padstack 实际值与目标值');
+  assert.ok(noMatchDetail.issues.some(issue => issue.kind === 'position' && issue.text.includes('应移到约')), '应给出位置不对孔的目标坐标');
+
+  const quantityDetail = window.FanoutResultDetails.build({
+    vias: [{ id: 90, x: 12, y: 18, net: 'GND', padstack: 'GND_EXTRA' }],
+    matchResult: {
+      status: 'GND_QUANTITY_MISMATCH', message: '伴随 GND 数量不符', advice: '移除多余孔',
+      redundantViaIds: [90], padMismatchList: [], missingVias: []
+    }
+  }, library, 2);
+  assert.ok(quantityDetail.issues.some(issue => issue.kind === 'extra' && issue.text.includes('孔 #90') && issue.text.includes('GND_EXTRA')),
+    '严格数量失败应在结果明细中定位多余 GND 的孔号、位置和 Padstack');
+
+  const closestCluster = {
+    signalVias: [
+      { id: 41, x: 0, y: 0, padstack: 'HDI', net: 'PAIR_P' },
+      { id: 42, x: 20, y: 0, padstack: 'HDI', net: 'PAIR_N' }
+    ],
+    matchingSignalVias: [
+      { id: 41, x: 0, y: 0, padstack: 'HDI', net: 'PAIR_P' },
+      { id: 42, x: 20, y: 0, padstack: 'HDI', net: 'PAIR_N' },
+      { id: 43, x: 0, y: 20, padstack: 'TOP_PIN', net: 'PAIR_P' },
+      { id: 44, x: 20, y: 20, padstack: 'TOP_PIN', net: 'PAIR_N' }
+    ],
+    matchResult: { pass: false, status: 'NO_MATCH_TOPOLOGY', message: '未匹配方案' }
+  };
+  const closestLibrary = { schemes: [
+    { name: '错误的一对孔方案', vias: [{ x: 0, y: 0, padstack: 'OTHER', net: 'PAIR_P' }, { x: 20, y: 0, padstack: 'OTHER', net: 'PAIR_N' }] },
+    { name: '正确的顶层Pin加HDI方案', vias: [
+      { x: 0, y: 20, padstack: 'TOP_PIN', net: 'PAIR_P' }, { x: 20, y: 20, padstack: 'TOP_PIN', net: 'PAIR_N' },
+      { x: 0, y: 0, padstack: 'HDI', net: 'PAIR_P' }, { x: 20, y: 0, padstack: 'HDI', net: 'PAIR_N' }
+    ] }
+  ] };
+  const closest = window.FanoutResultDetails.closestSignalScheme(closestCluster, closestLibrary);
+  assert.strictEqual(closest.scheme.name, '正确的顶层Pin加HDI方案', '两对信号对象存在时不得把一对孔方案当成最近方案');
+  assert.strictEqual(closest.sameSignalCountOnly, true, '存在同信号对象数量方案时应先硬过滤数量不一致方案');
+  assert.strictEqual(closest.padMismatchCount, 0, '同 P/N 有多个对象时应先按 P/N 与 Padstack 联合对应，不能因方案孔顺序误报');
+  const closestDetail = window.FanoutResultDetails.build(closestCluster, closestLibrary, 2);
+  assert.ok(closestDetail.summary.includes('实际与方案均为 4 个信号对象，只在同数量方案中比较') &&
+    closestDetail.summary.includes('Padstack 不符 0 个'), '最接近方案应显示数量硬筛选和 Padstack 评分依据');
+  window.renderImportedTraceOverview([
+    { id: 51, net: 'PAIR_P', isFanoutEligible: true },
+    { id: 52, net: 'PAIR_P', isFanoutEligible: true, isFanoutNetRecovered: true, isFanoutCompanion: true },
+    { id: 53, net: 'IDLE', isFanoutEligible: false },
+    { id: 54, net: 'PAIR_N', isFanoutEligible: true, isFanoutCompanion: true }
+  ], []);
+  assert.ok(document.getElementById('lblImportParseHint').textContent.includes('参与检查 3 / 伴随顶层 Pin 1 / 几何恢复 Net 1 / 无 Trace 连接资格 1 不参与'),
+    '导入概览应区分正式受检对象、伴随顶层 Pin、几何恢复 Net 与排除项');
+
+  window.switchTab('tabResults');
+  window.setResultFilter('all');
+  assert.ok(document.querySelector('.fanout-result-summary'), '结果表应使用详细归因组件');
+  assert.ok(document.querySelector('.fanout-result-advice'), '结果表应显示怎么改');
+});
+
+test('快捷改名关键词重复点选拼接、放大查看无重叠标注、孔心距测量与方案库页尾色卡', () => {
   window.State.library.clear();
   window.loadPresets();
   const targetScheme = window.State.library.schemes[0];
@@ -138,10 +425,86 @@ test('快捷改名关键词重复点选拼接、放大查看无重叠标注、�
   window.State.library.removeScheme('test_measure_sc');
   window.renderSchemeCards();
 
-  // 全局 Padstack 色卡必须在 main 最末尾
+  // 全局 Padstack 色卡只能放在方案库页尾
   const legend = document.getElementById('libraryPadstackLegendBar');
-  const main = document.querySelector('main');
-  assert.strictEqual(main.lastElementChild, legend);
+  const libraryTab = document.getElementById('tabLibrary');
+  assert.strictEqual(legend.parentElement, libraryTab);
+  assert.strictEqual(libraryTab.lastElementChild, legend);
+  window.switchTab('tabImport');
+  assert.ok(!legend.closest('.tab.active'), '导入页不得显示方案库全局色卡');
+  window.switchTab('tabLibrary');
+});
+
+test('仅 Trace Connections 触发建组，并补入合规多段孔与 Shape-only 伴随顶层 Pin', () => {
+  assert.strictEqual(document.getElementById('chkAllowSubsetMatch'), null, '完整拓扑检查不应再暴露子集匹配开关');
+  assert.strictEqual(document.getElementById('selRedundantPolicy'), null, '完整拓扑检查不应再允许冗余孔策略');
+  assert.strictEqual(document.getElementById('btnFilterSubset'), null, '结果筛选不应保留永远不会通过的子集状态');
+  const eligibilityHint = document.getElementById('fanoutConnectionsEligibilityHint').textContent;
+  assert.ok(eligibilityHint.includes('Connections 中含 Trace'), '导入页应明确只有 Trace 连接孔触发检查');
+  assert.ok(eligibilityHint.includes('唯一命中完整方案的 Padstack 与中心位置'),
+    '导入页应明确伴随顶层 Pin 由完整方案几何确认');
+  assert.ok(eligibilityHint.includes('独立 Shape-only 孔不建组'));
+
+  const mixedTxt = `
+Item 1 < Via >
+  Origin-xy: [1000, 1000]
+  Net: SIG
+  Padstack Name: TEST_SIG_PAD
+  Connections:
+    Trace: 1 (Top)
+Item 2 < Via >
+  Origin-xy: [1000, 1030]
+  Net: GND
+  Padstack Name: TEST_GND_PAD
+Item 3 < Via >
+  Origin-xy: [1030, 1000]
+  Net: GND
+  Padstack Name: TEST_GND_PAD
+Item 4 < Via >
+  Origin-xy: [1030, 1030]
+  Net: GND
+  Padstack Name: TEST_GND_PAD
+Item 5 < Via >
+  Origin-xy: [1010, 1010]
+  Net: IDLE_SIG
+  Padstack Name: TEST_SIG_PAD
+Item 6 < Via >
+  Origin-xy: [1500, 1500]
+  Net: SHAPE_ONLY_SIG
+  Padstack Name: TEST_SIG_PAD
+  Connections:
+    Shape: 1 (03G02P)
+`;
+  document.getElementById('txtViaInput').value = mixedTxt;
+  window.executeFanoutCheck();
+  assert.strictEqual(window.State.summary.totalParsedSignalVias, 3);
+  assert.strictEqual(window.State.summary.totalSignalVias, 1);
+  assert.strictEqual(window.State.summary.excludedSignalVias, 2);
+  assert.strictEqual(window.State.clusters.length, 1, '只有 Trace Connections 信号孔创建检查组');
+  const routedCluster = window.State.clusters[0];
+  assert.deepStrictEqual(Array.from(routedCluster.signalVias, v => v.id), [1]);
+  assert.ok(!routedCluster.vias.some(v => v.id === 5 || v.id === 6), 'Shape-only 和无 Connections 信号孔不得污染当前组');
+  assert.ok(routedCluster.vias.some(v => v.net === 'GND'), '附近 GND 应继续关联为伴随地孔');
+  assert.ok(document.getElementById('lblImportParseHint').textContent.includes('参与检查 1 / 无 Trace 连接资格 2 不参与'));
+
+  const noConnectedTxt = mixedTxt
+    .replace('  Connections:\n    Trace: 1 (Top)\n', '')
+    .replace('  Connections:\n    Shape: 1 (03G02P)\n', '');
+  document.getElementById('txtViaInput').value = noConnectedTxt;
+  window.executeFanoutCheck();
+  assert.strictEqual(window.State.vias.length, 6, '全部过孔仍应保留供导入概览和视口显示');
+  assert.strictEqual(window.State.summary.totalSignalVias, 0);
+  assert.strictEqual(window.State.summary.totalClusters, 0);
+  assert.strictEqual(window.State.clusters.length, 0, '所有逻辑信号孔都无 Trace Connections 时不得回退组群');
+  assert.strictEqual(document.getElementById('statTotalClusters').textContent, '0');
+  assert.strictEqual(document.getElementById('cntFilterAll').textContent, '0');
+  assert.ok(document.getElementById('lblImportParseHint').textContent.includes('参与检查 0 / 无 Trace 连接资格 3 不参与'));
+
+  window.switchTab('tabCanvas');
+  window.fitCanvasToLayout();
+  assert.strictEqual(window.State.activeTab, 'tabCanvas');
+  assert.ok(Number.isFinite(window.State.canvas.zoom) && window.State.canvas.zoom > 0,
+    '零检查组时仍应可按全部导入过孔缩放视口');
 });
 
 test('页面运行期零脚本错误', () => {

@@ -32,10 +32,7 @@
       { id: 'cov_1', padstack: 'HDI_045drill_ring3_1_4', layers: 'L1-L5', coverageRadius: 50.0 },
       { id: 'cov_2', padstack: 'BGA_GND_pad1mil_0902', layers: '02G01P, 19IS08', coverageRadius: 30.0 }
     ],
-    specialShapeTemplates: [
-      { id: 'tmpl_1', name: 'L2特定异型泪滴铜皮', padstack: 'BGA_3510', differentialCenterDistance: 10.0, hdiSearchRadiusMm: 0.175, layer: '02G01P', expectedArea: 452.38, areaTolerance: 30.0, rawShapeText: '' },
-      { id: 'tmpl_2', name: 'L19特定异型铜皮', padstack: 'BGA_3510', differentialCenterDistance: 10.0, hdiSearchRadiusMm: 0.175, layer: '19IS08', expectedArea: 113.10, areaTolerance: 20.0, rawShapeText: '' }
-    ],
+    specialShapeTemplates: root.PourChecker.getDefaultSpecialShapeTemplates(),
     traceMarginRules: [
       { id: 'margin_1', traceLayer: '19IS08', upperRefLayer: '08IS03', lowerRefLayer: 'Bottom', minMargin: 50.0 },
       { id: 'margin_2', traceLayer: '08IS03', upperRefLayer: '02G01P', lowerRefLayer: '19IS08', minMargin: 40.0 }
@@ -53,7 +50,11 @@
     filteredResults: [],
     summary: null,
     activeTab: 'tabRules',
+    resultStatusFilter: 'all',
     categoryFilter: 'all',
+    analysisCategoryFilter: 'via_coverage',
+    resultColumnFilters: { category: [], target: '', layer: [], status: [], problem: '', review: [] },
+    resultColumnFilterSource: [],
     viewMode: 'grouped',
     expandedRows: new Set(),
     page: 1,
@@ -67,10 +68,10 @@
       r1_dist: ['50.0', '40.0', '30.0', '20.0', '15.0'],
 
       r2_name: ['L2特定异型泪滴铜皮', 'L19特定异型铜皮', 'SMA专用接地异型铜皮', 'BGA局部加宽铜皮'],
-      r2_padstack: ['BGA_3510', 'HDI_045drill', 'SMA_Bot-L19', 'BGA_GND'],
+      r2_padstack: ['BGA_3510', 'SMA-HDI-SIG-045drill-ring3_L1_L2', 'HDI_045drill', 'SMA_Bot-L19', 'BGA_GND'],
       r2_diff_dist: ['10.0', '19.68', '20.0', '23.62'],
       r2_hdi_radius: ['0.175', '0.150', '0.125', '0.100'],
-      r2_layer: ['02G01P', '19IS08', 'L2', 'L4', 'L17'],
+      r2_layer: ['02G01P', '19IS08', 'L2', 'L4', 'L17', 'Soldermask Top', 'Outline'],
       r2_tol: ['30.0', '20.0', '10.0', '50.0'],
 
       r3_tracelayer: ['19IS08', '08IS03', '02G01P', 'L4', 'L6', 'L8'],
@@ -90,17 +91,34 @@
       dragStartX: 0,
       dragStartY: 0,
       hasInitialFit: false,
+      deferNextTabRender: false,
       showShapes: true,
       showVias: true,
       showTraces: true,
-      showPorts: true,
+      showNetLabels: true,
+      showObjectIds: true,
       showDefects: true,
+      defectFilter: 'all',
+      defectSubFilter: '',
       measureMode: false,
-      measurePoints: []
+      measurePoints: [],
+      highlightShapeIds: [],
+      activeProblem: null,
+      shapeLayerMode: 'all',
+      visibleShapeLayers: [],
+      problemShapeLayers: [],
+      returnPosition: null
     },
 
     editingIndex: -1,
-    modalShapeParsed: null
+    modalShapeParsed: null,
+    importedText: '',
+    hasImportedText: false,
+    importedFileName: '',
+    checkWorker: null,
+    checkRunId: 0,
+    checkStartedAt: 0,
+    checkTimer: null
   };
 
   var TAB_ORDER = ['tabRules', 'tabImport', 'tabResults', 'tabCanvas', 'tabAnalysis'];
@@ -118,6 +136,7 @@
     if (tabId === 'tabCanvas') {
       safeRAF(function () {
         if (typeof root.resizeCanvas === 'function') root.resizeCanvas();
+        if (State.canvas.deferNextTabRender) { State.canvas.deferNextTabRender = false; return; }
         if (!State.canvas.hasInitialFit && (State.shapes.length > 0 || State.vias.length > 0 || State.traces.length > 0)) {
           if (typeof root.fitCanvasToLayout === 'function') root.fitCanvasToLayout();
           State.canvas.hasInitialFit = true;
@@ -205,93 +224,6 @@
     renderChipBar('chipsRule5Radius', 'rule5InpRadius', State.history.r5_radius, 'mil');
   }
 
-
-  /* ---------- 数据导入与检查调度 ---------- */
-  function handleFileUpload(event) {
-    var file = event && event.target && event.target.files && event.target.files[0];
-    if (!file) return;
-    var reader = new root.FileReader();
-    reader.onload = function (e) {
-      var decoded = root.decodeTxt ? root.decodeTxt(e.target.result) : String(e.target.result || '');
-      document.getElementById('txtDataInput').value = decoded;
-      executeCopperChecks();
-    };
-    if (reader.readAsArrayBuffer && root.decodeTxt) {
-      reader.readAsArrayBuffer(file);
-    } else {
-      reader.readAsText(file);
-    }
-  }
-
-  function loadSampleShapes() {
-    root.fetch('sample/铜皮数据示例.txt')
-      .then(function (r) { return r.text(); })
-      .then(function (txt) {
-        document.getElementById('txtDataInput').value = txt;
-        executeCopperChecks();
-      })
-      .catch(function () { root.alert('无法载入示例文件'); });
-  }
-
-  function executeCopperChecks() {
-    var txtEl = document.getElementById('txtDataInput');
-    var txt = txtEl ? txtEl.value.trim() : '';
-    if (!txt) {
-      switchTab('tabImport');
-      root.alert('请先上传或粘贴包含 Shape / Via / Trace 的 TXT 数据。');
-      return;
-    }
-
-    State.smallCopperAreaThreshold = parseFloat(document.getElementById('rule4InpArea').value) || 500.0;
-    State.minArcRadius = parseFloat(document.getElementById('rule5InpRadius').value) || 10.0;
-
-    var btn = document.getElementById('btnRunCheck');
-    if (btn) {
-      btn.textContent = '正在执行五项几何检查...';
-      btn.disabled = true;
-    }
-
-    var doCheck = function () {
-      var config = {
-        viaCoverageRules: State.viaCoverageRules,
-        specialShapeTemplates: State.specialShapeTemplates,
-        traceMarginRules: State.traceMarginRules,
-        smallCopperAreaThreshold: State.smallCopperAreaThreshold,
-        minArcRadius: State.minArcRadius
-      };
-
-      var res = root.PourChecker.runAllCopperChecks(txt, config);
-      if (btn) {
-        btn.textContent = '▶ 运行铜皮五项检查';
-        btn.disabled = false;
-      }
-
-      State.shapes = res.shapes;
-      State.vias = res.vias;
-      State.traces = res.traces;
-      State.layers = res.layers;
-      State.rawResults = res.results.all;
-      State.groupedResults = res.results.grouped || root.PourChecker.groupResultsByTargetObject(res.results.all);
-      State.results = State.groupedResults;
-      State.summary = res.summary;
-      State.page = 1;
-      State.expandedRows.clear();
-      State.canvas.hasInitialFit = false;
-
-      if (typeof root.updateTopKPIs === 'function') root.updateTopKPIs();
-      if (typeof root.applyFilters === 'function') root.applyFilters();
-      switchTab('tabResults');
-      if (root.EdaShell && typeof root.EdaShell.syncTelemetry === 'function') {
-        root.EdaShell.syncTelemetry();
-      }
-    };
-
-    if (root.__SYNC_CHECK__) {
-      doCheck();
-    } else {
-      setTimeout(doCheck, 30);
-    }
-  }
 
   /* ---------- 导出文件与复制兜底 ---------- */
   function showExportBox(filename, text, hint, mimeType) {
@@ -383,19 +315,23 @@
         e.preventDefault();
         dz.classList.remove('dragover');
         var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-        if (f) handleFileUpload({ target: { files: [f] } });
+        if (f && typeof root.handleFileUpload === 'function') root.handleFileUpload({ target: { files: [f] } });
       });
     }
 
     var dockRun = document.getElementById('dockPourRun');
     if (dockRun && !dockRun.__pourBound) {
       dockRun.__pourBound = true;
-      dockRun.addEventListener('click', function () { executeCopperChecks(); });
+      dockRun.addEventListener('click', function () {
+        if (typeof root.executeCopperChecks === 'function') root.executeCopperChecks();
+      });
     }
     var dockSample = document.getElementById('dockPourSample');
     if (dockSample && !dockSample.__pourBound) {
       dockSample.__pourBound = true;
-      dockSample.addEventListener('click', function () { loadSampleShapes(); });
+      dockSample.addEventListener('click', function () {
+        if (typeof root.loadSampleShapes === 'function') root.loadSampleShapes();
+      });
     }
     var dockCanvas = document.getElementById('dockPourCanvas');
     if (dockCanvas && !dockCanvas.__pourBound) {
@@ -431,9 +367,6 @@
   root.loadStoredHistory = loadStoredHistory;
   root.renderHistoryChips = renderHistoryChips;
   root.fillInputAndRecord = fillInputAndRecord;
-  root.handleFileUpload = handleFileUpload;
-  root.loadSampleShapes = loadSampleShapes;
-  root.executeCopperChecks = executeCopperChecks;
   root.showExportBox = showExportBox;
   root.copyExportContent = copyExportContent;
 })(typeof window !== "undefined" ? window : globalThis);

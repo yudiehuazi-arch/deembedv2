@@ -69,6 +69,7 @@ window.deletePourRule1 = deletePourRule1;
 window.addPourRule2Row = addPourRule2Row;
 window.deletePourShapeTemplate = deletePourShapeTemplate;
 window.editPourShapeTemplate = editPourShapeTemplate;
+window.duplicatePourShapeTemplate = duplicatePourShapeTemplate;
 window.addPourRule3Row = addPourRule3Row;
 window.deletePourRule3 = deletePourRule3;
 window.deleteFanoutScheme = deleteFanoutScheme;

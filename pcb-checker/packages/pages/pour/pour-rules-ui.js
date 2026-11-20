@@ -19,6 +19,17 @@
   var switchTab = function (id) { if (root.switchTab) root.switchTab(id); };
   var showExportBox = function (f, t, h, m) { if (root.showExportBox) root.showExportBox(f, t, h, m); };
 
+  function optionalPositive(value) {
+    var number = parseFloat(value);
+    return number > 0 ? number : null;
+  }
+
+  function normalizeRule2Set(value) {
+    var PC = root.PourChecker;
+    return PC && PC.normalizeSpecialShapeSet ? PC.normalizeSpecialShapeSet(value, 'Shape') :
+      ({ 'route keepout': 'Route Keepout', 'board geometry': 'Board Geometry' }[String(value || '').trim().toLowerCase()] || 'Shape');
+  }
+
   /* ---------- 规则 1 / 2 / 3 列表与缩略图 ---------- */
   function renderAllRuleTables() {
     renderRule1Table();
@@ -61,6 +72,8 @@
     var PC = root.PourChecker;
     tbody.innerHTML = State.specialShapeTemplates.map(function (t, idx) {
       var areaNum = PC && PC.roundN ? PC.roundN(t.expectedArea, 1) : Number(t.expectedArea || 0).toFixed(1);
+      var centerText = optionalPositive(t.differentialCenterDistance);
+      var radiusText = optionalPositive(t.hdiSearchRadiusMm);
       return '<tr>' +
         '<td><strong>#' + (idx + 1) + '</strong></td>' +
         '<td><div style="width:48px;height:48px;background:#0b1220;border-radius:4px;overflow:hidden">' +
@@ -68,11 +81,13 @@
         '</div></td>' +
         '<td><strong>' + esc(t.name) + '</strong></td>' +
         '<td><span class="badge-tag copper">' + esc(t.padstack) + '</span></td>' +
-        '<td><strong>' + esc(t.differentialCenterDistance) + ' mil</strong></td>' +
-        '<td><strong>' + esc(t.hdiSearchRadiusMm || 0.175) + ' mm</strong></td>' +
+        '<td><strong>' + (centerText == null ? '<span class="hint">未启用</span>' : esc(centerText) + ' mil') + '</strong></td>' +
+        '<td><strong>' + (radiusText == null ? '<span class="hint">未启用</span>' : esc(radiusText) + ' mm') + '</strong></td>' +
         '<td><span class="badge-tag gray">' + esc(t.layer) + '</span></td>' +
+        '<td><span class="badge-tag gray">' + esc(normalizeRule2Set(t.set)) + '</span></td>' +
         '<td><strong>' + esc(areaNum) + ' sq mil</strong> ±' + esc(t.areaTolerance) + '</td>' +
-        '<td><div class="row" style="gap:4px">' +
+        '<td><div class="row" style="gap:4px;flex-wrap:nowrap">' +
+          '<button type="button" class="btn sec small" onclick="duplicateRule2ForLayer(' + idx + ')">复制加层</button>' +
           '<button type="button" class="btn sec small" onclick="openEditRule2Modal(' + idx + ')">编辑</button>' +
           '<button type="button" class="btn bad small" onclick="deleteRule2(' + idx + ')">删除</button>' +
         '</div></td>' +
@@ -166,7 +181,7 @@
 
   function enableRule2Inputs() {
     ['modalR2InpName', 'modalR2InpPadstack', 'modalR2InpDiffDist', 'modalR2InpHdiRadius',
-      'modalR2InpLayer', 'modalR2InpTol', 'modalR2TxtShape'].forEach(function (id) {
+      'modalR2InpLayer', 'modalR2InpSet', 'modalR2InpTol', 'modalR2TxtShape'].forEach(function (id) {
       var el = document.getElementById(id);
       if (!el) return;
       el.disabled = false;
@@ -176,16 +191,18 @@
 
   function openAddRule2Modal() {
     State.editingIndex = -1;
+    State.editingRule2Original = null;
     document.getElementById('modalR2Title').textContent = '新增特定异型铜皮模板';
     enableRule2Inputs();
     document.getElementById('modalR2InpName').value = 'L2特定异型铜皮_' + (State.specialShapeTemplates.length + 1);
     document.getElementById('modalR2InpPadstack').value = 'BGA_3510';
-    document.getElementById('modalR2InpDiffDist').value = '10.0';
-    document.getElementById('modalR2InpHdiRadius').value = '0.175';
+    document.getElementById('modalR2InpDiffDist').value = '';
+    document.getElementById('modalR2InpHdiRadius').value = '';
     document.getElementById('modalR2InpLayer').value = '02G01P';
+    document.getElementById('modalR2InpSet').value = 'Shape';
     document.getElementById('modalR2InpTol').value = '30.0';
     document.getElementById('modalR2TxtShape').value =
-      'Item 2  < Shape >\n  Subset: 02G01P\n  Area: 452.38934  (sq mil)\nExterior Boundary:\n  Arc seg: xy [23274.13, 27990.27]  xy [23274.13, 27990.27]\n    Center-xy: [23286.13, 27990.27] Radius (12.0000) CCW';
+      'Item 2  < Shape >\n  Set: Shape\n  Subset: 02G01P\n  Area: 452.38934  (sq mil)\nExterior Boundary:\n  Arc seg: xy [23274.13, 27990.27]  xy [23274.13, 27990.27]\n    Center-xy: [23286.13, 27990.27] Radius (12.0000) CCW';
     previewModalShape();
     renderHistoryChips();
     openModal('modalRule2');
@@ -195,13 +212,15 @@
     State.editingIndex = idx;
     var t = State.specialShapeTemplates[idx];
     if (!t) return;
+    State.editingRule2Original = t;
     document.getElementById('modalR2Title').textContent = '编辑特定异型铜皮模板';
     enableRule2Inputs();
     document.getElementById('modalR2InpName').value = t.name;
     document.getElementById('modalR2InpPadstack').value = t.padstack;
-    document.getElementById('modalR2InpDiffDist').value = t.differentialCenterDistance || 10.0;
-    document.getElementById('modalR2InpHdiRadius').value = t.hdiSearchRadiusMm || 0.175;
+    document.getElementById('modalR2InpDiffDist').value = optionalPositive(t.differentialCenterDistance) || '';
+    document.getElementById('modalR2InpHdiRadius').value = optionalPositive(t.hdiSearchRadiusMm) || '';
     document.getElementById('modalR2InpLayer').value = t.layer;
+    document.getElementById('modalR2InpSet').value = normalizeRule2Set(t.set);
     document.getElementById('modalR2InpTol').value = t.areaTolerance;
     document.getElementById('modalR2TxtShape').value = typeof t.rawShapeText === 'string'
       ? t.rawShapeText
@@ -220,12 +239,13 @@
     var desc = document.getElementById('modalR2PreviewDesc');
 
     if (parsed.shapes.length > 0) {
-      var s = parsed.shapes[0];
+      var s = PC.composeShapeItems ? PC.composeShapeItems(parsed.shapes) : parsed.shapes[0];
       State.modalShapeParsed = s;
       var lineCnt = s.boundary.filter(function (b) { return b.type === 'line'; }).length;
-      title.textContent = '已解析 Shape 几何 · 层 ' + s.layer;
+      var itemCount = s.itemCount || 1;
+      title.textContent = '已解析 ' + itemCount + ' 个 Shape Item · Set ' + (s.set || '未提供') + ' · 层 ' + s.layer;
       desc.innerHTML =
-        '<div>实测面积: <strong>' + PC.roundN(s.area, 2) + ' sq mil</strong> · ' + PC.roundN(s.areaMm2, 4) + ' mm²</div>' +
+        '<div>合计面积: <strong>' + PC.roundN(s.area, 2) + ' sq mil</strong> · ' + PC.roundN(s.areaMm2, 4) + ' mm²</div>' +
         '<div>边界段数: ' + s.boundary.length + ' 段 · 直线 ' + lineCnt + ' / 圆弧 ' + s.arcs.length + '</div>';
       if (root.drawShapePreviewCanvas) {
         root.drawShapePreviewCanvas(document.getElementById('modalR2Canvas'), s);
@@ -243,24 +263,32 @@
   function saveRule2FromModal() {
     var name = document.getElementById('modalR2InpName').value.trim();
     var pad = document.getElementById('modalR2InpPadstack').value.trim();
-    var diffDist = parseFloat(document.getElementById('modalR2InpDiffDist').value) || 10.0;
-    var hdiRadiusInput = parseFloat(document.getElementById('modalR2InpHdiRadius').value);
-    var hdiSearchRadiusMm = hdiRadiusInput > 0 ? hdiRadiusInput : 0.175;
+    var diffDist = optionalPositive(document.getElementById('modalR2InpDiffDist').value);
+    var hdiSearchRadiusMm = optionalPositive(document.getElementById('modalR2InpHdiRadius').value);
     var layer = document.getElementById('modalR2InpLayer').value.trim();
+    var set = normalizeRule2Set(document.getElementById('modalR2InpSet').value);
     var tol = parseFloat(document.getElementById('modalR2InpTol').value) || 30.0;
     var rawTxt = document.getElementById('modalR2TxtShape').value;
     previewModalShape();
 
     recordHistory('r2_name', name);
     recordHistory('r2_padstack', pad);
-    recordHistory('r2_diff_dist', String(diffDist));
-    recordHistory('r2_hdi_radius', String(hdiSearchRadiusMm));
+    if (diffDist != null) recordHistory('r2_diff_dist', String(diffDist));
+    if (hdiSearchRadiusMm != null) recordHistory('r2_hdi_radius', String(hdiSearchRadiusMm));
     recordHistory('r2_layer', layer);
     recordHistory('r2_tol', String(tol));
 
     var expectedArea = 0;
-    if (State.modalShapeParsed && State.modalShapeParsed.area > 0) {
-      expectedArea = State.modalShapeParsed.area;
+    var savedShape = State.modalShapeParsed;
+    if (savedShape && savedShape.hasMixedSets) {
+      root.alert('同一模板的多个 Shape Item 必须属于同一个 Set 类别');
+      return;
+    }
+    if (savedShape && savedShape.area > 0) {
+      expectedArea = savedShape.area;
+    } else if (!rawTxt.trim() && State.editingRule2Original && !String(State.editingRule2Original.rawShapeText || '').trim()) {
+      expectedArea = Number(State.editingRule2Original.expectedArea) || 0;
+      savedShape = State.editingRule2Original.shape || null;
     }
 
     var newTmpl = {
@@ -270,10 +298,12 @@
       differentialCenterDistance: diffDist,
       hdiSearchRadiusMm: hdiSearchRadiusMm,
       layer: layer,
+      set: set,
       expectedArea: expectedArea,
       areaTolerance: tol,
       rawShapeText: rawTxt,
-      shape: State.modalShapeParsed
+      shapeItemCount: savedShape ? (savedShape.itemCount || (State.editingRule2Original && State.editingRule2Original.shapeItemCount) || 1) : 0,
+      shape: savedShape
     };
 
     if (State.editingIndex >= 0) {
@@ -284,6 +314,7 @@
 
     renderRule2Table();
     closeModal('modalRule2');
+    State.editingRule2Original = null;
   }
 
   function deleteRule2(idx) {
@@ -291,9 +322,20 @@
     renderRule2Table();
   }
 
+  function duplicateRule2ForLayer(idx) {
+    var source = State.specialShapeTemplates[idx];
+    if (!source) return;
+    var copy = JSON.parse(JSON.stringify(source));
+    copy.id = 'tmpl_' + Date.now() + '_' + (idx + 1);
+    copy.name = (source.name || '异型铜皮模板') + '_新增层';
+    State.specialShapeTemplates.splice(idx + 1, 0, copy);
+    renderRule2Table();
+    openEditRule2Modal(idx + 1);
+  }
+
   function openAddRule3Modal() {
     State.editingIndex = -1;
-    document.getElementById('modalR3Title').textContent = '新增走线参考层超宽规则';
+    document.getElementById('modalR3Title').textContent = '新增走线参考层投影与邻近铜规则';
     document.getElementById('modalR3InpTraceLayer').value = '19IS08';
     document.getElementById('modalR3InpUpperRef').value = '08IS03';
     document.getElementById('modalR3InpLowerRef').value = 'Bottom';
@@ -399,14 +441,17 @@
     if (Array.isArray(data.specialShapeTemplates)) {
       State.specialShapeTemplates = data.specialShapeTemplates;
       State.specialShapeTemplates.forEach(function (t) {
-        var centerDistance = parseFloat(t.differentialCenterDistance);
-        var hdiRadius = parseFloat(t.hdiSearchRadiusMm);
-        t.differentialCenterDistance = centerDistance > 0 ? centerDistance : 10.0;
-        t.hdiSearchRadiusMm = hdiRadius > 0 ? hdiRadius : 0.175;
-        if (t.rawShapeText && !t.shape && root.PourChecker && root.PourChecker.parsePcbElements) {
+        t.differentialCenterDistance = optionalPositive(t.differentialCenterDistance);
+        t.hdiSearchRadiusMm = optionalPositive(t.hdiSearchRadiusMm);
+        t.set = normalizeRule2Set(t.set);
+        if (t.rawShapeText && root.PourChecker && root.PourChecker.parsePcbElements) {
           try {
             var parsed = root.PourChecker.parsePcbElements(t.rawShapeText);
-            if (parsed.shapes.length > 0) t.shape = parsed.shapes[0];
+            if (parsed.shapes.length > 0) {
+              t.shape = root.PourChecker.composeShapeItems
+                ? root.PourChecker.composeShapeItems(parsed.shapes) : parsed.shapes[0];
+              t.shapeItemCount = t.shape.itemCount || 1;
+            }
           } catch (e) {}
         }
       });
@@ -455,7 +500,7 @@
           statusEl.textContent = '已从「' + file.name + '」载入 ' +
             State.viaCoverageRules.length + ' 条孔铺铜规则、' +
             State.specialShapeTemplates.length + ' 条异型模板、' +
-            State.traceMarginRules.length + ' 条走线超宽规则。';
+            State.traceMarginRules.length + ' 条走线参考层投影与邻近铜规则。';
         }
         event.target.value = '';
       } catch (err) {
@@ -486,10 +531,7 @@
       { id: 'cov_1', padstack: 'HDI_045drill_ring3_1_4', layers: 'L1-L5', coverageRadius: 50.0 },
       { id: 'cov_2', padstack: 'BGA_GND_pad1mil_0902', layers: '02G01P, 19IS08', coverageRadius: 30.0 }
     ];
-    State.specialShapeTemplates = [
-      { id: 'tmpl_1', name: 'L2特定异型泪滴铜皮', padstack: 'BGA_3510', differentialCenterDistance: 10.0, hdiSearchRadiusMm: 0.175, layer: '02G01P', expectedArea: 452.38, areaTolerance: 30.0, rawShapeText: '' },
-      { id: 'tmpl_2', name: 'L19特定异型铜皮', padstack: 'BGA_3510', differentialCenterDistance: 10.0, hdiSearchRadiusMm: 0.175, layer: '19IS08', expectedArea: 113.10, areaTolerance: 20.0, rawShapeText: '' }
-    ];
+    State.specialShapeTemplates = root.PourChecker.getDefaultSpecialShapeTemplates();
     State.traceMarginRules = [
       { id: 'margin_1', traceLayer: '19IS08', upperRefLayer: '08IS03', lowerRefLayer: 'Bottom', minMargin: 50.0 },
       { id: 'margin_2', traceLayer: '08IS03', upperRefLayer: '02G01P', lowerRefLayer: '19IS08', minMargin: 40.0 }
@@ -538,6 +580,7 @@
   root.previewModalShape = previewModalShape;
   root.saveRule2FromModal = saveRule2FromModal;
   root.deleteRule2 = deleteRule2;
+  root.duplicateRule2ForLayer = duplicateRule2ForLayer;
   root.openAddRule3Modal = openAddRule3Modal;
   root.openEditRule3Modal = openEditRule3Modal;
   root.saveRule3FromModal = saveRule3FromModal;

@@ -100,6 +100,24 @@ tr.subrow td {
   border-left: 3px solid var(--pri);
 }
 
+tr.pour-located-flash td {
+  animation: pour-result-frame 1.8s ease-out;
+}
+
+@keyframes pour-result-frame {
+  0%, 35% {
+    box-shadow: inset 0 0 0 2px #2563eb;
+    background: #dbeafe;
+  }
+  65% {
+    box-shadow: inset 0 0 0 2px #60a5fa;
+    background: #eff6ff;
+  }
+  100% {
+    box-shadow: inset 0 0 0 0 transparent;
+  }
+}
+
 .badge-tag.copper {
   background: #fef3c7;
   color: var(--copper);
@@ -161,7 +179,8 @@ canvas#mainCanvas:active {
   z-index: 10;
 }
 
-.canvas-toolbar button {
+.canvas-toolbar button,
+.canvas-toolbar select {
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.2);
   color: #f8fafc;
@@ -173,7 +192,81 @@ canvas#mainCanvas:active {
   transition: all 0.12s;
 }
 
-.canvas-toolbar button:hover {
+.canvas-toolbar select {
+  width: 168px;
+  max-width: 42vw;
+  color-scheme: dark;
+}
+
+.canvas-toolbar select option {
+  background: #0f172a;
+  color: #f8fafc;
+}
+
+.canvas-defect-filters {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-left: 6px;
+  border-left: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+.canvas-defect-filter-group {
+  position: relative;
+  display: inline-flex;
+}
+
+.canvas-defect-subfilters {
+  position: absolute;
+  top: calc(100% + 7px);
+  left: 0;
+  z-index: 15;
+  display: flex;
+  min-width: 210px;
+  max-width: min(340px, 72vw);
+  max-height: 260px;
+  flex-direction: column;
+  gap: 4px;
+  overflow: auto;
+  padding: 6px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.97);
+}
+
+.canvas-defect-subfilters[hidden] {
+  display: none;
+}
+
+.canvas-toolbar .canvas-defect-subfilters button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.canvas-defect-subfilter-count {
+  min-width: 22px;
+  padding: 1px 5px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.13);
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.canvas-defect-subfilter-empty {
+  padding: 5px 7px;
+  color: #cbd5e1;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.canvas-toolbar button:hover,
+.canvas-toolbar select:hover {
   background: rgba(255, 255, 255, 0.2);
 }
 
@@ -240,6 +333,121 @@ canvas#mainCanvas:active {
   z-index: 25;
 }
 
+/* 缺陷规律分析分类筛选 */
+.pour-analysis-filter {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+}
+
+.pour-analysis-filter-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 9px;
+}
+
+.pour-analysis-filter-head div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pour-analysis-filter-head strong {
+  color: var(--heading);
+  font-size: 13px;
+}
+
+.pour-analysis-filter-head span {
+  color: var(--sub);
+  font-size: 11px;
+}
+
+#lblAnalysisFilterStatus {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border: 1px solid var(--pri-border);
+  border-radius: 999px;
+  background: var(--pri-soft);
+  color: var(--pri-d);
+  font-weight: 700;
+}
+
+.pour-analysis-filter-buttons {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(164px, 1fr));
+  gap: 7px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.pour-analysis-filter-btn {
+  --analysis-color: var(--sub);
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--analysis-color);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--txt);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: left;
+}
+
+.pour-analysis-filter-btn[data-analysis-category="via_coverage"] { --analysis-color: #ef4444; }
+.pour-analysis-filter-btn[data-analysis-category="special_shape"] { --analysis-color: #a855f7; }
+.pour-analysis-filter-btn[data-analysis-category="trace_ref_margin"] { --analysis-color: #f59e0b; }
+.pour-analysis-filter-btn[data-analysis-category="isolated_copper"] { --analysis-color: #06b6d4; }
+.pour-analysis-filter-btn[data-analysis-category="arc_radius"] { --analysis-color: #ec4899; }
+
+.pour-analysis-filter-btn:hover,
+.pour-analysis-filter-btn.active {
+  border-color: var(--pri-border);
+  border-left-color: var(--analysis-color);
+  background: var(--pri-soft);
+  color: var(--pri-d);
+}
+
+.pour-analysis-filter-btn b {
+  display: inline-flex;
+  min-width: 22px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: var(--heading);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.pour-analysis-filter-btn.active b {
+  background: var(--pri);
+  color: #ffffff;
+}
+
+@media (max-width: 780px) {
+  .pour-analysis-filter-head {
+    flex-direction: column;
+  }
+
+  .pour-analysis-filter-buttons {
+    grid-template-columns: repeat(5, minmax(164px, 1fr));
+  }
+}
+
 /* 规律分析卡片 */
 .pattern-card {
   background: #ffffff;
@@ -272,6 +480,140 @@ canvas#mainCanvas:active {
   color: #374151;
 }
 
+/* 缺陷总结表 */
+.pour-defect-summary {
+  margin-bottom: 14px;
+}
+
+.pour-defect-summary-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.pour-defect-summary-head h3 {
+  margin: 0 0 3px;
+  color: var(--heading);
+  font-size: 15px;
+}
+
+.pour-defect-summary-table {
+  table-layout: fixed;
+  min-width: 1180px;
+}
+
+.pour-defect-summary-table th:nth-child(1) { width: 16%; }
+.pour-defect-summary-table th:nth-child(2) { width: 12%; }
+.pour-defect-summary-table th:nth-child(3) { width: 17%; }
+.pour-defect-summary-table th:nth-child(4) { width: 22%; }
+.pour-defect-summary-table th:nth-child(5) { width: 33%; }
+
+.pour-defect-summary-table td {
+  vertical-align: top;
+  line-height: 1.5;
+}
+
+.pour-defect-type {
+  display: inline-flex;
+  padding: 3px 7px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--defect-color);
+  border-radius: 5px;
+  background: var(--surface-subtle);
+  color: var(--heading);
+  font-weight: 700;
+}
+
+.pour-defect-fix {
+  color: #374151;
+  font-weight: 600;
+}
+
+.pour-defect-board-open {
+  display: block;
+  width: min(380px, 100%);
+  padding: 0;
+  border: 1px solid #334155;
+  border-radius: 7px;
+  overflow: hidden;
+  background: #07111f;
+  color: #dbeafe;
+  cursor: zoom-in;
+  text-align: center;
+}
+
+.pour-defect-board-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  background: #07111f;
+}
+
+.pour-defect-board-open span {
+  display: block;
+  padding: 5px 8px;
+  border-top: 1px solid #334155;
+  background: #0f172a;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pour-defect-board div {
+  margin-top: 5px;
+  color: var(--sub);
+  font-family: var(--mono);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.pour-defect-summary-empty {
+  padding: 14px 0;
+}
+
+.pour-board-zoom {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(2, 6, 23, 0.82);
+}
+
+.pour-board-zoom[hidden] {
+  display: none;
+}
+
+.pour-board-zoom-dialog {
+  width: min(1100px, 96vw);
+  max-height: 94vh;
+  padding: 12px;
+  border: 1px solid #475569;
+  border-radius: 10px;
+  background: #0f172a;
+}
+
+.pour-board-zoom-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  color: #f8fafc;
+}
+
+.pour-board-zoom-canvas {
+  display: block;
+  width: 100%;
+  max-height: calc(94vh - 72px);
+  border: 1px solid #334155;
+  border-radius: 7px;
+  background: #07111f;
+}
+
 /* 异型铜皮预览小窗 */
 .shape-preview-strip {
   margin-top: 12px;
@@ -292,3 +634,66 @@ canvas#mainCanvas:active {
   overflow: hidden;
   flex-shrink: 0;
 }
+
+/* 检查结果表头 Excel 风格列筛选 */
+.result-filter-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.result-column-filter-btn {
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #ffffff;
+  color: var(--sub);
+  padding: 2px 5px;
+  font-size: 11px;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.result-column-filter-btn:hover,
+.result-column-filter-btn.active {
+  border-color: var(--pri);
+  background: #eff6ff;
+  color: var(--pri-d);
+}
+
+.pour-column-filter-menu {
+  position: fixed;
+  z-index: 10020;
+  width: 260px;
+  max-height: 360px;
+  overflow: hidden;
+  padding: 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.18);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.pour-column-filter-menu[hidden] { display: none; }
+.pour-column-filter-title { margin-bottom: 8px; font-weight: 700; color: var(--heading); }
+.pour-column-filter-actions,
+.pour-column-filter-footer { display: flex; justify-content: space-between; gap: 6px; }
+.pour-column-filter-actions { margin-bottom: 6px; }
+.pour-column-filter-footer { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+.pour-column-filter-menu button {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #ffffff;
+  padding: 3px 9px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+}
+.pour-column-filter-menu button.apply { border-color: var(--pri); background: var(--pri); color: #ffffff; }
+.pour-column-filter-options { max-height: 230px; overflow: auto; border: 1px solid var(--line); border-radius: 5px; padding: 4px; }
+.pour-column-filter-options label { display: flex; align-items: center; gap: 6px; padding: 4px; cursor: pointer; }
+.pour-column-filter-options label:hover { background: #f8fafc; }
+.pour-column-filter-search { width: 100%; }

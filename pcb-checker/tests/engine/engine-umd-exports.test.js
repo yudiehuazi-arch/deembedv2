@@ -70,14 +70,15 @@ const FAMILIES = {
   },
   fanout: {
     files: ['engines/fanout/fanout-parser.js', 'engines/fanout/fanout-palette.js', 'engines/fanout/fanout-scheme.js',
-      'engines/fanout/fanout-clustering.js', 'engines/fanout/fanout-inspector.js', 'engines/fanout/fanout-layout.js',
+      'engines/fanout/fanout-clustering.js', 'engines/fanout/fanout-topology.js', 'engines/fanout/fanout-inspector.js', 'engines/fanout/fanout-layout.js',
       'engines/fanout/fanout-canvas.js'],
     globals: { FanoutChecker: ['parseFanoutInputData', 'runFanoutInspection', 'computeSchemeViewLayout', 'renderSchemeEnlargedCanvas'] },
     nodeEntry: 'engines/fanout',
     unionGlobal: 'FanoutChecker'
   },
   pour: {
-    files: ['engines/pour/pour-geom.js', 'engines/pour/pour-parser.js', 'engines/pour/pour-engine.js'],
+    files: ['engines/pour/pour-geom.js', 'engines/pour/pour-parser.js', 'engines/pour/pour-trace-margin.js',
+      'engines/pour/pour-hdi-association.js', 'engines/pour/pour-engine.js'],
     globals: { PourChecker: ['parsePcbElements', 'runAllCopperChecks', 'checkIsolatedSmallCopper'] },
     nodeEntry: 'engines/pour',
     unionGlobal: 'PourChecker'

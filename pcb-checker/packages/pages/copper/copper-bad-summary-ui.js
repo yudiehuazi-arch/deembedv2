@@ -149,12 +149,34 @@
     return { points: points, minX: minX, maxX: maxX, minY: minY, maxY: maxY };
   }
 
+  function focusedBounds(entry, geometry, viewWidth, viewHeight) {
+    var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    (entry.groups || []).forEach(function (group) {
+      (group.vias && group.vias.length ? group.vias : [group.via]).forEach(function (via) {
+        var point = itemPoint(via);
+        if (!point) return;
+        minX = Math.min(minX, point[0]); maxX = Math.max(maxX, point[0]);
+        minY = Math.min(minY, point[1]); maxY = Math.max(maxY, point[1]);
+      });
+    });
+    if (!isFinite(minX)) return { minX: geometry.minX, maxX: geometry.maxX, minY: geometry.minY, maxY: geometry.maxY };
+    var boardDx = Math.max(1, geometry.maxX - geometry.minX), boardDy = Math.max(1, geometry.maxY - geometry.minY);
+    var dx = Math.max(maxX - minX, boardDx * 0.04, 1) * 1.16;
+    var dy = Math.max(maxY - minY, boardDy * 0.04, 1) * 1.16;
+    var ratio = Math.max(0.1, viewWidth / viewHeight), cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+    if (dx / dy > ratio) dy = dx / ratio;
+    else dx = dy * ratio;
+    return { minX: cx - dx / 2, maxX: cx + dx / 2, minY: cy - dy / 2, maxY: cy + dy / 2 };
+  }
+
   function boardImage(entry, geometry) {
     var width = 960, height = 570, pad = 28;
-    var dx = Math.max(1, geometry.maxX - geometry.minX), dy = Math.max(1, geometry.maxY - geometry.minY);
+    var focus = focusedBounds(entry, geometry, width - pad * 2, height - pad * 2);
+    var dx = Math.max(1, focus.maxX - focus.minX), dy = Math.max(1, focus.maxY - focus.minY);
     var scale = Math.min((width - pad * 2) / dx, (height - pad * 2) / dy);
+    var offsetX = (width - dx * scale) / 2, offsetY = (height - dy * scale) / 2;
     function xy(point) {
-      return [pad + (point[0] - geometry.minX) * scale, height - pad - (point[1] - geometry.minY) * scale];
+      return [offsetX + (point[0] - focus.minX) * scale, height - offsetY - (point[1] - focus.minY) * scale];
     }
     var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '">' +
       '<rect width="100%" height="100%" fill="#07111f"/>';
@@ -166,9 +188,12 @@
       var gy = (height * gridY / 3).toFixed(2);
       svg += '<line x1="0" y1="' + gy + '" x2="' + width + '" y2="' + gy + '" stroke="#94a3b8" stroke-opacity=".16" stroke-width="1"/>';
     }
-    var step = Math.max(1, Math.ceil(geometry.points.length / 3000));
-    for (var i = 0; i < geometry.points.length; i += step) {
-      var point = geometry.points[i], p = xy([point.x, point.y]);
+    var visiblePoints = geometry.points.filter(function (point) {
+      return point.x >= focus.minX && point.x <= focus.maxX && point.y >= focus.minY && point.y <= focus.maxY;
+    });
+    var step = Math.max(1, Math.ceil(visiblePoints.length / 3000));
+    for (var i = 0; i < visiblePoints.length; i += step) {
+      var point = visiblePoints[i], p = xy([point.x, point.y]);
       svg += '<circle cx="' + p[0].toFixed(2) + '" cy="' + p[1].toFixed(2) + '" r="' + (point.via ? '2.3' : '1.7') + '" fill="' + (point.via ? '#60a5fa' : '#f59e0b') + '" fill-opacity=".52"/>';
     }
     var marked = {}, count = entry.viaList.length;
@@ -283,5 +308,5 @@
     });
   }
 
-  root.CopperBadSummary = { render: render, buildRows: buildRows, plainTable: plainTable };
+  root.CopperBadSummary = { render: render, buildRows: buildRows, plainTable: plainTable, focusedBounds: focusedBounds };
 })(typeof window !== 'undefined' ? window : globalThis);

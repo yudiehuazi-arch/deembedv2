@@ -42,7 +42,7 @@ node tools/run-tests.js ui pour   # 只跑文件名含 pour 的 UI 测试
    函数 > 80 行仍有 55 个（棘轮基线，只降不升），最大的是
    `computeSchemeViewLayout`（511 行）、`runFanoutInspection`（404 行）、`renderSchemeEnlargedCanvas`（351 行）、
    `runCopperCheck`（258 行）、各页 `renderCanvas`（260~280 行）、`runDfmCheck`（204 行，已抽出选项解析 / 网格索引 / 网络汇总）。
-   HTML 与 CSS 超 600 行的有 `unified.html`（1337）、`fanout.html`（663）、`dfm.html`（628）、`unified.css`（892）、`eda-shell.css`（755）。
+   HTML 与 CSS 超 600 行的有 `unified.html`（1337）、`fanout.html`（664）、`dfm.html`（628）、`unified.css`（892）、`eda-shell.css`（755）。
    以上是下一轮拆分清单；动到这些函数时按阶段函数拆，并用「重构前后输出逐项一致」的对拍验证。
 3. **页面 = 薄 HTML + 一份 CSS + 若干页面包**。HTML 里不写内联 `<style>` / 大段 `<script>`；
    内联 `style=""` 只用于一次性的动态尺寸，布局与配色一律进样式表。
@@ -55,6 +55,7 @@ node tools/run-tests.js ui pour   # 只跑文件名含 pour 的 UI 测试
    （例如固定样例的检查项数量与逐项判定）。
 7. **小步提交**：每完成一个可验证的单元就测试并提交，不攒大提交。
 8. **重复代码合并**：发现两处几乎相同的实现，抽到 `packages/shared` 或对应引擎，不要复制第三份。
+9. **检查说明同步**：任一检查工具的判据、例外、输入、结果解释或交互方式发生变化时，必须同步更新对应“检查说明”和 `tests/ui/check-guide.test.js` 回归；不能只改引擎或界面。
 
 ## 4. 目录与模块职责
 

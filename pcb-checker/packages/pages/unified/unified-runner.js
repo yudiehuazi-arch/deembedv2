@@ -394,7 +394,8 @@ function runFanoutEngine(ctx) {
     const allowSubset = $('cfgAllowSubsetMatch') ? $('cfgAllowSubsetMatch').checked : true;
     const redundantPolicy = $('cfgRedundantPolicy') ? $('cfgRedundantPolicy').value : 'ANY_GND_REDUNDANT';
 
-    const fRes = fanoutEngine.runFanoutInspection(parsedDfmFanout.vias, fanoutLib, {
+    // 保留原始 Item 的 Connections 信息，确保仅有实际出线连接的信号孔参与扇出检查。
+    const fRes = fanoutEngine.runFanoutInspection(tDfmFanout, fanoutLib, {
       clusterThreshold: clusterDistMil,
       distanceTolerance: centerDistTolMil,
       allowRotation: true,
@@ -493,8 +494,13 @@ function runPourEngine(ctx) {
     if (pourRun.results.traceMargin) {
       pourRun.results.traceMargin.forEach(r => {
         if (!r.pass) {
-          const actM = (r.actualMargin != null) ? r.actualMargin : (r.minActualMargin || 0);
           const reqM = (r.minMargin != null) ? r.minMargin : (r.requiredMargin || 50.0);
+          const issues = [];
+          const missingAt = r.missingPoint ? `（首个缺铜点 [${r.missingPoint.x.toFixed(1)}, ${r.missingPoint.y.toFixed(1)}]）` : '';
+          if (r.footprintCovered === false) issues.push(`完整走线投影缺铜${missingAt}`);
+          if (r.leftSideCopper === false) issues.push(`走线左侧 ${reqM.toFixed(1)} mil 内无铜`);
+          if (r.rightSideCopper === false) issues.push(`走线右侧 ${reqM.toFixed(1)} mil 内无铜`);
+          const issueText = issues.join('、') || '参考铜不符合要求';
           pourChecks.push({
             id: `pour_trace_${r.traceId}_${r.refLayer}`,
             category: 'pour',
@@ -502,12 +508,12 @@ function runPourEngine(ctx) {
             target: `Trace #${r.traceId} (${r.traceNet || r.net || '走线'})`,
             targetType: '走线段',
             layer: r.traceLayer,
-            item: `参考层 (${r.refLayer}) 铺铜单侧超宽`,
-            actual: `实测超宽 ${actM.toFixed(1)} mil`,
-            rule: `≥ ${reqM.toFixed(1)} mil`,
+            item: `参考层 (${r.refLayer}) 走线投影覆盖与两侧邻近铜`,
+            actual: issueText,
+            rule: `除走线首尾端在所有被检查层上的反焊盘外完整走线投影有铜，且左右两侧各在 ${reqM.toFixed(1)} mil 内存在铜皮`,
             pass: false,
-            deviation: `不足 -${(reqM - actM).toFixed(1)} mil`,
-            reason: `参考地层 ${r.refLayer} 铺铜边缘距离走线单侧仅 ${actM.toFixed(1)} mil，低于 ${reqM.toFixed(1)} mil 阻抗屏蔽要求`,
+            deviation: issueText,
+            reason: `参考层 ${r.refLayer}：${issueText}`,
             objId: r.traceId
           });
         }

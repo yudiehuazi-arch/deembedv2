@@ -4,12 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PCB 加工能力与空间间距检查工具</title>
-<link rel="stylesheet" href="assets/styles/tokens.css?v=36">
-<link rel="stylesheet" href="assets/styles/eda-shell.css?v=36">
-<link rel="stylesheet" href="assets/styles/eda-dock.css?v=36">
-<link rel="stylesheet" href="assets/styles/components.css?v=36">
-<link rel="stylesheet" href="assets/styles/pages/dfm.css?v=36">
-<link rel="stylesheet" href="assets/styles/pages/dfm-panels.css?v=36">
+<link rel="stylesheet" href="assets/styles/tokens.css?v=87">
+<link rel="stylesheet" href="assets/styles/eda-shell.css?v=87">
+<link rel="stylesheet" href="assets/styles/eda-dock.css?v=87">
+<link rel="stylesheet" href="assets/styles/components.css?v=87">
+<link rel="stylesheet" href="assets/styles/pages/dfm.css?v=87"><link rel="stylesheet" href="assets/styles/check-guide.css?v=87">
+<link rel="stylesheet" href="assets/styles/pages/dfm-panels.css?v=87">
 </head>
 <body class="eda-workbench">
 
@@ -30,19 +30,19 @@
       <a href="copper.html" data-code="CON" data-tip="叠层约束表解析、过孔配对与反焊盘逐层尺寸核对">约束检查</a>
       <a href="dfm.html" class="active" data-code="DFM" data-tip="孔-孔、线-孔及异网孔盘 Airgap 几何间距测量与分层判定">加工能力检查</a>
       <a href="fanout.html" data-code="FAN" data-tip="过孔连通聚类、刚体变换方案匹配与孔心距分色预览">扇出方案检查</a>
-      <a href="pour.html" data-code="POR" data-tip="孔经过层铺铜、异型铜皮比对、参考层超宽、碎铜与圆弧半径核对">铜皮检查</a>
+      <a href="pour.html" data-code="POR" data-tip="孔经过层铺铜、异型铜皮比对、参考层走线投影与两侧邻近铜、碎铜与圆弧半径核对">铜皮检查</a>
       <a href="unified.html" data-code="UNI" data-tip="四槽位数据输入与五大检查引擎联动汇总工作台">综合一体化检查</a>
     </div>
   </div>
 
   <div class="eda-rail-section">
-    <div class="eda-rail-label">工序流程 <span data-tip="支持快捷键 Alt+1..5 快速切换工序">Alt+1..5</span></div>
+    <div class="eda-rail-label">工序流程 <span data-tip="支持快捷键 Alt+1..6 快速切换工序">Alt+1..6</span></div>
     <nav id="tabs">
       <button type="button" data-tab="import" class="active" data-tip="导入 Via/Trace 坐标 TXT 并设置焊盘几何与分层间距阈值">① 规则与数据导入</button>
       <button type="button" data-tab="canvas" data-tip="交互式 2D 几何画布、标尺测量与定位复核">② 空间几何视口与测量</button>
       <button type="button" data-tab="result" data-tip="出线层网络聚合视图、对偶明细表与孔盘间距明细">③ 检查结果明细</button>
       <button type="button" data-tab="analysis" data-tip="按信号孔或按走线维度归纳全板间距缺陷分布与集中度">④ 规律分析</button>
-      <button type="button" data-tab="legend" data-tip="精确几何模型、双判定口径与盲埋孔穿层判定规则">⑤ 判定原理与算法</button>
+      <button type="button" data-tab="legend" data-tip="精确几何模型、双判定口径与盲埋孔穿层判定规则">⑤ 判定原理与算法</button><button type="button" data-tab="guide" data-tip="查看本模块完整操作流程、检查方案与符合/不符合验证标准">⑥ 检查说明</button>
     </nav>
   </div>
 
@@ -63,7 +63,7 @@
     </div>
   </div>
 
-  <main>
+  <main><section class="tab" id="tab-guide"><div data-check-guide-module="dfm"></div></section>
     <!-- ================= ① 规则与数据导入 ================= -->
     <section class="tab active" id="tab-import">
       <div class="card">
@@ -357,7 +357,7 @@
 
         <div class="row" style="margin-bottom:12px">
           <div class="search-bar" style="margin-bottom:0;flex:1;min-width:240px">
-            <input type="text" id="inpSearch" placeholder="搜索网络名、出线层名或过孔编号…" data-no-persist data-tip="支持输入网络名如 63_P、层名如 19IS08、过孔号如 Via 275">
+            <input type="text" id="inpSearch" placeholder="搜索检查明细中的任意关键词…" data-no-persist data-tip="视图一与视图二均按整条明细的全部字段匹配，不区分大小写">
           </div>
           <div class="row" style="gap:6px">
             <button type="button" class="btn sec small" id="btnFilterAll">全部</button>
@@ -611,26 +611,26 @@
 
 <div class="tooltip" id="canvasTooltip"></div>
 
-<script src="packages/shared/dom-utils.js?v=36"></script>
-<script src="packages/geometry/pad-primitives.js?v=36"></script>
-<script src="packages/geometry/pad-region.js?v=36"></script>
-<script src="packages/engines/dfm/dfm-layers.js?v=36"></script>
-<script src="packages/engines/dfm/dfm-parser.js?v=36"></script>
-<script src="packages/engines/dfm/dfm-engine.js?v=36"></script>
-<script src="packages/engines/dfm/dfm-pattern.js?v=36"></script>
-<script src="packages/pages/dfm/dfm-config.js?v=36"></script>
-<script src="packages/pages/dfm/dfm-padstack-rules.js?v=36"></script>
-<script src="packages/pages/dfm/dfm-rule-export.js?v=36"></script>
-<script src="packages/pages/dfm/dfm-rules-io.js?v=36"></script>
-<script src="packages/pages/dfm/dfm-result-nav.js?v=36"></script>
-<script src="packages/pages/dfm/dfm-results-pairs.js?v=36"></script>
-<script src="packages/pages/dfm/dfm-results-ui.js?v=36"></script>
-<script src="packages/pages/dfm/dfm-pattern-ui.js?v=36"></script>
-<script src="packages/pages/dfm/dfm-pattern-filter-popover.js?v=36"></script>
-<script src="packages/pages/dfm/dfm-pattern-modes.js?v=36"></script>
-<script src="packages/pages/dfm/dfm-canvas-vias.js?v=36"></script><script src="packages/pages/dfm/dfm-canvas-defects.js?v=36"></script><script src="packages/pages/dfm/dfm-canvas-viewer.js?v=36"></script>
-<script src="packages/shared/eda-tooltip.js?v=36"></script>
-<script src="packages/shared/eda-shell.js?v=36"></script>
-<script src="packages/shared/ui-prefs.js?v=36"></script>
+<script src="packages/shared/check-guide.js?v=87"></script><script src="packages/shared/dom-utils.js?v=87"></script>
+<script src="packages/geometry/pad-primitives.js?v=87"></script>
+<script src="packages/geometry/pad-region.js?v=87"></script>
+<script src="packages/engines/dfm/dfm-layers.js?v=87"></script>
+<script src="packages/engines/dfm/dfm-parser.js?v=87"></script>
+<script src="packages/engines/dfm/dfm-engine.js?v=87"></script>
+<script src="packages/engines/dfm/dfm-pattern.js?v=87"></script>
+<script src="packages/pages/dfm/dfm-config.js?v=87"></script>
+<script src="packages/pages/dfm/dfm-padstack-rules.js?v=87"></script>
+<script src="packages/pages/dfm/dfm-rule-export.js?v=87"></script>
+<script src="packages/pages/dfm/dfm-rules-io.js?v=87"></script>
+<script src="packages/pages/dfm/dfm-result-nav.js?v=87"></script>
+<script src="packages/pages/dfm/dfm-results-pairs.js?v=87"></script>
+<script src="packages/pages/dfm/dfm-results-ui.js?v=87"></script>
+<script src="packages/pages/dfm/dfm-pattern-ui.js?v=87"></script>
+<script src="packages/pages/dfm/dfm-pattern-filter-popover.js?v=87"></script>
+<script src="packages/pages/dfm/dfm-pattern-modes.js?v=87"></script>
+<script src="packages/pages/dfm/dfm-canvas-vias.js?v=87"></script><script src="packages/pages/dfm/dfm-canvas-defects.js?v=87"></script><script src="packages/pages/dfm/dfm-canvas-viewer.js?v=87"></script>
+<script src="packages/shared/eda-tooltip.js?v=87"></script>
+<script src="packages/shared/eda-shell.js?v=87"></script>
+<script src="packages/shared/ui-prefs.js?v=87"></script>
 </body>
 </html>

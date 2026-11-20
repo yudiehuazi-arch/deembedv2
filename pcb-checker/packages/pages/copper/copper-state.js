@@ -192,7 +192,7 @@
   }
 
   function showTab(name) {
-    ['rules', 'sets', 'data', 'result', 'canvas', 'legend'].forEach(function (t) {
+    ['rules', 'sets', 'data', 'result', 'canvas', 'legend', 'guide'].forEach(function (t) {
       var sec = $('tab-' + t);
       if (sec) sec.className = 'tab' + (t === name ? ' active' : '');
     });

@@ -12,7 +12,6 @@
   }
   var HEAD_RE = /Item\s+(\d+)\s*<\s*(Shape|Via|Trace)\s*>/i;
   var XY_RE = /xy\s*\[\s*([+-]?[0-9.]+)\s*,\s*([+-]?[0-9.]+)\s*\]/gi;
-
   function parseBoardItems(text) {
     var raw = String(text || '').replace(/\u0000/g, '');
     var chunks = raw.split(/~{8,}/);
@@ -58,23 +57,21 @@
         while ((pm = XY_RE.exec(body))) pts.push(+pm[1], +pm[2]);
         item.pts = pts;
       }
-      var traceLayers = [];
-      var traceRe = /Trace:\s*\d+\s*\(([^)]+)\)/gi;
-      var tm;
-      while ((tm = traceRe.exec(body))) {
+      var conn = body.match(/Connections:\s*([\s\S]*?)(?:\n\s*Backdrill:|\n\s*BackDrill|$)/i);
+      if (conn) item.connections = conn[1].replace(/\s+/g, ' ').trim();
+      var traceLayers = [], traceRe = /Trace:\s*\d+\s*\(([^)]+)\)/gi, tm;
+      while ((tm = traceRe.exec(conn ? conn[1] : ''))) {
         var parts = tm[1].trim().split(/\s+/).filter(Boolean);
         parts.forEach(function (p) { if (traceLayers.indexOf(p) < 0) traceLayers.push(p); });
       }
       item.traceLayers = traceLayers;
-      var conn = body.match(/Connections:\s*([\s\S]*?)(?:\n\s*Backdrill:|\n\s*BackDrill|$)/i);
-      if (conn) item.connections = conn[1].replace(/\s+/g, ' ').trim();
+      item.traceConnected = traceLayers.length > 0;
       var defined = body.match(/Padstack\s+Defined\s*(?:from|:)?\s*<?([^>\s\r\n~-]+)>?\s*(?:to|[-~])\s*<?([^>\s\r\n]+)>?/i);
       if (defined) { item.padstackStart = defined[1]; item.padstackEnd = defined[2]; }
       items.push(item);
     });
     return items;
   }
-
   function subsetToLayer(subset, n) {
     var s = String(subset || '').trim();
     if (!s) return 0;
@@ -85,11 +82,9 @@
     var l = s.match(/L\s*(\d+)/i);
     return l ? +l[1] : 0;
   }
-
   function isPadWord(str, from) {
     return /^pad/i.test(String(str).slice(from, from + 3));
   }
-
   function fanCandsOfName(raw) {
     var s = String(raw || '');
     var out = [], seen = {};
@@ -304,7 +299,8 @@
           for (var cy = b.y0; cy <= b.y1; cy++) {
             var list = circleGrid[cx + ',' + cy];
             if (list) list.forEach(function (sh) {
-              if (dist(part.origin, sh.center) > posTol) return;
+              var sourceLayer = subsetToLayer(sh.subset, n);
+              if (!sourceLayer || dist(part.origin, sh.center) > posTol) return;
               if (!nearSeen[sh.id]) { nearSeen[sh.id] = 1; near.push(sh); used[sh.id] = 1; }
               var owners = nearOwners[sh.id] || (nearOwners[sh.id] = []);
               if (!owners.some(function (v) { return String(v.id) === String(part.id); })) owners.push(part);
@@ -316,7 +312,6 @@
           }
         }
       });
-
       var keys = padKeys(via.padstack);
       keys.signal = unit.signal;
       keys.kind = unit.kind || keys.kind;
@@ -327,25 +322,29 @@
       keys.pitchMm = unit.pitchMm;
       keys.pitchMode = unit.pitchMode;
       keys.mateNet = unit.mateNet;
-      var sel = unit.signal ? VI.selectConstraint(sets, unit, n) : { rule: null, candidates: [] };
-      var traceList = Object.keys(traceNums).map(function (k) { return +k; });
+      var sel = VI.selectConstraint(sets, unit, n);
+      var groundNet = String(unit.via.net || '').trim().toUpperCase() === 'GND';
+      var traceSignal = sel.mode === 'connections-trace-layers' && unit.traceConnected && !!String(unit.via.net || '').trim() && !groundNet;
+      var effectiveSignal = unit.signal || traceSignal, inspectSignal = effectiveSignal && !sel.excluded; keys.signal = effectiveSignal;
+      var traceList = sel.mode === 'connections-trace-layers' ? sel.traceLayers : Object.keys(traceNums).map(function (k) { return +k; });
       var spanText = unit.startLayer && unit.endLayer ? ('L' + unit.startLayer + '-L' + unit.endLayer) : '层跨未识别';
       var pitchMembers = unit.pitchMode === 'HDI' ? ('，参与 Via ' + unit.pitchViaIds.join('、') + ' ↔ Via ' + unit.matePitchViaIds.join('、')) : '';
-      var namingIssues = VI.padstackNamingIssues(unit.vias);
+      var namingIssues = sel.excluded || sel.mode === 'connections-trace-layers' ? [] : VI.padstackNamingIssues(unit.vias);
       var namingReason = namingIssues.map(function (x) { return 'Via ' + x.via.id + '：' + x.reason; }).join('；');
-      var groundNet = String(unit.via.net || '').trim().toUpperCase() === 'GND';
-      var note = unit.signal
-        ? ('SIG 完整孔组 ' + unit.memberIds.length + ' 段（Via ' + unit.memberIds.join('、') + '），连接 ' + spanText +
-          (unit.pitchMm != null ? ('，' + (unit.pitchMode === 'HDI' ? 'HDI 激光孔中心距 ' : '差分孔中心距 ') + unit.pitchMm.toFixed(3) + ' mm' + pitchMembers + '，匹配最近约束值') : '，未找到差分配对孔'))
-        : (groundNet ? 'GND 网络：仅显示，不推算信号约束，不执行核查' : 'Padstack 不含 SIG：仅显示，不推算约束，不执行核查');
+      var traceNote = sel.rule
+        ? ('Connections Trace 走线层 ' + (sel.traceLayers || []).map(function (l) { return 'L' + l; }).join('、') + '，匹配约束 ' + sel.rule.title + '，按该约束执行检查')
+        : (sel.targetTitle ? ('Connections Trace 走线层对应 ' + sel.targetTitle + '，未找到同名约束，不进行检查') : 'Connections 中未提取到两个不同的 Trace 走线层，不进行检查');
+      var legacyNote = 'SIG 完整孔组 ' + unit.memberIds.length + ' 段（Via ' + unit.memberIds.join('、') + '），连接 ' + spanText +
+        (unit.pitchMm != null ? ('，' + (unit.pitchMode === 'HDI' ? 'HDI 激光孔中心距 ' : '差分孔中心距 ') + unit.pitchMm.toFixed(3) + ' mm' + pitchMembers + '，匹配最近约束值') : '，未找到差分配对孔');
+      var note = effectiveSignal ? (sel.mode === 'connections-trace-layers' ? traceNote : legacyNote)
+        : (groundNet ? 'GND 网络：仅显示，不推算信号约束，不执行核查' : '没有可用的 Connections Trace 或 SIG 完整孔：不执行核查');
       if (namingReason) note += '；Padstack 信号命名不符合：' + namingReason;
-
       var rows = near.map(function (sh) {
         var ctype = checkTypeOf(sh);
         var layer = subsetToLayer(sh.subset, n);
-        var on = unit.signal && enabled[ctype] !== false;
+        var on = inspectSignal && enabled[ctype] !== false;
         var status = '未检查', expect = '', constraint = '';
-        if (!unit.signal || !on) status = '未检查';
+        if (!inspectSignal || !on) status = '未检查';
         else if (!sel.rule) status = '未选规则';
         else if (!layer) status = '层未识别';
         else {
@@ -384,6 +383,7 @@
             var lm = k.match(/^L(\d+)$/i);
             if (!lm) return;
             var ln = +lm[1];
+            if (ln < 1 || ln > n) return;
             var v = vals[k];
             if (v == null || v === '' || v === '无') return;
             var num = parseFloat(v);
@@ -393,17 +393,15 @@
               rows.push({
                 shapeId: 'none', subset: '—', layer: ln, checkType: ctype,
                 actual: '无铜皮', expect: String(v), status: '不符合',
-                constraint: c.name || '', missing: true, enabled: true
+                constraint: c.name || '', reason: '规则要求检查该层，但没有匹配到同心铜皮数据',
+                missing: true, enabled: true
               });
             }
           });
         });
       }
-
-      // 结果表始终覆盖完整孔经过的每一层。规则有数值但没有铜皮数据时
-      // 仍按缺失判定；该层没有规则值时保留一条“未检查”占位行，避免
-      // 稀疏 Shape 数据让 L2-L12 完整孔只显示 L5/L10 等少数层。
-      if (unit.signal && unit.startLayer && unit.endLayer) {
+      // 匹配规则后显示 L1-Ln；同心 Shape 全部读取，来源优先取覆盖层、否则取最近孔段。
+      if (inspectSignal && unit.startLayer && unit.endLayer) {
         var spanTypes = {}, spanPresent = {};
         rows.forEach(function (r) {
           if (r.isPadstackCheck || !r.checkType || typeof r.layer !== 'number' || r.layer <= 0) return;
@@ -416,7 +414,7 @@
             if (ctype && enabled[ctype] !== false) spanTypes[ctype] = 1;
           });
         }
-        for (var spanLayer = unit.startLayer; spanLayer <= unit.endLayer; spanLayer++) {
+        for (var spanLayer = sel.rule ? 1 : unit.startLayer; spanLayer <= (sel.rule ? n : unit.endLayer); spanLayer++) {
           Object.keys(spanTypes).forEach(function (ctype) {
             var spanKey = spanLayer + ':' + ctype;
             if (spanPresent[spanKey]) return;
@@ -440,8 +438,7 @@
           });
         }
       }
-
-      if (unit.signal) {
+      if (inspectSignal && sel.mode !== 'connections-trace-layers') {
       var padOn = enabled['Padstack层名'] !== false;
       var connLayerNums = [];
       var connLayerSeen = {};
@@ -505,10 +502,12 @@
       rows.forEach(function (row) {
         var owners = nearOwners[row.shapeId] || unit.vias;
         if (row.namingViaId != null) owners = unit.vias.filter(function (part) { return String(part.id) === String(row.namingViaId); });
-        else if (!row.isPadstackCheck) owners = VI.sourceOwnersForLayer(owners, row.layer, n);
-        row.sourceViaIds = owners.map(function (part) { return part.id; });
-        row.sourcePadstack = owners.map(function (part) { return part.padstack || '无 Padstack'; })
-          .filter(function (name, idx, all) { return all.indexOf(name) === idx; }).join(' + ');
+        else if (!row.isPadstackCheck) owners = nearOwners[row.shapeId] ? VI.sourceOwnersForShape(owners, row.layer, n) : VI.sourceOwnersForLayer(owners, row.layer, n);
+        var sourceSegments = VI.sourceSegments(owners, n);
+        row.sourceViaIds = sourceSegments.map(function (part) { return part.viaId; });
+        row.sourceViaSpans = sourceSegments.map(function (part) { return 'Via ' + part.viaId + ' · ' + part.spanText; }).join(' / ') || '无孔段覆盖该层';
+        row.sourcePadstack = sourceSegments.map(function (part) { return part.padstack; })
+          .filter(function (name, idx, all) { return all.indexOf(name) === idx; }).join(' + ') || '无覆盖 Padstack';
       });
 
       rows.sort(function (a, b) {
@@ -522,8 +521,9 @@
       var failRows = [];
       for (var fi = 0; fi < rows.length; fi++) if (rows[fi].status === '不符合') failRows.push(rows[fi]);
       return {
-        via: via, vias: unit.vias, signal: unit.signal, keys: keys,
+        via: via, vias: unit.vias, sourceSegments: VI.sourceSegments(unit.vias, n), signal: effectiveSignal, keys: keys,
         rule: sel.rule, candidates: sel.candidates, note: note, namingError: namingReason,
+        matchMode: sel.mode || '', matchTraceLayers: sel.traceLayers || [], excludedByConstraint: !!sel.excluded,
         startLayer: unit.startLayer, endLayer: unit.endLayer,
         pitchMm: unit.pitchMm, pitchMode: unit.pitchMode, pitchViaIds: unit.pitchViaIds,
         matePitchViaIds: unit.matePitchViaIds, mateNet: unit.mateNet,

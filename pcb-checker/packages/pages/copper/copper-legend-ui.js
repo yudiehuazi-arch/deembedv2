@@ -179,18 +179,19 @@
       '<h3>1. 铜皮 × 完整信号孔怎么配对</h3><ol class="rules">' +
       '<li>差分网络中，与 SIG 孔段按离散孔心距相邻的 GND 命名孔段会并入同一完整孔并参与约束推算；同时单独报告 Padstack 命名不符合。网络名为 GND 的过孔不参与信号约束推算，即使 Padstack 名称包含 SIG；其他独立非 SIG 过孔也不推算尺寸约束。</li>' +
       '<li>同网络孔段中心距命中 0 / 0.025 / 0.075 / 0.125 / 0.175 mm（允许 ±0.005 mm）时组成一个完整孔。</li>' +
-      '<li>完整孔内每个孔段坐标处、圆心距离 ≤ ' + pos + ' mil 的全部圆形 Route Keepout 均归入同一孔组；多边形不参与。</li>' +
+      '<li>完整孔读取每个原始孔段圆心距离 ≤ ' + pos + ' mil 的全部圆形 Route Keepout，不按 Padstack 名称层跨裁掉同心的 L13、L14 等 Shape；多边形不参与。</li>' +
       '</ol>' +
       '<h3>2. 怎么推算该用哪条约束</h3><ol class="rules">' +
-      '<li>从孔组 Padstack 提取 SIG、SMA/BGA 与各段连接层，Top 按 L1、Bot 按 L14，合并得到完整层跨。</li>' +
+      '<li>从孔组 Padstack 提取 SIG、SMA/BGA 与各段连接层，Top 按 L1、Bottom 按当前叠层末层，合并得到完整层跨。</li>' +
       '<li>按常见 P/N 后缀寻找同完整层跨的差分网络孔组。配对两侧都含 HDI 时，只保留 Padstack 名含 HDI 的激光孔段，PTH 孔段不参与孔距计算。</li>' +
       '<li>分别对 P、N 孔组内的 HDI 孔心坐标取平均，得到两个激光孔参考中心；中心距 = √(ΔX² + ΔY²)，原始 mil 值乘 0.0254 换算为 mm。</li>' +
       '<li>仅当任一侧没有 HDI 孔段时，才回退到完整孔全部孔段的平均中心，保证非 HDI 信号孔仍可推算。</li>' +
-      '<li>先严格匹配封装类型与完整层跨，再从约束名的 0.5mm / 0.6mm 等标称孔距中选择与上述中心距最接近的值。</li>' +
+      '<li>先把同一完整孔的全部原始孔段打包，严格按封装类型与打包后的完整层跨选择一条约束，再按 0.5mm / 0.6mm 等标称孔距选最近规则；不会用某个孔段层跨外的 Route Keepout 补长该孔段。</li>' +
       '</ol>' +
       '<h3>3. 每一层怎么判</h3><ol class="rules">' +
-      '<li>结果表按完整孔层跨补齐所有层；没有 Shape 的层显示无铜皮，没有规则值的层保留为未检查。</li>' +
-      '<li>每条 Route Keepout 按圆心和所在层匹配到具体孔段；Top 只追溯顶部孔段，Bottom 只追溯底部孔段。</li>' +
+      '<li>一个完整孔只显示一张检查表：表头列出打包的全部 Via、各自 Padstack 层跨和共同匹配的约束；当前叠层为 14 层时固定显示 L1-L14，没有规则值的层标为未检查。</li>' +
+      '<li>每条 Route Keepout 先按圆心纳入整合孔；来源优先取覆盖本层的 Via/Padstack，没有覆盖孔段时取同心孔段中层跨端点最近的一段。共用交界层仍保留两个物理孔的两条 Shape。</li>' +
+      '<li>规则要求检查但没有同心 Shape 的层仍保留，显示无铜皮和不符合；同心层外 Shape 会参与尺寸检查，但不会补长孔段层跨或改变约束匹配。</li>' +
       '<li>Subset 前导数字映射层号，实测半径与规则值差值 ≤ ' + val + ' mil 判为符合，缺失应有层铜皮判为无铜皮不符合。</li>' +
       '<li>Padstack层名核对过孔名称是否覆盖 Connections 全部连接层。</li>' +
       '</ol>';
@@ -356,7 +357,7 @@
   function exportCsv() {
     var r = UI.result;
     if (!r) { if ($('resHint')) $('resHint').textContent = '尚未产生检查结果。'; return; }
-    var lines = ['铜皮,过孔,网络,完整孔Padstack,约束,层,Subset,来源Via,来源Padstack,检查项,实测,规则值,结果,复核'];
+    var lines = ['铜皮,整合孔,网络,整合孔Padstack,约束,层,Subset,本层来源Via及层跨,本层来源Padstack,检查项,实测,规则值,结果,复核'];
     var rf = effectiveResFilter();
     r.groups.forEach(function (g) {
       if (!resultGroupMatch(g, rf)) return;
@@ -366,7 +367,7 @@
         var layerDisplay = (typeof row.layer === 'number' && row.layer > 0) ? ('L' + row.layer) : (String(row.layer).startsWith('L') ? row.layer : (row.layer === '—' ? '—' : ('L' + row.layer)));
         lines.push([
           row.shapeId, g.via.id, g.via.net || '', g.via.padstack || '', g.rule ? g.rule.title : '',
-          layerDisplay, row.subset, (row.sourceViaIds || []).join('/'), row.sourcePadstack || '',
+          layerDisplay, row.subset, row.sourceViaSpans || (row.sourceViaIds || []).join('/'), row.sourcePadstack || '',
           row.checkType, row.actual, row.expect, row.status, (UI.reviewed[reviewKey(g, row)] ? '已复核' : '')
         ].map(function (x) {
           return '"' + String(x == null ? '' : x).replace(/"/g, '""') + '"';

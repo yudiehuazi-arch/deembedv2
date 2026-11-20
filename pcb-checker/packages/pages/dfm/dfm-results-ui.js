@@ -22,6 +22,39 @@
     }
   }
 
+  function rawObjectText(value) {
+    try { return JSON.stringify(value); } catch (e) { return ''; }
+  }
+
+  /** 生成视图一整条聚合明细的全文索引，范围与行内可见汇总、孔号和展开明细一致。 */
+  function netGroupSearchText(item) {
+    var isBad = item.failCount > 0;
+    var vias = (item.uniqueViaIds || []).map(function (id) { return 'Via ' + id; }).join(' ');
+    var detail = (item.defects || []).map(function (p) {
+      return ['Via ' + p.via.id, p.via.net, p.via.spanLabel || '通孔', p.targetType,
+        'Trace ' + p.trace.id, p.trace.width + ' mil', p.proj && p.proj.join(' '),
+        Number(p.evalDist).toFixed(2) + ' mil', '≥ ' + Number(p.threshold).toFixed(2) + ' mil',
+        Number(p.diff).toFixed(2) + ' mil'].join(' ');
+    }).join(' ');
+    return [rawObjectText(item), '出线层', item.layer, '走线目标网络', item.net,
+      item.traceSegments + ' 段', Number(item.totalLength).toFixed(1) + ' mil', item.status,
+      isBad ? '存在 ' + item.failCount + ' 处不满足' : '全部满足',
+      '到GND孔 ' + item.gndFailCount + ' 处', '到信号孔 ' + item.signalFailCount + ' 处',
+      '涉及 ' + item.uniqueViaCount + ' 孔', Number(item.minDist).toFixed(2) + ' mil',
+      '-' + Number(item.maxDeviation).toFixed(2) + ' mil', vias, detail,
+      isBad ? '展开明细 收起明细' : '', '画布高亮'].join(' ');
+  }
+
+  function matchesNetGroupKeyword(item, query) {
+    if (!query) return true;
+    var text = netGroupSearchText(item).toLowerCase();
+    if (/^via\s*/i.test(query)) {
+      var viaId = query.replace(/^via\s*/i, '').trim();
+      return text.indexOf(query) >= 0 || (!!viaId && text.indexOf('via ' + viaId) >= 0);
+    }
+    return text.indexOf(query) >= 0;
+  }
+
   function renderNetGroupView() {
     var r = State.checkResult;
     var tbody = $('netGroupTableBody');
@@ -39,12 +72,7 @@
       if (filter === 'ok' && item.failCount > 0) return false;
       if (filter === 'gnd' && item.gndFailCount === 0) return false;
       if (filter === 'signal' && item.signalFailCount === 0) return false;
-      if (query) {
-        var qText = (item.layer + ' ' + item.net).toLowerCase();
-        var matchVia = item.uniqueViaIds && item.uniqueViaIds.some(function (id) { return ('via ' + id + ' ' + id).toLowerCase().indexOf(query) >= 0; });
-        if (qText.indexOf(query) < 0 && !matchVia) return false;
-      }
-      return true;
+      return matchesNetGroupKeyword(item, query);
     });
 
     if (!filteredNets.length) {

@@ -9,6 +9,7 @@
   var State = root.State;
   var escapeHtml = root.escapeHtml;
   var getTraceLayerColor = root.getTraceLayerColor;
+  var ResultDetails = root.FanoutResultDetails;
 
   function setClusterThresh(val, unit) {
     unit = unit || 'mm';
@@ -188,13 +189,24 @@
     State.previewTraces = tList;
     syncTraceLayerSelectors(ts);
 
-    var sigViaCnt = vList.filter(function (v) { return !v.net || v.net.toUpperCase().indexOf('GND') < 0; }).length;
+    var signalVias = vList.filter(function (v) { return !v.net || v.net.toUpperCase().indexOf('GND') < 0; });
+    var sigViaCnt = signalVias.length;
+    var eligibleSigViaCnt = signalVias.filter(function (v) {
+      return Boolean(v.isFanoutEligible != null ? v.isFanoutEligible : v.hasTraceConnections);
+    }).length;
+    var recoveredSigViaCnt = signalVias.filter(function (v) { return v.isFanoutNetRecovered; }).length;
+    var companionSigViaCnt = signalVias.filter(function (v) { return v.isFanoutCompanion && !v.isFanoutNetRecovered; }).length;
+    var excludedSigViaCnt = sigViaCnt - eligibleSigViaCnt;
     var gndViaCnt = vList.length - sigViaCnt;
+    var signalHint = '信号孔段 ' + sigViaCnt + '（参与检查 ' + eligibleSigViaCnt +
+      (companionSigViaCnt > 0 ? ' / 伴随顶层 Pin ' + companionSigViaCnt : '') +
+      (recoveredSigViaCnt > 0 ? ' / 几何恢复 Net ' + recoveredSigViaCnt : '') +
+      (excludedSigViaCnt > 0 ? ' / 无 Trace 连接资格 ' + excludedSigViaCnt + ' 不参与' : '') + '） / 地孔 ' + gndViaCnt;
     var hint = document.getElementById('lblImportParseHint');
     if (hint) {
       hint.textContent = tList.length > 0
-        ? ('共读取 ' + vList.length + ' 个过孔 · 信号孔 ' + sigViaCnt + ' / 地孔 ' + gndViaCnt + ' 与 ' + ts.totalTraces + ' 条走线 / ' + ts.totalTraceSegments + ' 段。')
-        : ('共读取 ' + vList.length + ' 个过孔 · 信号孔 ' + sigViaCnt + ' / 地孔 ' + gndViaCnt + '，未含走线块。');
+        ? ('共读取 ' + vList.length + ' 个过孔 · ' + signalHint + ' 与 ' + ts.totalTraces + ' 条走线 / ' + ts.totalTraceSegments + ' 段。')
+        : ('共读取 ' + vList.length + ' 个过孔 · ' + signalHint + '，未含走线块。');
     }
 
     var metricsEl = document.getElementById('pnlImportTraceMetrics');
@@ -221,6 +233,38 @@
     renderImportedTraceTable();
   }
 
+  function getFanoutLibrarySignature() {
+    return JSON.stringify(State.library && State.library.toJSON ? State.library.toJSON() : []);
+  }
+
+  function getFanoutResultLibrary() {
+    return State.inspectionLibrarySnapshot || State.library;
+  }
+
+  function updateFanoutLibraryStaleNotice() {
+    var notice = document.getElementById('fanoutLibraryStaleNotice');
+    if (notice) notice.hidden = !State.resultsStale;
+  }
+
+  function markFanoutResultsStale() {
+    if (!State.clusters.length || !State.inspectionLibrarySignature) return false;
+    var stale = getFanoutLibrarySignature() !== State.inspectionLibrarySignature;
+    var changed = stale !== State.resultsStale;
+    State.resultsStale = stale;
+    updateFanoutLibraryStaleNotice();
+    if (changed) renderResultsTable();
+    return stale;
+  }
+
+  function captureFanoutInspectionLibrary() {
+    var json = State.library && State.library.toJSON ? State.library.toJSON() : [];
+    var cloned = JSON.parse(JSON.stringify(json));
+    State.inspectionLibrarySnapshot = { schemes: cloned };
+    State.inspectionLibrarySignature = JSON.stringify(json);
+    State.resultsStale = false;
+    updateFanoutLibraryStaleNotice();
+  }
+
   function executeFanoutCheck() {
     var rawInMemory = State.rawText || '';
     var taVal = document.getElementById('txtViaInput').value.trim();
@@ -234,8 +278,6 @@
     var allowRot = document.getElementById('chkAllowRotation').checked;
     var allowMir = document.getElementById('chkAllowMirror').checked;
     var allowArb = document.getElementById('chkAllowArbitraryRotation') ? document.getElementById('chkAllowArbitraryRotation').checked : false;
-    var allowSubset = document.getElementById('chkAllowSubsetMatch') ? document.getElementById('chkAllowSubsetMatch').checked : true;
-    var redundantPolicy = document.getElementById('selRedundantPolicy') ? document.getElementById('selRedundantPolicy').value : 'ANY_GND_REDUNDANT';
 
     var res = FC.runFanoutInspection(txt, State.library, {
       clusterThreshold: clusterDistInMil,
@@ -243,18 +285,23 @@
       allowRotation: allowRot,
       allowMirror: allowMir,
       allowArbitraryRotation: allowArb,
-      allowSubsetMatch: allowSubset,
-      redundantViaPolicy: redundantPolicy
+      allowSubsetMatch: false,
+      redundantViaPolicy: 'REJECT_REDUNDANT'
     });
 
     if (!res.success) { alert(res.error || '检查失败'); return; }
 
+    captureFanoutInspectionLibrary();
     State.vias = res.vias;
     State.traces = res.traces || [];
     State.traceSummary = res.traceSummary || null;
     State.clusters = res.clusters;
     State.summary = res.summary;
+    State.selectedClusterId = null;
     State.selectedTraceId = null;
+    State.canvas.returnPosition = null;
+    var returnButton = document.getElementById('btnReturnFanoutResults');
+    if (returnButton) returnButton.style.display = 'none';
     if (root.buildCanvasSpatialGrid) root.buildCanvasSpatialGrid();
     State.page = 1;
     State.canvas.hasInitialFit = false;
@@ -271,7 +318,6 @@
     var filterBtns = {
       all: 'btnFilterAll',
       pass: 'btnFilterPass',
-      subset: 'btnFilterSubset',
       fail: 'btnFilterFail',
       padstack: 'btnFilterPadstack',
       dist: 'btnFilterDist',
@@ -292,10 +338,9 @@
       var res = c.matchResult;
       if (!res) return true;
       if (State.filter === 'pass' && !res.pass) return false;
-      if (State.filter === 'subset' && (!res.pass || !res.isSubsetMatch)) return false;
       if (State.filter === 'fail' && res.pass) return false;
       if (State.filter === 'padstack' && res.status !== 'PADSTACK_MISMATCH' && res.status !== 'SUBSET_PADSTACK_MISMATCH') return false;
-      if (State.filter === 'dist' && res.status !== 'DISTANCE_MISMATCH') return false;
+      if (State.filter === 'dist' && res.status !== 'DISTANCE_MISMATCH' && res.status !== 'GND_QUANTITY_MISMATCH') return false;
       if (State.filter === 'isolated' && res.status !== 'ISOLATED_VIA' && res.status !== 'NO_MATCH_TOPOLOGY') return false;
       if (schemeFilter && res.schemeName !== schemeFilter) return false;
 
@@ -307,7 +352,8 @@
             (v.padstack && v.padstack.toLowerCase().indexOf(query) >= 0);
         });
         var matchScheme = !!(res.schemeName && res.schemeName.toLowerCase().indexOf(query) >= 0);
-        var matchMsg = !!(res.message && res.message.toLowerCase().indexOf(query) >= 0);
+        var detailText = ResultDetails ? ResultDetails.toText(c, getFanoutResultLibrary(), State.distTolerance).toLowerCase() : '';
+        var matchMsg = !!((res.message && res.message.toLowerCase().indexOf(query) >= 0) || detailText.indexOf(query) >= 0);
         var matchTraceLayer = !!(c.traceSummary && Array.isArray(c.traceSummary.layers) &&
           c.traceSummary.layers.some(function (l) { return l.toLowerCase().indexOf(query) >= 0; }));
         if (!matchId && !matchVia && !matchScheme && !matchMsg && !matchTraceLayer) return false;
@@ -346,6 +392,20 @@
     }
   }
 
+  function summarizeClusterSignals(cluster) {
+    var sigVias = cluster.signalVias || cluster.vias.filter(function (v) { return v.net && v.net.toUpperCase().indexOf('GND') < 0; });
+    var physicalSigVias = cluster.physicalSignalVias || sigVias;
+    var companionSignals = cluster.matchingSignalVias ? cluster.matchingSignalVias.slice(sigVias.length) : [];
+    var sigStr = sigVias.map(function (v) {
+      var segmentIds = v.physicalViaIds || [v.id];
+      var stackText = segmentIds.length > 1 ? '（孔段 #' + segmentIds.join('/#') + '）' : '';
+      return '#' + v.id + ' ' + escapeHtml(v.net) + stackText;
+    }).join(', ');
+    var companionStr = companionSignals.map(function (v) { return '#' + v.id + ' ' + escapeHtml(v.net); }).join(', ');
+    return { sigVias: sigVias, physicalSigVias: physicalSigVias, companionSignals: companionSignals,
+      sigStr: sigStr, companionStr: companionStr, gndCount: cluster.vias.length - physicalSigVias.length - companionSignals.length };
+  }
+
   function renderResultsTable() {
     var tbody = document.getElementById('tblResultsBody');
     if (!tbody) return;
@@ -380,18 +440,18 @@
       var res = c.matchResult || {};
       var isReviewed = State.reviewedClusters.has(c.id);
       var rowClass = isReviewed ? 'reviewed' : (res.pass ? 'row-pass' : 'row-fail');
-
       var badgeHtml = res.pass
         ? ('<span class="badge-tag ok">匹配通过 · ' + escapeHtml(res.schemeName) + '</span>')
         : (res.status === 'PADSTACK_MISMATCH'
           ? ('<span class="badge-tag warn">Padstack 不符 · ' + escapeHtml(res.schemeName) + '</span>')
           : (res.status === 'DISTANCE_MISMATCH'
             ? ('<span class="badge-tag warn">孔距/伴随孔偏差 · ' + escapeHtml(res.schemeName) + '</span>')
-            : '<span class="badge-tag bad">未匹配预设方案</span>'));
+            : (res.status === 'GND_QUANTITY_MISMATCH' ? ('<span class="badge-tag warn">伴随 GND 数量不符 · ' + escapeHtml(res.schemeName) + '</span>')
+              : '<span class="badge-tag bad">未匹配预设方案</span>')));
 
-      var sigVias = c.signalVias || c.vias.filter(function (v) { return v.net && v.net.toUpperCase().indexOf('GND') < 0; });
-      var sigStr = sigVias.map(function (v) { return '#' + v.id + ' ' + escapeHtml(v.net); }).join(', ');
-      var gndCount = c.vias.length - sigVias.length;
+      var signalView = summarizeClusterSignals(c);
+      var sigVias = signalView.sigVias, physicalSigVias = signalView.physicalSigVias, companionSignals = signalView.companionSignals;
+      var sigStr = signalView.sigStr, companionStr = signalView.companionStr, gndCount = signalView.gndCount;
       var ts = c.traceSummary || null;
       var traceInfoHtml = (ts && (ts.segmentCount > 0 || (ts.layers && ts.layers.length > 0)))
         ? ('<div style="margin-top:3px;padding:2px 6px;background:#f8fafc;border:1px solid var(--line);border-radius:4px;color:var(--pri-d);font-size:11px">' +
@@ -400,26 +460,27 @@
         : '';
 
       var maxSpan = (c.bbox && c.bbox.maxSpan != null) ? c.bbox.maxSpan : Math.hypot((c.bbox && c.bbox.spanX) || 0, (c.bbox && c.bbox.spanY) || 0);
+      var comparisonHtml = ResultDetails ? ResultDetails.render(c, getFanoutResultLibrary(), State.distTolerance) :
+        ('<div style="font-weight:600">' + escapeHtml(res.message || '-') + '</div>');
 
       return '<tr class="' + rowClass + '" id="row_' + c.id + '">' +
         '<td><input type="checkbox" data-no-persist ' + (isReviewed ? 'checked' : '') + ' onchange="toggleReviewCluster(\'' + c.id + '\', this.checked)"></td>' +
-        '<td><strong style="color:var(--pri);cursor:pointer" onclick="locateClusterInCanvas(\'' + c.id + '\')">' + escapeHtml(c.id) + '</strong></td>' +
-        '<td><span class="badge-tag purple">' + c.viaCount + '孔 · 信' + sigVias.length + '/地' + gndCount + '</span></td>' +
+        '<td><strong style="color:var(--pri);cursor:pointer" onclick="locateClusterInCanvas(\'' + c.id + '\', this)">' + escapeHtml(c.id) + '</strong></td>' +
+        '<td><span class="badge-tag purple">' + c.viaCount + '孔段 · 信' + sigVias.length + '孔/' + physicalSigVias.length + '段' +
+          (companionSignals.length ? (' · 顶层Pin' + companionSignals.length) : '') + ' · 地' + gndCount + '</span></td>' +
         '<td><div style="font-family:var(--mono);font-size:11px">[' + c.centroid.x.toFixed(1) + ', ' + c.centroid.y.toFixed(1) + ']</div>' +
           '<div style="font-size:11px;color:var(--sub)">跨度: ' + (maxSpan * 0.0254).toFixed(2) + ' mm</div></td>' +
         '<td style="max-width:210px;font-size:11px">' +
           '<div style="font-weight:700;color:var(--pri-d)">' + (c.signalNet ? escapeHtml(c.signalNet) : sigStr) + '</div>' +
-          '<div style="color:var(--sub);font-size:11px">信号孔: ' + sigStr + ' · 地孔: ' + gndCount + '</div>' + traceInfoHtml + '</td>' +
+          '<div style="color:var(--sub);font-size:11px">信号孔: ' + sigStr +
+          (companionStr ? (' · 顶层Pin: ' + companionStr) : '') + ' · 地孔: ' + gndCount + '</div>' + traceInfoHtml + '</td>' +
         '<td>' + badgeHtml + '</td>' +
-        '<td style="font-size:11px;line-height:1.5">' +
-          '<div style="font-weight:600;color:' + (res.pass ? 'var(--ok)' : 'var(--heading)') + '">' + escapeHtml(res.message || '-') + '</div>' +
-          (res.advice ? ('<div style="margin-top:4px;padding:4px 8px;background:var(--surface-subtle);border:1px solid var(--line);border-radius:4px">' + escapeHtml(res.advice) + '</div>') : '') +
-        '</td>' +
+        '<td style="min-width:360px;font-size:11px;line-height:1.5">' + comparisonHtml + '</td>' +
         '<td><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer">' +
           '<input type="checkbox" data-no-persist ' + (isReviewed ? 'checked' : '') + ' onchange="toggleReviewCluster(\'' + c.id + '\', this.checked)">' +
           '<span>' + (isReviewed ? '已复核' : '待复核') + '</span></label></td>' +
         '<td><div style="display:flex;gap:4px">' +
-          '<button type="button" class="btn small sec" onclick="locateClusterInCanvas(\'' + c.id + '\')">定位</button>' +
+          '<button type="button" class="btn small sec" onclick="locateClusterInCanvas(\'' + c.id + '\', this)">定位</button>' +
           '<button type="button" class="btn small sec" onclick="saveClusterAsScheme(\'' + c.id + '\')">存方案</button></div></td></tr>';
     }).join('');
 
@@ -454,9 +515,14 @@
   function saveClusterAsScheme(clusterId) {
     var cluster = State.clusters.find(function (c) { return c.id === clusterId; });
     if (!cluster) return;
-    var scheme = FC.FanoutScheme.fromVias('扇出方案_' + cluster.id + '_' + cluster.viaCount + '孔', cluster.vias, {
+    var schemeVias = cluster.vias;
+    if (cluster.physicalSignalVias && cluster.signalVias) {
+      var gndVias = cluster.vias.filter(function (v) { return v.net && v.net.toUpperCase().indexOf('GND') >= 0; });
+      schemeVias = (cluster.matchingSignalVias || cluster.signalVias).concat(gndVias);
+    }
+    var scheme = FC.FanoutScheme.fromVias('扇出方案_' + cluster.id + '_' + schemeVias.length + '孔', schemeVias, {
       category: '提取方案',
-      description: '自 ' + cluster.id + ' 提取'
+      description: '自 ' + cluster.id + ' 提取（盲埋孔堆叠按逻辑信号孔折叠）'
     });
     State.library.addScheme(scheme);
     root.renderSchemeCards();
@@ -464,7 +530,7 @@
 
   function exportResultsCSV() {
     if (!State.clusters.length) { alert('暂无检查结果可导出'); return; }
-    var csv = '\uFEFF孔群编号,过孔数量,质心X,质心Y,最大跨度(mil),判定结果,匹配方案名,旋转角度,镜像状态,比对说明,复核状态\n';
+    var csv = '\uFEFF孔群编号,过孔数量,质心X,质心Y,最大跨度(mil),判定结果,匹配方案名,旋转角度,镜像状态,比对归因与建议,复核状态\n';
     State.clusters.forEach(function (c) {
       var res = c.matchResult || {};
       var maxSpan = (c.bbox && c.bbox.maxSpan != null) ? c.bbox.maxSpan : Math.hypot((c.bbox && c.bbox.spanX) || 0, (c.bbox && c.bbox.spanY) || 0);
@@ -472,7 +538,7 @@
         '"' + c.id + '"', c.viaCount, c.centroid.x.toFixed(2), c.centroid.y.toFixed(2), maxSpan.toFixed(2),
         '"' + (res.statusText || '-') + '"', '"' + (res.schemeName || '-') + '"',
         res.rotationAngle != null ? res.rotationAngle : '-', res.isMirrored ? '是' : '否',
-        '"' + String(res.message || '').replace(/"/g, '""') + '"',
+        '"' + String(ResultDetails ? ResultDetails.toText(c, getFanoutResultLibrary(), State.distTolerance) : (res.message || '')).replace(/"/g, '""') + '"',
         '"' + (State.reviewedClusters.has(c.id) ? '已复核' : '待复核') + '"'
       ].join(',') + '\n';
     });
@@ -496,6 +562,8 @@
   root.renderImportedTraceOverview = renderImportedTraceOverview;
   root.renderImportedTraceTable = renderImportedTraceTable;
   root.executeFanoutCheck = executeFanoutCheck;
+  root.markFanoutResultsStale = markFanoutResultsStale;
+  root.getFanoutResultLibrary = getFanoutResultLibrary;
   root.setResultFilter = setResultFilter;
   root.applyFilters = applyFilters;
   root.renderResultsTable = renderResultsTable;

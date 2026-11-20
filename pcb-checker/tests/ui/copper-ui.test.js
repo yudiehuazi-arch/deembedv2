@@ -40,16 +40,18 @@ setTimeout(() => {
     });
   });
 
-  t('初始在 ① 规则约束，六个工序页签完整且可切换', () => {
+  t('初始在 ① 规则约束，六个工序与检查说明页签完整且可切换', () => {
     if (activeTab() !== 'tab-rules') throw new Error(activeTab());
     const b = [...d.querySelectorAll('#tabs button')].map(x => x.textContent.trim());
-    if (b.length !== 6) throw new Error('页签数 ' + b.length);
-    ['① 规则约束', '② 生成的约束', '③ 导入数据', '④ 检查结果', '⑤ 空间几何视口与测量', '⑥ 规律分析'].forEach((x, i) => {
+    if (b.length !== 7) throw new Error('页签数 ' + b.length);
+    ['① 规则约束', '② 生成的约束', '③ 导入数据', '④ 检查结果', '⑤ 空间几何视口与测量', '⑥ 规律分析', '⑦ 检查说明'].forEach((x, i) => {
       if (!b[i].startsWith(x)) throw new Error('第' + (i + 1) + '个页签为 ' + b[i]);
     });
     $('tabs').querySelector('[data-tab="sets"]').click();
     if (activeTab() !== 'tab-sets') throw new Error(activeTab());
     if (!$('jumpNav') || !$('rulesBody') || !$('sets')) throw new Error('② 页缺核心容器');
+    $('tabs').querySelector('[data-tab="guide"]').click();
+    if (activeTab() !== 'tab-guide') throw new Error('检查说明未切换：' + activeTab());
     $('tabs').querySelector('[data-tab="rules"]').click();
   });
 
@@ -91,7 +93,7 @@ setTimeout(() => {
       'Item 3                < Shape >', '  Set: Route Keepout', '  Subset: 07IS03', '  Type: Shape(Static)',
       'Exterior Boundary:', '  Arc seg: xy [291.0, 300.0]  xy [291.0, 300.0] Width (0.0)', '    Center-xy: [300.0, 300.0] Radius (9.0) CCW',
       '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~',
-      'Item 4                < Via >', '  Origin-xy: [100.0, 100.0]', '  Net: 63_N', '  Padstack Name: BGA_3510_L19_ring3mil_L2pad_0907',
+      'Item 4                < Via >', '  Origin-xy: [100.0, 100.0]', '  Net: 63_N', '  Padstack Name: BGA_SIG_L1_L19_3510_ring3mil_L2pad_0907',
       '  Connections:', '    Trace: 2 (Top 02G01P)', '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~',
       'Item 5                < Via >', '  Origin-xy: [200.0, 200.0]', '  Net: GND', '  Padstack Name: BGA_3510_L17_ring3mil_0902',
       '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
@@ -136,7 +138,7 @@ setTimeout(() => {
     $('expMask').style.display = 'none';
   });
 
-  t('缺失层自动补齐为「无铜皮」并判为不符合 + Padstack 连接层缺失检测', () => {
+  t('检查规则配置的全部层，并保持 Padstack 来源层跨与连接层检测', () => {
     const padTxtFail = [
       'Item 1 < Via >',
       '  Origin-xy: [100.0, 100.0]',
@@ -147,15 +149,21 @@ setTimeout(() => {
       '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
     ].join('\n');
     w.__padTxtFail = padTxtFail;
+    $('inpN').value = '8';
     w.eval("S.sets=[{kind:'BGA',title:'BGA-L2',fanLayer:2,constraints:[{cat:'反焊盘尺寸',name:'反焊盘半径',unit:'mil',values:{L1:'12',L2:'10'}}]}]; UI.items=CopperCheck.parseBoardItems(window.__padTxtFail); runCheck(true); renderResults();");
     const g = w.eval('UI.result.groups[0]');
+    $('inpN').value = '';
     const padRow = g.rows.find(r => r.checkType === 'Padstack层名');
     if (!padRow || padRow.status !== '不符合' || !padRow.reason.includes('缺少连接层 L8')) {
       throw new Error('Padstack 连接层核对异常：' + JSON.stringify(padRow));
     }
     const missL1 = g.rows.find(r => r.layer === 1 && r.missing);
-    if (!missL1 || missL1.actual !== '无铜皮' || missL1.status !== '不符合') {
-      throw new Error('缺失层未补齐判红');
+    if (!missL1 || missL1.actual !== '无铜皮' || missL1.status !== '不符合' || missL1.sourceViaIds.length || missL1.sourcePadstack !== '无覆盖 Padstack') {
+      throw new Error('规则 L1 未检查，或错误借用了 L2 Padstack');
+    }
+    const missL2 = g.rows.find(r => r.layer === 2 && r.missing);
+    if (!missL2 || missL2.actual !== '无铜皮' || missL2.status !== '不符合' || missL2.sourcePadstack !== 'test BGA SIG 3510 L2 ring3mil') {
+      throw new Error('L2 缺失层未补齐并标明来源：' + JSON.stringify(missL2));
     }
   });
 

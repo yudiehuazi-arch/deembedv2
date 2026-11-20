@@ -38,7 +38,7 @@ const shapes = [
 const sets = [0.5, 0.6, 0.7].map(pitch => ({
   kind: 'BGA', title: `BGA-L2-L12-${pitch}mm`,
   constraints: [
-    { cat: '反焊盘尺寸', name: '反焊盘半径', unit: 'mil', values: { L1: '10', L2: '10', L5: '10', L10: '10', L12: '10', L14: '10' } }
+    { cat: '反焊盘尺寸', name: '反焊盘半径', unit: 'mil', values: { L1: '10', L2: '10', L3: '10', L4: '10', L5: '10', L6: '10', L7: '10', L8: '10', L9: '10', L10: '10', L11: '10', L12: '10', L13: '10', L14: '10' } }
   ]
 }));
 const result = C.runCopperCheck([...pParts, ...nParts, nonSig, ...shapes], sets, { layerCount: 14, posTol: 0.05, valTol: 0.01 });
@@ -50,6 +50,7 @@ t('0.075mm 错位的三个同网络孔段按连通关系合并为一个完整孔
   assert(pGroup && pGroup.vias.length === 3, JSON.stringify(pGroup && pGroup.via));
   assert(pGroup.via.id === '1/2/3', '组合孔号=' + pGroup.via.id);
   assert(pGroup.startLayer === 2 && pGroup.endLayer === 12, '完整层跨=' + pGroup.startLayer + '-' + pGroup.endLayer);
+  assert(pGroup.sourceSegments.map(part => `${part.viaId}:${part.spanText}`).join('|') === '1:L2-L5|2:L5-L10|3:L10-L12', JSON.stringify(pGroup.sourceSegments));
 });
 
 t('孔段中心距仅命中 0/0.025/0.075/0.125/0.175mm ±0.005mm 才合并', () => {
@@ -110,10 +111,12 @@ t('同封装与完整层跨下选择中心距最近的 BGA-L2-L12-0.6mm 约束',
   assert(nGroup.rule && nGroup.rule.title === 'BGA-L2-L12-0.6mm', nGroup.rule && nGroup.rule.title);
 });
 
-t('完整孔三个孔段坐标处的全部 Route Keepout 都归入同一约束核查', () => {
+t('完整孔读取各孔段同心位置的全部 Route Keepout，不按 Padstack 层跨裁掉 Shape', () => {
   const real = pGroup.rows.filter(r => !r.missing && !r.isPadstackCheck);
   assert(real.length === 8, '配对 Route Keepout=' + real.length);
   assert(real.every(r => r.status === '符合'), real.map(r => `${r.layer}:${r.status}`).join(','));
+  assert(real.some(r => r.layer === 1 && r.shapeId === 24) && real.some(r => r.layer === 14 && r.shapeId === 25), '同心 Top/Bottom Shape 未纳入');
+  assert(!result.unmatchedCircles.some(s => s.id === 24 || s.id === 25), '同心层跨外 Shape 不应保持未配对');
 });
 
 t('L5/L10 交界层的每条 Route Keepout 只追溯实际所在孔段', () => {
@@ -129,22 +132,29 @@ t('L5/L10 交界层的每条 Route Keepout 只追溯实际所在孔段', () => {
   });
 });
 
-t('Top 与 Bottom 同坐标时只追溯各自最近的首尾孔段', () => {
-  const top = pGroup.rows.find(r => r.subset === 'Top');
-  const bottom = pGroup.rows.find(r => r.subset === 'Bottom');
-  assert(top.sourcePadstack === 'BGA-HDI-SIG_L2_L5' && top.sourceViaIds.join('/') === '1', JSON.stringify(top));
-  assert(bottom.sourcePadstack === 'BGA-HDI-SIG_L10_L12' && bottom.sourceViaIds.join('/') === '3', JSON.stringify(bottom));
+t('逐层来源严格取覆盖本层的孔段，不向最近端点越层借用', () => {
+  const l3 = pGroup.rows.find(r => r.layer === 3);
+  const l6 = pGroup.rows.find(r => r.layer === 6);
+  const l11 = pGroup.rows.find(r => r.layer === 11);
+  assert(l3.sourcePadstack === 'BGA-HDI-SIG_L2_L5' && l3.sourceViaSpans === 'Via 1 · L2-L5', JSON.stringify(l3));
+  assert(l6.sourcePadstack === 'PTH-SIG_L5_L10' && l6.sourceViaSpans === 'Via 2 · L5-L10', JSON.stringify(l6));
+  assert(l11.sourcePadstack === 'BGA-HDI-SIG_L10_L12' && l11.sourceViaSpans === 'Via 3 · L10-L12', JSON.stringify(l11));
 });
 
-t('检查结果补齐完整孔经过的 L2-L12 所有层，稀疏 Shape 层不再被隐藏', () => {
+t('14 层叠层逐层全检，同心层跨外 Shape 使用最近物理孔段作为来源', () => {
   const geometryRows = pGroup.rows.filter(r => !r.isPadstackCheck);
-  for (let layer = 2; layer <= 12; layer++) {
+  for (let layer = 1; layer <= 14; layer++) {
     assert(geometryRows.some(r => r.layer === layer), '结果缺少 L' + layer);
   }
   const sparse = geometryRows.find(r => r.layer === 3);
-  assert(sparse && sparse.spanPlaceholder && sparse.status === '未检查', JSON.stringify(sparse));
-  assert(sparse.actual === '无铜皮' && sparse.expect === '该层无约束', JSON.stringify(sparse));
+  assert(sparse && sparse.missing && sparse.status === '不符合', JSON.stringify(sparse));
+  assert(sparse.actual === '无铜皮' && sparse.expect === '10', JSON.stringify(sparse));
   assert(sparse.sourcePadstack === 'BGA-HDI-SIG_L2_L5' && sparse.sourceViaIds.join('/') === '1', JSON.stringify(sparse));
+  const top = geometryRows.find(r => r.shapeId === 24), bottom = geometryRows.find(r => r.shapeId === 25);
+  assert(top && top.layer === 1 && top.sourceViaIds.join('/') === '1' && top.sourcePadstack === 'BGA-HDI-SIG_L2_L5', JSON.stringify(top));
+  assert(bottom && bottom.layer === 14 && bottom.sourceViaIds.join('/') === '3' && bottom.sourcePadstack === 'BGA-HDI-SIG_L10_L12', JSON.stringify(bottom));
+  const l13 = geometryRows.find(r => r.layer === 13);
+  assert(l13 && l13.missing && l13.status === '不符合' && !l13.sourceViaIds.length, JSON.stringify(l13));
 });
 
 t('不含 SIG 的过孔保留显示，但不推算约束且配对 Keepout 为未检查', () => {
@@ -172,6 +182,70 @@ t('解析 Padstack Defined from/to 作为名称层号不足时的层跨后备', 
   const span = C.spanOfVia(via, 14);
   assert(via.padstackStart === 'L2' && via.padstackEnd === 'L12', JSON.stringify(via));
   assert(span.start === 2 && span.end === 12, JSON.stringify(span));
+});
+
+t('未标 BGA/SMA 的换层 SIG Via 按“其他”类型和完整层跨匹配用户命名约束', () => {
+  const genericP = { id: 65, type: 'via', origin: [0, 0], net: 'CHANGE_P', padstack: 'CHANGE-SIG_L3_L29', traceLayers: [] };
+  const genericN = { id: 66, type: 'via', origin: [mil(0.5), 0], net: 'CHANGE_N', padstack: 'CHANGE-SIG_L3_L29', traceLayers: [] };
+  const genericSet = { kind: '其他', title: 'L3-L29', constraints: [] };
+  const out = C.runCopperCheck([genericP, genericN], [genericSet], { layerCount: 44 });
+  assert(out.groups.length === 2 && out.groups.every(g => g.rule && g.rule.title === 'L3-L29'),
+    JSON.stringify(out.groups.map(g => g.rule && g.rule.title)));
+});
+
+t('换层孔命名表只按 Connections Trace 双层选约束，不要求 Padstack 含 SIG 且不检查其命名', () => {
+  const raw = id => `Item ${id} < Via >\n Origin-xy: [${id * 10}, 0]\n Net: CHANGE_${id}\n Padstack Name: VIAOR40DOR15F_D6MIL\n Connections:\n  Trace:            2 (07IS03 33IS10)\n~~~~~~~~`;
+  const unmatchedRaw = `Item 69 < Via >\n Origin-xy: [690, 0]\n Net: CHANGE_69\n Padstack Name: VIAOR40DOR15F_D6MIL\n Connections:\n  Trace:            2 (08IS03 33IS10)\n~~~~~~~~`;
+  const rules = [
+    { kind: '其他', title: 'L3-L29', matchMode: 'connections-trace-layers', constraints: [] },
+    { kind: '其他', title: 'L7-L33', matchMode: 'connections-trace-layers', constraints: [
+      { cat: '反焊盘尺寸', name: '反焊盘半径', unit: 'mil', values: { L1: '16' } }
+    ] }
+  ];
+  const vias = C.parseBoardItems(raw(67) + '\n' + unmatchedRaw);
+  const keepout = { id: 670, type: 'shape', circle: true, center: vias[0].origin.slice(), radius: 16, set: 'Route Keepout', subset: 'Top', head: 'Route Keepout' };
+  assert(vias[0].traceConnected && vias[0].traceLayers.join('/') === '07IS03/33IS10', JSON.stringify(vias[0].traceLayers));
+  const out = C.runCopperCheck(vias.concat(keepout), rules, { layerCount: 44 });
+  const matched = out.groups.find(g => String(g.via.id) === '67');
+  const unmatched = out.groups.find(g => String(g.via.id) === '69');
+  assert(matched.signal && matched.rule && matched.rule.title === 'L7-L33', matched.rule && matched.rule.title);
+  assert(matched.matchMode === 'connections-trace-layers' && matched.matchTraceLayers.join('/') === '7/33', JSON.stringify(matched));
+  assert(!matched.namingError && !matched.rows.some(row => row.isPadstackCheck), JSON.stringify(matched.rows));
+  assert(matched.rows.some(row => row.shapeId === 670 && row.status === '符合'), JSON.stringify(matched.rows));
+  assert(matched.note.includes('Connections Trace 走线层 L7、L33') && matched.note.includes('匹配约束 L7-L33'), matched.note);
+  assert(!unmatched.rule && unmatched.excludedByConstraint && unmatched.failCount === 0, JSON.stringify(unmatched));
+  assert(unmatched.note.includes('对应 L8-L33') && unmatched.note.includes('不进行检查'), unmatched.note);
+  assert(!unmatched.rows.some(row => row.status === '不符合' || row.isPadstackCheck), JSON.stringify(unmatched.rows));
+  const legacyRule = { kind: '其他', title: 'Legacy-L3-L29', constraints: [] };
+  const mixed = C.runCopperCheck([vias[1]], [...rules, legacyRule], { layerCount: 44 }).groups[0];
+  assert(!mixed.rule && mixed.excludedByConstraint && mixed.matchMode === 'connections-trace-layers',
+    'Connections Trace 未命中时不得回退旧规则：' + JSON.stringify(mixed.rule));
+  const ineligible = C.parseBoardItems(raw(70).replace('Net: CHANGE_70', 'Net: GND') + '\n' + raw(71).replace('Trace:            2 (07IS03 33IS10)', 'Shape:            1 (Top)'));
+  const skipped = C.runCopperCheck(ineligible, rules, { layerCount: 44 }).groups;
+  assert(skipped.every(group => !group.signal && !group.rule && group.failCount === 0), JSON.stringify(skipped));
+});
+
+t('L1-L5 孔段读取 L13 同心 Shape，但不借此改变约束匹配层跨', () => {
+  const p = { id: 70, type: 'via', origin: [0, 0], net: '37_P', padstack: 'BGA-HDI-SIG_L1_L5', traceLayers: [] };
+  const n = { id: 71, type: 'via', origin: [mil(0.5), 0], net: '37_N', padstack: 'BGA-HDI-SIG_L1_L5', traceLayers: [] };
+  const circles = [p, n].flatMap((via, index) => [
+    { id: 80 + index * 2, type: 'shape', circle: true, center: via.origin.slice(), radius: 9, set: 'Route Keepout', subset: 'Top', head: 'Route Keepout' },
+    { id: 81 + index * 2, type: 'shape', circle: true, center: via.origin.slice(), radius: 10, set: 'Route Keepout', subset: 'L13', head: 'Route Keepout' }
+  ]);
+  const rules = [
+    { kind: 'BGA', title: 'BGA-Top-L5-0.5mm', constraints: [{ cat: '反焊盘尺寸', name: '反焊盘半径', unit: 'mil', values: { L1: '10', L5: '10' } }] },
+    { kind: 'BGA', title: 'BGA-Top-L12-0.5mm', constraints: [{ cat: '反焊盘尺寸', name: '反焊盘半径', unit: 'mil', values: { L1: '10', L13: '10' } }] }
+  ];
+  const out = C.runCopperCheck([p, n, ...circles], rules, { layerCount: 14, posTol: 0.05, valTol: 0.01 });
+  const group = out.groups.find(g => String(g.via.id) === '70');
+  const top = group.rows.find(row => row.shapeId === 80);
+  assert(group.rule && group.rule.title === 'BGA-Top-L5-0.5mm', group.rule && group.rule.title);
+  assert(top && top.sourcePadstack === 'BGA-HDI-SIG_L1_L5' && top.status === '不符合', JSON.stringify(top));
+  const l13 = group.rows.find(row => row.shapeId === 81);
+  assert(l13 && l13.layer === 13 && l13.actual === 10 && l13.status === '无约束', JSON.stringify(l13));
+  assert(l13.sourceViaIds.join('/') === '70' && l13.sourcePadstack === 'BGA-HDI-SIG_L1_L5', JSON.stringify(l13));
+  for (let layer = 1; layer <= 14; layer++) assert(group.rows.some(row => row.layer === layer), '结果缺少 L' + layer);
+  assert(!out.unmatchedCircles.some(shape => shape.id === 81), 'L13 同心 Shape 应纳入整合孔');
 });
 
 console.log(`\n结果: ${passed} 通过, ${failed} 失败`);

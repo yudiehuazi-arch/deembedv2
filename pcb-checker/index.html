@@ -4,11 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PCB 走线检查工具</title>
-<link rel="stylesheet" href="assets/styles/tokens.css?v=36">
-<link rel="stylesheet" href="assets/styles/eda-shell.css?v=36">
-<link rel="stylesheet" href="assets/styles/eda-dock.css?v=36">
-<link rel="stylesheet" href="assets/styles/components.css?v=36">
-<link rel="stylesheet" href="assets/styles/pages/trace.css?v=36">
+<link rel="stylesheet" href="assets/styles/tokens.css?v=87">
+<link rel="stylesheet" href="assets/styles/eda-shell.css?v=87">
+<link rel="stylesheet" href="assets/styles/eda-dock.css?v=87">
+<link rel="stylesheet" href="assets/styles/components.css?v=87">
+<link rel="stylesheet" href="assets/styles/pages/trace.css?v=87">
+<link rel="stylesheet" href="assets/styles/check-guide.css?v=87">
 </head>
 <body class="eda-workbench">
 
@@ -30,13 +31,13 @@
       <a href="copper.html" data-code="CON" data-tip="叠层约束表解析、过孔配对与反焊盘逐层尺寸核对">约束检查</a>
       <a href="dfm.html" data-code="DFM" data-tip="孔-孔、线-孔及异网孔盘 Airgap 几何间距测量与分层判定">加工能力检查</a>
       <a href="fanout.html" data-code="FAN" data-tip="过孔连通聚类、刚体变换方案匹配与孔心距分色预览">扇出方案检查</a>
-      <a href="pour.html" data-code="POR" data-tip="孔经过层铺铜、异型铜皮比对、参考层超宽、碎铜与圆弧半径核对">铜皮检查</a>
+      <a href="pour.html" data-code="POR" data-tip="孔经过层铺铜、异型铜皮比对、参考层走线投影与两侧邻近铜、碎铜与圆弧半径核对">铜皮检查</a>
       <a href="unified.html" data-code="UNI" data-tip="四槽位数据输入与五大检查引擎联动汇总工作台">综合一体化检查</a>
     </div>
   </div>
 
   <div class="eda-rail-section">
-    <div class="eda-rail-label">工序流程 <span data-tip="支持快捷键 Alt+1..6 快速切换工序">Alt+1..6</span></div>
+    <div class="eda-rail-label">工序流程 <span data-tip="支持快捷键 Alt+1..7 快速切换工序">Alt+1..7</span></div>
     <nav id="tabs">
       <button type="button" data-tab="import" class="active" data-tip="导入或粘贴 EDA 走线报告 TXT 与分隔表格">① 数据导入</button>
       <button type="button" data-tab="overview" data-tip="按出线层汇总网络数、线宽序列与圆弧段分布">② 数据概览</button>
@@ -44,6 +45,7 @@
       <button type="button" data-tab="result" data-tip="按出线层查看核对明细、定位不符合走线、复验标记与导出整改报表">④ 检查结果</button>
       <button type="button" data-tab="canvas" data-tip="交互式 2D 走线几何画布、标尺测量与定位复验">⑤ 空间几何视口与测量</button>
       <button type="button" data-tab="diff" data-tip="差分对逐层与跨层总长 PN 线长差核对">⑥ 差分分析</button>
+      <button type="button" data-tab="guide" data-tip="查看本模块完整操作流程、检查方案与符合/不符合验证标准">⑦ 检查说明</button>
     </nav>
   </div>
 
@@ -65,6 +67,11 @@
   </div>
 
   <main>
+    <!-- 检查说明：模块流程、检查方案与验证标准 -->
+    <section class="tab" id="tab-guide">
+      <div data-check-guide-module="trace"></div>
+    </section>
+
     <!-- ================= ① 数据导入 ================= -->
     <section class="tab active" id="tab-import">
       <div class="card">
@@ -390,18 +397,19 @@
 
 <div class="tooltip" id="traceCanvasTooltip"></div>
 
-<script src="packages/shared/xlsx-export.js?v=36"></script>
-<script src="packages/engines/trace/trace-parser.js?v=36"></script>
-<script src="packages/engines/trace/trace-rules.js?v=36"></script>
-<script src="packages/engines/trace/trace-report.js?v=36"></script>
-<script src="packages/pages/trace/trace-state.js?v=36"></script>
-<script src="packages/pages/trace/trace-overview-ui.js?v=36"></script>
-<script src="packages/pages/trace/trace-rules-ui.js?v=36"></script>
-<script src="packages/pages/trace/trace-results-ui.js?v=36"></script>
-<script src="packages/pages/trace/trace-diff-ui.js?v=36"></script>
-<script src="packages/pages/trace/trace-canvas-viewer.js?v=36"></script>
-<script src="packages/shared/eda-tooltip.js?v=36"></script>
-<script src="packages/shared/eda-shell.js?v=36"></script>
-<script src="packages/shared/ui-prefs.js?v=36"></script>
+<script src="packages/shared/check-guide.js?v=87"></script>
+<script src="packages/shared/xlsx-export.js?v=87"></script>
+<script src="packages/engines/trace/trace-parser.js?v=87"></script>
+<script src="packages/engines/trace/trace-rules.js?v=87"></script>
+<script src="packages/engines/trace/trace-report.js?v=87"></script>
+<script src="packages/pages/trace/trace-state.js?v=87"></script>
+<script src="packages/pages/trace/trace-overview-ui.js?v=87"></script>
+<script src="packages/pages/trace/trace-rules-ui.js?v=87"></script>
+<script src="packages/pages/trace/trace-results-ui.js?v=87"></script>
+<script src="packages/pages/trace/trace-diff-ui.js?v=87"></script>
+<script src="packages/pages/trace/trace-canvas-viewer.js?v=87"></script>
+<script src="packages/shared/eda-tooltip.js?v=87"></script>
+<script src="packages/shared/eda-shell.js?v=87"></script>
+<script src="packages/shared/ui-prefs.js?v=87"></script>
 </body>
 </html>

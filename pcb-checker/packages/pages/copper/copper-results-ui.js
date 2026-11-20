@@ -397,8 +397,12 @@
       { key: 'Padstack信号命名', label: 'Padstack命名不符合' },
       { key: '反焊盘尺寸', label: '反焊盘尺寸不符合' }
     ];
-    box.innerHTML = '<span class="hint no-rule-net-title">按不符合类型显示</span>' + options.map(function (o) {
-      var count = (UI.result.groups || []).filter(function (g) { return groupHasBadType(g, o.key); }).length;
+    box.innerHTML = '<span class="hint no-rule-net-title">按不符合类型显示，数量跟随约束和搜索条件</span>' + options.map(function (o) {
+      var count = (UI.result.groups || []).filter(function (g) {
+        if (UI.resSearch && !viaGroupMatchSearch(g, UI.resSearch)) return false;
+        var title = g.rule ? g.rule.title : '未推算到约束';
+        return (!UI.resRule || title === UI.resRule) && groupHasBadType(g, o.key);
+      }).length;
       return '<button type="button" class="chip bad-type-chip' + (UI.resBadType === o.key ? ' on' : '') + '" data-bad-type="' + o.key + '"><span class="cl">' + o.label + '</span><span class="cn">' + count + '</span></button>';
     }).join('');
   }
@@ -503,34 +507,34 @@
       if (!resultGroupMatch(g, rf)) continue;
       shownGroups++;
       UI.groupKeys[si] = (g.failRows || []).map(function (row) { return reviewKey(g, row); });
-      // “只看不符合”按完整孔筛组，但组内仍展示该信号孔的全部层，
-      // 便于在同一上下文中对照符合、未检查和不符合层。
       var rows = g.rows;
       var failCount = (g.failRows || []).length;
+      var sourceBundle = (g.sourceSegments || []).map(function (part) { return 'Via ' + part.viaId + ' · ' + part.padstack + ' · ' + part.spanText; }).join('；');
       h += '<div class="set ' + esc(g.keys.kind || '其他') + '" id="grp-' + si + '"><div class="hd">' +
-        '<span class="badge">Via ' + g.via.id + '</span><b>' + esc(g.via.net || '无网络') + '</b>' +
-        '<span>' + esc(g.via.padstack || '无 Padstack') + '</span>' +
+        '<span class="badge">整合孔 Via ' + g.via.id + '</span><b>' + esc(g.via.net || '无网络') + '</b>' +
+        '<span class="badge">' + g.vias.length + ' 个孔段打包</span><span>' + esc(g.via.padstack || '无 Padstack') + '</span>' +
         '<span class="badge rev" style="margin-left:auto" id="grv-' + si + '" data-tip="点击整组切换复核状态">复核 0/' + failCount + '</span>' +
         (failCount ? ('<label class="grpRvw" data-tip="将本孔所有不符合项一次标为已复核"><input type="checkbox" class="grpBox" data-no-persist data-si="' + si + '">总复核</label>') : '') +
         '<span>约束 ' + (g.rule ? esc(g.rule.title) : (g.signal !== false ? '未推算到' : '非 SIG · 不检查')) + (g.namingError ? ' · <b class="bad">Padstack命名不符合</b>' : '') + '</span>' +
         '<button type="button" class="btn gray small copper-locate-btn" data-si="' + si + '" data-tip="在空间几何视口定位该完整孔">定位</button></div><div class="body">' +
-        '<div class="srcnote">提取：' + esc(keyTxt(g)) + (g.note ? ' · ' + esc(g.note) : '') + (g.via.connections ? ' · ' + esc(g.via.connections) : '') + '</div>';
+        '<div class="srcnote">孔段打包：' + esc(sourceBundle || '无可识别孔段') + '。共同匹配约束【' + esc(g.rule ? g.rule.title : '未推算到') + '】，以下按当前叠层从 L1 检查到末层，并读取各孔段全部同心 Shape。提取：' + esc(keyTxt(g)) + (g.note ? ' · ' + esc(g.note) : '') + (g.via.connections ? ' · ' + esc(g.via.connections) : '') + '</div>';
       if (!rows.length) {
         h += '<div class="hint">该过孔附近无圆形铜皮。</div>';
       } else {
-        h += '<table><thead><tr><th class="rvw">复核</th><th>层</th><th>Subset</th><th>来源 Padstack</th><th>检查项</th><th>实测</th><th>规则值</th><th>结果</th></tr></thead><tbody>';
+        h += '<table><thead><tr><th class="rvw">复核</th><th>层</th><th>Subset</th><th>本层来源 Via</th><th>本层来源 Padstack</th><th>检查项</th><th>实测</th><th>规则值</th><th>结果</th></tr></thead><tbody>';
         rows.forEach(function (row) {
           var fail = row.status === '不符合';
           var rk = reviewKey(g, row);
           var rvd = fail && !!UI.reviewed[rk];
           var layerDisplay = (typeof row.layer === 'number' && row.layer > 0) ? ('L' + row.layer) : (String(row.layer).startsWith('L') ? row.layer : (row.layer === '—' ? '—' : ('L' + row.layer)));
-          var sourceVia = (row.sourceViaIds || []).map(function (id) { return 'Via ' + id; }).join(' / ');
-          var sourcePadstack = row.sourcePadstack || g.via.padstack || '无 Padstack';
+          var sourceVia = row.sourceViaSpans || (row.sourceViaIds || []).map(function (id) { return 'Via ' + id; }).join(' / ') || '无孔段覆盖该层';
+          var sourcePadstack = row.sourcePadstack || '无覆盖 Padstack';
           var reasonTooltip = row.reason ? (' title="' + esc(row.reason) + '" data-tip="' + esc(row.reason) + '"') : '';
           h += '<tr class="' + (fail ? 'fail ' : '') + (rvd ? 'reviewed' : '') + '" data-rk="' + esc(rk) + '">' +
             '<td class="rvw">' + (fail ? ('<input type="checkbox" class="rvwBox" data-no-persist data-rk="' + esc(rk) + '"' + (rvd ? ' checked' : '') + ' data-tip="勾选标记已人工复核">') : '') + '</td>' +
             '<td>' + esc(layerDisplay) + '</td><td>' + esc(row.subset) + '</td>' +
-            '<td class="padstack-source" data-tip="' + esc(sourceVia + ' · ' + sourcePadstack) + '"><span>' + esc(sourcePadstack) + '</span><small>' + esc(sourceVia) + '</small></td>' +
+            '<td class="via-source" data-tip="' + esc(sourceVia) + '">' + esc(sourceVia) + '</td>' +
+            '<td class="padstack-source" data-tip="' + esc(sourcePadstack) + '">' + esc(sourcePadstack) + '</td>' +
             '<td>' + esc(row.checkType) + '</td>' +
             '<td class="' + (fail ? 'bad' : '') + '"' + reasonTooltip + '>' + esc(row.actual) + '</td><td' + reasonTooltip + '>' + esc(row.expect || '无') + '</td>' +
             '<td class="' + (fail ? 'bad' : (row.status === '符合' ? 'ok' : 'muted')) + '"' + reasonTooltip + '><span class="resTxt">' + esc(row.status) + '</span>' +

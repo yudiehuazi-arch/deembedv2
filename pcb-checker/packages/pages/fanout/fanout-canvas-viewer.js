@@ -11,6 +11,7 @@
 
   var canvasRenderQueued = false;
   var canvasSpatialGrid = null;
+  var canvasDragClientX = 0, canvasDragClientY = 0, canvasDragMoved = false;
   var GRID_CELL_SIZE = 120.0;
 
   function requestCanvasRender() {
@@ -253,7 +254,7 @@
         '<table><thead><tr><th>孔号</th><th>网络</th><th>实测 Padstack</th><th>方案要求</th><th>结果</th></tr></thead>' +
         '<tbody>' + (auditRows || '<tr><td colspan="5" style="text-align:center">无比对记录</td></tr>') + '</tbody></table></div>' +
       '<div style="display:flex;gap:6px"><button type="button" class="btn small pri" onclick="saveClusterAsScheme(\'' + cluster.id + '\')" style="flex:1">存为新方案</button>' +
-      '<button type="button" class="btn small sec" onclick="switchTab(\'tabResults\')" style="flex:1">结果明细</button></div>';
+      '<button type="button" class="btn small sec" onclick="returnToFanoutResults()" style="flex:1">返回检查结果明细</button></div>';
 
     box.classList.add('active');
     renderCanvas();
@@ -276,9 +277,10 @@
     locateClusterInCanvas(pool[nextIdx].id);
   }
 
-  function locateClusterInCanvas(clusterId) {
+  function locateClusterInCanvas(clusterId, sourceElement) {
     var cluster = State.clusters.find(function (c) { return c.id === clusterId; });
     if (!cluster) return;
+    if (sourceElement && root.rememberFanoutResultPosition) root.rememberFanoutResultPosition(sourceElement, clusterId);
     root.switchTab('tabCanvas');
     var run = function () {
       resizeCanvas();
@@ -427,6 +429,11 @@
       ctx.fill();
     });
 
+    var selectedCluster = State.clusters.find(function (cluster) { return cluster.id === State.selectedClusterId; });
+    if (selectedCluster && root.drawFanoutClusterIssueMarkers) {
+      root.drawFanoutClusterIssueMarkers(ctx, selectedCluster, worldToScreen, padRad);
+    }
+
     if (State.canvas.measurePoints.length === 2) {
       var ptsM = State.canvas.measurePoints.map(function (p) { return worldToScreen(p.x, p.y); });
       ctx.save();
@@ -459,12 +466,14 @@
     canvas.addEventListener('mousedown', function (e) {
       if (e.button !== 0) return;
       State.canvas.isDragging = true;
+      canvasDragClientX = e.clientX; canvasDragClientY = e.clientY; canvasDragMoved = false;
       State.canvas.dragStartX = e.clientX - State.canvas.panX;
       State.canvas.dragStartY = e.clientY - State.canvas.panY;
     });
 
     root.addEventListener('mousemove', function (e) {
       if (!State.canvas.isDragging) return;
+      if (Math.abs(e.clientX - canvasDragClientX) > 3 || Math.abs(e.clientY - canvasDragClientY) > 3) canvasDragMoved = true;
       State.canvas.panX = e.clientX - State.canvas.dragStartX;
       State.canvas.panY = e.clientY - State.canvas.dragStartY;
       requestCanvasRender();
@@ -472,6 +481,7 @@
     root.addEventListener('mouseup', function () { State.canvas.isDragging = false; });
 
     canvas.addEventListener('click', function (e) {
+      if (canvasDragMoved) { canvasDragMoved = false; return; }
       var rect = canvas.getBoundingClientRect();
       var worldPos = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
       if (State.canvas.measureMode) {

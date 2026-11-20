@@ -190,12 +190,65 @@ test('孔群深度分析浮窗与一键保存为新扇出方案', () => {
   }
 });
 
+test('拖动画布后保留检视浮窗、选中孔群与特殊问题标记', () => {
+  const selected = window.State.clusters.find(c => !(c.matchResult && c.matchResult.pass)) || window.State.clusters[0];
+  if (!selected) return;
+  window.switchTab('tabCanvas');
+  window.openClusterDeepDive(selected);
+  const canvas = document.getElementById('mainCanvas');
+  const box = document.getElementById('canvasInfoBox');
+  const panBefore = window.State.canvas.panX;
+  canvas.dispatchEvent(new window.MouseEvent('mousedown', { bubbles: true, button: 0, clientX: -5000, clientY: -5000 }));
+  window.dispatchEvent(new window.MouseEvent('mousemove', { bubbles: true, clientX: -4900, clientY: -4920 }));
+  window.dispatchEvent(new window.MouseEvent('mouseup', { bubbles: true, button: 0, clientX: -4900, clientY: -4920 }));
+  canvas.dispatchEvent(new window.MouseEvent('click', { bubbles: true, button: 0, clientX: -4900, clientY: -4920 }));
+  assert.notStrictEqual(window.State.canvas.panX, panBefore, '拖动应改变画布视口');
+  assert.strictEqual(window.State.selectedClusterId, selected.id, '拖动结束后的 click 不应清空选中孔群');
+  assert.ok(box.classList.contains('active'), '拖动后检视浮窗不应消失');
+  if (!(selected.matchResult && selected.matchResult.pass)) {
+    assert.ok(window.getFanoutClusterIssueMarkers(selected).length > 0, '拖动后选中异常孔群仍应保留特殊问题标记');
+  }
+});
+
 // 9. 规律分析页渲染测试
 test('规律分析页 (Tab 5) 渲染测试', () => {
-  window.switchTab('tabAnalysis');
-  assert.strictEqual(window.State.activeTab, 'tabAnalysis', '应切换到规律分析页');
-  const pnlDefect = document.getElementById('pnlDefectRanking');
-  assert.ok(pnlDefect.textContent.includes('Padstack 不符') || pnlDefect.textContent.includes('中心距超差'));
+  const proto = window.HTMLCanvasElement.prototype;
+  const originalGetContext = proto.getContext;
+  let markerCount = 0;
+  proto.getContext = function () {
+    return {
+      clearRect() {}, fillRect() {}, strokeRect() {}, drawImage() {},
+      beginPath() {}, moveTo() {}, lineTo() {}, closePath() {}, stroke() {},
+      fill() { markerCount++; }, set fillStyle(value) {}, set strokeStyle(value) {}, set lineWidth(value) {}
+    };
+  };
+  try {
+    window.switchTab('tabAnalysis');
+    assert.strictEqual(window.State.activeTab, 'tabAnalysis', '应切换到规律分析页');
+    const pnlDefect = document.getElementById('pnlDefectRanking');
+    assert.ok(pnlDefect.textContent.includes('Padstack 不符') || pnlDefect.textContent.includes('中心距超差'));
+    const headers = [...document.querySelectorAll('#tabAnalysis table thead th')].map(th => th.textContent.trim());
+    assert.strictEqual(headers[headers.length - 1], '板上位置', '规律分析表最后一列应为板上位置');
+    const boardButton = document.querySelector('#tblDiffAnalysisBody .fanout-analysis-board-open');
+    const boardCanvas = boardButton && boardButton.querySelector('.fanout-analysis-board');
+    assert.ok(boardButton && boardCanvas, '每条规律分析记录应显示板上位置缩略图');
+    assert.ok(boardButton.parentElement.textContent.includes('孔群 [') && boardButton.parentElement.textContent.includes('#'),
+      '板上位置应显示孔群中心坐标与信号孔编号');
+    boardButton.click();
+    const zoom = document.getElementById('fanoutAnalysisBoardZoom');
+    assert.ok(zoom && !zoom.hidden && zoom.style.display === 'flex', '板上位置应支持放大查看');
+    assert.strictEqual(zoom.querySelector('canvas').width, 960, '放大位置图应使用高清画布');
+    assert.ok(markerCount > 0, '放大位置图应在全板过孔背景上绘制当前孔群标记');
+    zoom.querySelector('.fanout-analysis-board-close').click();
+    assert.ok(zoom.hidden, '板上位置放大窗口应可关闭');
+    window.exportDiffAnalysisCSV();
+    const analysisCsv = document.getElementById('exportModalText').value;
+    assert.ok(analysisCsv.split('\n')[0].endsWith(',板上位置') && analysisCsv.includes('孔群 ['),
+      '导出的规律分析 CSV 应同步包含可追溯的板上位置');
+    window.closeExportBox();
+  } finally {
+    proto.getContext = originalGetContext;
+  }
 });
 
 // 10. 导出方案库与导出弹窗测试
@@ -363,6 +416,45 @@ test('检查结果明细定位到空间几何视图后复核并自动同步勾�
   window.toggleReviewCluster(abnormal.id, false);
   const rowReset = document.getElementById(`row_${abnormal.id}`);
   assert.strictEqual(rowReset.querySelectorAll('input[type="checkbox"]')[1].checked, false, '取消复核后明细表也应同步取消勾选');
+});
+
+test('结果定位标记具体问题点，返回后恢复原条目并特别框选', () => {
+  const exactMarkers = window.getFanoutClusterIssueMarkers({
+    vias: [{ id: 88, x: 10, y: 20 }], signalVias: [], centroid: { x: 0, y: 0 },
+    matchResult: {
+      pass: false,
+      padMismatchList: [{ viaId: 88 }],
+      missingVias: [{ expectedX: 30, expectedY: 40 }],
+      viaAudit: []
+    }
+  });
+  assert.deepStrictEqual(Array.from(exactMarkers, marker => marker.kind), ['padstack', 'missing'],
+    'Padstack 异常孔和缺失补孔建议坐标应生成独立问题点标记');
+  assert.deepStrictEqual(Array.from(exactMarkers, marker => [marker.x, marker.y]), [[10, 20], [30, 40]]);
+  const canvasViewerSource = fs.readFileSync(path.join(CHECKER_DIR, 'packages/pages/fanout/fanout-canvas-viewer.js'), 'utf8');
+  assert.ok(canvasViewerSource.includes('drawFanoutClusterIssueMarkers'), '几何视图渲染流程必须实际绘制问题点标记');
+
+  window.setResultFilter('all');
+  const abnormal = window.State.filteredClusters.find(c => !(c.matchResult && c.matchResult.pass));
+  assert.ok(abnormal, '应存在可定位的异常孔群');
+  window.State.page = Math.floor(window.State.filteredClusters.indexOf(abnormal) / window.State.pageSize) + 1;
+  window.renderResultsTable();
+  const sourceRow = document.getElementById(`row_${abnormal.id}`);
+  sourceRow.getBoundingClientRect = () => ({ top: 240 });
+  const locateButton = [...sourceRow.querySelectorAll('button')].find(button => button.textContent.trim() === '定位');
+  assert.ok(locateButton, '检查结果条目应提供定位按钮');
+  locateButton.click();
+
+  assert.strictEqual(window.State.activeTab, 'tabCanvas', '定位后应切换到空间几何视图');
+  assert.strictEqual(window.State.selectedClusterId, abnormal.id);
+  assert.ok(window.getFanoutClusterIssueMarkers(abnormal).length > 0, '异常孔群应至少生成一个问题点标记');
+  assert.notStrictEqual(document.getElementById('btnReturnFanoutResults').style.display, 'none', '定位后应显示返回检查结果按钮');
+  assert.ok(document.getElementById('infoBoxContent').textContent.includes('返回检查结果明细'), '孔群详情应提供返回入口');
+
+  window.returnToFanoutResults();
+  assert.strictEqual(window.State.activeTab, 'tabResults', '返回后应切回检查结果明细');
+  const returnedRow = document.getElementById(`row_${abnormal.id}`);
+  assert.ok(returnedRow.classList.contains('fanout-located-flash'), '返回的原定位条目应显示特别框选');
 });
 
 // 14. 扇出方案库快捷改名：预设关键词完备性、按顺序下划线拼接、同一关键词点选两次及新增自定义关键词测试
@@ -559,20 +651,20 @@ test('顶栏全局显示控制：铺满宽屏可用，全屏工作台与独立�
   assert.strictEqual(document.documentElement.classList.contains('pcb-global-wide'), false, '再次点击应关闭全宽模式');
 });
 
-test('方案库 Padstack 色卡已移到本页尾部（main 末尾，不在方案库卡片内）', () => {
+test('方案库 Padstack 色卡仅位于①方案库页尾，其他页不显示', () => {
   const legend = document.getElementById('libraryPadstackLegendBar');
-  const main = document.querySelector('main');
+  const libraryTab = document.getElementById('tabLibrary');
   assert.ok(legend, '色卡容器应存在');
-  assert.strictEqual(legend.parentElement, main, '色卡应直接挂在 main 下（页面尾部）');
-  assert.strictEqual(main.lastElementChild, legend, '色卡应是页面最后一个区块');
-  assert.ok(!legend.closest('#tabLibrary'), '色卡不应再出现在方案库卡片里');
-  const tabSections = Array.from(main.querySelectorAll('section.tab'));
-  assert.ok(tabSections.length >= 5, '五个页签区块仍完整');
-  assert.ok(tabSections[0].compareDocumentPosition(legend) & window.Node.DOCUMENT_POSITION_FOLLOWING,
-    '色卡应排在所有页签区块之后');
-  assert.ok(legend.innerHTML.trim().length > 0, '色卡内容仍应正常渲染（移动位置不能把渲染打断）');
-  assert.ok(legend.textContent.includes('Padstack') || legend.querySelector('span,div'),
-    legend.textContent.slice(0, 60));
+  assert.strictEqual(legend.parentElement, libraryTab, '色卡必须属于①扇出方案库页');
+  assert.strictEqual(libraryTab.lastElementChild, legend, '色卡应位于①扇出方案库页尾');
+  assert.ok(!legend.closest('.card'), '色卡不应混入方案卡片网格');
+  assert.ok(legend.innerHTML.trim().length > 0, '色卡内容仍应正常渲染');
+  ['tabImport', 'tabResults', 'tabCanvas', 'tabAnalysis'].forEach(tabId => {
+    window.switchTab(tabId);
+    assert.ok(!legend.closest('.tab.active'), `${tabId} 不得显示方案库全局色卡`);
+  });
+  window.switchTab('tabLibrary');
+  assert.strictEqual(legend.closest('.tab.active'), libraryTab, '返回方案库页后色卡应随页签显示');
 });
 
 console.log(`\n结果: ${pass} 通过, ${fail} 失败`);

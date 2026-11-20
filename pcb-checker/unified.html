@@ -4,12 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PCB 综合一体化检查</title>
-<link rel="stylesheet" href="assets/styles/tokens.css?v=36">
-<link rel="stylesheet" href="assets/styles/eda-shell.css?v=36">
-<link rel="stylesheet" href="assets/styles/eda-dock.css?v=36">
-<link rel="stylesheet" href="assets/styles/components.css?v=36">
-<link rel="stylesheet" href="assets/styles/pages/unified.css?v=36">
-<link rel="stylesheet" href="assets/styles/pages/unified-config.css?v=36">
+<link rel="stylesheet" href="assets/styles/tokens.css?v=87">
+<link rel="stylesheet" href="assets/styles/eda-shell.css?v=87">
+<link rel="stylesheet" href="assets/styles/eda-dock.css?v=87">
+<link rel="stylesheet" href="assets/styles/components.css?v=87">
+<link rel="stylesheet" href="assets/styles/pages/unified.css?v=87">
+<link rel="stylesheet" href="assets/styles/pages/unified-config.css?v=87">
 </head>
 <body class="eda-workbench">
 
@@ -30,7 +30,7 @@
       <a href="copper.html" data-code="CON" data-tip="叠层约束表解析、过孔配对与反焊盘逐层尺寸核对">约束检查</a>
       <a href="dfm.html" data-code="DFM" data-tip="孔-孔、线-孔及异网孔盘 Airgap 几何间距测量与分层判定">加工能力检查</a>
       <a href="fanout.html" data-code="FAN" data-tip="过孔连通聚类、刚体变换方案匹配与孔心距分色预览">扇出方案检查</a>
-      <a href="pour.html" data-code="POR" data-tip="孔经过层铺铜、异型铜皮比对、参考层超宽、碎铜与圆弧半径核对">铜皮检查</a>
+      <a href="pour.html" data-code="POR" data-tip="孔经过层铺铜、异型铜皮比对、参考层走线投影与两侧邻近铜、碎铜与圆弧半径核对">铜皮检查</a>
       <a href="unified.html" class="active" data-code="UNI" data-tip="四槽位数据输入与五大检查引擎联动汇总工作台">综合一体化检查</a>
     </div>
   </div>
@@ -167,7 +167,7 @@
               <span style="font-size:13px;font-weight:700;color:#111827">④ 铜皮检查数据</span>
               <span id="badgeData_pour" class="tag-badge" style="background:#e3e8ef;color:#6b7280;font-size:11px">未导入</span>
             </div>
-            <div style="font-size:12px;color:#6b7280;line-height:1.4">铜皮检查所需的 Shape / Via / Trace 数据 <span class="eda-tip" tabindex="0" data-tip="铺铜覆盖 / 异型铜皮 / 参考层超宽">?</span></div>
+            <div style="font-size:12px;color:#6b7280;line-height:1.4">铜皮检查所需的 Shape / Via / Trace 数据 <span class="eda-tip" tabindex="0" data-tip="铺铜覆盖 / 异型铜皮 / 参考层投影与邻近铜">?</span></div>
           </div>
           <div class="data-cat-drop" id="dropZone_pour" onclick="$('fileData_pour').click()">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>
@@ -425,7 +425,7 @@
         <!-- 5. Pour Rules (完整保留多规则 1/2/3 表格 + Shape TXT 导入) -->
         <div class="rule-acc">
           <div class="rule-acc-header" onclick="toggleAcc(this)">
-            <h4>5. 铜皮五项检查规则 <span class="eda-tip" tabindex="0" data-tip="孔铺铜多规则 / 异型铜皮比对 / 参考层超宽多规则 / 碎铜 / 锐角">?</span></h4>
+            <h4>5. 铜皮五项检查规则 <span class="eda-tip" tabindex="0" data-tip="孔铺铜多规则 / 异型铜皮比对 / 参考层投影与两侧邻近铜多规则 / 碎铜 / 锐角">?</span></h4>
             <div style="display:flex;gap:4px" onclick="event.stopPropagation()">
               <button class="btn sec small" style="padding:2px 6px" onclick="importPourRulesPrompt()">导入铜皮 JSON</button>
               <button class="btn sec small" style="padding:2px 6px" onclick="exportPourRulesPrompt()">导出铜皮 JSON</button>
@@ -440,7 +440,7 @@
                 <thead>
                   <tr>
                     <th>Padstack 关键字</th>
-                    <th>必须铺铜物理层范围 <span class="eda-tip" tabindex="0" data-tip="如 L1-L5">?</span></th>
+                    <th>必须铺铜物理层范围 <span class="eda-tip" tabindex="0" data-tip="支持混合填写；L1, L3-L5 会展开为 L1、L3、L4、L5">?</span></th>
                     <th style="width:90px">中心距阈值</th>
                     <th style="width:50px;text-align:center">操作</th>
                   </tr>
@@ -460,7 +460,7 @@
                     <span id="badgePourRule2Count" style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">1 条规则</span>
                   </div>
                   <div style="font-size:12px;color:#6b7280;margin-top:3px">
-                    先匹配过孔类型，再按差分孔中心距选择导入的铜皮模板
+                    同一过孔类型可配置多条逐层要求；使用“复制加层”分别保存不同层模板，所有命中项都必须通过
                   </div>
                 </div>
                 <div style="display:flex;gap:6px">
@@ -479,16 +479,14 @@
                       <th style="width:90px">模板缩略图</th>
                       <th style="width:180px">模板名称</th>
                       <th style="width:140px">过孔类型</th>
-                      <th style="width:120px" data-tip="查找默认 0.175 mm（可修改）内最近的同网络 HDI 孔，以目标 Via 到该 HDI Via 的中心距匹配模板；模板值单位 mil，匹配容差 0.01 mil">差分孔中心距</th>
-                      <th style="width:105px" data-tip="每个目标过孔仅关联该距离内同网络且 Padstack 含 HDI 的孔">HDI 搜索距离 mm</th>
-                      <th style="width:100px" data-tip="支持同时填写多个目标层，使用逗号、分号或斜杠分隔">目标层别</th>
+                      <th style="width:120px" data-tip="可选；搜索范围内任一同 Net，或通过同一 Set=Shape 铜皮实际接触且层跨兼容、Padstack 名带 HDI 的孔可作为候选；接触铜皮 Net 与 HDI Net 不一致仍判为异常。候选只要与对应差分网络 HDI 的中心距命中该值即可，单位 mil，容差 0.01 mil">差分孔中心距</th>
+                      <th style="width:105px" data-tip="可选；目标过孔到同 Net，或通过同一 Set=Shape 铜皮实际接触且层跨兼容、Padstack 名含 HDI 的候选孔的最大关联距离；接触铜皮 Net 与 HDI Net 不一致仍判为异常，留空不限制距离">HDI 搜索距离 mm</th>
+                      <th style="width:100px" data-tip="匹配 TXT Shape 的 Subset；Board Geometry 可填写 Soldermask Top、Silkscreen Top 或 Outline；多个值使用逗号、分号或斜杠分隔">目标层别</th><th style="width:125px" data-tip="只匹配 Shape Item 中 Set 字段相同的对象">异型铜皮 Set 类别</th>
                       <th style="width:160px">期望面积与容差</th>
-                      <th style="width:110px;text-align:right">操作</th>
+                      <th style="width:180px;text-align:right">操作</th>
                     </tr>
                   </thead>
-                  <tbody id="tblPourRule2Body">
-                    <!-- Dynamic Rule 2 Rows matching image-1.png -->
-                  </tbody>
+                  <tbody id="tblPourRule2Body"><!-- Dynamic Rule 2 Rows matching image-1.png --></tbody>
                 </table>
               </div>
               <div style="margin-top:8px;display:flex;gap:6px">
@@ -497,7 +495,7 @@
             </div>
 
             <!-- Rule 3 Snippet -->
-            <div style="font-size:12px;margin-bottom:4px;font-weight:600">规则 3：走线上/下参考层铺铜单侧超宽规则 <span class="eda-tip" tabindex="0" data-tip="支持多规则配置">?</span>:</div>
+            <div style="font-size:12px;margin-bottom:4px;font-weight:600">规则 3：走线上/下参考层投影覆盖与两侧邻近铜规则 <span class="eda-tip" tabindex="0" data-tip="走线首尾端在所有被检查参考层上的反焊盘均豁免；豁免区外必须覆盖完整走线投影，且整条走线左右两侧各有任意铜皮位于设定距离内；支持多规则配置">?</span>:</div>
             <div class="table-wrap" style="margin-bottom:8px">
               <table id="tblPourRule3">
                 <thead>
@@ -505,7 +503,7 @@
                     <th>走线物理层</th>
                     <th>上参考层</th>
                     <th>下参考层</th>
-                    <th style="width:90px">单侧超宽阈值</th>
+                    <th style="width:110px">两侧邻近铜搜索距离</th>
                     <th style="width:50px;text-align:center">操作</th>
                   </tr>
                 </thead>
@@ -1106,22 +1104,23 @@
         </div>
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:12px">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:12px;margin-bottom:12px">
         <div>
-          <label style="font-weight:600;color:#374151;display:block;margin-bottom:4px" data-tip="支持同时填写多个目标层，使用逗号、分号或斜杠分隔">目标层别 *</label>
-          <input type="text" id="modalPourShapeInpLayer" style="width:100%" placeholder="例如: L5, L10" data-no-persist>
+          <label style="font-weight:600;color:#374151;display:block;margin-bottom:4px" data-tip="匹配 TXT Shape 的 Subset；Board Geometry 可填写 Soldermask Top、Silkscreen Top 或 Outline；多个值使用逗号、分号或斜杠分隔">目标层别 *</label>
+          <input type="text" id="modalPourShapeInpLayer" style="width:100%" placeholder="例如: L5, L10 或 Soldermask Top" data-no-persist>
           <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px" id="chipsModalPourLayer">
             <span style="font-size:11px;color:#6b7280;margin-right:2px">快捷选项:</span>
             <span class="hist-chip" onclick="fillInput('modalPourShapeInpLayer','02G01P')">02G01P</span><span class="hist-chip" onclick="fillInput('modalPourShapeInpLayer','19IS08')">19IS08</span>
-            <span class="hist-chip" onclick="fillInput('modalPourShapeInpLayer','L2')">L2</span><span class="hist-chip" onclick="fillInput('modalPourShapeInpLayer','L4')">L4</span><span class="hist-chip" onclick="fillInput('modalPourShapeInpLayer','L17')">L17</span>
+            <span class="hist-chip" onclick="fillInput('modalPourShapeInpLayer','L2')">L2</span><span class="hist-chip" onclick="fillInput('modalPourShapeInpLayer','L4')">L4</span><span class="hist-chip" onclick="fillInput('modalPourShapeInpLayer','L17')">L17</span><span class="hist-chip" onclick="fillInput('modalPourShapeInpLayer','Soldermask Top')">Soldermask Top</span><span class="hist-chip" onclick="fillInput('modalPourShapeInpLayer','Outline')">Outline</span>
           </div>
         </div>
+        <div><label style="font-weight:600;color:#374151;display:block;margin-bottom:4px" data-tip="检查时只关联层别与 Set 类别都匹配的 Shape Item">异型铜皮 Set 类别 *</label><select id="modalPourShapeInpSet" style="width:100%" data-no-persist><option value="Shape">Shape</option><option value="Route Keepout">Route Keepout</option><option value="Board Geometry">Board Geometry</option></select></div>
         <div>
-          <label style="font-weight:600;color:#374151;display:block;margin-bottom:4px" data-tip="查找默认 0.175 mm（可修改）内最近的同网络 HDI 孔，以目标 Via 到该 HDI Via 的中心距匹配模板；模板值单位 mil，匹配容差 0.01 mil">差分孔中心距 *</label>
-          <input type="number" id="modalPourShapeInpDiffDist" value="10.0" min="0.01" step="0.01" style="width:100%" data-no-persist>
+          <label style="font-weight:600;color:#374151;display:block;margin-bottom:4px" data-tip="可选；搜索范围内任一同 Net，或通过同一 Set=Shape 铜皮实际接触且层跨兼容、Padstack 名带 HDI 的孔可作为候选；接触铜皮 Net 与 HDI Net 不一致仍判为异常。候选只要与对应差分网络 HDI 的中心距命中该值即可，单位 mil，容差 0.01 mil">差分孔中心距</label>
+          <input type="number" id="modalPourShapeInpDiffDist" value="" placeholder="留空则不检查中心距" min="0.01" step="0.01" style="width:100%" data-no-persist>
           <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px"><span class="hist-chip" onclick="fillInput('modalPourShapeInpDiffDist','10.0')">10.0 mil</span><span class="hist-chip" onclick="fillInput('modalPourShapeInpDiffDist','19.68')">19.68 mil</span><span class="hist-chip" onclick="fillInput('modalPourShapeInpDiffDist','23.62')">23.62 mil</span></div>
         </div>
-        <div><label style="font-weight:600;color:#374151;display:block;margin-bottom:4px" data-tip="目标过孔仅关联该距离内同网络且 Padstack 名称含 HDI 的激光孔">HDI 搜索距离 mm *</label><input type="number" id="modalPourShapeInpHdiRadius" value="0.175" min="0.001" step="0.001" style="width:100%" data-no-persist><div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px"><span class="hist-chip" onclick="fillInput('modalPourShapeInpHdiRadius','0.175')">0.175 mm</span><span class="hist-chip" onclick="fillInput('modalPourShapeInpHdiRadius','0.150')">0.150 mm</span></div></div>
+        <div><label style="font-weight:600;color:#374151;display:block;margin-bottom:4px" data-tip="可选；目标过孔到同 Net，或通过同一 Set=Shape 铜皮实际接触且层跨兼容、Padstack 名含 HDI 的候选孔的最大关联距离；接触铜皮 Net 与 HDI Net 不一致仍判为异常，留空不限制距离">HDI 搜索距离 mm</label><input type="number" id="modalPourShapeInpHdiRadius" value="" placeholder="留空则不限制搜索距离" min="0.001" step="0.001" style="width:100%" data-no-persist><div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px"><span class="hist-chip" onclick="fillInput('modalPourShapeInpHdiRadius','0.175')">0.175 mm</span><span class="hist-chip" onclick="fillInput('modalPourShapeInpHdiRadius','0.150')">0.150 mm</span></div></div>
         <div>
           <label style="font-weight:600;color:#374151;display:block;margin-bottom:4px">面积允许容差 ± sq mil</label>
           <input type="number" id="modalPourShapeInpTol" value="30.0" step="5.0" style="width:100%" data-no-persist>
@@ -1289,50 +1288,52 @@
   </div>
 </div>
 
-
-<script src="packages/shared/xlsx-export.js?v=36"></script>
-<script src="packages/shared/shape-preview-canvas.js?v=36"></script>
-<script src="packages/geometry/pad-primitives.js?v=36"></script>
-<script src="packages/geometry/pad-region.js?v=36"></script>
-<script src="packages/engines/copper/via-constraint-inference.js?v=36"></script><script src="packages/engines/copper/copper-engine.js?v=36"></script>
-<script src="packages/engines/copper/constraint-parser.js?v=36"></script>
-<script src="packages/engines/dfm/dfm-layers.js?v=36"></script>
-<script src="packages/engines/dfm/dfm-parser.js?v=36"></script>
-<script src="packages/engines/dfm/dfm-engine.js?v=36"></script>
-<script src="packages/engines/dfm/dfm-pattern.js?v=36"></script>
-<script src="packages/engines/fanout/fanout-parser.js?v=36"></script>
-<script src="packages/engines/fanout/fanout-palette.js?v=36"></script>
-<script src="packages/engines/fanout/fanout-scheme.js?v=36"></script>
-<script src="packages/engines/fanout/fanout-clustering.js?v=36"></script>
-<script src="packages/engines/fanout/fanout-inspector.js?v=36"></script>
-<script src="packages/engines/fanout/fanout-layout.js?v=36"></script>
-<script src="packages/engines/fanout/fanout-canvas.js?v=36"></script>
-<script src="packages/engines/pour/pour-geom.js?v=36"></script>
-<script src="packages/engines/pour/pour-parser.js?v=36"></script>
-<script src="packages/engines/pour/pour-engine.js?v=36"></script>
-<script src="packages/pages/unified/unified-constraint-parse.js?v=36"></script>
-<script src="packages/pages/unified/unified-defaults.js?v=36"></script>
-<script src="packages/pages/unified/unified-state.js?v=36"></script>
-<script src="packages/pages/unified/unified-data-ingest.js?v=36"></script>
-<script src="packages/pages/unified/unified-sample-data.js?v=36"></script>
-<script src="packages/pages/unified/unified-rules-constraint.js?v=36"></script>
-<script src="packages/pages/unified/unified-rules-dfm.js?v=36"></script>
-<script src="packages/pages/unified/unified-fanout-library.js?v=36"></script>
-<script src="packages/pages/unified/unified-fanout-batch.js?v=36"></script>
-<script src="packages/pages/unified/unified-fanout-naming.js?v=36"></script>
-<script src="packages/pages/unified/unified-fanout-viewer.js?v=36"></script>
-<script src="packages/pages/unified/unified-fanout-io.js?v=36"></script>
-<script src="packages/pages/unified/unified-rules-pour.js?v=36"></script>
-<script src="packages/pages/unified/unified-rules-render.js?v=36"></script>
-<script src="packages/pages/unified/unified-trace-analysis.js?v=36"></script>
-<script src="packages/pages/unified/unified-runner.js?v=36"></script>
-<script src="packages/pages/unified/unified-dashboard.js?v=36"></script>
-<script src="packages/pages/unified/unified-canvas-viewer.js?v=36"></script>
-<script src="packages/pages/unified/unified-rules-io.js?v=36"></script>
-<script src="packages/pages/unified/unified-report-export.js?v=36"></script>
-<script src="packages/pages/unified/unified-bootstrap.js?v=36"></script>
-<script src="packages/shared/eda-tooltip.js?v=36"></script>
-<script src="packages/shared/eda-shell.js?v=36"></script>
-<script src="packages/shared/ui-prefs.js?v=36"></script>
+<script src="packages/shared/xlsx-export.js?v=87"></script>
+<script src="packages/shared/shape-preview-canvas.js?v=87"></script>
+<script src="packages/geometry/pad-primitives.js?v=87"></script>
+<script src="packages/geometry/pad-region.js?v=87"></script>
+<script src="packages/engines/copper/via-constraint-inference.js?v=87"></script><script src="packages/engines/copper/copper-engine.js?v=87"></script>
+<script src="packages/engines/copper/constraint-parser.js?v=87"></script>
+<script src="packages/engines/dfm/dfm-layers.js?v=87"></script>
+<script src="packages/engines/dfm/dfm-parser.js?v=87"></script>
+<script src="packages/engines/dfm/dfm-engine.js?v=87"></script>
+<script src="packages/engines/dfm/dfm-pattern.js?v=87"></script>
+<script src="packages/engines/fanout/fanout-parser.js?v=87"></script>
+<script src="packages/engines/fanout/fanout-palette.js?v=87"></script>
+<script src="packages/engines/fanout/fanout-scheme.js?v=87"></script>
+<script src="packages/engines/fanout/fanout-clustering.js?v=87"></script>
+<script src="packages/engines/fanout/fanout-topology.js?v=87"></script>
+<script src="packages/engines/fanout/fanout-inspector.js?v=87"></script>
+<script src="packages/engines/fanout/fanout-layout.js?v=87"></script>
+<script src="packages/engines/fanout/fanout-canvas.js?v=87"></script>
+<script src="packages/engines/pour/pour-geom.js?v=87"></script>
+<script src="packages/engines/pour/pour-parser.js?v=87"></script>
+<script src="packages/engines/pour/pour-trace-margin.js?v=87"></script>
+<script src="packages/engines/pour/pour-hdi-association.js?v=87"></script>
+<script src="packages/engines/pour/pour-engine.js?v=87"></script>
+<script src="packages/pages/unified/unified-constraint-parse.js?v=87"></script>
+<script src="packages/pages/unified/unified-defaults.js?v=87"></script>
+<script src="packages/pages/unified/unified-state.js?v=87"></script>
+<script src="packages/pages/unified/unified-data-ingest.js?v=87"></script>
+<script src="packages/pages/unified/unified-sample-data.js?v=87"></script>
+<script src="packages/pages/unified/unified-rules-constraint.js?v=87"></script>
+<script src="packages/pages/unified/unified-rules-dfm.js?v=87"></script>
+<script src="packages/pages/unified/unified-fanout-library.js?v=87"></script>
+<script src="packages/pages/unified/unified-fanout-batch.js?v=87"></script>
+<script src="packages/pages/unified/unified-fanout-naming.js?v=87"></script>
+<script src="packages/pages/unified/unified-fanout-viewer.js?v=87"></script>
+<script src="packages/pages/unified/unified-fanout-io.js?v=87"></script>
+<script src="packages/pages/unified/unified-rules-pour.js?v=87"></script>
+<script src="packages/pages/unified/unified-rules-render.js?v=87"></script>
+<script src="packages/pages/unified/unified-trace-analysis.js?v=87"></script>
+<script src="packages/pages/unified/unified-runner.js?v=87"></script>
+<script src="packages/pages/unified/unified-dashboard.js?v=87"></script>
+<script src="packages/pages/unified/unified-canvas-viewer.js?v=87"></script>
+<script src="packages/pages/unified/unified-rules-io.js?v=87"></script>
+<script src="packages/pages/unified/unified-report-export.js?v=87"></script>
+<script src="packages/pages/unified/unified-bootstrap.js?v=87"></script>
+<script src="packages/shared/eda-tooltip.js?v=87"></script>
+<script src="packages/shared/eda-shell.js?v=87"></script>
+<script src="packages/shared/ui-prefs.js?v=87"></script>
 </body>
 </html>

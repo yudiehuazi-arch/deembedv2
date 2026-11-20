@@ -146,18 +146,19 @@
   min-width: 1120px;
 }
 
+td.via-source {
+  min-width: 130px;
+  max-width: 220px;
+  overflow-wrap: anywhere;
+  color: var(--sub);
+  font-size: 11px;
+}
+
 td.padstack-source {
   min-width: 230px;
   max-width: 360px;
   overflow-wrap: anywhere;
   font-size: 12px;
-}
-
-td.padstack-source small {
-  display: block;
-  margin-top: 3px;
-  color: var(--sub);
-  font-size: 11px;
 }
 
 @media (max-width: 900px) {
