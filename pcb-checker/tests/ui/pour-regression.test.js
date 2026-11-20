@@ -344,7 +344,8 @@ test('判定状态与五类检查可组合筛选，孔层铺铜使用层别缺�
   const mockResults = [
     { groupKey: 'mock_cov_fail', checkCategory: 'via_coverage', checkCategoryName: '① 孔经过层铺铜覆盖检查', pass: false, failCount: 1, viaId: 1, viaPadstack: 'VIA_A', viaNet: 'N1', layer: 'L2', layerListStr: 'L2, L3', message: '旧的详细阈值描述', subRecords: [{ checkCategory: 'via_coverage', pass: false, layer: 'L2', message: '旧说明' }, { checkCategory: 'via_coverage', pass: true, layer: 'L3', message: '旧说明' }] },
     { groupKey: 'mock_cov_pass', checkCategory: 'via_coverage', checkCategoryName: '① 孔经过层铺铜覆盖检查', pass: true, viaId: 2, viaPadstack: 'VIA_A', viaNet: 'N2', layer: 'L3', layerListStr: 'L3', message: '旧的符合描述', subRecords: [{ checkCategory: 'via_coverage', pass: true, layer: 'L3', message: '旧说明' }] },
-    { groupKey: 'mock_shape_fail', checkCategory: 'special_shape', checkCategoryName: '② 特定异型铜皮比对检查', pass: false, failCount: 2, viaId: 3, viaPadstack: 'PTH-SIG-150drill-ring0_L5_L10', viaNet: '21_N', actualDifferentialCenterDistance: 23.622, layer: 'L4', message: '冗长异型铜皮说明', subRecords: [
+    { groupKey: 'mock_shape_fail', checkCategory: 'special_shape', checkCategoryName: '② 特定异型铜皮比对检查', pass: false, failCount: 3, viaId: 3, viaPadstack: 'PTH-SIG-150drill-ring0_L5_L10', viaNet: '21_N', actualDifferentialCenterDistance: 23.622, layer: 'L4', message: '冗长异型铜皮说明', subRecords: [
+      { checkCategory: 'special_shape', pass: false, layer: 'L1', templateName: '网络模板', expectedSet: 'Shape', targetShapeId: 21847, targetShapeIds: [21847, 21848], actualArea: 109.78617, expectedArea: 109.78617, areaTolerance: 1, hdiNetMismatch: true, hdiConnectionLayer: 'Top', hdiConnectionShapeIds: [21847, 21848], hdiConnectionShapeNets: ['25_N'], actualHdiViaId: 54649, actualHdiViaNet: '33_P', actualDifferentialCenterDistance: 23.622 },
       { checkCategory: 'special_shape', pass: false, layer: 'L4', templateName: '缺失模板', expectedSet: 'Shape', targetShapeId: null, actualDifferentialCenterDistance: 23.622 },
       { checkCategory: 'special_shape', pass: false, layer: 'L4', templateName: '面积模板', expectedSet: 'Shape', targetShapeId: 301, actualArea: 100, expectedArea: 103.6, areaTolerance: 1, actualDifferentialCenterDistance: 23.622 }
     ] },
@@ -352,7 +353,8 @@ test('判定状态与五类检查可组合筛选，孔层铺铜使用层别缺�
     { groupKey: 'mock_small_fail', checkCategory: 'isolated_copper', checkCategoryName: '④ 孤立小铜皮检查', pass: false, shapeId: 5, layer: 'L6', message: '冗长孤铜说明' },
     { groupKey: 'mock_arc_fail', checkCategory: 'arc_radius', checkCategoryName: '⑤ 圆弧半径检查', pass: false, shapeId: 6, layer: 'L7', message: '冗长圆弧说明' }
   ];
-  const specialProblem = 'L4 层【缺失模板】缺失异型铜皮：未找到关联的 Set=Shape 的 Shape Item；' +
+  const specialProblem = 'L1 层【网络模板】网络不一致：实际接触的 Top 层铜皮 Shape #21847 + #21848 Net=25_N，但 HDI 孔 #54649 Net=33_P，按异常处理；' +
+    'L4 层【缺失模板】缺失异型铜皮：未找到关联的 Set=Shape 的 Shape Item；' +
     'L4 层【面积模板】面积不符：Shape #301 实测 100 sq mil，要求 103.6 ±1 sq mil，偏差 3.6 sq mil';
   w.State.rawResults = mockResults;
   w.State.groupedResults = mockResults;
@@ -380,7 +382,7 @@ test('判定状态与五类检查可组合筛选，孔层铺铜使用层别缺�
   const layerOptions = readColumnOptions('layer');
   if (!layerOptions.includes('L2, L3') || !layerOptions.includes('L8')) throw new Error('涉及层别筛选未列出表格中的全部不同值');
   const statusOptions = readColumnOptions('status');
-  if (!statusOptions.includes('符合') || !statusOptions.includes('不符合') || !statusOptions.includes('不符合 · 1 层未检出') || !statusOptions.includes('不符合 · 2 项未通过')) {
+  if (!statusOptions.includes('符合') || !statusOptions.includes('不符合') || !statusOptions.includes('不符合 · 1 层未检出') || !statusOptions.includes('不符合 · 3 项未通过')) {
     throw new Error('判定筛选未区分符合、普通不符合、未检出层数及异型模板未通过项数：' + statusOptions.join(' / '));
   }
   const problemOptions = readColumnOptions('problem');
@@ -393,7 +395,7 @@ test('判定状态与五类检查可组合筛选，孔层铺铜使用层别缺�
   w.setResultColumnFilter('status', []);
   w.setResultColumnFilter('problem', [specialProblem]);
   if (w.State.filteredResults.length !== 1 || w.State.filteredResults[0].groupKey !== 'mock_shape_fail') throw new Error('问题点枚举筛选未生效');
-  if (JSON.stringify(readColumnOptions('layer')) !== '["L4"]' || JSON.stringify(readColumnOptions('status')) !== '["不符合 · 2 项未通过"]') {
+  if (JSON.stringify(readColumnOptions('layer')) !== '["L4"]' || JSON.stringify(readColumnOptions('status')) !== '["不符合 · 3 项未通过"]') {
     throw new Error('其他列筛选下拉未基于当前问题点筛选后的列表联动');
   }
   w.setResultColumnFilter('problem', []);
@@ -444,7 +446,7 @@ test('判定状态与五类检查可组合筛选，孔层铺铜使用层别缺�
     throw new Error('目标列筛选未用局部关键词兼容 21-N 与 21_N');
   }
   w.setResultColumnFilter('target', '');
-  if (JSON.stringify(readColumnOptions('status')) !== '["不符合 · 2 项未通过"]' ||
+  if (JSON.stringify(readColumnOptions('status')) !== '["不符合 · 3 项未通过"]' ||
       JSON.stringify(readColumnOptions('layer')) !== '["L4"]' ||
       JSON.stringify(readColumnOptions('problem')) !== JSON.stringify([specialProblem])) {
     throw new Error('表头筛选下拉未按当前“不符合项 × 异型铜皮”列表统计全部可能性');
