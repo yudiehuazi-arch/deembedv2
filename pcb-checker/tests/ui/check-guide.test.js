@@ -20,8 +20,8 @@ const CASES = [
 test('五个检查模块均提供独立、可切换且默认收起的检查说明页', () => {
   CASES.forEach(item => {
     const source = fs.readFileSync(path.join(CHECKER_DIR, item.page), 'utf8');
-    assert.match(source, /assets\/styles\/check-guide\.css\?v=63/, item.page + ' 未加载检查说明样式');
-    assert.match(source, /packages\/shared\/check-guide\.js\?v=63/, item.page + ' 未加载检查说明脚本');
+    assert.match(source, /assets\/styles\/check-guide\.css\?v=64/, item.page + ' 未加载检查说明样式');
+    assert.match(source, /packages\/shared\/check-guide\.js\?v=64/, item.page + ' 未加载检查说明脚本');
 
     const ctx = openPage(item.page, { syncCheck: true });
     const { d } = ctx;
@@ -62,8 +62,8 @@ test('共享检查说明用白话写清操作步骤、判断依据与验证标�
     '会先应用当前约束和搜索条件', '数量为 0 表示当前组合没有可显示的完整孔',
     '每个整合孔只放在一张检查表里', '当前叠层为 14 层时，匹配约束后的结果表固定显示 L1-L14', '读取每个原始孔段同心位置的全部 Shape',
     '没有孔段覆盖时，只在同心孔段中选择层跨端点最近的一段作为来源',
-    '不会仅因存在缺孔就被猜成位置不对或多出孔', '同网络顶层 Pin 都只能在 Trace 锚点孔组建立后加入方案比对',
-    '先只比较信号对象总数相同的方案', '同数量方案先选信号 Padstack 不符最少者',
+    'Connections 可以包含 Trace、Via 或 Shape', '只要任一物理孔段含有非空 Connections',
+    '方案比对会展开其中全部物理段', '方案足迹内未被方案使用的 GND 视为数量不符',
     '走线首端和尾端在所有被检查参考层上的反焊盘都豁免',
     '不要求 Padstack 层跨经过该层'].forEach(keyword => {
     assert(js.includes(keyword), '检查说明未写清关键判断依据：' + keyword);

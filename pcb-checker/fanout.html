@@ -4,11 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>PCB 扇出方案检查工具</title>
-<link rel="stylesheet" href="assets/styles/tokens.css?v=63">
-<link rel="stylesheet" href="assets/styles/eda-shell.css?v=63">
-<link rel="stylesheet" href="assets/styles/eda-dock.css?v=63">
-<link rel="stylesheet" href="assets/styles/components.css?v=63">
-<link rel="stylesheet" href="assets/styles/pages/fanout.css?v=63"><link rel="stylesheet" href="assets/styles/check-guide.css?v=63">
+<link rel="stylesheet" href="assets/styles/tokens.css?v=64">
+<link rel="stylesheet" href="assets/styles/eda-shell.css?v=64">
+<link rel="stylesheet" href="assets/styles/eda-dock.css?v=64">
+<link rel="stylesheet" href="assets/styles/components.css?v=64">
+<link rel="stylesheet" href="assets/styles/pages/fanout.css?v=64"><link rel="stylesheet" href="assets/styles/check-guide.css?v=64">
 </head>
 <body class="eda-workbench">
 
@@ -153,13 +153,9 @@
           </div>
 
           <div class="form-item">
-            <label data-tip="允许大孔群局部子集匹配标准方案并识别外围多余伴随孔">子集匹配与冗余孔策略</label>
-            <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px">
-              <label class="fld" style="font-size:12px"><input type="checkbox" id="chkAllowSubsetMatch" checked> 允许子集局部拓扑匹配</label>
-              <select id="selRedundantPolicy" style="font-size:12px">
-                <option value="ANY_GND_REDUNDANT" selected>仅允许 GND 冗余地孔</option>
-                <option value="ALLOW_ANY">允许任意冗余孔</option>
-              </select>
+            <label data-tip="信号孔先锁定方案姿态，再逐一核验周围伴随 GND">完整拓扑匹配策略</label>
+            <div class="fld" style="font-size:12px;line-height:1.55;margin-top:4px">
+              不允许子集或冗余孔匹配；伴随 GND 的数量、Padstack 与中心位置必须在容差内逐一一致。
             </div>
           </div>
         </div>
@@ -167,7 +163,7 @@
         <div class="dropzone" id="dropzoneVia" onclick="document.getElementById('fileViaInput').click()" data-tip="支持 .txt / .csv / .dat 文件拖拽或点击上传">
           <input type="file" id="fileViaInput" accept=".txt,.csv,.dat" style="display:none" onchange="handleViaFileUpload(event)">
           <div class="t1">点击上传过孔与走线 TXT 文件，或拖拽至此处</div>
-          <div class="t2" id="fanoutConnectionsEligibilityHint">以 Connections 中含 Trace 的信号孔段作为检查锚点，并沿同网络 Via Connections 纳入完整盲埋孔堆叠；没有连接走线的孔群不参与检查</div>
+          <div class="t2" id="fanoutConnectionsEligibilityHint">先按同网络、层跨连续性与孔心偏移合并完整多段 Via；整组任一孔段含 Connections（Trace / Via / Shape）即参与检查，仅当全部孔段都无 Connections 时排除</div>
         </div>
 
         <details class="eda-fold" open>
@@ -237,7 +233,6 @@
           <div class="row" style="gap:4px">
             <button type="button" class="btn small pri" id="btnFilterAll" onclick="setResultFilter('all')">全部 · <span id="cntFilterAll">0</span></button>
             <button type="button" class="btn small sec" id="btnFilterPass" onclick="setResultFilter('pass')">匹配通过 · <span id="cntFilterPass">0</span></button>
-            <button type="button" class="btn small sec" id="btnFilterSubset" onclick="setResultFilter('subset')">子集匹配 · <span id="cntFilterSubset">0</span></button>
             <button type="button" class="btn small sec" id="btnFilterFail" onclick="setResultFilter('fail')">异常 · <span id="cntFilterFail">0</span></button>
             <button type="button" class="btn small sec" id="btnFilterPadstack" onclick="setResultFilter('padstack')">Padstack 不符 · <span id="cntFilterPadstack">0</span></button>
             <button type="button" class="btn small sec" id="btnFilterDist" onclick="setResultFilter('dist')">中心距超差 · <span id="cntFilterDist">0</span></button>
@@ -641,24 +636,24 @@
     </div>
   </div>
 </div>
-<script src="packages/shared/check-guide.js?v=63"></script><script src="packages/shared/dom-utils.js?v=63"></script>
-<script src="packages/engines/fanout/fanout-parser.js?v=63"></script>
-<script src="packages/engines/fanout/fanout-palette.js?v=63"></script>
-<script src="packages/engines/fanout/fanout-scheme.js?v=63"></script>
-<script src="packages/engines/fanout/fanout-clustering.js?v=63"></script>
-<script src="packages/engines/fanout/fanout-topology.js?v=63"></script>
-<script src="packages/engines/fanout/fanout-inspector.js?v=63"></script>
-<script src="packages/engines/fanout/fanout-layout.js?v=63"></script>
-<script src="packages/engines/fanout/fanout-canvas.js?v=63"></script>
-<script src="packages/pages/fanout/fanout-state.js?v=63"></script>
-<script src="packages/pages/fanout/fanout-library-ui.js?v=63"></script><script src="packages/pages/fanout/fanout-scheme-compare.js?v=63"></script>
-<script src="packages/pages/fanout/fanout-scheme-viewer.js?v=63"></script>
-<script src="packages/pages/fanout/fanout-result-details.js?v=63"></script><script src="packages/pages/fanout/fanout-results-ui.js?v=63"></script>
-<script src="packages/pages/fanout/fanout-analysis-ui.js?v=63"></script>
-<script src="packages/pages/fanout/fanout-canvas-review.js?v=63"></script>
-<script src="packages/pages/fanout/fanout-canvas-viewer.js?v=63"></script>
-<script src="packages/shared/eda-tooltip.js?v=63"></script>
-<script src="packages/shared/eda-shell.js?v=63"></script>
-<script src="packages/shared/ui-prefs.js?v=63"></script>
+<script src="packages/shared/check-guide.js?v=64"></script><script src="packages/shared/dom-utils.js?v=64"></script>
+<script src="packages/engines/fanout/fanout-parser.js?v=64"></script>
+<script src="packages/engines/fanout/fanout-palette.js?v=64"></script>
+<script src="packages/engines/fanout/fanout-scheme.js?v=64"></script>
+<script src="packages/engines/fanout/fanout-clustering.js?v=64"></script>
+<script src="packages/engines/fanout/fanout-topology.js?v=64"></script>
+<script src="packages/engines/fanout/fanout-inspector.js?v=64"></script>
+<script src="packages/engines/fanout/fanout-layout.js?v=64"></script>
+<script src="packages/engines/fanout/fanout-canvas.js?v=64"></script>
+<script src="packages/pages/fanout/fanout-state.js?v=64"></script>
+<script src="packages/pages/fanout/fanout-library-ui.js?v=64"></script><script src="packages/pages/fanout/fanout-scheme-compare.js?v=64"></script>
+<script src="packages/pages/fanout/fanout-scheme-viewer.js?v=64"></script>
+<script src="packages/pages/fanout/fanout-result-details.js?v=64"></script><script src="packages/pages/fanout/fanout-results-ui.js?v=64"></script>
+<script src="packages/pages/fanout/fanout-analysis-ui.js?v=64"></script>
+<script src="packages/pages/fanout/fanout-canvas-review.js?v=64"></script>
+<script src="packages/pages/fanout/fanout-canvas-viewer.js?v=64"></script>
+<script src="packages/shared/eda-tooltip.js?v=64"></script>
+<script src="packages/shared/eda-shell.js?v=64"></script>
+<script src="packages/shared/ui-prefs.js?v=64"></script>
 </body>
 </html>

@@ -192,14 +192,14 @@
     var signalVias = vList.filter(function (v) { return !v.net || v.net.toUpperCase().indexOf('GND') < 0; });
     var sigViaCnt = signalVias.length;
     var eligibleSigViaCnt = signalVias.filter(function (v) {
-      return Boolean(v.isFanoutEligible != null ? v.isFanoutEligible : (v.hasConnections && v.hasTraceConnections));
+      return Boolean(v.isFanoutEligible != null ? v.isFanoutEligible : v.hasConnections);
     }).length;
-    var companionSigViaCnt = signalVias.filter(function (v) { return v.isFanoutCompanion; }).length;
-    var excludedSigViaCnt = sigViaCnt - eligibleSigViaCnt - companionSigViaCnt;
+    var recoveredSigViaCnt = signalVias.filter(function (v) { return v.isFanoutNetRecovered; }).length;
+    var excludedSigViaCnt = sigViaCnt - eligibleSigViaCnt;
     var gndViaCnt = vList.length - sigViaCnt;
     var signalHint = '信号孔段 ' + sigViaCnt + '（参与检查 ' + eligibleSigViaCnt +
-      (companionSigViaCnt > 0 ? ' / 伴随方案比对 ' + companionSigViaCnt : '') +
-      (excludedSigViaCnt > 0 ? ' / 未关联连接走线 ' + excludedSigViaCnt + ' 不参与' : '') + '） / 地孔 ' + gndViaCnt;
+      (recoveredSigViaCnt > 0 ? ' / 几何恢复 Net ' + recoveredSigViaCnt : '') +
+      (excludedSigViaCnt > 0 ? ' / 整组无 Connections ' + excludedSigViaCnt + ' 不参与' : '') + '） / 地孔 ' + gndViaCnt;
     var hint = document.getElementById('lblImportParseHint');
     if (hint) {
       hint.textContent = tList.length > 0
@@ -276,8 +276,6 @@
     var allowRot = document.getElementById('chkAllowRotation').checked;
     var allowMir = document.getElementById('chkAllowMirror').checked;
     var allowArb = document.getElementById('chkAllowArbitraryRotation') ? document.getElementById('chkAllowArbitraryRotation').checked : false;
-    var allowSubset = document.getElementById('chkAllowSubsetMatch') ? document.getElementById('chkAllowSubsetMatch').checked : true;
-    var redundantPolicy = document.getElementById('selRedundantPolicy') ? document.getElementById('selRedundantPolicy').value : 'ANY_GND_REDUNDANT';
 
     var res = FC.runFanoutInspection(txt, State.library, {
       clusterThreshold: clusterDistInMil,
@@ -285,8 +283,8 @@
       allowRotation: allowRot,
       allowMirror: allowMir,
       allowArbitraryRotation: allowArb,
-      allowSubsetMatch: allowSubset,
-      redundantViaPolicy: redundantPolicy
+      allowSubsetMatch: false,
+      redundantViaPolicy: 'REJECT_REDUNDANT'
     });
 
     if (!res.success) { alert(res.error || '检查失败'); return; }
@@ -318,7 +316,6 @@
     var filterBtns = {
       all: 'btnFilterAll',
       pass: 'btnFilterPass',
-      subset: 'btnFilterSubset',
       fail: 'btnFilterFail',
       padstack: 'btnFilterPadstack',
       dist: 'btnFilterDist',
@@ -339,10 +336,9 @@
       var res = c.matchResult;
       if (!res) return true;
       if (State.filter === 'pass' && !res.pass) return false;
-      if (State.filter === 'subset' && (!res.pass || !res.isSubsetMatch)) return false;
       if (State.filter === 'fail' && res.pass) return false;
       if (State.filter === 'padstack' && res.status !== 'PADSTACK_MISMATCH' && res.status !== 'SUBSET_PADSTACK_MISMATCH') return false;
-      if (State.filter === 'dist' && res.status !== 'DISTANCE_MISMATCH') return false;
+      if (State.filter === 'dist' && res.status !== 'DISTANCE_MISMATCH' && res.status !== 'GND_QUANTITY_MISMATCH') return false;
       if (State.filter === 'isolated' && res.status !== 'ISOLATED_VIA' && res.status !== 'NO_MATCH_TOPOLOGY') return false;
       if (schemeFilter && res.schemeName !== schemeFilter) return false;
 
@@ -442,14 +438,14 @@
       var res = c.matchResult || {};
       var isReviewed = State.reviewedClusters.has(c.id);
       var rowClass = isReviewed ? 'reviewed' : (res.pass ? 'row-pass' : 'row-fail');
-
       var badgeHtml = res.pass
         ? ('<span class="badge-tag ok">匹配通过 · ' + escapeHtml(res.schemeName) + '</span>')
         : (res.status === 'PADSTACK_MISMATCH'
           ? ('<span class="badge-tag warn">Padstack 不符 · ' + escapeHtml(res.schemeName) + '</span>')
           : (res.status === 'DISTANCE_MISMATCH'
             ? ('<span class="badge-tag warn">孔距/伴随孔偏差 · ' + escapeHtml(res.schemeName) + '</span>')
-            : '<span class="badge-tag bad">未匹配预设方案</span>'));
+            : (res.status === 'GND_QUANTITY_MISMATCH' ? ('<span class="badge-tag warn">伴随 GND 数量不符 · ' + escapeHtml(res.schemeName) + '</span>')
+              : '<span class="badge-tag bad">未匹配预设方案</span>')));
 
       var signalView = summarizeClusterSignals(c);
       var sigVias = signalView.sigVias, physicalSigVias = signalView.physicalSigVias, companionSignals = signalView.companionSignals;

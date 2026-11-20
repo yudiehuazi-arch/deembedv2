@@ -243,7 +243,6 @@
     var mapCnt = {
       cntFilterAll: s.totalClusters,
       cntFilterPass: s.passCount,
-      cntFilterSubset: s.subsetPassCount || 0,
       cntFilterFail: s.failCount,
       cntFilterPadstack: s.padstackFailCount,
       cntFilterDist: s.distFailCount,

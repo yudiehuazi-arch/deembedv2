@@ -125,10 +125,15 @@
         '方案要求在 ' + point(item.expectedX, item.expectedY) + ' 放置 1 个' + (item.role || '伴随地孔') +
         '，Padstack 应为「' + (item.expectedPadstack || '-') + '」；当前该位置没有合格孔。');
     });
-    (result.extraVias || []).forEach(function (item) {
+    var extraRecords = (result.extraVias || []).slice();
+    (result.redundantViaIds || []).forEach(function (viaId) {
+      var via = (cluster.vias || []).find(function (item) { return String(item.id) === String(viaId); });
+      extraRecords.push(via || { id: viaId });
+    });
+    extraRecords.forEach(function (item) {
       pushUnique(issues, seen, 'extra', '多出孔',
         '孔 #' + (item.viaId != null ? item.viaId : item.id) + ' 位于 ' + point(item.x, item.y) + '，Padstack 为「' +
-        (item.padstack || item.actualPadstack || '-') + '」，方案中没有对应位置；若不是其他用途孔，应删除或移出该孔群。');
+        (item.padstack || item.actualPadstack || '-') + '」，方案中没有对应位置；完整拓扑不允许冗余伴随 GND，请确认后删除或移出该方案足迹。');
     });
   }
 

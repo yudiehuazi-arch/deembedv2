@@ -334,6 +334,16 @@ test('检查结果逐孔说明 Padstack、位置、缺孔和多孔问题及目�
   assert.ok(noMatchText.includes('孔 #22') && noMatchText.includes('WRONG_N') && noMatchText.includes('EXPECTED_N'), '应逐孔说明 Padstack 实际值与目标值');
   assert.ok(noMatchDetail.issues.some(issue => issue.kind === 'position' && issue.text.includes('应移到约')), '应给出位置不对孔的目标坐标');
 
+  const quantityDetail = window.FanoutResultDetails.build({
+    vias: [{ id: 90, x: 12, y: 18, net: 'GND', padstack: 'GND_EXTRA' }],
+    matchResult: {
+      status: 'GND_QUANTITY_MISMATCH', message: '伴随 GND 数量不符', advice: '移除多余孔',
+      redundantViaIds: [90], padMismatchList: [], missingVias: []
+    }
+  }, library, 2);
+  assert.ok(quantityDetail.issues.some(issue => issue.kind === 'extra' && issue.text.includes('孔 #90') && issue.text.includes('GND_EXTRA')),
+    '严格数量失败应在结果明细中定位多余 GND 的孔号、位置和 Padstack');
+
   const closestCluster = {
     signalVias: [
       { id: 41, x: 0, y: 0, padstack: 'HDI', net: 'PAIR_P' },
@@ -363,11 +373,11 @@ test('检查结果逐孔说明 Padstack、位置、缺孔和多孔问题及目�
     closestDetail.summary.includes('Padstack 不符 0 个'), '最接近方案应显示数量硬筛选和 Padstack 评分依据');
   window.renderImportedTraceOverview([
     { id: 51, net: 'PAIR_P', isFanoutEligible: true },
-    { id: 52, net: 'PAIR_P', isFanoutEligible: false, isFanoutCompanion: true },
+    { id: 52, net: 'PAIR_P', isFanoutEligible: true, isFanoutNetRecovered: true },
     { id: 53, net: 'IDLE', isFanoutEligible: false }
   ], []);
-  assert.ok(document.getElementById('lblImportParseHint').textContent.includes('参与检查 1 / 伴随方案比对 1 / 未关联连接走线 1 不参与'),
-    '导入概览应区分 Trace 锚点、伴随方案比对顶层 Pin 与真正排除项');
+  assert.ok(document.getElementById('lblImportParseHint').textContent.includes('参与检查 2 / 几何恢复 Net 1 / 整组无 Connections 1 不参与'),
+    '导入概览应区分正式受检对象、几何恢复 Net 与整组无 Connections 排除项');
 
   window.switchTab('tabResults');
   window.setResultFilter('all');
@@ -424,11 +434,14 @@ test('快捷改名关键词重复点选拼接、放大查看无重叠标注、�
   window.switchTab('tabLibrary');
 });
 
-test('Trace 连接锚点才创建孔群，并支持纳入同网络 Via Connections 堆叠孔段', () => {
+test('任意 Connections 均创建检查组，并按网络、层跨与孔心偏移合并完整堆叠', () => {
+  assert.strictEqual(document.getElementById('chkAllowSubsetMatch'), null, '完整拓扑检查不应再暴露子集匹配开关');
+  assert.strictEqual(document.getElementById('selRedundantPolicy'), null, '完整拓扑检查不应再允许冗余孔策略');
+  assert.strictEqual(document.getElementById('btnFilterSubset'), null, '结果筛选不应保留永远不会通过的子集状态');
   const eligibilityHint = document.getElementById('fanoutConnectionsEligibilityHint').textContent;
-  assert.ok(eligibilityHint.includes('Connections 中含 Trace'), '导入页应明确展示 Trace 锚点资格规则');
-  assert.ok(eligibilityHint.includes('沿同网络 Via Connections 纳入完整盲埋孔堆叠'));
-  assert.ok(eligibilityHint.includes('没有连接走线的孔群不参与检查'));
+  assert.ok(eligibilityHint.includes('层跨连续性与孔心偏移'), '导入页应明确展示多段孔几何合并依据');
+  assert.ok(eligibilityHint.includes('Connections（Trace / Via / Shape）'), '资格说明应覆盖所有 Connections 类型');
+  assert.ok(eligibilityHint.includes('全部孔段都无 Connections 时排除'));
 
   const mixedTxt = `
 Item 1 < Via >
@@ -463,24 +476,29 @@ Item 6 < Via >
   document.getElementById('txtViaInput').value = mixedTxt;
   window.executeFanoutCheck();
   assert.strictEqual(window.State.summary.totalParsedSignalVias, 3);
-  assert.strictEqual(window.State.summary.totalSignalVias, 1);
-  assert.strictEqual(window.State.summary.excludedSignalVias, 2);
-  assert.strictEqual(window.State.clusters.length, 1, '连接 Trace 的信号孔应正常创建一个检查组');
-  assert.deepStrictEqual(Array.from(window.State.clusters[0].signalVias, v => v.id), [1]);
-  assert.ok(!window.State.clusters[0].vias.some(v => v.id === 5 || v.id === 6), '无连接或仅连接 Shape 的信号孔不得污染已检查组');
-  assert.ok(window.State.clusters[0].vias.some(v => v.net === 'GND'), '附近 GND 应继续关联为伴随地孔');
-  assert.ok(document.getElementById('lblImportParseHint').textContent.includes('参与检查 1 / 未关联连接走线 2 不参与'));
+  assert.strictEqual(window.State.summary.totalSignalVias, 2);
+  assert.strictEqual(window.State.summary.excludedSignalVias, 1);
+  assert.strictEqual(window.State.clusters.length, 2, 'Trace 与 Shape-only Connections 信号孔都应创建检查组');
+  const routedCluster = window.State.clusters.find(cluster => cluster.signalVias.some(v => v.id === 1));
+  const shapeCluster = window.State.clusters.find(cluster => cluster.signalVias.some(v => v.id === 6));
+  assert.deepStrictEqual(Array.from(routedCluster.signalVias, v => v.id), [1]);
+  assert.deepStrictEqual(Array.from(shapeCluster.signalVias, v => v.id), [6]);
+  assert.ok(!routedCluster.vias.some(v => v.id === 5 || v.id === 6), '远处 Shape 组和无 Connections 信号孔不得污染当前组');
+  assert.ok(routedCluster.vias.some(v => v.net === 'GND'), '附近 GND 应继续关联为伴随地孔');
+  assert.ok(document.getElementById('lblImportParseHint').textContent.includes('参与检查 2 / 整组无 Connections 1 不参与'));
 
-  const noConnectedTxt = mixedTxt.replace('  Connections:\n    Trace: 1 (Top)\n', '');
+  const noConnectedTxt = mixedTxt
+    .replace('  Connections:\n    Trace: 1 (Top)\n', '')
+    .replace('  Connections:\n    Shape: 1 (03G02P)\n', '');
   document.getElementById('txtViaInput').value = noConnectedTxt;
   window.executeFanoutCheck();
   assert.strictEqual(window.State.vias.length, 6, '全部过孔仍应保留供导入概览和视口显示');
   assert.strictEqual(window.State.summary.totalSignalVias, 0);
   assert.strictEqual(window.State.summary.totalClusters, 0);
-  assert.strictEqual(window.State.clusters.length, 0, '没有连接 Trace 的信号孔时不得回退组群');
+  assert.strictEqual(window.State.clusters.length, 0, '所有逻辑信号孔都无 Connections 时不得回退组群');
   assert.strictEqual(document.getElementById('statTotalClusters').textContent, '0');
   assert.strictEqual(document.getElementById('cntFilterAll').textContent, '0');
-  assert.ok(document.getElementById('lblImportParseHint').textContent.includes('参与检查 0 / 未关联连接走线 3 不参与'));
+  assert.ok(document.getElementById('lblImportParseHint').textContent.includes('参与检查 0 / 整组无 Connections 3 不参与'));
 
   window.switchTab('tabCanvas');
   window.fitCanvasToLayout();
