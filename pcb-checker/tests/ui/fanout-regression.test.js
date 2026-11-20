@@ -190,6 +190,26 @@ test('孔群深度分析浮窗与一键保存为新扇出方案', () => {
   }
 });
 
+test('拖动画布后保留检视浮窗、选中孔群与特殊问题标记', () => {
+  const selected = window.State.clusters.find(c => !(c.matchResult && c.matchResult.pass)) || window.State.clusters[0];
+  if (!selected) return;
+  window.switchTab('tabCanvas');
+  window.openClusterDeepDive(selected);
+  const canvas = document.getElementById('mainCanvas');
+  const box = document.getElementById('canvasInfoBox');
+  const panBefore = window.State.canvas.panX;
+  canvas.dispatchEvent(new window.MouseEvent('mousedown', { bubbles: true, button: 0, clientX: -5000, clientY: -5000 }));
+  window.dispatchEvent(new window.MouseEvent('mousemove', { bubbles: true, clientX: -4900, clientY: -4920 }));
+  window.dispatchEvent(new window.MouseEvent('mouseup', { bubbles: true, button: 0, clientX: -4900, clientY: -4920 }));
+  canvas.dispatchEvent(new window.MouseEvent('click', { bubbles: true, button: 0, clientX: -4900, clientY: -4920 }));
+  assert.notStrictEqual(window.State.canvas.panX, panBefore, '拖动应改变画布视口');
+  assert.strictEqual(window.State.selectedClusterId, selected.id, '拖动结束后的 click 不应清空选中孔群');
+  assert.ok(box.classList.contains('active'), '拖动后检视浮窗不应消失');
+  if (!(selected.matchResult && selected.matchResult.pass)) {
+    assert.ok(window.getFanoutClusterIssueMarkers(selected).length > 0, '拖动后选中异常孔群仍应保留特殊问题标记');
+  }
+});
+
 // 9. 规律分析页渲染测试
 test('规律分析页 (Tab 5) 渲染测试', () => {
   window.switchTab('tabAnalysis');

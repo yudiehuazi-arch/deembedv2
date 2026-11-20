@@ -11,6 +11,7 @@
 
   var canvasRenderQueued = false;
   var canvasSpatialGrid = null;
+  var canvasDragClientX = 0, canvasDragClientY = 0, canvasDragMoved = false;
   var GRID_CELL_SIZE = 120.0;
 
   function requestCanvasRender() {
@@ -465,12 +466,14 @@
     canvas.addEventListener('mousedown', function (e) {
       if (e.button !== 0) return;
       State.canvas.isDragging = true;
+      canvasDragClientX = e.clientX; canvasDragClientY = e.clientY; canvasDragMoved = false;
       State.canvas.dragStartX = e.clientX - State.canvas.panX;
       State.canvas.dragStartY = e.clientY - State.canvas.panY;
     });
 
     root.addEventListener('mousemove', function (e) {
       if (!State.canvas.isDragging) return;
+      if (Math.abs(e.clientX - canvasDragClientX) > 3 || Math.abs(e.clientY - canvasDragClientY) > 3) canvasDragMoved = true;
       State.canvas.panX = e.clientX - State.canvas.dragStartX;
       State.canvas.panY = e.clientY - State.canvas.dragStartY;
       requestCanvasRender();
@@ -478,6 +481,7 @@
     root.addEventListener('mouseup', function () { State.canvas.isDragging = false; });
 
     canvas.addEventListener('click', function (e) {
+      if (canvasDragMoved) { canvasDragMoved = false; return; }
       var rect = canvas.getBoundingClientRect();
       var worldPos = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
       if (State.canvas.measureMode) {
