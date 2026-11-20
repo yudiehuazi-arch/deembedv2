@@ -310,7 +310,7 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   console.log('  PASS  第二项：同一过孔类型支持多条逐层模板，全部命中要求均参与判定');
 }
 
-// 4. 每颗目标 Via 独立关联最近的同网络 HDI Via，并按实测中心距选择模板
+// 4. 每颗目标 Via 独立搜索同网络 HDI 与差分 HDI 组合，并按实测中心距选择模板
 {
   const defaultRadiusMil = 0.175 * 1000 / 25.4;
   const vias = [
@@ -363,7 +363,33 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   console.log('  PASS  第二项：目标 Via 搜索同网络 HDI，再按差分 HDI 孔距选择模板');
 }
 
-// 4.1 差分孔中心距与 HDI 搜索距离分别可选，且只应用已配置字段
+// 4.1 via2_8-top：搜索范围内任一同网络 HDI 可与差分 HDI 命中模板孔距，不限于最近候选
+{
+  const vias = [
+    { id: 80, x: 0, y: 0, padstack: 'via2_8-top', net: '25_N' },
+    { id: 81, x: 5, y: 0, padstack: 'BGA-HDI-SIG-WRONG-PITCH', net: '25_N' },
+    { id: 82, x: 24.685, y: 0, padstack: 'BGA-HDI-SIG-WRONG-MATE', net: '25_P' },
+    { id: 83, x: 10, y: 10, padstack: 'BGA-HDI-SIG-CORRECT', net: '25_N' },
+    { id: 84, x: 33.62, y: 10, padstack: 'BGA-HDI-SIG-CORRECT-MATE', net: '25_P' }
+  ];
+  const shapes = [{ id: 280, layer: 'Top', set: 'Shape', area: 103.6, centroid: { x: 0, y: 0 } }];
+  const results = checkSpecialShapedCopper(vias, shapes, [{
+    id: 'via2_8_top_060', name: 'TOP特定异型泪滴铜皮', padstack: 'via2_8-top',
+    differentialCenterDistance: 23.62, hdiSearchRadiusMm: 0.5334,
+    layer: 'L1', set: 'Shape', expectedArea: 103.6, areaTolerance: 1
+  }]);
+  assert.strictEqual(results.length, 1);
+  assert.strictEqual(results[0].pass, true);
+  assert.strictEqual(results[0].actualHdiViaId, 83,
+    '最近的同网络 HDI 为错误孔距时，应继续寻找范围内能组成 23.62 mil 的同网络 HDI');
+  assert.strictEqual(results[0].pairedHdiViaId, 84);
+  assert.ok(Math.abs(results[0].actualDifferentialCenterDistance - 23.62) < 1e-9);
+  assert.ok(Math.hypot(vias[3].x, vias[3].y) * 0.0254 <= 0.5334,
+    '命中的同网络 HDI 必须位于 0.5334 mm 搜索范围内');
+  console.log('  PASS  第二项：via2_8-top 在 0.5334 mm 内按 23.62 mil HDI 差分孔距检查 Top 面 103.6 sq mil 铜皮');
+}
+
+// 4.2 差分孔中心距与 HDI 搜索距离分别可选，且只应用已配置字段
 {
   const vias = [
     { id: 40, x: 0, y: 0, padstack: 'OPT_NONE', net: 'NO_HDI' },
@@ -407,7 +433,7 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   console.log('  PASS  第二项：中心距与 HDI 搜索距离支持均留空、仅中心距、仅搜索距离和同时配置');
 }
 
-// 4.2 已启用 HDI 搜索距离时，无同网络 HDI 或最近 HDI 超出范围都必须明确提示
+// 4.3 已启用 HDI 搜索距离时，无同网络 HDI 或最近 HDI 超出范围都必须明确提示
 {
   const vias = [
     { id: 60, x: 0, y: 0, padstack: 'SEARCH_TARGET', net: 'MISSING_P' },
@@ -430,7 +456,7 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   console.log('  PASS  第二项：HDI 搜索范围无候选或候选超距时生成明确不符合提示');
 }
 
-// 4.3 PTH-SIG L5/L10 四种 HDI 孔距的内置模板必须覆盖该孔型
+// 4.4 PTH-SIG L5/L10 四种 HDI 孔距的内置模板必须覆盖该孔型
 {
   const specs = [
     { offsetMm: 0.025, pitchMil: 19.685, area: 113.09734 },
@@ -463,7 +489,7 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   console.log('  PASS  第二项：PTH-SIG 先搜索同网络 HDI，再按四种 HDI 差分孔距匹配面积');
 }
 
-// 4.4 实板同规模回归：搜索半径、HDI 差分孔距、面积与未配置孔距分别判定
+// 4.5 实板同规模回归：搜索半径、HDI 差分孔距、面积与未配置孔距分别判定
 {
   const families = [
     { offsetMil: 0.98425, pitchMil: 19.685, area: 113.09734 },

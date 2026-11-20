@@ -344,11 +344,16 @@ test('判定状态与五类检查可组合筛选，孔层铺铜使用层别缺�
   const mockResults = [
     { groupKey: 'mock_cov_fail', checkCategory: 'via_coverage', checkCategoryName: '① 孔经过层铺铜覆盖检查', pass: false, failCount: 1, viaId: 1, viaPadstack: 'VIA_A', viaNet: 'N1', layer: 'L2', layerListStr: 'L2, L3', message: '旧的详细阈值描述', subRecords: [{ checkCategory: 'via_coverage', pass: false, layer: 'L2', message: '旧说明' }, { checkCategory: 'via_coverage', pass: true, layer: 'L3', message: '旧说明' }] },
     { groupKey: 'mock_cov_pass', checkCategory: 'via_coverage', checkCategoryName: '① 孔经过层铺铜覆盖检查', pass: true, viaId: 2, viaPadstack: 'VIA_A', viaNet: 'N2', layer: 'L3', layerListStr: 'L3', message: '旧的符合描述', subRecords: [{ checkCategory: 'via_coverage', pass: true, layer: 'L3', message: '旧说明' }] },
-    { groupKey: 'mock_shape_fail', checkCategory: 'special_shape', checkCategoryName: '② 特定异型铜皮比对检查', pass: false, failCount: 2, viaId: 3, viaPadstack: 'PTH-SIG-150drill-ring0_L5_L10', viaNet: '21_N', actualDifferentialCenterDistance: 23.622, layer: 'L4', message: '冗长异型铜皮说明' },
+    { groupKey: 'mock_shape_fail', checkCategory: 'special_shape', checkCategoryName: '② 特定异型铜皮比对检查', pass: false, failCount: 2, viaId: 3, viaPadstack: 'PTH-SIG-150drill-ring0_L5_L10', viaNet: '21_N', actualDifferentialCenterDistance: 23.622, layer: 'L4', message: '冗长异型铜皮说明', subRecords: [
+      { checkCategory: 'special_shape', pass: false, layer: 'L4', templateName: '缺失模板', expectedSet: 'Shape', targetShapeId: null, actualDifferentialCenterDistance: 23.622 },
+      { checkCategory: 'special_shape', pass: false, layer: 'L4', templateName: '面积模板', expectedSet: 'Shape', targetShapeId: 301, actualArea: 100, expectedArea: 103.6, areaTolerance: 1, actualDifferentialCenterDistance: 23.622 }
+    ] },
     { groupKey: 'mock_margin_fail', checkCategory: 'trace_ref_margin', checkCategoryName: '③ 参考层覆盖与邻近铜检查', pass: false, traceId: 4, refLayer: 'L5', layer: 'L8', minMargin: 100, footprintCovered: false, leftSideCopper: true, rightSideCopper: true, message: '冗长参考层说明' },
     { groupKey: 'mock_small_fail', checkCategory: 'isolated_copper', checkCategoryName: '④ 孤立小铜皮检查', pass: false, shapeId: 5, layer: 'L6', message: '冗长孤铜说明' },
     { groupKey: 'mock_arc_fail', checkCategory: 'arc_radius', checkCategoryName: '⑤ 圆弧半径检查', pass: false, shapeId: 6, layer: 'L7', message: '冗长圆弧说明' }
   ];
+  const specialProblem = 'L4 层【缺失模板】缺失异型铜皮：未找到关联的 Set=Shape 的 Shape Item；' +
+    'L4 层【面积模板】面积不符：Shape #301 实测 100 sq mil，要求 103.6 ±1 sq mil，偏差 3.6 sq mil';
   w.State.rawResults = mockResults;
   w.State.groupedResults = mockResults;
   w.setViewMode('grouped');
@@ -386,7 +391,7 @@ test('判定状态与五类检查可组合筛选，孔层铺铜使用层别缺�
   w.setResultColumnFilter('status', ['不符合 · 1 层未检出']);
   if (w.State.filteredResults.length !== 1 || w.State.filteredResults[0].groupKey !== 'mock_cov_fail') throw new Error('判定完整文本筛选未生效');
   w.setResultColumnFilter('status', []);
-  w.setResultColumnFilter('problem', ['L4 层【异型模板】异型铜皮不匹配']);
+  w.setResultColumnFilter('problem', [specialProblem]);
   if (w.State.filteredResults.length !== 1 || w.State.filteredResults[0].groupKey !== 'mock_shape_fail') throw new Error('问题点枚举筛选未生效');
   if (JSON.stringify(readColumnOptions('layer')) !== '["L4"]' || JSON.stringify(readColumnOptions('status')) !== '["不符合 · 2 项未通过"]') {
     throw new Error('其他列筛选下拉未基于当前问题点筛选后的列表联动');
@@ -441,11 +446,11 @@ test('判定状态与五类检查可组合筛选，孔层铺铜使用层别缺�
   w.setResultColumnFilter('target', '');
   if (JSON.stringify(readColumnOptions('status')) !== '["不符合 · 2 项未通过"]' ||
       JSON.stringify(readColumnOptions('layer')) !== '["L4"]' ||
-      JSON.stringify(readColumnOptions('problem')) !== '["L4 层【异型模板】异型铜皮不匹配"]') {
+      JSON.stringify(readColumnOptions('problem')) !== JSON.stringify([specialProblem])) {
     throw new Error('表头筛选下拉未按当前“不符合项 × 异型铜皮”列表统计全部可能性');
   }
   [
-    ['special_shape', 'L4 层【异型模板】异型铜皮不匹配'],
+    ['special_shape', specialProblem],
     ['trace_ref_margin', 'L5 层完整走线投影缺铜'],
     ['isolated_copper', 'L6 层存在孤立小铜皮'],
     ['arc_radius', 'L7 层铜皮圆弧半径过小']

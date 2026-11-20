@@ -163,7 +163,7 @@
     var layerText = layers.length ? layers.join('、') + ' 层' : '目标层';
     var hasProblem = failed.length > 0;
     if (r.checkCategory === 'via_coverage') return layerText + (hasProblem ? '缺铜皮' : '铜皮覆盖符合要求');
-    if (r.checkCategory === 'special_shape') return selected[0] && selected[0].associationFailed ? layerText + '模板关联条件未命中：' + selected[0].associationSummary : layerText + '【' + selected.map(function (record) { return record.templateName || '异型模板'; }).filter(function (value, index, values) { return values.indexOf(value) === index; }).join('、') + '】' + (hasProblem ? '异型铜皮不匹配' : '异型铜皮匹配');
+    if (r.checkCategory === 'special_shape') return selected.map(root.formatPourSpecialShapeIssue).filter(function (value, index, values) { return values.indexOf(value) === index; }).join('；');
     if (r.checkCategory === 'trace_ref_margin') {
       if (!hasProblem) {
         var margin = r.minMargin != null ? r.minMargin : (selected[0] && selected[0].minMargin);

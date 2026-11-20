@@ -66,7 +66,8 @@ test('共享检查说明用白话写清操作步骤、判断依据与验证标�
     '沿 P/N 差分节距轴的偏移不超过 0.175 mm', '0 / 0.025 / 0.075 / 0.125 / 0.175 mm 支持偏移', '方案比对会展开其中全部物理段', '方案足迹内未被方案使用的 GND 视为数量不符',
     '走线首端和尾端在所有被检查参考层上的反焊盘都豁免',
     '不要求 Padstack 层跨经过该层', 'Set=Shape、Set=Route Keepout 或 Set=Board Geometry',
-    '实际 Shape Item 的 Set 字段必须与模板一致', '旧规则没有 Set 字段时按 Shape 读取'].forEach(keyword => {
+    '实际 Shape Item 的 Set 字段必须与模板一致', '旧规则没有 Set 字段时按 Shape 读取',
+    '范围内任一同网络 HDI 与差分 HDI 组成规则孔距即可关联', '明确区分铜皮缺失、Set 类别不符和面积超差'].forEach(keyword => {
     assert(js.includes(keyword), '检查说明未写清关键判断依据：' + keyword);
   });
   ['正交旋转', '刚体变换', '方案姿态', '连通分量'].forEach(jargon => {

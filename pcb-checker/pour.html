@@ -4,12 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PCB 铜皮检查工具</title>
-<link rel="stylesheet" href="assets/styles/tokens.css?v=68">
-<link rel="stylesheet" href="assets/styles/eda-shell.css?v=68">
-<link rel="stylesheet" href="assets/styles/eda-dock.css?v=68">
-<link rel="stylesheet" href="assets/styles/components.css?v=68">
-<link rel="stylesheet" href="assets/styles/pages/pour.css?v=68">
-<link rel="stylesheet" href="assets/styles/check-guide.css?v=68">
+<link rel="stylesheet" href="assets/styles/tokens.css?v=69">
+<link rel="stylesheet" href="assets/styles/eda-shell.css?v=69">
+<link rel="stylesheet" href="assets/styles/eda-dock.css?v=69">
+<link rel="stylesheet" href="assets/styles/components.css?v=69">
+<link rel="stylesheet" href="assets/styles/pages/pour.css?v=69">
+<link rel="stylesheet" href="assets/styles/check-guide.css?v=69">
 </head>
 <body class="eda-workbench">
 
@@ -146,7 +146,7 @@
                 <th style="width:68px">缩略图</th>
                 <th>模板名称</th>
                 <th data-tip="目标过孔 Padstack 匹配关键字">过孔类型</th>
-                <th data-tip="可选；先关联搜索范围内的同网络 HDI 孔，再计算该 HDI 与对应差分网络 HDI 孔的中心距，单位 mil，容差 0.01 mil">差分孔中心距</th>
+                <th data-tip="可选；搜索范围内任一同网络且 Padstack 名带 HDI 的孔，只要与对应差分网络 HDI 的中心距命中该值即可，单位 mil，容差 0.01 mil">差分孔中心距</th>
                 <th data-tip="可选；目标过孔到同网络且 Padstack 名含 HDI 的孔的最大关联距离，留空不限制">HDI 搜索距离 mm</th>
                 <th data-tip="支持同时填写多个目标层，使用逗号、分号或斜杠分隔">目标层别</th>
                 <th data-tip="只匹配 Shape Item 中 Set 字段相同的对象">异型铜皮 Set 类别</th>
@@ -506,7 +506,7 @@
         <div class="chip-bar" id="chipsModalR2Padstack"></div>
       </div>
       <div class="form-item">
-        <label for="modalR2InpDiffDist" data-tip="可选；先关联搜索范围内的同网络 HDI 孔，再计算该 HDI 与对应差分网络 HDI 孔的中心距，单位 mil，容差 0.01 mil">差分孔中心距</label>
+        <label for="modalR2InpDiffDist" data-tip="可选；搜索范围内任一同网络且 Padstack 名带 HDI 的孔，只要与对应差分网络 HDI 的中心距命中该值即可，单位 mil，容差 0.01 mil">差分孔中心距</label>
         <input type="number" id="modalR2InpDiffDist" value="" placeholder="留空则不检查中心距" step="0.01" min="0.01" data-no-persist>
         <div class="chip-bar" id="chipsModalR2DiffDist"></div>
       </div>
@@ -613,24 +613,25 @@
   </div>
 </div>
 
-<script src="packages/shared/check-guide.js?v=68"></script>
-<script src="packages/shared/dom-utils.js?v=68"></script>
-<script src="packages/shared/shape-preview-canvas.js?v=68"></script>
-<script src="packages/engines/pour/pour-geom.js?v=68"></script>
-<script src="packages/engines/pour/pour-parser.js?v=68"></script>
-<script src="packages/engines/pour/pour-trace-margin.js?v=68"></script>
-<script src="packages/engines/pour/pour-engine.js?v=68"></script>
-<script src="packages/pages/pour/pour-state.js?v=68"></script><script src="packages/pages/pour/pour-check-runner.js?v=68"></script>
-<script src="packages/pages/pour/pour-rules-ui.js?v=68"></script>
-<script src="packages/pages/pour/pour-results-ui.js?v=68"></script>
-<script src="packages/pages/pour/pour-results-filters.js?v=68"></script>
-<script src="packages/pages/pour/pour-results-column-filters.js?v=68"></script>
-<script src="packages/pages/pour/pour-canvas-viewer.js?v=68"></script>
-<script src="packages/pages/pour/pour-canvas-defects.js?v=68"></script>
-<script src="packages/pages/pour/pour-canvas-navigation.js?v=68"></script>
-<script src="packages/pages/pour/pour-defect-summary.js?v=68"></script>
-<script src="packages/shared/eda-tooltip.js?v=68"></script>
-<script src="packages/shared/eda-shell.js?v=68"></script>
-<script src="packages/shared/ui-prefs.js?v=68"></script>
+<script src="packages/shared/check-guide.js?v=69"></script>
+<script src="packages/shared/dom-utils.js?v=69"></script>
+<script src="packages/shared/shape-preview-canvas.js?v=69"></script>
+<script src="packages/engines/pour/pour-geom.js?v=69"></script>
+<script src="packages/engines/pour/pour-parser.js?v=69"></script>
+<script src="packages/engines/pour/pour-trace-margin.js?v=69"></script>
+<script src="packages/engines/pour/pour-engine.js?v=69"></script>
+<script src="packages/pages/pour/pour-state.js?v=69"></script><script src="packages/pages/pour/pour-check-runner.js?v=69"></script>
+<script src="packages/pages/pour/pour-rules-ui.js?v=69"></script>
+<script src="packages/pages/pour/pour-result-problem.js?v=69"></script>
+<script src="packages/pages/pour/pour-results-ui.js?v=69"></script>
+<script src="packages/pages/pour/pour-results-filters.js?v=69"></script>
+<script src="packages/pages/pour/pour-results-column-filters.js?v=69"></script>
+<script src="packages/pages/pour/pour-canvas-viewer.js?v=69"></script>
+<script src="packages/pages/pour/pour-canvas-defects.js?v=69"></script>
+<script src="packages/pages/pour/pour-canvas-navigation.js?v=69"></script>
+<script src="packages/pages/pour/pour-defect-summary.js?v=69"></script>
+<script src="packages/shared/eda-tooltip.js?v=69"></script>
+<script src="packages/shared/eda-shell.js?v=69"></script>
+<script src="packages/shared/ui-prefs.js?v=69"></script>
 </body>
 </html>

@@ -11,14 +11,11 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
 })(typeof globalThis !== "undefined" ? globalThis : this, function (geom, parser, traceMargin) {
   "use strict";
   var MM_PER_MIL = geom.MM_PER_MIL, MIL_PER_MM = geom.MIL_PER_MM, dist2D = geom.dist2D, roundN = geom.roundN;
-  var pointToShapeDistance = geom.pointToShapeDistance;
-  var shapeRing = geom.shapeRing, pointInShape = geom.pointInShape;
-  var checkTraceReferenceMargin = traceMargin.checkTraceReferenceMargin;
-  var buildPointGrid = geom.buildPointGrid, queryPointGrid = geom.queryPointGrid;
-  var buildBBoxGrid = geom.buildBBoxGrid, queryBBoxGrid = geom.queryBBoxGrid, physicalLayerAlias = geom.physicalLayerAlias;
+  var pointToShapeDistance = geom.pointToShapeDistance, shapeRing = geom.shapeRing, pointInShape = geom.pointInShape, checkTraceReferenceMargin = traceMargin.checkTraceReferenceMargin;
+  var buildPointGrid = geom.buildPointGrid, queryPointGrid = geom.queryPointGrid,
+    buildBBoxGrid = geom.buildBBoxGrid, queryBBoxGrid = geom.queryBBoxGrid, physicalLayerAlias = geom.physicalLayerAlias;
   var expandLayerRange = parser.expandLayerRange, parsePcbElements = parser.parsePcbElements, normalizeSpecialShapeSet = parser.normalizeSpecialShapeSet, SPECIAL_SHAPE_SETS = parser.SPECIAL_SHAPE_SETS;
-  var parseShapeBlock = parser.parseShapeBlock, findAssociatedShapeItems = parser.findAssociatedShapeItems, buildShapePointIndexes = parser.buildShapePointIndexes;
-  var SPECIAL_SHAPE_CENTER_DISTANCE_TOLERANCE = 0.01;
+  var parseShapeBlock = parser.parseShapeBlock, findAssociatedShapeItems = parser.findAssociatedShapeItems, buildShapePointIndexes = parser.buildShapePointIndexes, SPECIAL_SHAPE_CENTER_DISTANCE_TOLERANCE = 0.01;
   function checkViaLayerCoverage(vias, shapes, rules = [], availableLayers = []) {
     const results = [];
     const shapesByLayer = new Map();
@@ -77,21 +74,26 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
     }
     return results;
   }
-  function findNearbySameNetHdi(via, hdiIndex, maxDistanceMil) {
-    let nearest = null;
-    let nearestDistance = Infinity;
-    if (!hdiIndex || !(maxDistanceMil > 0)) return null;
-    queryPointGrid(hdiIndex, via.x - maxDistanceMil, via.y - maxDistanceMil, via.x + maxDistanceMil, via.y + maxDistanceMil).forEach(candidate => {
-      if (candidate === via) return;
-      const distance = dist2D(via.x, via.y, candidate.x, candidate.y);
-      const isNearer = distance < nearestDistance - 1e-9;
-      const isStableTie = Math.abs(distance - nearestDistance) <= 1e-9 && (!nearest ||
-        String(candidate.id).localeCompare(String(nearest.id), undefined, { numeric: true }) < 0);
-      if (distance <= maxDistanceMil + 1e-9 && (isNearer || isStableTie)) {
-        nearest = candidate; nearestDistance = distance;
-      }
-    });
-    return nearest ? { via: nearest, distance: nearestDistance } : null;
+  function findTemplateHdiAssociation(via, hdiCandidates, hdiIndex, maxDistanceMil, hdiByNet, expectedCenterDistance) {
+    const bounded = maxDistanceMil != null;
+    const source = bounded && hdiIndex ? queryPointGrid(hdiIndex, via.x - maxDistanceMil, via.y - maxDistanceMil,
+      via.x + maxDistanceMil, via.y + maxDistanceMil) : (hdiCandidates || []);
+    const nearby = source.filter(candidate => candidate !== via)
+      .map(candidate => ({ via: candidate, distance: dist2D(via.x, via.y, candidate.x, candidate.y) }))
+      .filter(item => !bounded || item.distance <= maxDistanceMil + 1e-9)
+      .sort((a, b) => a.distance - b.distance || String(a.via.id).localeCompare(String(b.via.id), undefined, { numeric: true }));
+    if (!nearby.length) return null;
+    if (expectedCenterDistance == null) return { nearbyHdi: nearby[0], pairedHdi: null };
+    for (const item of nearby) {
+      const mateNet = differentialMateNetName(item.via.net);
+      const mates = mateNet ? (hdiByNet.get(mateNet.toLowerCase()) || []).map(candidate => ({
+        via: candidate, distance: dist2D(item.via.x, item.via.y, candidate.x, candidate.y)
+      })).filter(candidate => Math.abs(candidate.distance - expectedCenterDistance) <= SPECIAL_SHAPE_CENTER_DISTANCE_TOLERANCE)
+        .sort((a, b) => Math.abs(a.distance - expectedCenterDistance) - Math.abs(b.distance - expectedCenterDistance) ||
+          String(a.via.id).localeCompare(String(b.via.id), undefined, { numeric: true })) : [];
+      if (mates.length) return { nearbyHdi: item, pairedHdi: mates[0] };
+    }
+    return null;
   }
   function differentialMateNetName(net) {
     const value = String(net || '');
@@ -214,14 +216,12 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
       matchedVias.forEach(via => {
         const netKey = String(via.net || '').trim().toLowerCase();
         const needsHdi = expectedCenterDistance != null || hdiSearchRadiusMm != null;
-        const nearbyHdi = !needsHdi ? null : (hdiSearchRadiusMil == null
-          ? nearestHdiCandidate(via, hdiByNet.get(netKey))
-          : findNearbySameNetHdi(via, hdiIndexes.get(netKey), hdiSearchRadiusMil));
-        const pairedHdi = expectedCenterDistance != null && nearbyHdi
-          ? findDifferentialHdiPair(nearbyHdi.via, hdiByNet) : null;
+        const association = !needsHdi ? null : findTemplateHdiAssociation(via, hdiByNet.get(netKey),
+          hdiIndexes.get(netKey), hdiSearchRadiusMil, hdiByNet, expectedCenterDistance);
+        const nearbyHdi = association && association.nearbyHdi;
+        const pairedHdi = association && association.pairedHdi;
         if (needsHdi && !nearbyHdi) return;
-        if (expectedCenterDistance != null && (!pairedHdi ||
-          Math.abs(pairedHdi.distance - expectedCenterDistance) > SPECIAL_SHAPE_CENTER_DISTANCE_TOLERANCE)) return;
+        if (expectedCenterDistance != null && !pairedHdi) return;
         matchedAssociationVias.add(via);
         targetLayers.forEach(targetLayer => {
           const expectedIndexes = shapeIndexesBySet.get(expectedSet), bestShape = findAssociatedShapeItems(via, expectedIndexes && expectedIndexes.get(targetLayer), expectedItemCount);
