@@ -71,7 +71,7 @@
       r2_padstack: ['BGA_3510', 'SMA-HDI-SIG-045drill-ring3_L1_L2', 'HDI_045drill', 'SMA_Bot-L19', 'BGA_GND'],
       r2_diff_dist: ['10.0', '19.68', '20.0', '23.62'],
       r2_hdi_radius: ['0.175', '0.150', '0.125', '0.100'],
-      r2_layer: ['02G01P', '19IS08', 'L2', 'L4', 'L17'],
+      r2_layer: ['02G01P', '19IS08', 'L2', 'L4', 'L17', 'Soldermask Top', 'Outline'],
       r2_tol: ['30.0', '20.0', '10.0', '50.0'],
 
       r3_tracelayer: ['19IS08', '08IS03', '02G01P', 'L4', 'L6', 'L8'],

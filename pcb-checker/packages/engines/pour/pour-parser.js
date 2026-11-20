@@ -40,7 +40,7 @@
 
     // 先拆分逗号等列表，再逐项展开范围；例如 L1, L3-L5 => L1/L3/L4/L5。
     const tokens = str.replace(/\s*(\.\.|[-~～–—])\s*/g, '$1')
-      .split(/[,;\/\s，；、]+/).map(token => token.trim()).filter(Boolean);
+      .split(/[,;\/，；、]+/).map(token => token.trim()).filter(Boolean);
     const layers = [];
     tokens.forEach(token => {
       const rangeMatch = token.match(/^([a-zA-Z]*)(\d+)(?:-|~|～|–|—|\.\.)([a-zA-Z]*)(\d+)$/);

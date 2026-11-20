@@ -66,7 +66,7 @@ test('共享检查说明用白话写清操作步骤、判断依据与验证标�
     '先用 Trace 信号孔确定方案位置、旋转和镜像', '不受多段孔 0.175 mm 合并档位限制', '0 / 0.025 / 0.075 / 0.125 / 0.175 mm 支持偏移', '方案比对会展开其中全部物理段', '方案足迹内未被方案使用的 GND 视为数量不符',
     '走线首端和尾端在所有被检查参考层上的反焊盘都豁免',
     '不要求 Padstack 层跨经过该层', 'Set=Shape、Set=Route Keepout 或 Set=Board Geometry',
-    '实际 Shape Item 的 Set 字段必须与模板一致', '旧规则没有 Set 字段时按 Shape 读取',
+    '实际 Shape Item 的 Set 字段必须与模板一致', 'Board Geometry 的 Soldermask Top、Silkscreen Top、Outline 与 Top/L1 是不同 Subset', '旧规则没有 Set 字段时按 Shape 读取',
     '范围内任一同网络 HDI 与差分 HDI 组成规则孔距即可关联', '不使用 Shape 几何中心是否与孔心重合作为合并条件', '模板只保存一个总面积时也会收集全部连通项', '明确区分铜皮缺失、Set 类别不符和面积超差'].forEach(keyword => {
     assert(js.includes(keyword), '检查说明未写清关键判断依据：' + keyword);
   });

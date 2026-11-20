@@ -266,6 +266,12 @@ test('规则 1/2/3 多规则配置表格与历史快捷标签初始化正常', (
   if (!d.body.textContent.includes('合计同层、同 Set、同网络且边界相接的全部 Shape Item')) {
     throw new Error('规则 2 未说明按目标孔聚合几何连通 Shape Item');
   }
+  if (!w.State.history.r2_layer.includes('Soldermask Top') || !w.State.history.r2_layer.includes('Outline')) {
+    throw new Error('规则 2 未提供 Board Geometry Subset 快捷选项');
+  }
+  if (!$('modalR2InpLayer').previousElementSibling.dataset.tip.includes('Subset')) {
+    throw new Error('规则 2 目标层未说明按 TXT Subset 匹配');
+  }
   if (!w.State.specialShapeTemplates.every(rule => rule.set === 'Shape')) throw new Error('默认与旧版兼容模板未归一化为 Shape');
   if (!$('modalR2InpSet') || [...$('modalR2InpSet').options].map(option => option.value).join('|') !== 'Shape|Route Keepout|Board Geometry') {
     throw new Error('规则 2 弹窗缺少 Shape、Route Keepout 与 Board Geometry 三类 Set 选项');
@@ -927,7 +933,7 @@ test('大文件仅在文本框显示截断预览，并通过 Web Worker 后台�
 
   const workerSource = fs.readFileSync(path.join(__dirname, '../../packages/pages/pour/pour-check-worker.js'), 'utf8');
   if (!workerSource.includes('importScripts') || !workerSource.includes('runAllCopperChecks')) throw new Error('后台检查线程未加载铜皮引擎');
-  if ((workerSource.match(/\?v=72/g) || []).length !== 4) throw new Error('后台检查线程未使用当前铜皮引擎缓存版本');
+  if ((workerSource.match(/\?v=73/g) || []).length !== 4) throw new Error('后台检查线程未使用当前铜皮引擎缓存版本');
   const OriginalWorker = w.Worker;
   let workerUrl = '', postedText = '', terminated = false;
   function FakeWorker(url) { workerUrl = url; }

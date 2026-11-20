@@ -197,6 +197,15 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   assert.strictEqual(legacy.expectedSet, 'Shape', '旧模板缺少 Set 时必须按 Shape 兼容');
   assert.strictEqual(legacy.targetShapeId, 21);
   assert.ok(legacy.pass);
+
+  const soldermask = checkSpecialShapedCopper(vias, [
+    { id: 24, layer: 'Soldermask Top', set: 'Board Geometry', net: 'SET_P', area: 123,
+      centroid: { x: 100, y: 100 } }
+  ], [Object.assign({}, base, { id: 'soldermask_top', name: '阻焊顶层模板', set: 'Board Geometry',
+    layer: 'Soldermask Top', expectedArea: 123 })])[0];
+  assert.ok(soldermask.pass, 'Board Geometry 应按完整的多词 Subset 名匹配');
+  assert.strictEqual(soldermask.layer, 'SOLDERMASK TOP');
+  assert.strictEqual(soldermask.targetShapeId, 24);
   console.log('  PASS  规则 2：Shape、Route Keepout 与 Board Geometry 按 Set 类别隔离，旧模板默认 Shape');
 }
 
@@ -262,6 +271,9 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
 
   assert.deepStrictEqual(expandLayerRange('L1, L3-L5'), ['L1', 'L3', 'L4', 'L5'], '列表中的层范围必须逐层展开');
   assert.deepStrictEqual(expandLayerRange(['L1', 'L3 - L5']), ['L1', 'L3', 'L4', 'L5'], '数组输入与带空格范围也必须逐层展开');
+  assert.deepStrictEqual(expandLayerRange('Soldermask Top'), ['Soldermask Top'],
+    'Board Geometry 的多词 Subset 名不得被空格拆成两个层名');
+  assert.deepStrictEqual(expandLayerRange('Soldermask Top, Outline'), ['Soldermask Top', 'Outline']);
   const rangeResults = checkViaLayerCoverage(probeVia, [rectangle(203, 'L1', 10, 20)],
     [{ padstack: 'PROBE', layers: 'L1, L3-L5', coverageRadius: 55 }], ['L1']);
   assert.deepStrictEqual(rangeResults.map(result => result.layer), ['L1', 'L3', 'L4', 'L5']);
