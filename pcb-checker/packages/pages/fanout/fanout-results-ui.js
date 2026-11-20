@@ -231,6 +231,38 @@
     renderImportedTraceTable();
   }
 
+  function getFanoutLibrarySignature() {
+    return JSON.stringify(State.library && State.library.toJSON ? State.library.toJSON() : []);
+  }
+
+  function getFanoutResultLibrary() {
+    return State.inspectionLibrarySnapshot || State.library;
+  }
+
+  function updateFanoutLibraryStaleNotice() {
+    var notice = document.getElementById('fanoutLibraryStaleNotice');
+    if (notice) notice.hidden = !State.resultsStale;
+  }
+
+  function markFanoutResultsStale() {
+    if (!State.clusters.length || !State.inspectionLibrarySignature) return false;
+    var stale = getFanoutLibrarySignature() !== State.inspectionLibrarySignature;
+    var changed = stale !== State.resultsStale;
+    State.resultsStale = stale;
+    updateFanoutLibraryStaleNotice();
+    if (changed) renderResultsTable();
+    return stale;
+  }
+
+  function captureFanoutInspectionLibrary() {
+    var json = State.library && State.library.toJSON ? State.library.toJSON() : [];
+    var cloned = JSON.parse(JSON.stringify(json));
+    State.inspectionLibrarySnapshot = { schemes: cloned };
+    State.inspectionLibrarySignature = JSON.stringify(json);
+    State.resultsStale = false;
+    updateFanoutLibraryStaleNotice();
+  }
+
   function executeFanoutCheck() {
     var rawInMemory = State.rawText || '';
     var taVal = document.getElementById('txtViaInput').value.trim();
@@ -259,6 +291,7 @@
 
     if (!res.success) { alert(res.error || '检查失败'); return; }
 
+    captureFanoutInspectionLibrary();
     State.vias = res.vias;
     State.traces = res.traces || [];
     State.traceSummary = res.traceSummary || null;
@@ -321,7 +354,7 @@
             (v.padstack && v.padstack.toLowerCase().indexOf(query) >= 0);
         });
         var matchScheme = !!(res.schemeName && res.schemeName.toLowerCase().indexOf(query) >= 0);
-        var detailText = ResultDetails ? ResultDetails.toText(c, State.library, State.distTolerance).toLowerCase() : '';
+        var detailText = ResultDetails ? ResultDetails.toText(c, getFanoutResultLibrary(), State.distTolerance).toLowerCase() : '';
         var matchMsg = !!((res.message && res.message.toLowerCase().indexOf(query) >= 0) || detailText.indexOf(query) >= 0);
         var matchTraceLayer = !!(c.traceSummary && Array.isArray(c.traceSummary.layers) &&
           c.traceSummary.layers.some(function (l) { return l.toLowerCase().indexOf(query) >= 0; }));
@@ -429,7 +462,7 @@
         : '';
 
       var maxSpan = (c.bbox && c.bbox.maxSpan != null) ? c.bbox.maxSpan : Math.hypot((c.bbox && c.bbox.spanX) || 0, (c.bbox && c.bbox.spanY) || 0);
-      var comparisonHtml = ResultDetails ? ResultDetails.render(c, State.library, State.distTolerance) :
+      var comparisonHtml = ResultDetails ? ResultDetails.render(c, getFanoutResultLibrary(), State.distTolerance) :
         ('<div style="font-weight:600">' + escapeHtml(res.message || '-') + '</div>');
 
       return '<tr class="' + rowClass + '" id="row_' + c.id + '">' +
@@ -507,7 +540,7 @@
         '"' + c.id + '"', c.viaCount, c.centroid.x.toFixed(2), c.centroid.y.toFixed(2), maxSpan.toFixed(2),
         '"' + (res.statusText || '-') + '"', '"' + (res.schemeName || '-') + '"',
         res.rotationAngle != null ? res.rotationAngle : '-', res.isMirrored ? '是' : '否',
-        '"' + String(ResultDetails ? ResultDetails.toText(c, State.library, State.distTolerance) : (res.message || '')).replace(/"/g, '""') + '"',
+        '"' + String(ResultDetails ? ResultDetails.toText(c, getFanoutResultLibrary(), State.distTolerance) : (res.message || '')).replace(/"/g, '""') + '"',
         '"' + (State.reviewedClusters.has(c.id) ? '已复核' : '待复核') + '"'
       ].join(',') + '\n';
     });
@@ -531,6 +564,8 @@
   root.renderImportedTraceOverview = renderImportedTraceOverview;
   root.renderImportedTraceTable = renderImportedTraceTable;
   root.executeFanoutCheck = executeFanoutCheck;
+  root.markFanoutResultsStale = markFanoutResultsStale;
+  root.getFanoutResultLibrary = getFanoutResultLibrary;
   root.setResultFilter = setResultFilter;
   root.applyFilters = applyFilters;
   root.renderResultsTable = renderResultsTable;

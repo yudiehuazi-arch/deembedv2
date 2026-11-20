@@ -112,6 +112,23 @@
   background: var(--surface-subtle);
 }
 
+.fanout-library-stale-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 10px 0;
+  padding: 9px 11px;
+  border: 1px solid var(--warn-border);
+  border-radius: 7px;
+  background: var(--warn-bg);
+  color: var(--heading);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.fanout-library-stale-notice[hidden] { display: none; }
+
 .scheme-card {
   background: #ffffff;
   border: 1px solid var(--line);

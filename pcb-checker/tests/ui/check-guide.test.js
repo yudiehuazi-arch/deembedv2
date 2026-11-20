@@ -20,8 +20,8 @@ const CASES = [
 test('五个检查模块均提供独立、可切换且默认收起的检查说明页', () => {
   CASES.forEach(item => {
     const source = fs.readFileSync(path.join(CHECKER_DIR, item.page), 'utf8');
-    assert.match(source, /assets\/styles\/check-guide\.css\?v=61/, item.page + ' 未加载检查说明样式');
-    assert.match(source, /packages\/shared\/check-guide\.js\?v=61/, item.page + ' 未加载检查说明脚本');
+    assert.match(source, /assets\/styles\/check-guide\.css\?v=62/, item.page + ' 未加载检查说明样式');
+    assert.match(source, /packages\/shared\/check-guide\.js\?v=62/, item.page + ' 未加载检查说明脚本');
 
     const ctx = openPage(item.page, { syncCheck: true });
     const { d } = ctx;

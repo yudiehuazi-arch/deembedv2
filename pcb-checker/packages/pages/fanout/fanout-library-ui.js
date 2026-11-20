@@ -197,6 +197,7 @@
     if (!schemes.length) {
       container.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:36px;background:#fff;border:1px dashed var(--line);border-radius:8px;color:var(--sub)">方案库为空，请新建或载入预设方案。</div>';
       filterSchemeLibrary();
+      if (root.markFanoutResultsStale) root.markFanoutResultsStale();
       return;
     }
 
@@ -238,6 +239,7 @@
         '</div></div>';
     }).join('');
     filterSchemeLibrary();
+    if (root.markFanoutResultsStale) root.markFanoutResultsStale();
 
     var drawThumbs = function () {
       schemes.forEach(function (s) { drawSchemeThumbnail('thumb_' + s.id, s); });

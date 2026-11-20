@@ -237,6 +237,27 @@ test('26 孔 + 71 段走线导入、聚类比对、结果筛选、2D 视口同�
   assert.ok(document.getElementById('pnlDefectRanking').textContent.includes('Padstack 不符'));
 });
 
+test('检查后新增方案明确标记旧结果，并可用当前方案库重新检查', () => {
+  const target = window.State.clusters.find(c => c.matchResult.status === 'NO_MATCH_TOPOLOGY');
+  const libraryCountAtCheck = window.getFanoutResultLibrary().schemes.length;
+  assert.ok(target, '样本应包含可存为方案的未匹配孔群');
+  window.saveClusterAsScheme(target.id);
+  const extractedName = '扇出方案_' + target.id + '_' + target.vias.length + '孔';
+  assert.strictEqual(window.State.resultsStale, true, '方案库变化后旧检查结果必须标记为过期');
+  assert.strictEqual(document.getElementById('fanoutLibraryStaleNotice').hidden, false);
+  assert.strictEqual(window.getFanoutResultLibrary().schemes.length, libraryCountAtCheck,
+    '旧结果归因必须继续使用运行检查时的方案库快照');
+  assert.ok(!window.FanoutResultDetails.toText(target, window.getFanoutResultLibrary(), window.State.distTolerance).includes(extractedName),
+    '未重新检查前不得用新增方案解释旧判定');
+
+  window.executeFanoutCheck();
+  const refreshed = window.State.clusters.find(c => c.id === target.id);
+  assert.strictEqual(window.State.resultsStale, false);
+  assert.strictEqual(document.getElementById('fanoutLibraryStaleNotice').hidden, true);
+  assert.strictEqual(refreshed.matchResult.status, 'MATCH_PASS', '重新检查后原孔群应匹配刚提取的方案');
+  assert.strictEqual(refreshed.matchResult.schemeName, extractedName);
+});
+
 test('检查结果逐孔说明 Padstack、位置、缺孔和多孔问题及目标修改值', () => {
   const scheme = {
     name: '测试差分双孔方案',

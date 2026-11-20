@@ -4,11 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>PCB 扇出方案检查工具</title>
-<link rel="stylesheet" href="assets/styles/tokens.css?v=61">
-<link rel="stylesheet" href="assets/styles/eda-shell.css?v=61">
-<link rel="stylesheet" href="assets/styles/eda-dock.css?v=61">
-<link rel="stylesheet" href="assets/styles/components.css?v=61">
-<link rel="stylesheet" href="assets/styles/pages/fanout.css?v=61"><link rel="stylesheet" href="assets/styles/check-guide.css?v=61">
+<link rel="stylesheet" href="assets/styles/tokens.css?v=62">
+<link rel="stylesheet" href="assets/styles/eda-shell.css?v=62">
+<link rel="stylesheet" href="assets/styles/eda-dock.css?v=62">
+<link rel="stylesheet" href="assets/styles/components.css?v=62">
+<link rel="stylesheet" href="assets/styles/pages/fanout.css?v=62"><link rel="stylesheet" href="assets/styles/check-guide.css?v=62">
 </head>
 <body class="eda-workbench">
 
@@ -249,7 +249,7 @@
           </select>
 
           <input type="text" id="inpSearch" placeholder="搜索孔号 / 网络 / Padstack / 方案…" style="margin-left:auto;width:220px" oninput="applyFilters()" data-no-persist>
-        </div>
+        </div><div id="fanoutLibraryStaleNotice" class="fanout-library-stale-notice" hidden><span><strong>方案库已更新。</strong>当前结果仍使用上次运行时的方案库，新增方案不会追溯修改旧结果。</span><button type="button" class="btn pri small" onclick="executeFanoutCheck()">用当前方案库重新检查</button></div>
 
         <div class="table-wrap">
           <table>
@@ -641,24 +641,24 @@
     </div>
   </div>
 </div>
-<script src="packages/shared/check-guide.js?v=61"></script><script src="packages/shared/dom-utils.js?v=61"></script>
-<script src="packages/engines/fanout/fanout-parser.js?v=61"></script>
-<script src="packages/engines/fanout/fanout-palette.js?v=61"></script>
-<script src="packages/engines/fanout/fanout-scheme.js?v=61"></script>
-<script src="packages/engines/fanout/fanout-clustering.js?v=61"></script>
-<script src="packages/engines/fanout/fanout-topology.js?v=61"></script>
-<script src="packages/engines/fanout/fanout-inspector.js?v=61"></script>
-<script src="packages/engines/fanout/fanout-layout.js?v=61"></script>
-<script src="packages/engines/fanout/fanout-canvas.js?v=61"></script>
-<script src="packages/pages/fanout/fanout-state.js?v=61"></script>
-<script src="packages/pages/fanout/fanout-library-ui.js?v=61"></script><script src="packages/pages/fanout/fanout-scheme-compare.js?v=61"></script>
-<script src="packages/pages/fanout/fanout-scheme-viewer.js?v=61"></script>
-<script src="packages/pages/fanout/fanout-result-details.js?v=61"></script><script src="packages/pages/fanout/fanout-results-ui.js?v=61"></script>
-<script src="packages/pages/fanout/fanout-analysis-ui.js?v=61"></script>
-<script src="packages/pages/fanout/fanout-canvas-review.js?v=61"></script>
-<script src="packages/pages/fanout/fanout-canvas-viewer.js?v=61"></script>
-<script src="packages/shared/eda-tooltip.js?v=61"></script>
-<script src="packages/shared/eda-shell.js?v=61"></script>
-<script src="packages/shared/ui-prefs.js?v=61"></script>
+<script src="packages/shared/check-guide.js?v=62"></script><script src="packages/shared/dom-utils.js?v=62"></script>
+<script src="packages/engines/fanout/fanout-parser.js?v=62"></script>
+<script src="packages/engines/fanout/fanout-palette.js?v=62"></script>
+<script src="packages/engines/fanout/fanout-scheme.js?v=62"></script>
+<script src="packages/engines/fanout/fanout-clustering.js?v=62"></script>
+<script src="packages/engines/fanout/fanout-topology.js?v=62"></script>
+<script src="packages/engines/fanout/fanout-inspector.js?v=62"></script>
+<script src="packages/engines/fanout/fanout-layout.js?v=62"></script>
+<script src="packages/engines/fanout/fanout-canvas.js?v=62"></script>
+<script src="packages/pages/fanout/fanout-state.js?v=62"></script>
+<script src="packages/pages/fanout/fanout-library-ui.js?v=62"></script><script src="packages/pages/fanout/fanout-scheme-compare.js?v=62"></script>
+<script src="packages/pages/fanout/fanout-scheme-viewer.js?v=62"></script>
+<script src="packages/pages/fanout/fanout-result-details.js?v=62"></script><script src="packages/pages/fanout/fanout-results-ui.js?v=62"></script>
+<script src="packages/pages/fanout/fanout-analysis-ui.js?v=62"></script>
+<script src="packages/pages/fanout/fanout-canvas-review.js?v=62"></script>
+<script src="packages/pages/fanout/fanout-canvas-viewer.js?v=62"></script>
+<script src="packages/shared/eda-tooltip.js?v=62"></script>
+<script src="packages/shared/eda-shell.js?v=62"></script>
+<script src="packages/shared/ui-prefs.js?v=62"></script>
 </body>
 </html>
