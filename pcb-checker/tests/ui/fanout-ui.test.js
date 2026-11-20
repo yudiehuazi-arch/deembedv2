@@ -284,7 +284,7 @@ test('检查结果逐孔说明 Padstack、位置、缺孔和多孔问题及目�
   assert.ok(noMatchText.includes('孔 #22') && noMatchText.includes('WRONG_N') && noMatchText.includes('EXPECTED_N'), '应逐孔说明 Padstack 实际值与目标值');
   assert.ok(noMatchDetail.issues.some(issue => issue.kind === 'position' && issue.text.includes('应移到约')), '应给出位置不对孔的目标坐标');
 
-  const closest = window.FanoutResultDetails.closestSignalScheme({
+  const closestCluster = {
     signalVias: [
       { id: 41, x: 0, y: 0, padstack: 'HDI', net: 'PAIR_P' },
       { id: 42, x: 20, y: 0, padstack: 'HDI', net: 'PAIR_N' }
@@ -294,15 +294,23 @@ test('检查结果逐孔说明 Padstack、位置、缺孔和多孔问题及目�
       { id: 42, x: 20, y: 0, padstack: 'HDI', net: 'PAIR_N' },
       { id: 43, x: 0, y: 20, padstack: 'TOP_PIN', net: 'PAIR_P' },
       { id: 44, x: 20, y: 20, padstack: 'TOP_PIN', net: 'PAIR_N' }
-    ]
-  }, { schemes: [
+    ],
+    matchResult: { pass: false, status: 'NO_MATCH_TOPOLOGY', message: '未匹配方案' }
+  };
+  const closestLibrary = { schemes: [
     { name: '错误的一对孔方案', vias: [{ x: 0, y: 0, padstack: 'OTHER', net: 'PAIR_P' }, { x: 20, y: 0, padstack: 'OTHER', net: 'PAIR_N' }] },
     { name: '正确的顶层Pin加HDI方案', vias: [
-      { x: 0, y: 0, padstack: 'HDI', net: 'PAIR_P' }, { x: 20, y: 0, padstack: 'HDI', net: 'PAIR_N' },
-      { x: 0, y: 20, padstack: 'TOP_PIN', net: 'PAIR_P' }, { x: 20, y: 20, padstack: 'TOP_PIN', net: 'PAIR_N' }
+      { x: 0, y: 20, padstack: 'TOP_PIN', net: 'PAIR_P' }, { x: 20, y: 20, padstack: 'TOP_PIN', net: 'PAIR_N' },
+      { x: 0, y: 0, padstack: 'HDI', net: 'PAIR_P' }, { x: 20, y: 0, padstack: 'HDI', net: 'PAIR_N' }
     ] }
-  ] });
-  assert.strictEqual(closest.scheme.name, '正确的顶层Pin加HDI方案', '最接近方案也要使用已吸收的同网络顶层 Pin，而非只看 Trace 锚点数量');
+  ] };
+  const closest = window.FanoutResultDetails.closestSignalScheme(closestCluster, closestLibrary);
+  assert.strictEqual(closest.scheme.name, '正确的顶层Pin加HDI方案', '两对信号对象存在时不得把一对孔方案当成最近方案');
+  assert.strictEqual(closest.sameSignalCountOnly, true, '存在同信号对象数量方案时应先硬过滤数量不一致方案');
+  assert.strictEqual(closest.padMismatchCount, 0, '同 P/N 有多个对象时应先按 P/N 与 Padstack 联合对应，不能因方案孔顺序误报');
+  const closestDetail = window.FanoutResultDetails.build(closestCluster, closestLibrary, 2);
+  assert.ok(closestDetail.summary.includes('实际与方案均为 4 个信号对象，只在同数量方案中比较') &&
+    closestDetail.summary.includes('Padstack 不符 0 个'), '最接近方案应显示数量硬筛选和 Padstack 评分依据');
   window.renderImportedTraceOverview([
     { id: 51, net: 'PAIR_P', isFanoutEligible: true },
     { id: 52, net: 'PAIR_P', isFanoutEligible: false, isFanoutCompanion: true },

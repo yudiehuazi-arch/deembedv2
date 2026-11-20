@@ -38,9 +38,12 @@
   function mapSignalVias(actual, expected) {
     var remaining = expected.map(function (via, index) { return { via: via, index: index }; });
     return actual.slice(0, expected.length).map(function (via) {
-      var role = signalRole(via), actualPad = String(via.padstack || '').toLowerCase();
-      var found = remaining.findIndex(function (item) { return role && signalRole(item.via) === role; });
-      if (found < 0) found = remaining.findIndex(function (item) { return actualPad && String(item.via.padstack || '').toLowerCase() === actualPad; });
+      var role = signalRole(via), actualPad = String(via.padstack || '').trim().toLowerCase();
+      var found = remaining.findIndex(function (item) {
+        return role && signalRole(item.via) === role && actualPad === String(item.via.padstack || '').trim().toLowerCase();
+      });
+      if (found < 0) found = remaining.findIndex(function (item) { return actualPad && String(item.via.padstack || '').trim().toLowerCase() === actualPad; });
+      if (found < 0) found = remaining.findIndex(function (item) { return role && signalRole(item.via) === role; });
       if (found < 0) found = 0;
       var item = remaining.splice(found, 1)[0];
       return { actual: via, expected: item && item.via };
@@ -58,7 +61,7 @@
   function closestSignalScheme(cluster, library) {
     var actual = cluster.matchingSignalVias && cluster.matchingSignalVias.length ? cluster.matchingSignalVias :
       (cluster.signalVias && cluster.signalVias.length ? cluster.signalVias : signalVias(cluster.vias));
-    var candidates = ((library && library.schemes) || []).map(function (scheme) {
+    var candidates = ((library && library.schemes) || []).map(function (scheme, libraryIndex) {
       var expected = signalVias(scheme.vias);
       if (!expected.length) return null;
       var pairs = mapSignalVias(actual, expected);
@@ -69,13 +72,27 @@
       var geometryDelta = 0;
       for (var i = 0; i < compareCount; i++) geometryDelta += Math.abs(actualDists[i] - expectedDists[i]);
       geometryDelta = compareCount ? geometryDelta / compareCount : 0;
+      var countDelta = Math.abs(actual.length - expected.length);
+      var geometryRank = Math.round(geometryDelta * 1000) / 1000;
       return {
-        scheme: scheme, actual: actual, expected: expected, pairs: pairs,
-        score: Math.abs(actual.length - expected.length) * 1000000 + padMismatchCount * 10000 + geometryDelta
+        scheme: scheme, actual: actual, expected: expected, pairs: pairs, countDelta: countDelta,
+        padMismatchCount: padMismatchCount, geometryDelta: geometryDelta, geometryRank: geometryRank, libraryIndex: libraryIndex,
+        score: countDelta * 1000000 + padMismatchCount * 10000 + geometryRank
       };
     }).filter(Boolean);
-    candidates.sort(function (a, b) { return a.score - b.score; });
-    return candidates[0] || null;
+    var sameCountCandidates = candidates.filter(function (item) { return item.countDelta === 0; });
+    var pool = sameCountCandidates.length ? sameCountCandidates : candidates;
+    pool.sort(function (a, b) {
+      if (a.countDelta !== b.countDelta) return a.countDelta - b.countDelta;
+      if (a.padMismatchCount !== b.padMismatchCount) return a.padMismatchCount - b.padMismatchCount;
+      if (a.geometryRank !== b.geometryRank) return a.geometryRank - b.geometryRank;
+      var nameA = String(a.scheme.name || ''), nameB = String(b.scheme.name || '');
+      if (nameA !== nameB) return nameA < nameB ? -1 : 1;
+      return a.libraryIndex - b.libraryIndex;
+    });
+    var closest = pool[0] || null;
+    if (closest) closest.sameSignalCountOnly = sameCountCandidates.length > 0;
+    return closest;
   }
 
   function pushUnique(issues, seen, kind, label, text) {
@@ -117,7 +134,7 @@
 
   function addUnmatchedSignalIssues(cluster, library, tolerance, issues, seen) {
     var closest = closestSignalScheme(cluster, library);
-    if (!closest) return { schemeName: '无可用方案', advice: '请先在方案库建立与该信号孔群对应的标准方案。' };
+    if (!closest) return { schemeName: '无可用方案', basis: '方案库没有可比较的信号对象', advice: '请先在方案库建立与该信号孔群对应的标准方案。' };
     var actual = closest.actual, expected = closest.expected, scheme = closest.scheme;
     if (actual.length > expected.length) {
       pushUnique(issues, seen, 'extra', '信号孔多出', '实际有 ' + actual.length + ' 个信号孔（' + actual.map(function (v) { return '#' + v.id; }).join('、') +
@@ -157,7 +174,14 @@
       pushUnique(issues, seen, 'position', '拓扑对应不清', '实际信号孔为 ' + actual.map(function (v) { return '#' + v.id + ' ' + (v.net || '-') + ' ' + point(v.x, v.y); }).join('；') +
         '；最接近方案要求为 ' + expected.map(function (v) { return (v.role || v.net || '-') + ' ' + point(v.x, v.y); }).join('；') + '。');
     }
-    return { schemeName: scheme.name, advice: '先按上面的孔号修正信号孔 Padstack、数量和中心距，再重新检查伴随地孔。' };
+    var countBasis = closest.sameSignalCountOnly
+      ? '实际与方案均为 ' + actual.length + ' 个信号对象，只在同数量方案中比较'
+      : '方案库没有同为 ' + actual.length + ' 个信号对象的方案，使用跨数量兜底比较';
+    return {
+      schemeName: scheme.name,
+      basis: countBasis + '；Padstack 不符 ' + closest.padMismatchCount + ' 个；孔距谱平均差 ' + fmt(closest.geometryDelta) + ' mil',
+      advice: '先按上面的孔号修正信号孔 Padstack、数量和中心距，再重新检查伴随地孔。'
+    };
   }
 
   function build(cluster, library, tolerance) {
@@ -168,7 +192,7 @@
     var advice = result.advice || (result.pass ? '无需调整。' : '按列出的问题逐项修改后重新检查。');
     if (result.status === 'NO_MATCH_TOPOLOGY' || result.status === 'VIA_COUNT_MISMATCH' || (result.status === 'DISTANCE_MISMATCH' && !issues.length)) {
       var unmatched = addUnmatchedSignalIssues(cluster, library, tolerance, issues, seen);
-      summary = '未匹配预设方案；按信号孔数量、Padstack 和中心距比较，最接近【' + unmatched.schemeName + '】。';
+      summary = '未匹配预设方案；最接近【' + unmatched.schemeName + '】。选择依据：' + unmatched.basis + '。';
       advice = unmatched.advice;
     }
     return { summary: summary, issues: issues, advice: advice };
