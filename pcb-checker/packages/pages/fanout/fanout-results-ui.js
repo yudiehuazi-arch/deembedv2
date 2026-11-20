@@ -195,9 +195,11 @@
       return Boolean(v.isFanoutEligible != null ? v.isFanoutEligible : v.hasTraceConnections);
     }).length;
     var recoveredSigViaCnt = signalVias.filter(function (v) { return v.isFanoutNetRecovered; }).length;
+    var companionSigViaCnt = signalVias.filter(function (v) { return v.isFanoutCompanion && !v.isFanoutNetRecovered; }).length;
     var excludedSigViaCnt = sigViaCnt - eligibleSigViaCnt;
     var gndViaCnt = vList.length - sigViaCnt;
     var signalHint = '信号孔段 ' + sigViaCnt + '（参与检查 ' + eligibleSigViaCnt +
+      (companionSigViaCnt > 0 ? ' / 伴随顶层 Pin ' + companionSigViaCnt : '') +
       (recoveredSigViaCnt > 0 ? ' / 几何恢复 Net ' + recoveredSigViaCnt : '') +
       (excludedSigViaCnt > 0 ? ' / 无 Trace 连接资格 ' + excludedSigViaCnt + ' 不参与' : '') + '） / 地孔 ' + gndViaCnt;
     var hint = document.getElementById('lblImportParseHint');

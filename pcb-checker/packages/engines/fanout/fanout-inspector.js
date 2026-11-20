@@ -148,6 +148,22 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
     }
     return units;
   }
+  function isCompanionSignalOffset(via, anchors) {
+    const list = Array.isArray(anchors) ? anchors : [];
+    const viaNet = String(via && via.net || '').trim().toUpperCase();
+    const sameNetAnchors = list.filter(anchor => String(anchor.net || '').trim().toUpperCase() === viaNet);
+    const origins = sameNetAnchors.length ? sameNetAnchors : list;
+    return origins.some(anchor => {
+      const anchorNet = String(anchor.net || '').trim().toUpperCase();
+      const peer = list.filter(item => item !== anchor && String(item.net || '').trim().toUpperCase() !== anchorNet)
+        .sort((a, b) => Math.hypot(a.x - anchor.x, a.y - anchor.y) - Math.hypot(b.x - anchor.x, b.y - anchor.y))[0];
+      if (!peer) return false;
+      const axisX = peer.x - anchor.x, axisY = peer.y - anchor.y, axisLength = Math.hypot(axisX, axisY);
+      if (!(axisLength > 0)) return false;
+      const pitchAxisOffsetMm = Math.abs((via.x - anchor.x) * axisX + (via.y - anchor.y) * axisY) / axisLength * MM_PER_MIL;
+      return pitchAxisOffsetMm <= 0.175 + 1e-9;
+    });
+  }
   function runFanoutInspection(inputData, library, options = {}) {
     const startTime = Date.now();
     const allowArbitraryRotation = options.allowArbitraryRotation === true; // 任意角度姿态（默认关闭）
@@ -217,12 +233,16 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
     const allowMirror = options.allowMirror !== false;
     const gndVias = vias.filter(v => v.net && v.net.toUpperCase().includes('GND'));
     const allSignalVias = vias.filter(v => !v.net || !v.net.toUpperCase().includes('GND'));
-    // Trace Connections 孔触发检查；同网络、层跨连续且命中最大 0.175 mm 支持偏移的孔段随完整多段孔参与。
-    allSignalVias.forEach(via => { via.isFanoutCompanion = false; });
+    // Trace Connections 孔触发检查；合规多段孔直接参与，Shape-only 顶层 Pin 仅作为方案信号伴随对象补入。
+    allSignalVias.forEach(via => { via.isFanoutCompanion = false; via.isFanoutNetRecovered = false; });
     const activePhysicalSignalVias = selectConnectedSignalVias(allSignalVias);
     const activeSignalVias = collapseSignalStacks(activePhysicalSignalVias);
+    const activeSignalIds = new Set(activePhysicalSignalVias.map(via => String(via.id)));
+    const availableCompanionSignals = allSignalVias.filter(via => !activeSignalIds.has(String(via.id)) &&
+      via.hasShapeConnections && via.hasTopShapeConnection && /^SMD\s+Pin$/i.test(String(via.usage || '').trim()) &&
+      !via.hasTraceConnections && !(via.connectedViaIds || []).length && Number(via.drill || 0) === 0);
     const gndIndex = buildGndSpatialIndex(gndVias, 35);
-    const signalIndex = buildGndSpatialIndex(activeSignalVias, 35);
+    const companionIndex = buildGndSpatialIndex(availableCompanionSignals, 35);
     const signalUnits = groupSignalUnits(activeSignalVias, 35.0);
     let passCount = 0;
     let exactPassCount = 0;
@@ -239,18 +259,16 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
       if (physicalSignalVias.every(via => usedCompanionSignalIds.has(String(via.id)))) continue;
       const stackAudit = signalStackAudit(unitSigVias);
       const unitNets = new Set(unitSigVias.map(via => String(via.net || '').toUpperCase()));
-      const unitPhysicalIds = new Set(physicalSignalVias.map(via => String(via.id)));
-      // 原始 EDA 导出偶尔会把一个已具备 Trace 资格的顶层 Pin 写到其他差分网络。仅在完整信号拓扑
-      // 恰好少一个零钻孔对象，且 Padstack/位置唯一时，才允许将邻近的独立逻辑孔恢复为候选。
-      const netAliasCandidates = signalIndex.findGndNear(unit.centroid.x, unit.centroid.y, 80.0)
-        .map(item => item.via)
-        .filter(via => !unitPhysicalIds.has(String(via.id)) &&
-          !unitNets.has(String(via.net || '').toUpperCase()) &&
-          !usedCompanionSignalIds.has(String(via.id)) && Number(via.drill || 0) === 0 &&
-          (via.physicalVias || [via]).length === 1);
-      let matchingSignalVias = physicalSignalVias.slice();
+      // Shape-only 零钻顶层 Pin 不独立触发检查；仅在 Trace 差分孔已建组、沿差分节距轴偏移不超过
+      // 0.175 mm 且最终唯一命中方案信号位置时补入。同网络正常补入，异网只保留单对象 Net 恢复能力。
+      const nearbyCompanionSignals = companionIndex.findGndNear(unit.centroid.x, unit.centroid.y, 80.0)
+        .map(item => item.via).filter(via => !usedCompanionSignalIds.has(String(via.id)) &&
+          isCompanionSignalOffset(via, unitSigVias));
+      const companionSignalCandidates = nearbyCompanionSignals.filter(via => unitNets.has(String(via.net || '').toUpperCase()));
+      const netAliasCandidates = nearbyCompanionSignals.filter(via => !unitNets.has(String(via.net || '').toUpperCase()));
+      let matchingSignalVias = physicalSignalVias.concat(companionSignalCandidates);
       const nearbyGnd = gndIndex.findGndNear(unit.centroid.x, unit.centroid.y, 80.0).map(item => item.via);
-      let candidateVias = [...physicalSignalVias, ...nearbyGnd];
+      let candidateVias = [...matchingSignalVias, ...nearbyGnd];
       let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
       let spanX = 0, spanY = 0, maxSpan = 0;
       function updateCandidateBounds() {
@@ -272,18 +290,23 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
         const schemeSigVias = scheme.vias.filter(v => v.net && !v.net.toUpperCase().includes('GND'));
         const schemeGndVias = scheme.vias.filter(v => !v.net || v.net.toUpperCase().includes('GND') || (v.padstack && v.padstack.toUpperCase().includes('GND')));
         const missingSignalCount = schemeSigVias.length - matchingSignalVias.length;
-        const allowNetAliasRecovery = missingSignalCount === 1 && netAliasCandidates.length > 0 &&
+        const allowNetAliasRecovery = missingSignalCount === 1 &&
           unit.type === 'DIFF_PAIR' && unit.pCount > 0 && unit.nCount > 0;
-        if (missingSignalCount !== 0 && !allowNetAliasRecovery) continue;
-        const angles = candidateRotations(matchingSignalVias, schemeSigVias, distTol, allowRotation, allowArbitraryRotation);
+        const supplementalCandidates = allowNetAliasRecovery ? netAliasCandidates : [];
+        if (missingSignalCount < 0 || (missingSignalCount > 0 && supplementalCandidates.length < missingSignalCount)) continue;
+        const anchorIndex = schemeSigVias.findIndex(sv => matchingSignalVias.some(via =>
+          String(via.padstack || '').trim().toLowerCase() === String(sv.padstack || '').trim().toLowerCase()));
+        if (anchorIndex < 0) continue;
+        const orderedSchemeSigVias = [schemeSigVias[anchorIndex], ...schemeSigVias.filter((_, index) => index !== anchorIndex)];
+        const angles = candidateRotations(matchingSignalVias, orderedSchemeSigVias, distTol, allowRotation, allowArbitraryRotation);
         const mirrors = allowMirror ? [false, true] : [false];
-        const s0 = schemeSigVias[0];
+        const s0 = orderedSchemeSigVias[0];
         for (const mirror of mirrors) {
           for (const deg of angles) {
             const rad = (deg * Math.PI) / 180;
             const cosA = Math.cos(rad);
             const sinA = Math.sin(rad);
-            const relSig = schemeSigVias.map(sv => {
+            const relSig = orderedSchemeSigVias.map(sv => {
               let dx = sv.x - s0.x;
               let dy = sv.y - s0.y;
               if (mirror) dx = -dx;
@@ -295,10 +318,11 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
               if ((u0.padstack || '').trim().toLowerCase() !== (s0.padstack || '').trim().toLowerCase()) {
                 continue;
               }
-              // 跨 Net 恢复仅限方案中那个唯一缺失的零钻孔 Pin；若目标位置不唯一则保持不匹配。
-              const signalResolution = resolveSignalNetAlias(matchingSignalVias, netAliasCandidates, relSig, u0,
-                distTol, allowNetAliasRecovery, missingSignalCount);
+              // 同网络 Shape-only Pin 按方案位置补入；跨 Net 恢复最多允许一个，位置不唯一时保持不匹配。
+              const signalResolution = resolveSignalNetAlias(matchingSignalVias, supplementalCandidates, relSig, u0,
+                distTol, missingSignalCount > 0, missingSignalCount);
               if (signalResolution) {
+                if ((signalResolution.signalNetRecoveries || []).length > 1) continue;
                 const footprintGndIndices = selectGndWithinSchemeFootprint(
                   scheme.vias, nearbyGnd, u0, s0, cosA, sinA, mirror, distTol);
                 const gndMatch = matchCompanionGnd(
@@ -380,12 +404,17 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
         bestEval = candidateEvaluations[0];
       }
       matchingSignalVias = bestEval.resolvedSignalVias || matchingSignalVias;
+      companionSignalCandidates.forEach(via => {
+        via.isFanoutCompanion = true;
+        via.isFanoutEligible = true;
+        usedCompanionSignalIds.add(String(via.id));
+      });
       (bestEval.recoveredSignalVias || []).forEach(via => {
         const recovery = (bestEval.signalNetRecoveries || []).find(item => String(item.viaId) === String(via.id));
         via.isFanoutCompanion = true;
-        via.isFanoutNetRecovered = true;
-        via.fanoutSourceNet = via.net;
-        via.fanoutExpectedNet = recovery ? recovery.expectedNet : '';
+        via.isFanoutEligible = true;
+        via.isFanoutNetRecovered = Boolean(recovery);
+        if (recovery) { via.fanoutSourceNet = via.net; via.fanoutExpectedNet = recovery.expectedNet; }
         usedCompanionSignalIds.add(String(via.id));
       });
       candidateVias = [...physicalSignalVias, ...matchingSignalVias.slice(physicalSignalVias.length), ...nearbyGnd];
@@ -399,7 +428,8 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
         const rotStr = bestEval.angle !== 0 ? ` [旋转 ${bestEval.angle}°]` : '';
         const mirStr = bestEval.mirror ? ` [镜像翻转]` : '';
         const recoveryCount = (bestEval.signalNetRecoveries || []).length;
-        const recoveryStr = recoveryCount > 0 ? `；${recoveryCount} 个顶层信号 Pin 按完整方案几何恢复归属` : '';
+        const companionCount = companionSignalCandidates.length;
+        const recoveryStr = `${companionCount > 0 ? `；${companionCount} 个同网络 Shape-only 顶层 Pin 作为伴随信号对象` : ''}${recoveryCount > 0 ? `；${recoveryCount} 个顶层信号 Pin 按完整方案几何恢复归属` : ''}`;
         const matchRes = {
           status: 'MATCH_PASS',
           statusText: '完全匹配通过',
@@ -505,10 +535,10 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
     const summary = {
       totalVias: vias.length,
       totalSignalVias: activeSignalVias.length,
-      totalEligibleSignalViaItems: activePhysicalSignalVias.length,
+      totalEligibleSignalViaItems: activePhysicalSignalVias.length + usedCompanionSignalIds.size,
       totalCompanionSignalVias: usedCompanionSignalIds.size,
       totalParsedSignalVias: allSignalVias.length,
-      excludedSignalVias: allSignalVias.length - activePhysicalSignalVias.length,
+      excludedSignalVias: allSignalVias.length - activePhysicalSignalVias.length - usedCompanionSignalIds.size,
       totalTraces: traceSummary.totalTraces,
       totalTraceSegments: traceSummary.totalTraceSegments,
       traceLineCount: traceSummary.traceLineCount,

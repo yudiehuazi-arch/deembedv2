@@ -373,11 +373,12 @@ test('检查结果逐孔说明 Padstack、位置、缺孔和多孔问题及目�
     closestDetail.summary.includes('Padstack 不符 0 个'), '最接近方案应显示数量硬筛选和 Padstack 评分依据');
   window.renderImportedTraceOverview([
     { id: 51, net: 'PAIR_P', isFanoutEligible: true },
-    { id: 52, net: 'PAIR_P', isFanoutEligible: true, isFanoutNetRecovered: true },
-    { id: 53, net: 'IDLE', isFanoutEligible: false }
+    { id: 52, net: 'PAIR_P', isFanoutEligible: true, isFanoutNetRecovered: true, isFanoutCompanion: true },
+    { id: 53, net: 'IDLE', isFanoutEligible: false },
+    { id: 54, net: 'PAIR_N', isFanoutEligible: true, isFanoutCompanion: true }
   ], []);
-  assert.ok(document.getElementById('lblImportParseHint').textContent.includes('参与检查 2 / 几何恢复 Net 1 / 无 Trace 连接资格 1 不参与'),
-    '导入概览应区分正式受检对象、几何恢复 Net 与无 Trace 资格排除项');
+  assert.ok(document.getElementById('lblImportParseHint').textContent.includes('参与检查 3 / 伴随顶层 Pin 1 / 几何恢复 Net 1 / 无 Trace 连接资格 1 不参与'),
+    '导入概览应区分正式受检对象、伴随顶层 Pin、几何恢复 Net 与排除项');
 
   window.switchTab('tabResults');
   window.setResultFilter('all');
@@ -434,14 +435,14 @@ test('快捷改名关键词重复点选拼接、放大查看无重叠标注、�
   window.switchTab('tabLibrary');
 });
 
-test('仅 Trace Connections 触发检查，并按网络、层跨与 0.175 mm 距离合并完整堆叠', () => {
+test('仅 Trace Connections 触发建组，并补入合规多段孔与 Shape-only 伴随顶层 Pin', () => {
   assert.strictEqual(document.getElementById('chkAllowSubsetMatch'), null, '完整拓扑检查不应再暴露子集匹配开关');
   assert.strictEqual(document.getElementById('selRedundantPolicy'), null, '完整拓扑检查不应再允许冗余孔策略');
   assert.strictEqual(document.getElementById('btnFilterSubset'), null, '结果筛选不应保留永远不会通过的子集状态');
   const eligibilityHint = document.getElementById('fanoutConnectionsEligibilityHint').textContent;
   assert.ok(eligibilityHint.includes('Connections 中含 Trace'), '导入页应明确只有 Trace 连接孔触发检查');
-  assert.ok(eligibilityHint.includes('支持值（最大 0.175 mm）'), '导入页应明确多段孔相对触发孔的支持偏移上限');
-  assert.ok(eligibilityHint.includes('只有 Shape 的独立 Via 不检查'));
+  assert.ok(eligibilityHint.includes('差分节距轴偏移不超过 0.175 mm'), '导入页应明确伴随顶层 Pin 的偏移上限');
+  assert.ok(eligibilityHint.includes('独立 Shape-only 孔不建组'));
 
   const mixedTxt = `
 Item 1 < Via >

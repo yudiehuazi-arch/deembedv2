@@ -497,6 +497,9 @@ Item 7 < Via >
     '只有明确 Trace 或同行层列表才具有扇出检查触发资格');
   assert.deepStrictEqual(parsed[0].connectedTraceLayers, ['Top']);
   assert.deepStrictEqual(parsed[1].connectedTraceLayers, ['Top'], '同行 Connections 格式仍应兼容');
+  assert.strictEqual(parsed[6].hasShapeConnections, true);
+  assert.deepStrictEqual(parsed[6].connectedShapeLayers, ['03G02P']);
+  assert.strictEqual(parsed[6].hasTopShapeConnection, false, '内层 Shape 不能冒充伴随顶层 Pin');
 
   const library = new FanoutChecker.FanoutLibrary();
   library.addScheme(new FanoutChecker.FanoutScheme({
@@ -599,7 +602,7 @@ Item 3 < Via >
   console.log('  PASS  Trace 锚点带入显式 Via 链完整孔段，Shape/Via-only 独立孔群排除');
 }
 
-// 8e. Shape-only 与 Via-only 独立对象不得扩充 Trace 信号拓扑
+// 8e. 同网络 Shape-only 顶层 Pin 纳入完整信号拓扑，Via-only 独立对象排除
 {
   const blocks = [
     ['1', 0, 0, 'PAIR_P', 'HDI_SIG', 'Trace: 1 (04G01P)'],
@@ -607,7 +610,7 @@ Item 3 < Via >
     ['3', 0, 20, 'PAIR_P', 'TOP_PIN', 'Shape: 1 (Top)'],
     ['4', 20, 20, 'PAIR_N', 'TOP_PIN', 'Shape: 1 (Top)'],
     ['5', 200, 200, 'PAIR_N', 'UNANCHORED_VIA', 'Via: 99 (05G02P)']
-  ].map(v => `Item ${v[0]} < Via >\n  Origin-xy: [${v[1]}, ${v[2]}]\n  Net: ${v[3]}\n  Padstack Name: ${v[4]}\n  Connections:\n    ${v[5]}\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`).join('\n');
+  ].map(v => `Item ${v[0]} < Via >\n  Origin-xy: [${v[1]}, ${v[2]}]\n  Net: ${v[3]}\n  Padstack Name: ${v[4]}\n  Usage: ${/Shape:.*\(Top\)/.test(v[5]) ? 'SMD Pin' : 'BBVia'}\n  Connections:\n    ${v[5]}\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`).join('\n');
   const library = new FanoutChecker.FanoutLibrary();
   library.addScheme(new FanoutChecker.FanoutScheme({
     id: 'l2_l4_pair', name: 'L2-L4-DIFF',
@@ -626,23 +629,25 @@ Item 3 < Via >
     ]
   }));
   const res = FanoutChecker.runFanoutInspection(blocks, library);
-  assert.strictEqual(res.summary.totalSignalVias, 2, '只有两颗 Trace Connections 信号孔具备资格');
-  assert.strictEqual(res.summary.totalCompanionSignalVias, 0);
-  assert.strictEqual(res.summary.excludedSignalVias, 3);
+  assert.strictEqual(res.summary.totalSignalVias, 2, '两颗 Trace Connections 信号孔负责触发建组');
+  assert.strictEqual(res.summary.totalEligibleSignalViaItems, 4);
+  assert.strictEqual(res.summary.totalCompanionSignalVias, 2);
+  assert.strictEqual(res.summary.excludedSignalVias, 1);
   assert.strictEqual(res.clusters.length, 1);
   const pairCluster = res.clusters[0];
   assert.deepStrictEqual(pairCluster.signalVias.map(v => v.id).sort((a, b) => a - b), [1, 2]);
-  assert.deepStrictEqual(pairCluster.matchingSignalVias.map(v => v.id).sort((a, b) => a - b), [1, 2],
-    '远处 Shape-only 顶层 Pin 不得进入 Trace 信号拓扑');
+  assert.deepStrictEqual(pairCluster.matchingSignalVias.map(v => v.id).sort((a, b) => a - b), [1, 2, 3, 4],
+    '同网络且节距轴偏移合规的 Shape-only 顶层 Pin 应进入完整信号拓扑');
   assert.strictEqual(pairCluster.matchResult.pass, true);
-  assert.strictEqual(pairCluster.matchResult.schemeName, 'L2-L4-DIFF');
-  assert.ok(res.vias.filter(v => [3, 4, 5].includes(v.id)).every(v => !v.isFanoutEligible));
-  console.log('  PASS  Shape-only 与 Via-only 独立对象不会扩充 Trace 信号拓扑');
+  assert.strictEqual(pairCluster.matchResult.schemeName, 'TOP-PIN+HDI-DIFF');
+  assert.ok(res.vias.filter(v => [3, 4].includes(v.id)).every(v => v.isFanoutEligible && v.isFanoutCompanion));
+  assert.strictEqual(res.vias.find(v => v.id === 5).isFanoutEligible, false);
+  console.log('  PASS  同网络 Shape-only 顶层 Pin 补齐方案信号对象，Via-only 独立对象保持排除');
 }
 
-// 8f. Shape-only 顶层 Pin 即使几何位置命中方案也不得绕过 Trace 资格
+// 8f. Shape-only 顶层 Pin 不触发建组，但可按同网络偏移/方案位置补入并保留唯一异网恢复
 {
-  const viaBlock = (id, x, y, net, padstack, connection) => `Item ${id} < Via >\n  Origin-xy: [${x}, ${y}]\n  Net: ${net}\n  Padstack Name: ${padstack}\n  Connections:\n    ${connection}\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`;
+  const viaBlock = (id, x, y, net, padstack, connection) => `Item ${id} < Via >\n  Origin-xy: [${x}, ${y}]\n  Net: ${net}\n  Padstack Name: ${padstack}\n  Usage: ${/^Shape:.*\(Top\)/.test(connection) ? 'SMD Pin' : 'BBVia'}\n  Connections:\n    ${connection}\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`;
   const signalRows = [
     [1, -4.920, -17.900, 'PAIR_N', 'HDI_L10_L12', 'Trace: 1 (L12)'],
     [2, 14.766, -17.900, 'PAIR_P', 'HDI_L10_L12', 'Trace: 1 (L12)'],
@@ -653,8 +658,8 @@ Item 3 < Via >
     [7, 14.766, -17.900, 'PAIR_P', 'HDI_L1_L5', 'Shape: 1 (L5)'],
     // 物理位置与 Padstack 唯一对应 PAIR_P 顶层 Pin，但原始导出误写为其他差分网络。
     [8, 9.846, 0, 'OTHER_N', 'TOP_PIN', 'Shape: 1 (Top)'],
-    // 同一区域另一个异网 Pin 不在方案目标位置，必须保持排除。
-    [9, 30, 30, 'UNRELATED_P', 'TOP_PIN', 'Shape: 1 (Top)']
+    // 同一区域另一个同网 Pin 的节距轴投影超过 0.175 mm，不能只凭同网关系激活。
+    [9, 30, 30, 'PAIR_N', 'TOP_PIN', 'Shape: 1 (Top)']
   ];
   const input = signalRows.map(row => viaBlock(...row)).join('\n');
   const library = new FanoutChecker.FanoutLibrary();
@@ -674,26 +679,78 @@ Item 3 < Via >
   const res = FanoutChecker.runFanoutInspection(input, library, { distanceTolerance: 2 });
   const pairCluster = res.clusters.find(cluster => cluster.physicalSignalVias.some(v => v.id === 1));
   assert.strictEqual(res.clusters.length, 1, '只有两颗 Trace Connections 孔建立检查组');
-  assert.strictEqual(pairCluster.matchResult.status, 'NO_MATCH_TOPOLOGY',
-    'Shape-only 顶层 Pin 和孔段不得凭方案几何恢复后绕过 Trace 资格');
-  assert.deepStrictEqual(pairCluster.matchingSignalVias.map(v => v.id).sort((a, b) => a - b), [1, 2, 4, 5, 6, 7],
-    '与 Trace 锚点同网络、层跨连续且在 0.175 mm 内的 Shape 孔段仍应作为合法多段孔参与');
-  assert.deepStrictEqual(pairCluster.matchResult.signalNetRecoveries || [], []);
+  assert.strictEqual(pairCluster.matchResult.status, 'MATCH_PASS',
+    '同网络 Shape-only 顶层 Pin 与唯一异网顶层 Pin 应补齐完整方案信号拓扑');
+  assert.deepStrictEqual(pairCluster.matchingSignalVias.map(v => v.id).sort((a, b) => a - b), [1, 2, 3, 4, 5, 6, 7, 8],
+    '合法多段孔和方案唯一命中的两个顶层 Pin 都应参与信号匹配');
+  assert.deepStrictEqual(pairCluster.matchResult.signalNetRecoveries || [], [{
+    viaId: 8, sourceNet: 'OTHER_N', expectedNet: 'PAIR_P', x: 9.846, y: 0, padstack: 'TOP_PIN'
+  }]);
   assert.strictEqual(res.vias.find(v => v.id === 8).net, 'OTHER_N');
-  assert.strictEqual(res.summary.totalCompanionSignalVias, 0);
-  assert.strictEqual(res.summary.excludedSignalVias, 3, '三个 Shape-only 独立顶层 Pin 均应排除');
+  assert.strictEqual(res.summary.totalCompanionSignalVias, 2);
+  assert.strictEqual(res.summary.excludedSignalVias, 1, '同网络但节距轴投影超过 0.175 mm 的 Shape-only 顶层 Pin 仍应排除');
+  assert.strictEqual(res.vias.find(v => v.id === 9).isFanoutEligible, false);
 
   const ambiguousInput = input + '\n' + viaBlock(10, 9.846, 0, 'ANOTHER_P', 'TOP_PIN', 'Shape: 1 (Top)');
   const ambiguous = FanoutChecker.runFanoutInspection(ambiguousInput, library, { distanceTolerance: 2 });
   const ambiguousPair = ambiguous.clusters.find(cluster => cluster.physicalSignalVias.some(v => v.id === 1));
   assert.strictEqual(ambiguousPair.matchResult.status, 'NO_MATCH_TOPOLOGY',
     '同一缺失位置存在多个异网候选时不得猜测归属');
-  assert.deepStrictEqual(ambiguousPair.matchingSignalVias.map(v => v.id).sort((a, b) => a - b), [1, 2, 4, 5, 6, 7],
-    '合法多段孔保留，但所有独立 Shape-only 顶层 Pin 候选均不得加入');
-  console.log('  PASS  Shape-only 顶层 Pin 不会通过方案几何恢复绕过 Trace 资格');
+  assert.deepStrictEqual(ambiguousPair.matchingSignalVias.map(v => v.id).sort((a, b) => a - b), [1, 2, 3, 4, 5, 6, 7],
+    '合法多段孔和同网络顶层 Pin 保留，但歧义异网候选均不得加入');
+  console.log('  PASS  Shape-only 顶层 Pin 按同网络偏移和方案位置补入，并拒绝歧义异网候选');
 }
 
-// 8g. 无显式 Via 引用时，以 Trace 孔为锚按 0.175 mm 与连续层跨合并完整孔
+// 8g. 用户 18 对象回归：Item 15/17 作为同网络 Shape-only 顶层 Pin 补入 Top-L4 方案
+{
+  const rows = [
+    [1, 21056.5886, 33459.1457, 'GND', 'BGA-HDI-GND-045drill-ring3_L1_L5'],
+    [2, 21005.4075, 33459.1457, 'GND', 'BGA-HDI-GND-045drill-ring3_L1_L5'],
+    [3, 21053.7406, 33468.1784, 'GND', 'BGA-HDI-GND-045drill-ring3_L1_L5'],
+    [4, 21008.2555, 33468.1784, 'GND', 'BGA-HDI-GND-045drill-ring3_L1_L5'],
+    [5, 21053.7406, 33450.1130, 'GND', 'BGA-HDI-GND-045drill-ring3_L1_L5'],
+    [6, 21046.2267, 33444.3474, 'GND', 'BGA-HDI-GND-045drill-ring3_L1_L3'],
+    [7, 21036.7647, 33443.9343, 'GND', 'BGA-HDI-GND-045drill-ring3_L1_L3'],
+    [8, 21008.2555, 33450.1130, 'GND', 'BGA-HDI-GND-045drill-ring3_L1_L5'],
+    [9, 21015.7694, 33444.3474, 'GND', 'BGA-HDI-GND-045drill-ring3_L1_L3'],
+    [10, 21025.2314, 33443.9343, 'GND', 'BGA-HDI-GND-045drill-ring3_L1_L3'],
+    [11, 21015.7694, 33473.9440, 'GND', 'BGA-HDI-GND-045drill-ring3_L2_L5'],
+    [12, 21025.2314, 33474.3571, 'GND', 'BGA-HDI-GND-045drill-ring3_L2_L5'],
+    [13, 21046.2267, 33473.9440, 'GND', 'BGA-HDI-GND-045drill-ring3_L2_L5'],
+    [14, 21036.7647, 33474.3571, 'GND', 'BGA-HDI-GND-045drill-ring3_L2_L5'],
+    [15, 21026.0751, 33477.0457, '25_N', 'via2_8-top'],
+    [16, 21021.1555, 33459.1457, '25_N', 'BGA-HDI-SIG-045drill-ring3_L1_L4'],
+    [17, 21035.9211, 33477.0457, '25_P', 'via2_8-top'],
+    [18, 21040.8406, 33459.1457, '25_P', 'BGA-HDI-SIG-045drill-ring3_L1_L4']
+  ];
+  const schemeCoords = [[30.514, -17.9], [-20.668, -17.9], [27.666, -8.867], [-17.82, -8.867],
+    [27.666, -26.933], [20.152, -32.698], [10.69, -33.111], [-17.82, -26.933],
+    [-10.306, -32.698], [-0.844, -33.111], [-10.306, -3.102], [-0.844, -2.689],
+    [20.152, -3.102], [10.69, -2.689], [0, 0], [-4.92, -17.9], [9.846, 0], [14.766, -17.9]];
+  const block = row => `Item ${row[0]} < Via >\n  Origin-xy: [${row[1]}, ${row[2]}]\n  Net: ${row[3]}\n  Padstack Name: ${row[4]}\n  Usage: ${row[0] === 15 || row[0] === 17 ? 'SMD Pin' : 'BBVia'}\n  Connections:\n    ${row[0] === 16 || row[0] === 18 ? 'Trace: 1 (04G01P)' : 'Shape: 1 (Top)'}\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`;
+  const library = new FanoutChecker.FanoutLibrary();
+  library.addScheme(new FanoutChecker.FanoutScheme({
+    id: 'user_top_l4_18', name: 'BGA_2对_P0.25/0.5mm_Top-L4_GND轴对称',
+    vias: rows.map((row, index) => ({ id: row[0], x: schemeCoords[index][0], y: schemeCoords[index][1],
+      net: row[3], padstack: row[4], drill: [15, 17].includes(row[0]) ? 0 : 4.5 }))
+  }));
+  const result = FanoutChecker.runFanoutInspection(rows.map(block).join('\n'), library, { distanceTolerance: 2 });
+  const cluster = result.clusters[0];
+  assert.strictEqual(cluster.matchResult.status, 'MATCH_PASS');
+  assert.strictEqual(cluster.matchResult.schemeName, 'BGA_2对_P0.25/0.5mm_Top-L4_GND轴对称');
+  assert.deepStrictEqual(cluster.matchingSignalVias.map(v => v.id), [16, 18, 15, 17]);
+  assert.strictEqual(cluster.matchResult.matchedViaCount, 18);
+  assert.strictEqual(cluster.matchResult.viaAudit.length, 14);
+  assert.strictEqual(result.summary.totalEligibleSignalViaItems, 4);
+  assert.strictEqual(result.summary.totalCompanionSignalVias, 2);
+  assert.strictEqual(result.summary.excludedSignalVias, 0);
+  assert.deepStrictEqual(cluster.matchResult.signalNetRecoveries, []);
+  assert.ok(Math.hypot(rows[14][1] - rows[15][1], rows[14][2] - rows[15][2]) * 0.0254 > 0.175,
+    '顶层 Pin 到 Trace Via 的总距离不是多段孔偏移；应按差分节距轴投影 0.125 mm 判断伴随 Pin');
+  console.log('  PASS  用户 18 对象孔群完整匹配 Top-L4 方案，Item 15/17 作为伴随顶层 Pin 纳入');
+}
+
+// 8h. 无显式 Via 引用时，以 Trace 孔为锚按 0.175 mm 与连续层跨合并完整孔
 {
   const segment = (id, x, y, net, padstack, connection) => `Item ${id} < Via >\n  Origin-xy: [${x}, ${y}]\n  Net: ${net}\n  Padstack Name: ${padstack}\n${connection ? `  Connections:\n    ${connection}\n` : ''}~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`;
   const rows = [
@@ -763,7 +820,7 @@ Item 3 < Via >
   console.log('  PASS  Trace 锚点按 0.175 mm 与连续层跨合并，Shape-only 整栈和传递污染均排除');
 }
 
-// 8h. 实际问题回归：两个三段堆叠只有中段 Shape Connections 时不得创建 sig_unit
+// 8i. 实际问题回归：两个三段堆叠只有中段 Shape Connections 时不得创建 sig_unit
 {
   const segment = (id, x, net, padstack, connection) => `Item ${id} < Via >\n  Origin-xy: [${x}, 0]\n  Net: ${net}\n  Padstack Name: ${padstack}\n${connection ? `  Connections:\n    ${connection}\n` : ''}~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`;
   const input = [
@@ -784,7 +841,7 @@ Item 3 < Via >
   console.log('  PASS  supplied sig_unit_41 Shape-only 三段堆叠回归：零检查组');
 }
 
-// 8i. 信号拓扑先锁定镜像/旋转姿态，再严格核验 GND 数量、Padstack 与位置容差
+// 8j. 信号拓扑先锁定镜像/旋转姿态，再严格核验 GND 数量、Padstack 与位置容差
 {
   const block = (id, x, y, net, padstack, connection = '') => `Item ${id} < Via >\n  Origin-xy: [${x}, ${y}]\n  Net: ${net}\n  Padstack Name: ${padstack}\n${connection ? `  Connections:\n    ${connection}\n` : ''}~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`;
   const makeInput = ({ extra = false, wrongPad = false, shifted = false } = {}) => [

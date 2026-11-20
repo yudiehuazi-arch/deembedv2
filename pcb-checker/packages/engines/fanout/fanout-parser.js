@@ -82,6 +82,7 @@ var api = factory();
     const RE_ORIGIN = /Origin-xy:\s*\[\s*([\d\.\-]+)\s*,\s*([\d\.\-]+)\s*\]/i;
     const RE_PADSTACK = /Padstack\s+Name:\s*([^\r\n]+)/i;
     const RE_NET = /Net:\s*([^\r\n]+)/i;
+    const RE_USAGE = /Usage:\s*([^\r\n]+)/i;
     const RE_DRILL = /Circle\s+Drill:\s*([\d\.\-]+)/i;
     const RE_ROTATION = /Rotation:\s*([\d\.\-]+)/i;
     const RE_MIRROR = /Mirror\s+Status:\s*([^\r\n]+)/i;
@@ -101,6 +102,8 @@ var api = factory();
       const padstack = padM ? padM[1].trim() : 'UNKNOWN_PADSTACK';
       const netM = block.match(RE_NET);
       const net = netM ? netM[1].trim() : 'UNNAMED_NET';
+      const usageM = block.match(RE_USAGE);
+      const usage = usageM ? usageM[1].trim() : '';
       const drillM = block.match(RE_DRILL);
       const drill = drillM ? parseFloat(drillM[1]) : 0;
       const rotM = block.match(RE_ROTATION);
@@ -110,11 +113,16 @@ var api = factory();
       const connections = parseConnectionsSection(block);
       const hasConnections = connections.entries.length > 0;
       const connectedTraceLayers = [];
+      const connectedShapeLayers = [];
       const connectedViaIds = [];
       let explicitTraceCount = 0;
+      let explicitShapeCount = 0;
       connections.entries.forEach(entry => {
         const traceM = entry.match(/Trace:\s*\d+\s*\(([^)]+)\)/i);
+        const shapeM = entry.match(/^Shape\s*:\s*[^\r\n]*?\(([^)]+)\)/i);
         const viaM = entry.match(/Via:\s*#?(\d+)/i);
+        if (/^Shape\s*:/i.test(entry.trim())) explicitShapeCount++;
+        if (shapeM) connectedShapeLayers.push(...shapeM[1].trim().split(/[\s,]+/).filter(Boolean));
         if (viaM) connectedViaIds.push(parseInt(viaM[1], 10));
         if (traceM) {
           explicitTraceCount++;
@@ -134,12 +142,16 @@ var api = factory();
         y,
         padstack,
         net,
+        usage,
         drill,
         rotation,
         mirror,
         hasConnections,
         hasTraceConnections,
+        hasShapeConnections: explicitShapeCount > 0,
+        hasTopShapeConnection: connectedShapeLayers.some(layer => /^TOP$/i.test(layer)),
         connectedTraceLayers,
+        connectedShapeLayers,
         connectedViaIds: [...new Set(connectedViaIds)],
         isSignal
       });

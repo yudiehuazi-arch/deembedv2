@@ -13,7 +13,7 @@ const CASES = [
   { page: 'index.html', module: 'trace', tab: 'guide', section: 'tab-guide', schemes: 3, sequence: '⑦', keyword: '差分对逐层与总长差' },
   { page: 'copper.html', module: 'copper', tab: 'guide', section: 'tab-guide', schemes: 3, sequence: '⑦', keyword: '反焊盘、焊盘与非功能焊盘尺寸' },
   { page: 'dfm.html', module: 'dfm', tab: 'guide', section: 'tab-guide', schemes: 3, sequence: '⑥', keyword: 'GND 孔盘到信号孔盘间距' },
-  { page: 'fanout.html', module: 'fanout', tab: 'tabGuide', section: 'tabGuide', schemes: 3, sequence: '⑥', keyword: '信号孔资格与多段孔合并' },
+  { page: 'fanout.html', module: 'fanout', tab: 'tabGuide', section: 'tabGuide', schemes: 3, sequence: '⑥', keyword: '信号孔资格与伴随对象' },
   { page: 'pour.html', module: 'pour', tab: 'tabGuide', section: 'tabGuide', schemes: 5, sequence: '⑥', keyword: '走线参考层投影与邻近铜' }
 ];
 
@@ -62,8 +62,8 @@ test('共享检查说明用白话写清操作步骤、判断依据与验证标�
     '会先应用当前约束和搜索条件', '数量为 0 表示当前组合没有可显示的完整孔',
     '每个整合孔只放在一张检查表里', '当前叠层为 14 层时，匹配约束后的结果表固定显示 L1-L14', '读取每个原始孔段同心位置的全部 Shape',
     '没有孔段覆盖时，只在同心孔段中选择层跨端点最近的一段作为来源',
-    'Connections 必须含 Trace', '只有 Shape 的 Via 不检查',
-    '0 / 0.025 / 0.075 / 0.125 / 0.175 mm 支持偏移', '方案比对会展开其中全部物理段', '方案足迹内未被方案使用的 GND 视为数量不符',
+    'Connections 必须含 Trace', '只有 Shape 的顶层 Pin 不能独立触发',
+    '沿 P/N 差分节距轴的偏移不超过 0.175 mm', '0 / 0.025 / 0.075 / 0.125 / 0.175 mm 支持偏移', '方案比对会展开其中全部物理段', '方案足迹内未被方案使用的 GND 视为数量不符',
     '走线首端和尾端在所有被检查参考层上的反焊盘都豁免',
     '不要求 Padstack 层跨经过该层', 'Set=Shape、Set=Route Keepout 或 Set=Board Geometry',
     '实际 Shape Item 的 Set 字段必须与模板一致', '旧规则没有 Set 字段时按 Shape 读取'].forEach(keyword => {
