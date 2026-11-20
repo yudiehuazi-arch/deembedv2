@@ -436,6 +436,9 @@ setTimeout(() => {
     const sumRow = summaryTable.querySelector('tbody tr'), board = summaryTable.querySelector('.bad-summary-board');
     if (!sumRow || sumRow.textContent.indexOf('BGA-L1-L19') < 0 || sumRow.textContent.indexOf('L19') < 0) throw new Error('归纳内容不完整');
     if (!board || !board.src.startsWith('data:image/svg+xml') || board.src.indexOf('width%3D%22960%22') < 0) throw new Error('缺高清板上位置缩略图');
+    const focus = w.CopperBadSummary.focusedBounds({groups:[{via:{id:'A',origin:[500,10]},vias:[{id:'A',origin:[500,10]},{id:'B',origin:[900,20]}]}]}, {minX:0,maxX:1000,minY:0,maxY:10000}, 904, 514);
+    const focusRatio = (focus.maxX - focus.minX) / (focus.maxY - focus.minY);
+    if (Math.abs((focus.minY + focus.maxY) / 2 - 15) > 0.001 || Math.abs(focusRatio - 904 / 514) > 0.001) throw new Error('位置图未聚焦并居中异常区域：' + JSON.stringify(focus));
     if (!summary.querySelector('#btnCopyBadSummary')) throw new Error('缺复制表格按钮');
     const plain = w.CopperBadSummary.plainTable(w.CopperBadSummary.buildRows(w.eval('UI.result')));
     if (plain.indexOf('约束方案\t网络\t异常原因\t板上位置') !== 0 || plain.indexOf('Via ') < 0) throw new Error('复制文本格式异常');

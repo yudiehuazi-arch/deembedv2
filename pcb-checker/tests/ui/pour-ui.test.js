@@ -1122,7 +1122,7 @@ test('大文件仅在文本框显示截断预览，并通过 Web Worker 后台�
 
   const workerSource = fs.readFileSync(path.join(__dirname, '../../packages/pages/pour/pour-check-worker.js'), 'utf8');
   if (!workerSource.includes('importScripts') || !workerSource.includes('runAllCopperChecks')) throw new Error('后台检查线程未加载铜皮引擎');
-  if ((workerSource.match(/\?v=86/g) || []).length !== 5) throw new Error('后台检查线程未使用当前铜皮引擎缓存版本');
+  if ((workerSource.match(/\?v=87/g) || []).length !== 5) throw new Error('后台检查线程未使用当前铜皮引擎缓存版本');
   const OriginalWorker = w.Worker;
   let workerUrl = '', postedText = '', terminated = false;
   function FakeWorker(url) { workerUrl = url; }
