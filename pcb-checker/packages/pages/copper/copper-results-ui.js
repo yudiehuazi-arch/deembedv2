@@ -397,8 +397,12 @@
       { key: 'Padstack信号命名', label: 'Padstack命名不符合' },
       { key: '反焊盘尺寸', label: '反焊盘尺寸不符合' }
     ];
-    box.innerHTML = '<span class="hint no-rule-net-title">按不符合类型显示</span>' + options.map(function (o) {
-      var count = (UI.result.groups || []).filter(function (g) { return groupHasBadType(g, o.key); }).length;
+    box.innerHTML = '<span class="hint no-rule-net-title">按不符合类型显示，数量跟随约束和搜索条件</span>' + options.map(function (o) {
+      var count = (UI.result.groups || []).filter(function (g) {
+        if (UI.resSearch && !viaGroupMatchSearch(g, UI.resSearch)) return false;
+        var title = g.rule ? g.rule.title : '未推算到约束';
+        return (!UI.resRule || title === UI.resRule) && groupHasBadType(g, o.key);
+      }).length;
       return '<button type="button" class="chip bad-type-chip' + (UI.resBadType === o.key ? ' on' : '') + '" data-bad-type="' + o.key + '"><span class="cl">' + o.label + '</span><span class="cn">' + count + '</span></button>';
     }).join('');
   }

@@ -1413,6 +1413,23 @@ setTimeout(() => {
     if (w.eval('UI.resBadType') !== 'Padstack信号命名') throw new Error('Padstack 命名类型筛选未生效');
   });
 
+  t('不符合类型数量跟随当前约束，零记录约束不再显示全局 Padstack 数量', () => {
+    w.eval("S.sets.push({kind:'BGA',title:'BGA-Top-L4-0.8mm',constraints:[]}); UI.resRule='BGA-Top-L4-0.8mm'; UI.resFilter='bad'; UI.resBadType='Padstack信号命名'; UI.viewVer++; renderResults();");
+    const nums = {};
+    $('badTypeFilters').querySelectorAll('.bad-type-chip').forEach(btn => { nums[btn.dataset.badType || 'all'] = +btn.querySelector('.cn').textContent; });
+    if (JSON.stringify(nums) !== JSON.stringify({all:0,'Padstack信号命名':0,'反焊盘尺寸':0})) throw new Error('零记录约束仍显示全局数量：' + JSON.stringify(nums));
+    if (d.querySelectorAll('#checkOut .set').length !== 0) throw new Error('零记录约束不应显示结果卡片');
+    if ($('badTypeFilters').textContent.indexOf('数量跟随约束和搜索条件') < 0) throw new Error('缺少计数口径提示');
+
+    w.eval("UI.resRule='BGA-L2-L12-0.8mm'; UI.viewVer++; renderResults();");
+    const scopedNaming = +$('badTypeFilters').querySelector('[data-bad-type="Padstack信号命名"] .cn').textContent;
+    if (scopedNaming !== 1 || d.querySelectorAll('#checkOut .set').length !== 1) throw new Error('切回有命名问题的约束后数量未恢复');
+    w.eval("UI.resSearch='不存在的孔'; UI.viewVer++; renderResults();");
+    const searchedNaming = +$('badTypeFilters').querySelector('[data-bad-type="Padstack信号命名"] .cn').textContent;
+    if (searchedNaming !== 0 || d.querySelectorAll('#checkOut .set').length !== 0) throw new Error('搜索条件未同步限制类型数量');
+    w.eval("S.sets=S.sets.slice(0,1); UI.resRule=''; UI.resSearch=''; UI.resBadType=''; UI.viewVer++;");
+  });
+
   t('Padstack Name 缺少 Connections 连接层（如缺少 L8）时判定为「不符合」并报错', () => {
     const padTxtFail = [
       'Item 1 < Via >',
