@@ -4,11 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>PCB 扇出方案检查工具</title>
-<link rel="stylesheet" href="assets/styles/tokens.css?v=60">
-<link rel="stylesheet" href="assets/styles/eda-shell.css?v=60">
-<link rel="stylesheet" href="assets/styles/eda-dock.css?v=60">
-<link rel="stylesheet" href="assets/styles/components.css?v=60">
-<link rel="stylesheet" href="assets/styles/pages/fanout.css?v=60"><link rel="stylesheet" href="assets/styles/check-guide.css?v=60">
+<link rel="stylesheet" href="assets/styles/tokens.css?v=61">
+<link rel="stylesheet" href="assets/styles/eda-shell.css?v=61">
+<link rel="stylesheet" href="assets/styles/eda-dock.css?v=61">
+<link rel="stylesheet" href="assets/styles/components.css?v=61">
+<link rel="stylesheet" href="assets/styles/pages/fanout.css?v=61"><link rel="stylesheet" href="assets/styles/check-guide.css?v=61">
 </head>
 <body class="eda-workbench">
 
@@ -104,7 +104,7 @@
             <label class="btn sec small">导入 JSON<input type="file" id="fileImportScheme" accept=".json" style="display:none" onchange="importLibraryJSON(event)"></label>
             <button type="button" class="btn bad small" onclick="clearLibrary()">清空方案库</button>
           </div>
-        </div>
+        </div><div class="scheme-library-search" role="search"><label for="inpSchemeLibrarySearch">方案名搜索</label><input type="search" id="inpSchemeLibrarySearch" list="schemeLibraryNameOptions" placeholder="输入扇出方案名" autocomplete="off" data-no-persist oninput="filterSchemeLibrary()" onchange="locateSchemeByName()" onkeydown="handleSchemeSearchKeydown(event)"><datalist id="schemeLibraryNameOptions"></datalist><button type="button" class="btn pri small" onclick="locateSchemeByName()">定位方案</button><button type="button" class="btn sec small" onclick="clearSchemeLibrarySearch()">清除</button><span id="schemeLibrarySearchStatus" class="scheme-library-search-status" aria-live="polite"></span></div>
         <div class="scheme-grid" id="schemeContainer"></div>
       </div>
       <div id="libraryPadstackLegendBar" style="margin-top:14px"></div>
@@ -641,24 +641,24 @@
     </div>
   </div>
 </div>
-<script src="packages/shared/check-guide.js?v=60"></script><script src="packages/shared/dom-utils.js?v=60"></script>
-<script src="packages/engines/fanout/fanout-parser.js?v=60"></script>
-<script src="packages/engines/fanout/fanout-palette.js?v=60"></script>
-<script src="packages/engines/fanout/fanout-scheme.js?v=60"></script>
-<script src="packages/engines/fanout/fanout-clustering.js?v=60"></script>
-<script src="packages/engines/fanout/fanout-topology.js?v=60"></script>
-<script src="packages/engines/fanout/fanout-inspector.js?v=60"></script>
-<script src="packages/engines/fanout/fanout-layout.js?v=60"></script>
-<script src="packages/engines/fanout/fanout-canvas.js?v=60"></script>
-<script src="packages/pages/fanout/fanout-state.js?v=60"></script>
-<script src="packages/pages/fanout/fanout-library-ui.js?v=60"></script><script src="packages/pages/fanout/fanout-scheme-compare.js?v=60"></script>
-<script src="packages/pages/fanout/fanout-scheme-viewer.js?v=60"></script>
-<script src="packages/pages/fanout/fanout-result-details.js?v=60"></script><script src="packages/pages/fanout/fanout-results-ui.js?v=60"></script>
-<script src="packages/pages/fanout/fanout-analysis-ui.js?v=60"></script>
-<script src="packages/pages/fanout/fanout-canvas-review.js?v=60"></script>
-<script src="packages/pages/fanout/fanout-canvas-viewer.js?v=60"></script>
-<script src="packages/shared/eda-tooltip.js?v=60"></script>
-<script src="packages/shared/eda-shell.js?v=60"></script>
-<script src="packages/shared/ui-prefs.js?v=60"></script>
+<script src="packages/shared/check-guide.js?v=61"></script><script src="packages/shared/dom-utils.js?v=61"></script>
+<script src="packages/engines/fanout/fanout-parser.js?v=61"></script>
+<script src="packages/engines/fanout/fanout-palette.js?v=61"></script>
+<script src="packages/engines/fanout/fanout-scheme.js?v=61"></script>
+<script src="packages/engines/fanout/fanout-clustering.js?v=61"></script>
+<script src="packages/engines/fanout/fanout-topology.js?v=61"></script>
+<script src="packages/engines/fanout/fanout-inspector.js?v=61"></script>
+<script src="packages/engines/fanout/fanout-layout.js?v=61"></script>
+<script src="packages/engines/fanout/fanout-canvas.js?v=61"></script>
+<script src="packages/pages/fanout/fanout-state.js?v=61"></script>
+<script src="packages/pages/fanout/fanout-library-ui.js?v=61"></script><script src="packages/pages/fanout/fanout-scheme-compare.js?v=61"></script>
+<script src="packages/pages/fanout/fanout-scheme-viewer.js?v=61"></script>
+<script src="packages/pages/fanout/fanout-result-details.js?v=61"></script><script src="packages/pages/fanout/fanout-results-ui.js?v=61"></script>
+<script src="packages/pages/fanout/fanout-analysis-ui.js?v=61"></script>
+<script src="packages/pages/fanout/fanout-canvas-review.js?v=61"></script>
+<script src="packages/pages/fanout/fanout-canvas-viewer.js?v=61"></script>
+<script src="packages/shared/eda-tooltip.js?v=61"></script>
+<script src="packages/shared/eda-shell.js?v=61"></script>
+<script src="packages/shared/ui-prefs.js?v=61"></script>
 </body>
 </html>

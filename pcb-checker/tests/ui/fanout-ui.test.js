@@ -44,6 +44,35 @@ test('页面初始化与预设 6 套扇出方案库加载', () => {
   assert.ok(document.getElementById('statSchemeCount').textContent.includes('6'));
 });
 
+test('方案库按名称即时搜索并定位到唯一方案卡片', () => {
+  const input = document.getElementById('inpSchemeLibrarySearch');
+  const status = document.getElementById('schemeLibrarySearchStatus');
+  const options = document.querySelectorAll('#schemeLibraryNameOptions option');
+  const target = window.State.library.schemes[2];
+  assert.ok(input && input.hasAttribute('data-no-persist'), '方案库缺少临时名称搜索框');
+  assert.strictEqual(options.length, 6, '搜索候选应覆盖全部方案名');
+
+  input.value = target.name.toUpperCase();
+  window.filterSchemeLibrary();
+  const visible = [...document.querySelectorAll('.scheme-card')].filter(card => !card.hidden);
+  assert.strictEqual(visible.length, 1, '完整方案名应只保留对应卡片');
+  assert.strictEqual(visible[0].getAttribute('data-scheme-id'), target.id);
+  assert.ok(status.textContent.includes('匹配 1 / 6'));
+  assert.strictEqual(window.locateSchemeByName(), target.id, '定位应返回并高亮准确方案');
+  assert.ok(visible[0].classList.contains('scheme-search-target'));
+
+  input.value = '不存在的扇出方案';
+  window.filterSchemeLibrary();
+  assert.strictEqual([...document.querySelectorAll('.scheme-card')].filter(card => !card.hidden).length, 0);
+  assert.ok(status.textContent.includes('未找到'));
+
+  window.clearSchemeLibrarySearch();
+  assert.strictEqual(input.value, '');
+  assert.strictEqual([...document.querySelectorAll('.scheme-card')].filter(card => !card.hidden).length, 6,
+    '清除搜索后应恢复全部方案卡片');
+  assert.strictEqual(status.textContent, '共 6 套方案');
+});
+
 test('方案库可选择两套方案并逐项对比关键指标、等比例图形与逐孔明细', () => {
   const button = document.getElementById('btnCompareSchemes');
   assert.ok(button && !button.disabled, '方案库缺少双方案对比入口');

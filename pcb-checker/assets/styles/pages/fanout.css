@@ -70,6 +70,48 @@
   margin-top: 12px;
 }
 
+.scheme-library-search {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+}
+
+.scheme-library-search label {
+  color: var(--heading);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.scheme-library-search input {
+  flex: 1 1 280px;
+  min-width: 180px;
+  max-width: 520px;
+}
+
+.scheme-library-search-status {
+  margin-left: auto;
+  color: var(--sub);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.scheme-card[hidden] { display: none; }
+
+.scheme-card.scheme-search-match .scheme-title { color: var(--pri-d); }
+
+.scheme-card.scheme-search-target {
+  border-color: var(--pri);
+  outline: 3px solid var(--pri-soft);
+  background: var(--surface-subtle);
+}
+
 .scheme-card {
   background: #ffffff;
   border: 1px solid var(--line);
