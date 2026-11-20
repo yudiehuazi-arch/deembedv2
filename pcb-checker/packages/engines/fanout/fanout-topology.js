@@ -81,5 +81,36 @@
         viaId: segment.id, padstack: segment.padstack, x: segment.x, y: segment.y,
         hasTraceConnections: Boolean(segment.hasTraceConnections), connectedViaIds: (segment.connectedViaIds || []).slice() })) }));
   }
-  return { selectTraceConnectedSignalVias, collapseSignalStacks, signalStackAudit };
+  function resolveSignalNetAlias(matchingVias, aliasCandidates, relativeSchemeVias, originVia, distanceTolerance, allowRecovery, missingCount) {
+    const usedSignalIndices = new Set(), usedAliasIndices = new Set(), recoveries = [];
+    const normalizedPadstack = via => String(via && via.padstack || '').trim().toLowerCase();
+    for (const item of relativeSchemeVias) {
+      const expectedX = originVia.x + item.relX, expectedY = originVia.y + item.relY;
+      let foundSignalIndex = -1;
+      for (let index = 0; index < matchingVias.length; index++) {
+        const via = matchingVias[index];
+        if (!usedSignalIndices.has(index) && normalizedPadstack(via) === normalizedPadstack(item.sv) &&
+          Math.hypot(via.x - expectedX, via.y - expectedY) <= distanceTolerance) {
+          foundSignalIndex = index; break;
+        }
+      }
+      if (foundSignalIndex !== -1) { usedSignalIndices.add(foundSignalIndex); continue; }
+      if (!allowRecovery || Number(item.sv.drill || 0) !== 0) return null;
+      const aliasMatches = [];
+      for (let index = 0; index < aliasCandidates.length; index++) {
+        const via = aliasCandidates[index];
+        if (!usedAliasIndices.has(index) && normalizedPadstack(via) === normalizedPadstack(item.sv) &&
+          Math.hypot(via.x - expectedX, via.y - expectedY) <= distanceTolerance) aliasMatches.push(index);
+      }
+      if (aliasMatches.length !== 1) return null;
+      const aliasIndex = aliasMatches[0], aliasVia = aliasCandidates[aliasIndex];
+      usedAliasIndices.add(aliasIndex);
+      recoveries.push({ viaId: aliasVia.id, sourceNet: aliasVia.net, expectedNet: item.sv.net,
+        x: aliasVia.x, y: aliasVia.y, padstack: aliasVia.padstack });
+    }
+    if (usedSignalIndices.size !== matchingVias.length || usedAliasIndices.size !== missingCount) return null;
+    const recoveredSignalVias = Array.from(usedAliasIndices, index => aliasCandidates[index]);
+    return { resolvedSignalVias: matchingVias.concat(recoveredSignalVias), recoveredSignalVias, signalNetRecoveries: recoveries };
+  }
+  return { selectTraceConnectedSignalVias, collapseSignalStacks, signalStackAudit, resolveSignalNetAlias };
 });

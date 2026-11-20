@@ -30,7 +30,7 @@
   }
 
   function signalRole(via) {
-    var text = String((via && via.net) || '') + ' ' + String((via && via.role) || '');
+    var text = String((via && (via.fanoutExpectedNet || via.net)) || '') + ' ' + String((via && via.role) || '');
     var match = text.match(/(?:^|[_\s差分])([PN])(?:$|[_\s孔])/i);
     return match ? match[1].toUpperCase() : '';
   }
@@ -132,6 +132,14 @@
     });
   }
 
+  function addSignalNetRecoveryIssues(result, issues, seen) {
+    (result.signalNetRecoveries || []).forEach(function (item) {
+      pushUnique(issues, seen, 'net', 'Net 字段归属已恢复',
+        '顶层 Pin #' + item.viaId + ' 位于 ' + point(item.x, item.y) + '，Padstack 为「' + (item.padstack || '-') +
+        '」；原始导出 Net 为「' + (item.sourceNet || '-') + '」，但其唯一方案位置属于「' + (item.expectedNet || '-') + '」。物理匹配按方案几何恢复，原始字段仍保留供核对。');
+    });
+  }
+
   function addUnmatchedSignalIssues(cluster, library, tolerance, issues, seen) {
     var closest = closestSignalScheme(cluster, library);
     if (!closest) return { schemeName: '无可用方案', basis: '方案库没有可比较的信号对象', advice: '请先在方案库建立与该信号孔群对应的标准方案。' };
@@ -188,6 +196,7 @@
     var result = cluster.matchResult || {}, issues = [], seen = {};
     addPadstackIssues(result, issues, seen);
     addMissingAndExtraIssues(cluster, result, issues, seen);
+    addSignalNetRecoveryIssues(result, issues, seen);
     var summary = result.message || result.statusText || '-';
     var advice = result.advice || (result.pass ? '无需调整。' : '按列出的问题逐项修改后重新检查。');
     if (result.status === 'NO_MATCH_TOPOLOGY' || result.status === 'VIA_COUNT_MISMATCH' || (result.status === 'DISTANCE_MISMATCH' && !issues.length)) {

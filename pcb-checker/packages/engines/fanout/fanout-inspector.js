@@ -16,15 +16,13 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
   var dist2D = parser.dist2D;
   var roundN = parser.roundN;
   var candidateRotations = parser.candidateRotations;
-  var parseViaData = parser.parseViaData;
-  var parseTraceData = parser.parseTraceData;
-  var isSignalVia = parser.isSignalVia;
-  var selectTraceConnectedSignalVias = topologyMod.selectTraceConnectedSignalVias;
-  var collapseSignalStacks = topologyMod.collapseSignalStacks;
-  var signalStackAudit = topologyMod.signalStackAudit;
-  var parseFanoutInputData = parser.parseFanoutInputData;
-  var summarizeTraceData = parser.summarizeTraceData;
-  var associateTracesWithClusters = parser.associateTracesWithClusters;
+  var parseViaData = parser.parseViaData, parseTraceData = parser.parseTraceData,
+    isSignalVia = parser.isSignalVia;
+  var selectTraceConnectedSignalVias = topologyMod.selectTraceConnectedSignalVias,
+    collapseSignalStacks = topologyMod.collapseSignalStacks, signalStackAudit = topologyMod.signalStackAudit,
+    resolveSignalNetAlias = topologyMod.resolveSignalNetAlias;
+  var parseFanoutInputData = parser.parseFanoutInputData, summarizeTraceData = parser.summarizeTraceData,
+    associateTracesWithClusters = parser.associateTracesWithClusters;
   function buildGndSpatialIndex(gndVias, cellSize = 35) {
     const grid = new Map();
     for (let i = 0; i < gndVias.length; i++) {
@@ -244,28 +242,43 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
       const physicalSignalVias = unitSigVias.flatMap(via => via.physicalVias || [via]);
       const stackAudit = signalStackAudit(unitSigVias);
       const unitNets = new Set(unitSigVias.map(via => String(via.net || '').toUpperCase()));
-      const companionSignals = companionIndex.findGndNear(unit.centroid.x, unit.centroid.y, 80.0)
-        .map(item => item.via).filter(via => unitNets.has(String(via.net || '').toUpperCase()));
+      const nearbyCompanionCandidates = companionIndex.findGndNear(unit.centroid.x, unit.centroid.y, 80.0)
+        .map(item => item.via);
+      const companionSignals = nearbyCompanionCandidates
+        .filter(via => unitNets.has(String(via.net || '').toUpperCase()));
+      // 原始 EDA 导出偶尔会把一个 Shape-only 顶层 Pin 写到其他差分网络。它不能按“附近信号孔”
+      // 直接吸收；只有完整方案恰好少 1 个零钻孔对象，且 Padstack/位置唯一吻合时才允许恢复归属。
+      const netAliasCandidates = nearbyCompanionCandidates.filter(via =>
+        !unitNets.has(String(via.net || '').toUpperCase()) &&
+        !usedCompanionSignalIds.has(String(via.id)) && Number(via.drill || 0) === 0);
       companionSignals.forEach(via => { via.isFanoutCompanion = true; usedCompanionSignalIds.add(String(via.id)); });
-      const matchingSignalVias = [...unitSigVias, ...companionSignals];
+      let matchingSignalVias = [...unitSigVias, ...companionSignals];
       const nearbyGnd = gndIndex.findGndNear(unit.centroid.x, unit.centroid.y, 80.0).map(item => item.via);
-      const candidateVias = [...physicalSignalVias, ...companionSignals, ...nearbyGnd];
+      let candidateVias = [...physicalSignalVias, ...companionSignals, ...nearbyGnd];
       let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-      candidateVias.forEach(v => {
-        if (v.x < minX) minX = v.x;
-        if (v.x > maxX) maxX = v.x;
-        if (v.y < minY) minY = v.y;
-        if (v.y > maxY) maxY = v.y;
-      });
-      const spanX = maxX - minX;
-      const spanY = maxY - minY;
-      const maxSpan = Math.hypot(spanX, spanY);
+      let spanX = 0, spanY = 0, maxSpan = 0;
+      function updateCandidateBounds() {
+        minX = Infinity; maxX = -Infinity; minY = Infinity; maxY = -Infinity;
+        candidateVias.forEach(v => {
+          if (v.x < minX) minX = v.x;
+          if (v.x > maxX) maxX = v.x;
+          if (v.y < minY) minY = v.y;
+          if (v.y > maxY) maxY = v.y;
+        });
+        spanX = maxX - minX;
+        spanY = maxY - minY;
+        maxSpan = Math.hypot(spanX, spanY);
+      }
+      updateCandidateBounds();
       const candidateEvaluations = [];
       for (const scheme of library.schemes) {
         if (!scheme.vias || scheme.vias.length === 0) continue;
         const schemeSigVias = scheme.vias.filter(v => v.net && !v.net.toUpperCase().includes('GND'));
         const schemeGndVias = scheme.vias.filter(v => !v.net || v.net.toUpperCase().includes('GND') || (v.padstack && v.padstack.toUpperCase().includes('GND')));
-        if (schemeSigVias.length !== matchingSignalVias.length) continue;
+        const missingSignalCount = schemeSigVias.length - matchingSignalVias.length;
+        const allowNetAliasRecovery = missingSignalCount === 1 && netAliasCandidates.length > 0 &&
+          unit.type === 'DIFF_PAIR' && unit.pCount > 0 && unit.nCount > 0;
+        if (missingSignalCount !== 0 && !allowNetAliasRecovery) continue;
         const angles = candidateRotations(matchingSignalVias, schemeSigVias, distTol, allowRotation, allowArbitraryRotation);
         const mirrors = allowMirror ? [false, true] : [false];
         const s0 = schemeSigVias[0];
@@ -286,30 +299,10 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
               if ((u0.padstack || '').trim().toLowerCase() !== (s0.padstack || '').trim().toLowerCase()) {
                 continue;
               }
-              const usedSigIdx = new Set();
-              let allSigMatched = true;
-              for (const item of relSig) {
-                const expX = u0.x + item.relX;
-                const expY = u0.y + item.relY;
-                let foundIdx = -1;
-                for (let k = 0; k < matchingSignalVias.length; k++) {
-                  if (usedSigIdx.has(k)) continue;
-                  const uv = matchingSignalVias[k];
-                  if (Math.hypot(uv.x - expX, uv.y - expY) <= distTol) {
-                    if ((uv.padstack || '').trim().toLowerCase() === (item.sv.padstack || '').trim().toLowerCase()) {
-                      foundIdx = k;
-                      break;
-                    }
-                  }
-                }
-                if (foundIdx !== -1) {
-                  usedSigIdx.add(foundIdx);
-                } else {
-                  allSigMatched = false;
-                  break;
-                }
-              }
-              if (allSigMatched && usedSigIdx.size === matchingSignalVias.length) {
+              // 跨 Net 恢复仅限方案中那个唯一缺失的零钻孔 Pin；若目标位置不唯一则保持不匹配。
+              const signalResolution = resolveSignalNetAlias(matchingSignalVias, netAliasCandidates, relSig, u0,
+                distTol, allowNetAliasRecovery, missingSignalCount);
+              if (signalResolution) {
                 const usedGndIndices = new Set();
                 const padMismatchList = [];
                 const missingVias = [];
@@ -391,7 +384,10 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
                   redundantGndCount,
                   padMismatchList,
                   missingVias,
-                  audit
+                  audit,
+                  resolvedSignalVias: signalResolution.resolvedSignalVias,
+                  recoveredSignalVias: signalResolution.recoveredSignalVias,
+                  signalNetRecoveries: signalResolution.signalNetRecoveries
                 });
                 if (isPass) break; // 当前方案该姿态完全匹配通过
               }
@@ -443,6 +439,17 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
         });
         bestEval = candidateEvaluations[0];
       }
+      matchingSignalVias = bestEval.resolvedSignalVias || matchingSignalVias;
+      (bestEval.recoveredSignalVias || []).forEach(via => {
+        const recovery = (bestEval.signalNetRecoveries || []).find(item => String(item.viaId) === String(via.id));
+        via.isFanoutCompanion = true;
+        via.isFanoutNetRecovered = true;
+        via.fanoutSourceNet = via.net;
+        via.fanoutExpectedNet = recovery ? recovery.expectedNet : '';
+        usedCompanionSignalIds.add(String(via.id));
+      });
+      candidateVias = [...physicalSignalVias, ...matchingSignalVias.slice(unitSigVias.length), ...nearbyGnd];
+      updateCandidateBounds();
       const s = bestEval.scheme;
       const isPass = bestEval.pass;
       if (isPass) {
@@ -453,6 +460,8 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
         const redundantStr = bestEval.redundantGndCount > 0 ? ` (含 ${bestEval.redundantGndCount} 个冗余地孔)` : '';
         const rotStr = bestEval.angle !== 0 ? ` [旋转 ${bestEval.angle}°]` : '';
         const mirStr = bestEval.mirror ? ` [镜像翻转]` : '';
+        const recoveryCount = (bestEval.signalNetRecoveries || []).length;
+        const recoveryStr = recoveryCount > 0 ? `；${recoveryCount} 个顶层信号 Pin 按完整方案几何恢复归属` : '';
         const matchRes = {
           status: 'MATCH_PASS',
           statusText: bestEval.redundantGndCount > 0 ? `匹配通过 (含${bestEval.redundantGndCount}冗余孔)` : '完全匹配通过',
@@ -466,11 +475,12 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
           maxDeviationMm: 0,
           rotationAngle: bestEval.angle,
           isMirrored: bestEval.mirror,
-          message: `✅ 对照方案【${s.name}】匹配通过${rotStr}${mirStr} (信号网络: ${unit.net}${redundantStr}，Padstack 与地孔完全符合)`,
-          advice: '信号孔与伴随地孔完全符合方案规范，无需调整。',
+          message: `✅ 对照方案【${s.name}】匹配通过${rotStr}${mirStr} (信号网络: ${unit.net}${redundantStr}，Padstack 与地孔完全符合${recoveryStr})`,
+          advice: recoveryCount > 0 ? '物理孔群符合方案，无需调整；请核对原始导出中被恢复顶层 Pin 的 Net 字段。' : '信号孔与伴随地孔完全符合方案规范，无需调整。',
           padMismatchList: [],
           missingVias: [],
           viaAudit: bestEval.audit,
+          signalNetRecoveries: bestEval.signalNetRecoveries || [],
           signalStackAudit: stackAudit
         };
         clusterUnits.push({
@@ -524,6 +534,7 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
           padMismatchList,
           missingVias,
           viaAudit: bestEval.audit,
+          signalNetRecoveries: bestEval.signalNetRecoveries || [],
           signalStackAudit: stackAudit
         };
         clusterUnits.push({

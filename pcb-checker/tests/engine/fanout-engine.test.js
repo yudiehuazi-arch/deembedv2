@@ -635,6 +635,59 @@ Item 3 < Via >
   console.log('  PASS  Trace 锚点吸收附近同网络 Shape-only 顶层 Pin 后匹配完整扇出方案');
 }
 
+// 8f. 顶层 Pin 的原始 Net 错写时，仅凭完整八信号孔方案的唯一几何位置恢复归属
+{
+  const viaBlock = (id, x, y, net, padstack, connection) => `Item ${id} < Via >\n  Origin-xy: [${x}, ${y}]\n  Net: ${net}\n  Padstack Name: ${padstack}\n  Connections:\n    ${connection}\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`;
+  const signalRows = [
+    [1, -4.920, -17.900, 'PAIR_N', 'HDI_L10_L12', 'Trace: 1 (L12)'],
+    [2, 14.766, -17.900, 'PAIR_P', 'HDI_L10_L12', 'Trace: 1 (L12)'],
+    [3, 0, 0, 'PAIR_N', 'TOP_PIN', 'Shape: 1 (Top)'],
+    [4, -3.935, -17.900, 'PAIR_N', 'PTH_L5_L10', 'Shape: 1 (L10)'],
+    [5, -4.920, -17.900, 'PAIR_N', 'HDI_L1_L5', 'Shape: 1 (L5)'],
+    [6, 13.781, -17.900, 'PAIR_P', 'PTH_L5_L10', 'Shape: 1 (L10)'],
+    [7, 14.766, -17.900, 'PAIR_P', 'HDI_L1_L5', 'Shape: 1 (L5)'],
+    // 物理位置与 Padstack 唯一对应 PAIR_P 顶层 Pin，但原始导出误写为其他差分网络。
+    [8, 9.846, 0, 'OTHER_N', 'TOP_PIN', 'Shape: 1 (Top)'],
+    // 同一区域另一个异网 Pin 不在方案目标位置，必须保持排除。
+    [9, 30, 30, 'UNRELATED_P', 'TOP_PIN', 'Shape: 1 (Top)']
+  ];
+  const input = signalRows.map(row => viaBlock(...row)).join('\n');
+  const library = new FanoutChecker.FanoutLibrary();
+  library.addScheme(new FanoutChecker.FanoutScheme({
+    id: 'eight_signal_net_alias', name: '八信号对象顶层Pin方案',
+    vias: [
+      { id: 1, x: 0, y: 0, net: 'PAIR_N', padstack: 'TOP_PIN', drill: 0 },
+      { id: 2, x: -4.920, y: -17.900, net: 'PAIR_N', padstack: 'HDI_L10_L12', drill: 4.5 },
+      { id: 3, x: -3.935, y: -17.900, net: 'PAIR_N', padstack: 'PTH_L5_L10', drill: 6 },
+      { id: 4, x: -4.920, y: -17.900, net: 'PAIR_N', padstack: 'HDI_L1_L5', drill: 4.5 },
+      { id: 5, x: 9.846, y: 0, net: 'PAIR_P', padstack: 'TOP_PIN', drill: 0 },
+      { id: 6, x: 14.766, y: -17.900, net: 'PAIR_P', padstack: 'HDI_L10_L12', drill: 4.5 },
+      { id: 7, x: 13.781, y: -17.900, net: 'PAIR_P', padstack: 'PTH_L5_L10', drill: 6 },
+      { id: 8, x: 14.766, y: -17.900, net: 'PAIR_P', padstack: 'HDI_L1_L5', drill: 4.5 }
+    ]
+  }));
+  const res = FanoutChecker.runFanoutInspection(input, library, { distanceTolerance: 2 });
+  assert.strictEqual(res.clusters.length, 1);
+  assert.strictEqual(res.clusters[0].matchResult.pass, true, '唯一位置的异网顶层 Pin 应恢复后匹配八信号方案');
+  assert.strictEqual(res.clusters[0].matchResult.schemeName, '八信号对象顶层Pin方案');
+  assert.deepStrictEqual(res.clusters[0].matchingSignalVias.map(v => v.id).sort((a, b) => a - b), [1, 2, 3, 4, 5, 6, 7, 8],
+    '恢复对象应进入方案匹配，附近无关异网 Pin 不得被加入孔群');
+  assert.deepStrictEqual(res.clusters[0].matchResult.signalNetRecoveries, [{
+    viaId: 8, sourceNet: 'OTHER_N', expectedNet: 'PAIR_P', x: 9.846, y: 0, padstack: 'TOP_PIN'
+  }], '必须保留原始 Net 与恢复后的方案角色以供审计');
+  assert.strictEqual(res.vias.find(v => v.id === 8).net, 'OTHER_N', '恢复只能补充推断归属，不得篡改原始 Net');
+  assert.strictEqual(res.summary.totalCompanionSignalVias, 6);
+  assert.strictEqual(res.summary.excludedSignalVias, 1, '无关异网 Pin 必须保持排除');
+
+  const ambiguousInput = input + '\n' + viaBlock(10, 9.846, 0, 'ANOTHER_P', 'TOP_PIN', 'Shape: 1 (Top)');
+  const ambiguous = FanoutChecker.runFanoutInspection(ambiguousInput, library, { distanceTolerance: 2 });
+  assert.strictEqual(ambiguous.clusters[0].matchResult.status, 'NO_MATCH_TOPOLOGY',
+    '同一缺失位置存在多个异网候选时不得猜测归属');
+  assert.deepStrictEqual(ambiguous.clusters[0].matchingSignalVias.map(v => v.id).sort((a, b) => a - b), [1, 2, 3, 4, 5, 6, 7],
+    '歧义候选均不得被加入匹配孔群');
+  console.log('  PASS  八信号对象方案按唯一几何恢复错写 Net 的顶层 Pin，并拒绝无关或歧义候选');
+}
+
 // 9. 导入 Trace (走线) 数据解析与孔群关联测试
 {
   const fs = require('fs');
