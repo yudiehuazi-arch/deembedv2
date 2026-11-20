@@ -211,6 +211,10 @@ t('换层孔命名表只按 Connections Trace 的两个走线层选约束，未�
   assert(!unmatched.rule && unmatched.excludedByConstraint && unmatched.failCount === 0, JSON.stringify(unmatched));
   assert(unmatched.note.includes('对应 L8-L33') && unmatched.note.includes('不进行检查'), unmatched.note);
   assert(!unmatched.rows.some(row => row.status === '不符合'), JSON.stringify(unmatched.rows));
+  const legacyRule = { kind: '其他', title: 'Legacy-L3-L29', constraints: [] };
+  const mixed = C.runCopperCheck([vias[1]], [...rules, legacyRule], { layerCount: 44 }).groups[0];
+  assert(mixed.rule && mixed.rule.title === 'Legacy-L3-L29' && !mixed.matchMode,
+    '新映射未命中时应保留独立导入的旧规则方案：' + JSON.stringify(mixed.rule));
 });
 
 t('L1-L5 孔段读取 L13 同心 Shape，但不借此改变约束匹配层跨', () => {

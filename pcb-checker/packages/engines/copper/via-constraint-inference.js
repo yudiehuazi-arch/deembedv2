@@ -328,7 +328,7 @@
     if (traceSelected) return traceSelected;
     if (!unit.kind || !unit.startLayer || !unit.endLayer) return { rule: null, candidates: [] };
     var sameKind = [], exact = [];
-    (sets || []).forEach(function (set) {
+    (sets || []).filter(function (set) { return !set.matchMode; }).forEach(function (set) {
       var meta = ruleMeta(set, n);
       if (meta.kind !== unit.kind) return;
       var item = { set: set, meta: meta };
