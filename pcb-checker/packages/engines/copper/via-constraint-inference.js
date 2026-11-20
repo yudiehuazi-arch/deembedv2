@@ -159,7 +159,7 @@
   }
 
   function buildUnit(members, n, signal, order) {
-    var xs = 0, ys = 0, layers = [], traces = [], conns = [];
+    var xs = 0, ys = 0, layers = [], traces = [], conns = [], traceConnected = false;
     var ids = members.map(function (v) { return v.id; });
     var pads = uniq(members.map(function (v) { return v.padstack || ''; }).filter(Boolean));
     members.forEach(function (v) {
@@ -167,6 +167,7 @@
       var sp = spanOfVia(v, n);
       layers = layers.concat(sp.layers);
       traces = traces.concat(v.traceLayers || []);
+      if (v.traceConnected || /(?:^|\s)Trace\s*:/i.test(v.connections || '')) traceConnected = true;
       if (v.connections) conns.push(v.connections);
     });
     layers = uniq(layers).sort(function (a, b) { return a - b; });
@@ -192,6 +193,7 @@
       endLayer: layers.length ? layers[layers.length - 1] : 0,
       segmentLayers: layers,
       traceLayers: traces,
+      traceConnected: traceConnected,
       mateNet: '',
       mateGroupId: '',
       pitchMm: null,
@@ -302,9 +304,13 @@
 
   function traceLayerSelection(sets, unit, n) {
     var special = (sets || []).filter(function (set) { return set && set.matchMode === 'connections-trace-layers'; });
-    if (!special.length) return null;
+    if (!special.length || !unit || !String(unit.via && unit.via.net || '').trim() || isGroundNet(unit.via && unit.via.net)) return null;
+    if (!unit.traceConnected) return special.length === (sets || []).length ? {
+      rule: null, candidates: special.map(function (set) { return set.title; }).slice(0, 6),
+      mode: 'connections-trace-layers', traceLayers: [], targetTitle: '', excluded: true
+    } : null;
     var seen = {}, layers = [];
-    (unit && unit.traceLayers || []).forEach(function (name) {
+    (unit.traceLayers || []).forEach(function (name) {
       var layer = layerNum(name, n);
       if (layer > 0 && !seen[layer]) { seen[layer] = 1; layers.push(layer); }
     });
@@ -314,7 +320,6 @@
     if (target) rule = special.find(function (set) {
       return String(set.title || '').replace(/\s+/g, '').toUpperCase() === target.toUpperCase();
     }) || null;
-    if (!rule && special.length !== (sets || []).length) return null;
     return {
       rule: rule,
       candidates: special.map(function (set) { return set.title; }).slice(0, 6),
@@ -323,9 +328,10 @@
   }
 
   function selectConstraint(sets, unit, n) {
-    if (!unit || !unit.signal) return { rule: null, candidates: [] };
+    if (!unit) return { rule: null, candidates: [] };
     var traceSelected = traceLayerSelection(sets, unit, n);
     if (traceSelected) return traceSelected;
+    if (!unit.signal) return { rule: null, candidates: [] };
     if (!unit.kind || !unit.startLayer || !unit.endLayer) return { rule: null, candidates: [] };
     var sameKind = [], exact = [];
     (sets || []).filter(function (set) { return !set.matchMode; }).forEach(function (set) {

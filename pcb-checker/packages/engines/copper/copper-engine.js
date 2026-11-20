@@ -57,16 +57,15 @@
         while ((pm = XY_RE.exec(body))) pts.push(+pm[1], +pm[2]);
         item.pts = pts;
       }
-      var traceLayers = [];
-      var traceRe = /Trace:\s*\d+\s*\(([^)]+)\)/gi;
-      var tm;
-      while ((tm = traceRe.exec(body))) {
+      var conn = body.match(/Connections:\s*([\s\S]*?)(?:\n\s*Backdrill:|\n\s*BackDrill|$)/i);
+      if (conn) item.connections = conn[1].replace(/\s+/g, ' ').trim();
+      var traceLayers = [], traceRe = /Trace:\s*\d+\s*\(([^)]+)\)/gi, tm;
+      while ((tm = traceRe.exec(conn ? conn[1] : ''))) {
         var parts = tm[1].trim().split(/\s+/).filter(Boolean);
         parts.forEach(function (p) { if (traceLayers.indexOf(p) < 0) traceLayers.push(p); });
       }
       item.traceLayers = traceLayers;
-      var conn = body.match(/Connections:\s*([\s\S]*?)(?:\n\s*Backdrill:|\n\s*BackDrill|$)/i);
-      if (conn) item.connections = conn[1].replace(/\s+/g, ' ').trim();
+      item.traceConnected = traceLayers.length > 0;
       var defined = body.match(/Padstack\s+Defined\s*(?:from|:)?\s*<?([^>\s\r\n~-]+)>?\s*(?:to|[-~])\s*<?([^>\s\r\n]+)>?/i);
       if (defined) { item.padstackStart = defined[1]; item.padstackEnd = defined[2]; }
       items.push(item);
@@ -323,21 +322,22 @@
       keys.pitchMm = unit.pitchMm;
       keys.pitchMode = unit.pitchMode;
       keys.mateNet = unit.mateNet;
-      var sel = unit.signal ? VI.selectConstraint(sets, unit, n) : { rule: null, candidates: [] };
-      var inspectSignal = unit.signal && !sel.excluded;
+      var sel = VI.selectConstraint(sets, unit, n);
+      var groundNet = String(unit.via.net || '').trim().toUpperCase() === 'GND';
+      var traceSignal = sel.mode === 'connections-trace-layers' && unit.traceConnected && !!String(unit.via.net || '').trim() && !groundNet;
+      var effectiveSignal = unit.signal || traceSignal, inspectSignal = effectiveSignal && !sel.excluded; keys.signal = effectiveSignal;
       var traceList = sel.mode === 'connections-trace-layers' ? sel.traceLayers : Object.keys(traceNums).map(function (k) { return +k; });
       var spanText = unit.startLayer && unit.endLayer ? ('L' + unit.startLayer + '-L' + unit.endLayer) : '层跨未识别';
       var pitchMembers = unit.pitchMode === 'HDI' ? ('，参与 Via ' + unit.pitchViaIds.join('、') + ' ↔ Via ' + unit.matePitchViaIds.join('、')) : '';
-      var namingIssues = sel.excluded ? [] : VI.padstackNamingIssues(unit.vias);
+      var namingIssues = sel.excluded || sel.mode === 'connections-trace-layers' ? [] : VI.padstackNamingIssues(unit.vias);
       var namingReason = namingIssues.map(function (x) { return 'Via ' + x.via.id + '：' + x.reason; }).join('；');
-      var groundNet = String(unit.via.net || '').trim().toUpperCase() === 'GND';
       var traceNote = sel.rule
         ? ('Connections Trace 走线层 ' + (sel.traceLayers || []).map(function (l) { return 'L' + l; }).join('、') + '，匹配约束 ' + sel.rule.title + '，按该约束执行检查')
         : (sel.targetTitle ? ('Connections Trace 走线层对应 ' + sel.targetTitle + '，未找到同名约束，不进行检查') : 'Connections 中未提取到两个不同的 Trace 走线层，不进行检查');
       var legacyNote = 'SIG 完整孔组 ' + unit.memberIds.length + ' 段（Via ' + unit.memberIds.join('、') + '），连接 ' + spanText +
         (unit.pitchMm != null ? ('，' + (unit.pitchMode === 'HDI' ? 'HDI 激光孔中心距 ' : '差分孔中心距 ') + unit.pitchMm.toFixed(3) + ' mm' + pitchMembers + '，匹配最近约束值') : '，未找到差分配对孔');
-      var note = unit.signal ? (sel.mode === 'connections-trace-layers' ? traceNote : legacyNote)
-        : (groundNet ? 'GND 网络：仅显示，不推算信号约束，不执行核查' : 'Padstack 不含 SIG：仅显示，不推算约束，不执行核查');
+      var note = effectiveSignal ? (sel.mode === 'connections-trace-layers' ? traceNote : legacyNote)
+        : (groundNet ? 'GND 网络：仅显示，不推算信号约束，不执行核查' : '没有可用的 Connections Trace 或 SIG 完整孔：不执行核查');
       if (namingReason) note += '；Padstack 信号命名不符合：' + namingReason;
       var rows = near.map(function (sh) {
         var ctype = checkTypeOf(sh);
@@ -438,7 +438,7 @@
           });
         }
       }
-      if (inspectSignal) {
+      if (inspectSignal && sel.mode !== 'connections-trace-layers') {
       var padOn = enabled['Padstack层名'] !== false;
       var connLayerNums = [];
       var connLayerSeen = {};
@@ -521,7 +521,7 @@
       var failRows = [];
       for (var fi = 0; fi < rows.length; fi++) if (rows[fi].status === '不符合') failRows.push(rows[fi]);
       return {
-        via: via, vias: unit.vias, sourceSegments: VI.sourceSegments(unit.vias, n), signal: unit.signal, keys: keys,
+        via: via, vias: unit.vias, sourceSegments: VI.sourceSegments(unit.vias, n), signal: effectiveSignal, keys: keys,
         rule: sel.rule, candidates: sel.candidates, note: note, namingError: namingReason,
         matchMode: sel.mode || '', matchTraceLayers: sel.traceLayers || [], excludedByConstraint: !!sel.excluded,
         startLayer: unit.startLayer, endLayer: unit.endLayer,
