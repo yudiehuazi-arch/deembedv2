@@ -300,7 +300,8 @@
           for (var cy = b.y0; cy <= b.y1; cy++) {
             var list = circleGrid[cx + ',' + cy];
             if (list) list.forEach(function (sh) {
-              if (dist(part.origin, sh.center) > posTol) return;
+              var sourceLayer = subsetToLayer(sh.subset, n);
+              if (!sourceLayer || !VI.viaCoversLayer(part, sourceLayer, n) || dist(part.origin, sh.center) > posTol) return;
               if (!nearSeen[sh.id]) { nearSeen[sh.id] = 1; near.push(sh); used[sh.id] = 1; }
               var owners = nearOwners[sh.id] || (nearOwners[sh.id] = []);
               if (!owners.some(function (v) { return String(v.id) === String(part.id); })) owners.push(part);
@@ -323,9 +324,6 @@
       keys.pitchMm = unit.pitchMm;
       keys.pitchMode = unit.pitchMode;
       keys.mateNet = unit.mateNet;
-      var observedAntiLayers = {};
-      near.forEach(function (sh) { var layer = subsetToLayer(sh.subset, n); if (layer && /keepout|anti-?pad|反焊盘|antipad/i.test((sh.set || '') + ' ' + (sh.head || ''))) observedAntiLayers[layer] = 1; });
-      unit.observedAntiLayers = Object.keys(observedAntiLayers).map(Number);
       var sel = unit.signal ? VI.selectConstraint(sets, unit, n) : { rule: null, candidates: [] };
       var traceList = Object.keys(traceNums).map(function (k) { return +k; });
       var spanText = unit.startLayer && unit.endLayer ? ('L' + unit.startLayer + '-L' + unit.endLayer) : '层跨未识别';
@@ -337,7 +335,6 @@
         ? ('SIG 完整孔组 ' + unit.memberIds.length + ' 段（Via ' + unit.memberIds.join('、') + '），连接 ' + spanText +
           (unit.pitchMm != null ? ('，' + (unit.pitchMode === 'HDI' ? 'HDI 激光孔中心距 ' : '差分孔中心距 ') + unit.pitchMm.toFixed(3) + ' mm' + pitchMembers + '，匹配最近约束值') : '，未找到差分配对孔'))
         : (groundNet ? 'GND 网络：仅显示，不推算信号约束，不执行核查' : 'Padstack 不含 SIG：仅显示，不推算约束，不执行核查');
-      if (sel.inferredFromAntiPad) note += '；Via 孔段仅识别 ' + spanText + '，同心反焊盘覆盖至 L' + sel.observedAntiLayers[sel.observedAntiLayers.length - 1] + '，按覆盖范围补全推算 ' + sel.rule.title;
       if (namingReason) note += '；Padstack 信号命名不符合：' + namingReason;
 
       var rows = near.map(function (sh) {
@@ -384,6 +381,7 @@
             var lm = k.match(/^L(\d+)$/i);
             if (!lm) return;
             var ln = +lm[1];
+            if (unit.startLayer && unit.endLayer && (ln < unit.startLayer || ln > unit.endLayer)) return;
             var v = vals[k];
             if (v == null || v === '' || v === '无') return;
             var num = parseFloat(v);
@@ -506,9 +504,11 @@
         var owners = nearOwners[row.shapeId] || unit.vias;
         if (row.namingViaId != null) owners = unit.vias.filter(function (part) { return String(part.id) === String(row.namingViaId); });
         else if (!row.isPadstackCheck) owners = VI.sourceOwnersForLayer(owners, row.layer, n);
-        row.sourceViaIds = owners.map(function (part) { return part.id; });
-        row.sourcePadstack = owners.map(function (part) { return part.padstack || '无 Padstack'; })
-          .filter(function (name, idx, all) { return all.indexOf(name) === idx; }).join(' + ');
+        var sourceSegments = VI.sourceSegments(owners, n);
+        row.sourceViaIds = sourceSegments.map(function (part) { return part.viaId; });
+        row.sourceViaSpans = sourceSegments.map(function (part) { return 'Via ' + part.viaId + ' · ' + part.spanText; }).join(' / ') || '无孔段覆盖该层';
+        row.sourcePadstack = sourceSegments.map(function (part) { return part.padstack; })
+          .filter(function (name, idx, all) { return all.indexOf(name) === idx; }).join(' + ') || '无覆盖 Padstack';
       });
 
       rows.sort(function (a, b) {
@@ -522,7 +522,7 @@
       var failRows = [];
       for (var fi = 0; fi < rows.length; fi++) if (rows[fi].status === '不符合') failRows.push(rows[fi]);
       return {
-        via: via, vias: unit.vias, signal: unit.signal, keys: keys,
+        via: via, vias: unit.vias, sourceSegments: VI.sourceSegments(unit.vias, n), signal: unit.signal, keys: keys,
         rule: sel.rule, candidates: sel.candidates, note: note, namingError: namingReason,
         startLayer: unit.startLayer, endLayer: unit.endLayer,
         pitchMm: unit.pitchMm, pitchMode: unit.pitchMode, pitchViaIds: unit.pitchViaIds,

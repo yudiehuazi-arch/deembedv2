@@ -46,7 +46,7 @@
   function layerNum(token, n) {
     var s = String(token || '').replace(/[<>]/g, '').trim();
     if (/^(top|表层|顶层)$/i.test(s)) return 1;
-    if (/^(bot|bottom|底层)$/i.test(s)) return 14;
+    if (/^(bot|bottom|底层)$/i.test(s)) return n || 0;
     var lm = s.match(/^L\s*0*(\d{1,2})$/i);
     if (lm) return +lm[1];
     var sm = s.match(/^0*(\d{1,2})[A-Za-z]/);
@@ -78,6 +78,11 @@
     };
   }
 
+  function viaCoversLayer(via, layer, n) {
+    var span = spanOfVia(via, n);
+    return !!(span.start && span.end && layer >= span.start && layer <= span.end);
+  }
+
   function sourceOwnersForLayer(owners, layer, n) {
     var seen = {}, list = (owners || []).filter(function (via) {
       var key = String(via && via.id);
@@ -85,17 +90,18 @@
       seen[key] = 1;
       return true;
     });
-    if (!(typeof layer === 'number' && layer > 0) || list.length < 2) return list;
-    var ranked = list.map(function (via) {
-      var span = spanOfVia(via, n), d = Infinity;
-      if (span.start && span.end) {
-        d = layer < span.start ? span.start - layer : (layer > span.end ? layer - span.end : 0);
-      }
-      return { via: via, distance: d };
+    if (!(typeof layer === 'number' && layer > 0)) return list;
+    return list.filter(function (via) { return viaCoversLayer(via, layer, n); });
+  }
+
+  function sourceSegments(vias, n) {
+    return sourceOwnersForLayer(vias, 0, n).map(function (via) {
+      var span = spanOfVia(via, n);
+      return {
+        viaId: via.id, padstack: via.padstack || '无 Padstack', startLayer: span.start, endLayer: span.end,
+        spanText: span.start && span.end ? ('L' + span.start + '-L' + span.end) : '层跨未识别'
+      };
     });
-    var min = Math.min.apply(null, ranked.map(function (x) { return x.distance; }));
-    if (!isFinite(min)) return list;
-    return ranked.filter(function (x) { return x.distance === min; }).map(function (x) { return x.via; });
   }
 
   function familyOf(padstacks) {
@@ -280,19 +286,6 @@
     };
   }
 
-  function antiPadCoverageLayers(set) {
-    var found = {};
-    ((set && set.constraints) || []).forEach(function (constraint) {
-      var label = String((constraint.cat || '') + ' ' + (constraint.name || ''));
-      if (!/反焊盘/.test(label) || /非功能/.test(label)) return;
-      Object.keys(constraint.values || {}).forEach(function (key) {
-        var match = /^L(\d+)$/i.exec(key), value = constraint.values[key];
-        if (match && value != null && value !== '' && value !== '无' && !isNaN(parseFloat(value))) found[+match[1]] = 1;
-      });
-    });
-    return Object.keys(found).map(Number).sort(function (a, b) { return a - b; });
-  }
-
   function selectConstraint(sets, unit, n) {
     if (!unit || !unit.signal || !unit.kind || !unit.startLayer || !unit.endLayer) return { rule: null, candidates: [] };
     var sameKind = [], exact = [];
@@ -303,17 +296,7 @@
       sameKind.push(item);
       if (meta.startLayer === unit.startLayer && meta.endLayer === unit.endLayer) exact.push(item);
     });
-    var matched = exact, inferredFromAntiPad = false;
-    var observed = uniq(unit.observedAntiLayers || []).map(Number).filter(function (layer) { return layer > 0; }).sort(function (a, b) { return a - b; });
-    if (!matched.length && observed.length && observed.indexOf(unit.startLayer) >= 0 && observed[observed.length - 1] > unit.endLayer) {
-      var observedEnd = observed[observed.length - 1];
-      matched = sameKind.filter(function (x) {
-        if (x.meta.startLayer !== unit.startLayer) return false;
-        var coverage = antiPadCoverageLayers(x.set), coverageEnd = coverage.length ? coverage[coverage.length - 1] : 0;
-        return coverageEnd === observedEnd;
-      });
-      inferredFromAntiPad = matched.length > 0;
-    }
+    var matched = exact;
     var picked = null;
     if (unit.pitchMm != null) {
       var pitched = matched.filter(function (x) { return x.meta.pitchMm != null; });
@@ -330,8 +313,8 @@
     return {
       rule: picked ? picked.set : null,
       pitchDeltaMm: picked ? picked.delta : null,
-      inferredFromAntiPad: !!(picked && inferredFromAntiPad),
-      observedAntiLayers: observed,
+      inferredFromAntiPad: false,
+      observedAntiLayers: [],
       candidates: candPool.slice(0, 5).map(function (x) { return x.set.title; })
     };
   }
@@ -344,7 +327,9 @@
     padstackNamingIssues: padstackNamingIssues,
     layerTokens: layerTokens,
     spanOfVia: spanOfVia,
+    viaCoversLayer: viaCoversLayer,
     sourceOwnersForLayer: sourceOwnersForLayer,
+    sourceSegments: sourceSegments,
     isSegmentDistance: isSegmentDistance,
     groupVias: groupVias,
     mateName: mateName,

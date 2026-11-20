@@ -93,7 +93,7 @@ setTimeout(() => {
       'Item 3                < Shape >', '  Set: Route Keepout', '  Subset: 07IS03', '  Type: Shape(Static)',
       'Exterior Boundary:', '  Arc seg: xy [291.0, 300.0]  xy [291.0, 300.0] Width (0.0)', '    Center-xy: [300.0, 300.0] Radius (9.0) CCW',
       '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~',
-      'Item 4                < Via >', '  Origin-xy: [100.0, 100.0]', '  Net: 63_N', '  Padstack Name: BGA_3510_L19_ring3mil_L2pad_0907',
+      'Item 4                < Via >', '  Origin-xy: [100.0, 100.0]', '  Net: 63_N', '  Padstack Name: BGA_SIG_L1_L19_3510_ring3mil_L2pad_0907',
       '  Connections:', '    Trace: 2 (Top 02G01P)', '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~',
       'Item 5                < Via >', '  Origin-xy: [200.0, 200.0]', '  Net: GND', '  Padstack Name: BGA_3510_L17_ring3mil_0902',
       '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
@@ -138,7 +138,7 @@ setTimeout(() => {
     $('expMask').style.display = 'none';
   });
 
-  t('缺失层自动补齐为「无铜皮」并判为不符合 + Padstack 连接层缺失检测', () => {
+  t('只补齐孔段实际层跨内的缺失层，并检测 Padstack 连接层缺失', () => {
     const padTxtFail = [
       'Item 1 < Via >',
       '  Origin-xy: [100.0, 100.0]',
@@ -155,9 +155,10 @@ setTimeout(() => {
     if (!padRow || padRow.status !== '不符合' || !padRow.reason.includes('缺少连接层 L8')) {
       throw new Error('Padstack 连接层核对异常：' + JSON.stringify(padRow));
     }
-    const missL1 = g.rows.find(r => r.layer === 1 && r.missing);
-    if (!missL1 || missL1.actual !== '无铜皮' || missL1.status !== '不符合') {
-      throw new Error('缺失层未补齐判红');
+    if (g.rows.some(r => r.layer === 1)) throw new Error('L2 孔段错误检查了层跨外的 L1');
+    const missL2 = g.rows.find(r => r.layer === 2 && r.missing);
+    if (!missL2 || missL2.actual !== '无铜皮' || missL2.status !== '不符合' || missL2.sourcePadstack !== 'test BGA SIG 3510 L2 ring3mil') {
+      throw new Error('L2 缺失层未补齐并标明来源');
     }
   });
 

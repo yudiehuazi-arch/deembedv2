@@ -50,6 +50,7 @@ t('0.075mm 错位的三个同网络孔段按连通关系合并为一个完整孔
   assert(pGroup && pGroup.vias.length === 3, JSON.stringify(pGroup && pGroup.via));
   assert(pGroup.via.id === '1/2/3', '组合孔号=' + pGroup.via.id);
   assert(pGroup.startLayer === 2 && pGroup.endLayer === 12, '完整层跨=' + pGroup.startLayer + '-' + pGroup.endLayer);
+  assert(pGroup.sourceSegments.map(part => `${part.viaId}:${part.spanText}`).join('|') === '1:L2-L5|2:L5-L10|3:L10-L12', JSON.stringify(pGroup.sourceSegments));
 });
 
 t('孔段中心距仅命中 0/0.025/0.075/0.125/0.175mm ±0.005mm 才合并', () => {
@@ -110,10 +111,12 @@ t('同封装与完整层跨下选择中心距最近的 BGA-L2-L12-0.6mm 约束',
   assert(nGroup.rule && nGroup.rule.title === 'BGA-L2-L12-0.6mm', nGroup.rule && nGroup.rule.title);
 });
 
-t('完整孔三个孔段坐标处的全部 Route Keepout 都归入同一约束核查', () => {
+t('完整孔只吸收各孔段自身层跨内的 Route Keepout', () => {
   const real = pGroup.rows.filter(r => !r.missing && !r.isPadstackCheck);
-  assert(real.length === 8, '配对 Route Keepout=' + real.length);
+  assert(real.length === 6, '配对 Route Keepout=' + real.length);
   assert(real.every(r => r.status === '符合'), real.map(r => `${r.layer}:${r.status}`).join(','));
+  assert(!real.some(r => r.layer === 1 || r.layer === 14), 'L2-L12 整合孔不应借用 Top/Bottom Shape');
+  assert(result.unmatchedCircles.some(s => s.id === 24) && result.unmatchedCircles.some(s => s.id === 25), '层跨外 Shape 应保持未配对');
 });
 
 t('L5/L10 交界层的每条 Route Keepout 只追溯实际所在孔段', () => {
@@ -129,11 +132,13 @@ t('L5/L10 交界层的每条 Route Keepout 只追溯实际所在孔段', () => {
   });
 });
 
-t('Top 与 Bottom 同坐标时只追溯各自最近的首尾孔段', () => {
-  const top = pGroup.rows.find(r => r.subset === 'Top');
-  const bottom = pGroup.rows.find(r => r.subset === 'Bottom');
-  assert(top.sourcePadstack === 'BGA-HDI-SIG_L2_L5' && top.sourceViaIds.join('/') === '1', JSON.stringify(top));
-  assert(bottom.sourcePadstack === 'BGA-HDI-SIG_L10_L12' && bottom.sourceViaIds.join('/') === '3', JSON.stringify(bottom));
+t('逐层来源严格取覆盖本层的孔段，不向最近端点越层借用', () => {
+  const l3 = pGroup.rows.find(r => r.layer === 3);
+  const l6 = pGroup.rows.find(r => r.layer === 6);
+  const l11 = pGroup.rows.find(r => r.layer === 11);
+  assert(l3.sourcePadstack === 'BGA-HDI-SIG_L2_L5' && l3.sourceViaSpans === 'Via 1 · L2-L5', JSON.stringify(l3));
+  assert(l6.sourcePadstack === 'PTH-SIG_L5_L10' && l6.sourceViaSpans === 'Via 2 · L5-L10', JSON.stringify(l6));
+  assert(l11.sourcePadstack === 'BGA-HDI-SIG_L10_L12' && l11.sourceViaSpans === 'Via 3 · L10-L12', JSON.stringify(l11));
 });
 
 t('检查结果补齐完整孔经过的 L2-L12 所有层，稀疏 Shape 层不再被隐藏', () => {
@@ -174,7 +179,7 @@ t('解析 Padstack Defined from/to 作为名称层号不足时的层跨后备', 
   assert(span.start === 2 && span.end === 12, JSON.stringify(span));
 });
 
-t('Via 孔段不完整时按同心反焊盘覆盖层补全 Top-L12 约束并检出 Top 半径不符', () => {
+t('L1-L5 孔段只提供 L1-L5 数据，不用 L13 同心 Shape 补长层跨', () => {
   const p = { id: 70, type: 'via', origin: [0, 0], net: '37_P', padstack: 'BGA-HDI-SIG_L1_L5', traceLayers: [] };
   const n = { id: 71, type: 'via', origin: [mil(0.5), 0], net: '37_N', padstack: 'BGA-HDI-SIG_L1_L5', traceLayers: [] };
   const circles = [p, n].flatMap((via, index) => [
@@ -182,18 +187,16 @@ t('Via 孔段不完整时按同心反焊盘覆盖层补全 Top-L12 约束并检�
     { id: 81 + index * 2, type: 'shape', circle: true, center: via.origin.slice(), radius: 10, set: 'Route Keepout', subset: 'L13', head: 'Route Keepout' }
   ]);
   const rules = [
-    { kind: 'BGA', title: 'BGA-Top-L4-0.5mm', constraints: [{ cat: '反焊盘尺寸', name: '反焊盘半径', unit: 'mil', values: { L1: '10', L5: '10' } }] },
-    { kind: 'BGA', title: 'BGA-Top-L13-0.5mm', constraints: [{ cat: '反焊盘尺寸', name: '反焊盘半径', unit: 'mil', values: { L1: '10', L14: '10' } }] },
+    { kind: 'BGA', title: 'BGA-Top-L5-0.5mm', constraints: [{ cat: '反焊盘尺寸', name: '反焊盘半径', unit: 'mil', values: { L1: '10', L5: '10' } }] },
     { kind: 'BGA', title: 'BGA-Top-L12-0.5mm', constraints: [{ cat: '反焊盘尺寸', name: '反焊盘半径', unit: 'mil', values: { L1: '10', L13: '10' } }] }
   ];
   const out = C.runCopperCheck([p, n, ...circles], rules, { layerCount: 14, posTol: 0.05, valTol: 0.01 });
   const group = out.groups.find(g => String(g.via.id) === '70');
   const top = group.rows.find(row => row.shapeId === 80);
-  assert(group.rule && group.rule.title === 'BGA-Top-L12-0.5mm', group.rule && group.rule.title);
-  assert(top && top.actual === 9 && top.expect === '10' && top.status === '不符合', JSON.stringify(top));
-  assert(group.note.includes('同心反焊盘覆盖至 L13') && group.note.includes('按覆盖范围补全推算 BGA-Top-L12-0.5mm'), group.note);
-  const withoutCoverage = C.runCopperCheck([p, n, circles[0], circles[2]], rules, { layerCount: 14, posTol: 0.05, valTol: 0.01 });
-  assert(!withoutCoverage.groups.find(g => String(g.via.id) === '70').rule, '没有覆盖末层证据时不得猜测 Top-L12 约束');
+  assert(group.rule && group.rule.title === 'BGA-Top-L5-0.5mm', group.rule && group.rule.title);
+  assert(top && top.sourcePadstack === 'BGA-HDI-SIG_L1_L5' && top.status === '不符合', JSON.stringify(top));
+  assert(!group.rows.some(row => row.layer === 13), 'L13 Shape 不得塞入 L1-L5 检查表');
+  assert(out.unmatchedCircles.some(shape => shape.id === 81), 'L13 Shape 应保持未配对，等待覆盖该层的其他孔段');
 });
 
 console.log(`\n结果: ${passed} 通过, ${failed} 失败`);
