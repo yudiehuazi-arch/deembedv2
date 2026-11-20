@@ -441,7 +441,8 @@ test('仅 Trace Connections 触发建组，并补入合规多段孔与 Shape-onl
   assert.strictEqual(document.getElementById('btnFilterSubset'), null, '结果筛选不应保留永远不会通过的子集状态');
   const eligibilityHint = document.getElementById('fanoutConnectionsEligibilityHint').textContent;
   assert.ok(eligibilityHint.includes('Connections 中含 Trace'), '导入页应明确只有 Trace 连接孔触发检查');
-  assert.ok(eligibilityHint.includes('差分节距轴偏移不超过 0.175 mm'), '导入页应明确伴随顶层 Pin 的偏移上限');
+  assert.ok(eligibilityHint.includes('唯一命中完整方案的 Padstack 与中心位置'),
+    '导入页应明确伴随顶层 Pin 由完整方案几何确认');
   assert.ok(eligibilityHint.includes('独立 Shape-only 孔不建组'));
 
   const mixedTxt = `

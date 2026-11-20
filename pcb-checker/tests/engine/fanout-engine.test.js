@@ -637,7 +637,7 @@ Item 3 < Via >
   const pairCluster = res.clusters[0];
   assert.deepStrictEqual(pairCluster.signalVias.map(v => v.id).sort((a, b) => a - b), [1, 2]);
   assert.deepStrictEqual(pairCluster.matchingSignalVias.map(v => v.id).sort((a, b) => a - b), [1, 2, 3, 4],
-    '同网络且节距轴偏移合规的 Shape-only 顶层 Pin 应进入完整信号拓扑');
+    '与完整方案 Padstack 和位置唯一对应的 Shape-only 顶层 Pin 应进入信号拓扑');
   assert.strictEqual(pairCluster.matchResult.pass, true);
   assert.strictEqual(pairCluster.matchResult.schemeName, 'TOP-PIN+HDI-DIFF');
   assert.ok(res.vias.filter(v => [3, 4].includes(v.id)).every(v => v.isFanoutEligible && v.isFanoutCompanion));
@@ -645,7 +645,7 @@ Item 3 < Via >
   console.log('  PASS  同网络 Shape-only 顶层 Pin 补齐方案信号对象，Via-only 独立对象保持排除');
 }
 
-// 8f. Shape-only 顶层 Pin 不触发建组，但可按同网络偏移/方案位置补入并保留唯一异网恢复
+// 8f. Shape-only 顶层 Pin 不触发建组，仅按完整方案位置补入并保留唯一异网恢复
 {
   const viaBlock = (id, x, y, net, padstack, connection) => `Item ${id} < Via >\n  Origin-xy: [${x}, ${y}]\n  Net: ${net}\n  Padstack Name: ${padstack}\n  Usage: ${/^Shape:.*\(Top\)/.test(connection) ? 'SMD Pin' : 'BBVia'}\n  Connections:\n    ${connection}\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`;
   const signalRows = [
@@ -658,7 +658,7 @@ Item 3 < Via >
     [7, 14.766, -17.900, 'PAIR_P', 'HDI_L1_L5', 'Shape: 1 (L5)'],
     // 物理位置与 Padstack 唯一对应 PAIR_P 顶层 Pin，但原始导出误写为其他差分网络。
     [8, 9.846, 0, 'OTHER_N', 'TOP_PIN', 'Shape: 1 (Top)'],
-    // 同一区域另一个同网 Pin 的节距轴投影超过 0.175 mm，不能只凭同网关系激活。
+    // 同一区域另一个同网 Pin 不对应任何方案位置，不能只凭同网关系激活。
     [9, 30, 30, 'PAIR_N', 'TOP_PIN', 'Shape: 1 (Top)']
   ];
   const input = signalRows.map(row => viaBlock(...row)).join('\n');
@@ -688,7 +688,7 @@ Item 3 < Via >
   }]);
   assert.strictEqual(res.vias.find(v => v.id === 8).net, 'OTHER_N');
   assert.strictEqual(res.summary.totalCompanionSignalVias, 2);
-  assert.strictEqual(res.summary.excludedSignalVias, 1, '同网络但节距轴投影超过 0.175 mm 的 Shape-only 顶层 Pin 仍应排除');
+  assert.strictEqual(res.summary.excludedSignalVias, 1, '同网络但未命中方案位置的 Shape-only 顶层 Pin 仍应排除');
   assert.strictEqual(res.vias.find(v => v.id === 9).isFanoutEligible, false);
 
   const ambiguousInput = input + '\n' + viaBlock(10, 9.846, 0, 'ANOTHER_P', 'TOP_PIN', 'Shape: 1 (Top)');
@@ -696,9 +696,9 @@ Item 3 < Via >
   const ambiguousPair = ambiguous.clusters.find(cluster => cluster.physicalSignalVias.some(v => v.id === 1));
   assert.strictEqual(ambiguousPair.matchResult.status, 'NO_MATCH_TOPOLOGY',
     '同一缺失位置存在多个异网候选时不得猜测归属');
-  assert.deepStrictEqual(ambiguousPair.matchingSignalVias.map(v => v.id).sort((a, b) => a - b), [1, 2, 3, 4, 5, 6, 7],
-    '合法多段孔和同网络顶层 Pin 保留，但歧义异网候选均不得加入');
-  console.log('  PASS  Shape-only 顶层 Pin 按同网络偏移和方案位置补入，并拒绝歧义异网候选');
+  assert.deepStrictEqual(ambiguousPair.matchingSignalVias.map(v => v.id).sort((a, b) => a - b), [1, 2, 4, 5, 6, 7],
+    '合法多段孔保留；完整方案因异网候选歧义失败时，同网络顶层 Pin 也不得单独激活');
+  console.log('  PASS  Shape-only 顶层 Pin 按完整方案位置补入，并拒绝歧义异网候选');
 }
 
 // 8g. 用户 18 对象回归：Item 15/17 作为同网络 Shape-only 顶层 Pin 补入 Top-L4 方案
@@ -746,11 +746,62 @@ Item 3 < Via >
   assert.strictEqual(result.summary.excludedSignalVias, 0);
   assert.deepStrictEqual(cluster.matchResult.signalNetRecoveries, []);
   assert.ok(Math.hypot(rows[14][1] - rows[15][1], rows[14][2] - rows[15][2]) * 0.0254 > 0.175,
-    '顶层 Pin 到 Trace Via 的总距离不是多段孔偏移；应按差分节距轴投影 0.125 mm 判断伴随 Pin');
+    '顶层 Pin 到 Trace Via 的总距离超过多段孔合并档位，仍应由完整方案位置确认');
   console.log('  PASS  用户 18 对象孔群完整匹配 Top-L4 方案，Item 15/17 作为伴随顶层 Pin 纳入');
 }
 
-// 8h. 无显式 Via 引用时，以 Trace 孔为锚按 0.175 mm 与连续层跨合并完整孔
+// 8h. 用户 20 对象回归：0.66 mm Top-L4 方案按方案位置补入超过 0.175 mm 投影的顶层 Pin
+{
+  const rows = [
+    [19103, 28764.4625, 33059.8381, 'GND', 'BGA-HDI-GND-045drill-ring3_L1_L5'],
+    [19109, 28705.4075, 33059.8381, 'GND', 'BGA-HDI-GND-045drill-ring3_L1_L5'],
+    [19115, 28761.4549, 33069.0945, 'GND', 'BGA-HDI-GND-045drill-ring3_L1_L5'],
+    [19121, 28753.5809, 33074.8153, 'GND', 'BGA-HDI-GND-045drill-ring3_L2_L5'],
+    [19127, 28743.8481, 33074.8153, 'GND', 'BGA-HDI-GND-045drill-ring3_L2_L5'],
+    [19133, 28734.9350, 33069.0945, 'GND', 'BGA-HDI-GND-045drill-ring3_L2_L5'],
+    [19139, 28708.4151, 33069.0945, 'GND', 'BGA-HDI-GND-045drill-ring3_L1_L5'],
+    [19145, 28716.2891, 33074.8153, 'GND', 'BGA-HDI-GND-045drill-ring3_L2_L5'],
+    [19151, 28726.0219, 33074.8153, 'GND', 'BGA-HDI-GND-045drill-ring3_L2_L5'],
+    [19157, 28761.4549, 33050.5817, 'GND', 'BGA-HDI-GND-045drill-ring3_L1_L5'],
+    [19163, 28753.5809, 33044.8609, 'GND', 'BGA-HDI-GND-045drill-ring3_L1_L3'],
+    [19169, 28743.8481, 33044.8609, 'GND', 'BGA-HDI-GND-045drill-ring3_L1_L3'],
+    [19175, 28734.9350, 33050.5817, 'GND', 'BGA-HDI-GND-045drill-ring3_L1_L3'],
+    [19181, 28708.4151, 33050.5817, 'GND', 'BGA-HDI-GND-045drill-ring3_L1_L5'],
+    [19187, 28716.2891, 33044.8609, 'GND', 'BGA-HDI-GND-045drill-ring3_L1_L3'],
+    [19193, 28726.0219, 33044.8609, 'GND', 'BGA-HDI-GND-045drill-ring3_L1_L3'],
+    [27991, 28730.0100, 33077.7381, '27_N', 'via2_8-top'],
+    [27973, 28721.1555, 33059.8381, '27_N', 'BGA-HDI-SIG-045drill-ring3_L1_L4'],
+    [28052, 28739.8600, 33077.7381, '27_P', 'via2_8-top'],
+    [28034, 28748.7145, 33059.8381, '27_P', 'BGA-HDI-SIG-045drill-ring3_L1_L4']
+  ];
+  const schemeCoords = [[34.453, -17.9], [-24.602, -17.9], [31.445, -8.644], [23.571, -2.923],
+    [13.838, -2.923], [4.925, -8.644], [-21.595, -8.644], [-13.721, -2.923],
+    [-3.988, -2.923], [31.445, -27.156], [23.571, -32.877], [13.838, -32.877],
+    [4.925, -27.156], [-21.595, -27.156], [-13.721, -32.877], [-3.988, -32.877],
+    [0, 0], [-8.854, -17.9], [9.85, 0], [18.704, -17.9]];
+  const block = row => `Item ${row[0]} < Via >\n  Origin-xy: [${row[1]}, ${row[2]}]\n  Net: ${row[3]}\n  Padstack Name: ${row[4]}\n  Usage: ${row[4] === 'via2_8-top' ? 'SMD Pin' : 'BBVia'}\n  Connections:\n    ${[27973, 28034].includes(row[0]) ? 'Trace: 1 (04G01P)' : 'Shape: 1 (Top)'}\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`;
+  const library = new FanoutChecker.FanoutLibrary();
+  library.addScheme(new FanoutChecker.FanoutScheme({
+    id: 'user_top_l4_066_20', name: 'BGA_2对_P0.25/0.66mm_Top-L4_GND轴对称',
+    vias: rows.map((row, index) => ({ id: row[0], x: schemeCoords[index][0], y: schemeCoords[index][1],
+      net: row[3], padstack: row[4], drill: row[4] === 'via2_8-top' ? 0 : 4.5 }))
+  }));
+  const result = FanoutChecker.runFanoutInspection(rows.map(block).join('\n'), library, { distanceTolerance: 2 });
+  const cluster = result.clusters[0];
+  assert.strictEqual(cluster.matchResult.status, 'MATCH_PASS');
+  assert.strictEqual(cluster.matchResult.schemeName, 'BGA_2对_P0.25/0.66mm_Top-L4_GND轴对称');
+  assert.deepStrictEqual(cluster.matchingSignalVias.map(v => v.id), [27973, 28034, 27991, 28052]);
+  assert.strictEqual(cluster.matchResult.viaAudit.length, 16);
+  assert.strictEqual(cluster.matchResult.matchedViaCount, 20);
+  assert.strictEqual(result.summary.totalEligibleSignalViaItems, 4);
+  assert.strictEqual(result.summary.totalCompanionSignalVias, 2);
+  assert.strictEqual(result.summary.excludedSignalVias, 0);
+  assert.ok(Math.abs(rows[16][1] - rows[17][1]) * 0.0254 > 0.175,
+    'Item 27991 到 Trace 孔的差分节距轴投影约 0.225 mm，应由方案位置确认而非 0.175 mm 硬门槛排除');
+  console.log('  PASS  用户 20 对象孔群完整匹配 0.66 mm Top-L4 方案，16 个 GND 全部一对一命中');
+}
+
+// 8i. 无显式 Via 引用时，以 Trace 孔为锚按 0.175 mm 与连续层跨合并完整孔
 {
   const segment = (id, x, y, net, padstack, connection) => `Item ${id} < Via >\n  Origin-xy: [${x}, ${y}]\n  Net: ${net}\n  Padstack Name: ${padstack}\n${connection ? `  Connections:\n    ${connection}\n` : ''}~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`;
   const rows = [
