@@ -56,7 +56,8 @@
   }
 
   function closestSignalScheme(cluster, library) {
-    var actual = cluster.signalVias && cluster.signalVias.length ? cluster.signalVias : signalVias(cluster.vias);
+    var actual = cluster.matchingSignalVias && cluster.matchingSignalVias.length ? cluster.matchingSignalVias :
+      (cluster.signalVias && cluster.signalVias.length ? cluster.signalVias : signalVias(cluster.vias));
     var candidates = ((library && library.schemes) || []).map(function (scheme) {
       var expected = signalVias(scheme.vias);
       if (!expected.length) return null;

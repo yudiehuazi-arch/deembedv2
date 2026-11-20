@@ -284,6 +284,33 @@ test('检查结果逐孔说明 Padstack、位置、缺孔和多孔问题及目�
   assert.ok(noMatchText.includes('孔 #22') && noMatchText.includes('WRONG_N') && noMatchText.includes('EXPECTED_N'), '应逐孔说明 Padstack 实际值与目标值');
   assert.ok(noMatchDetail.issues.some(issue => issue.kind === 'position' && issue.text.includes('应移到约')), '应给出位置不对孔的目标坐标');
 
+  const closest = window.FanoutResultDetails.closestSignalScheme({
+    signalVias: [
+      { id: 41, x: 0, y: 0, padstack: 'HDI', net: 'PAIR_P' },
+      { id: 42, x: 20, y: 0, padstack: 'HDI', net: 'PAIR_N' }
+    ],
+    matchingSignalVias: [
+      { id: 41, x: 0, y: 0, padstack: 'HDI', net: 'PAIR_P' },
+      { id: 42, x: 20, y: 0, padstack: 'HDI', net: 'PAIR_N' },
+      { id: 43, x: 0, y: 20, padstack: 'TOP_PIN', net: 'PAIR_P' },
+      { id: 44, x: 20, y: 20, padstack: 'TOP_PIN', net: 'PAIR_N' }
+    ]
+  }, { schemes: [
+    { name: '错误的一对孔方案', vias: [{ x: 0, y: 0, padstack: 'OTHER', net: 'PAIR_P' }, { x: 20, y: 0, padstack: 'OTHER', net: 'PAIR_N' }] },
+    { name: '正确的顶层Pin加HDI方案', vias: [
+      { x: 0, y: 0, padstack: 'HDI', net: 'PAIR_P' }, { x: 20, y: 0, padstack: 'HDI', net: 'PAIR_N' },
+      { x: 0, y: 20, padstack: 'TOP_PIN', net: 'PAIR_P' }, { x: 20, y: 20, padstack: 'TOP_PIN', net: 'PAIR_N' }
+    ] }
+  ] });
+  assert.strictEqual(closest.scheme.name, '正确的顶层Pin加HDI方案', '最接近方案也要使用已吸收的同网络顶层 Pin，而非只看 Trace 锚点数量');
+  window.renderImportedTraceOverview([
+    { id: 51, net: 'PAIR_P', isFanoutEligible: true },
+    { id: 52, net: 'PAIR_P', isFanoutEligible: false, isFanoutCompanion: true },
+    { id: 53, net: 'IDLE', isFanoutEligible: false }
+  ], []);
+  assert.ok(document.getElementById('lblImportParseHint').textContent.includes('参与检查 1 / 伴随方案比对 1 / 未关联连接走线 1 不参与'),
+    '导入概览应区分 Trace 锚点、伴随方案比对顶层 Pin 与真正排除项');
+
   window.switchTab('tabResults');
   window.setResultFilter('all');
   assert.ok(document.querySelector('.fanout-result-summary'), '结果表应使用详细归因组件');

@@ -25,11 +25,6 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
   var parseFanoutInputData = parser.parseFanoutInputData;
   var summarizeTraceData = parser.summarizeTraceData;
   var associateTracesWithClusters = parser.associateTracesWithClusters;
-  var FanoutLibrary = schemeMod.FanoutLibrary;
-  var clusterVias = clusterMod.clusterVias;
-  var matchClusterToLibrary = clusterMod.matchClusterToLibrary;
-  var matchClusterSubsetsIterative = clusterMod.matchClusterSubsetsIterative;
-  var compareClusterWithScheme = clusterMod.compareClusterWithScheme;
   function buildGndSpatialIndex(gndVias, cellSize = 35) {
     const grid = new Map();
     for (let i = 0; i < gndVias.length; i++) {
@@ -193,6 +188,7 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
           totalVias: 0,
           totalSignalVias: 0,
           totalEligibleSignalViaItems: 0,
+          totalCompanionSignalVias: 0,
           totalParsedSignalVias: 0,
           excludedSignalVias: 0,
           totalTraces: traceSummary.totalTraces,
@@ -224,9 +220,14 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
     const gndVias = vias.filter(v => v.net && v.net.toUpperCase().includes('GND'));
     const allSignalVias = vias.filter(v => !v.net || !v.net.toUpperCase().includes('GND'));
     // Trace 连接孔段是检查锚点；同网络 Via Connections 可带入完整堆叠，但不能让无 Trace 孔群自行建组。
+    allSignalVias.forEach(via => { via.isFanoutCompanion = false; });
     const activePhysicalSignalVias = selectTraceConnectedSignalVias(allSignalVias);
     const activeSignalVias = collapseSignalStacks(activePhysicalSignalVias);
+    const activeSignalIds = new Set(activePhysicalSignalVias.map(via => String(via.id)));
+    const availableCompanionSignals = allSignalVias.filter(via => via.hasConnections && !via.hasTraceConnections &&
+      !(via.connectedViaIds || []).length && !activeSignalIds.has(String(via.id)));
     const gndIndex = buildGndSpatialIndex(gndVias, 35);
+    const companionIndex = buildGndSpatialIndex(availableCompanionSignals, 35);
     const signalUnits = groupSignalUnits(activeSignalVias, 35.0);
     let passCount = 0;
     let exactPassCount = 0;
@@ -236,14 +237,19 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
     let noMatchCount = 0;
     const schemeCoverage = {};
     const clusterUnits = [];
+    const usedCompanionSignalIds = new Set();
     for (let uIdx = 0; uIdx < signalUnits.length; uIdx++) {
       const unit = signalUnits[uIdx];
       const unitSigVias = unit.signalVias;
       const physicalSignalVias = unitSigVias.flatMap(via => via.physicalVias || [via]);
       const stackAudit = signalStackAudit(unitSigVias);
-      const nearbyGndItems = gndIndex.findGndNear(unit.centroid.x, unit.centroid.y, 80.0);
-      const nearbyGnd = nearbyGndItems.map(item => item.via);
-      const candidateVias = [...physicalSignalVias, ...nearbyGnd];
+      const unitNets = new Set(unitSigVias.map(via => String(via.net || '').toUpperCase()));
+      const companionSignals = companionIndex.findGndNear(unit.centroid.x, unit.centroid.y, 80.0)
+        .map(item => item.via).filter(via => unitNets.has(String(via.net || '').toUpperCase()));
+      companionSignals.forEach(via => { via.isFanoutCompanion = true; usedCompanionSignalIds.add(String(via.id)); });
+      const matchingSignalVias = [...unitSigVias, ...companionSignals];
+      const nearbyGnd = gndIndex.findGndNear(unit.centroid.x, unit.centroid.y, 80.0).map(item => item.via);
+      const candidateVias = [...physicalSignalVias, ...companionSignals, ...nearbyGnd];
       let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
       candidateVias.forEach(v => {
         if (v.x < minX) minX = v.x;
@@ -259,8 +265,8 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
         if (!scheme.vias || scheme.vias.length === 0) continue;
         const schemeSigVias = scheme.vias.filter(v => v.net && !v.net.toUpperCase().includes('GND'));
         const schemeGndVias = scheme.vias.filter(v => !v.net || v.net.toUpperCase().includes('GND') || (v.padstack && v.padstack.toUpperCase().includes('GND')));
-        if (schemeSigVias.length !== unitSigVias.length) continue;
-        const angles = candidateRotations(unitSigVias, schemeSigVias, distTol, allowRotation, allowArbitraryRotation);
+        if (schemeSigVias.length !== matchingSignalVias.length) continue;
+        const angles = candidateRotations(matchingSignalVias, schemeSigVias, distTol, allowRotation, allowArbitraryRotation);
         const mirrors = allowMirror ? [false, true] : [false];
         const s0 = schemeSigVias[0];
         for (const mirror of mirrors) {
@@ -276,7 +282,7 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
               const ry = dx * sinA + dy * cosA;
               return { sv, relX: rx, relY: ry };
             });
-            for (const u0 of unitSigVias) {
+            for (const u0 of matchingSignalVias) {
               if ((u0.padstack || '').trim().toLowerCase() !== (s0.padstack || '').trim().toLowerCase()) {
                 continue;
               }
@@ -286,9 +292,9 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
                 const expX = u0.x + item.relX;
                 const expY = u0.y + item.relY;
                 let foundIdx = -1;
-                for (let k = 0; k < unitSigVias.length; k++) {
+                for (let k = 0; k < matchingSignalVias.length; k++) {
                   if (usedSigIdx.has(k)) continue;
-                  const uv = unitSigVias[k];
+                  const uv = matchingSignalVias[k];
                   if (Math.hypot(uv.x - expX, uv.y - expY) <= distTol) {
                     if ((uv.padstack || '').trim().toLowerCase() === (item.sv.padstack || '').trim().toLowerCase()) {
                       foundIdx = k;
@@ -303,7 +309,7 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
                   break;
                 }
               }
-              if (allSigMatched && usedSigIdx.size === unitSigVias.length) {
+              if (allSigMatched && usedSigIdx.size === matchingSignalVias.length) {
                 const usedGndIndices = new Set();
                 const padMismatchList = [];
                 const missingVias = [];
@@ -419,6 +425,7 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
           viaCount: candidateVias.length,
           signalVias: unit.signalVias,
           physicalSignalVias,
+          matchingSignalVias,
           signalNet: unit.net,
           centroid: unit.centroid,
           bbox: { minX, maxX, minY, maxY, spanX, spanY, maxSpan },
@@ -453,7 +460,7 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
           isSubsetMatch: bestEval.redundantGndCount > 0,
           schemeName: s.name,
           schemeId: s.id,
-          matchedViaCount: unitSigVias.length + bestEval.matchedGndCount,
+          matchedViaCount: matchingSignalVias.length + bestEval.matchedGndCount,
           redundantViaCount: bestEval.redundantGndCount,
           maxDeviation: 0,
           maxDeviationMm: 0,
@@ -472,6 +479,7 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
           viaCount: candidateVias.length,
           signalVias: unit.signalVias,
           physicalSignalVias,
+          matchingSignalVias,
           signalNet: unit.net,
           centroid: unit.centroid,
           bbox: { minX, maxX, minY, maxY, spanX, spanY, maxSpan },
@@ -524,6 +532,7 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
           viaCount: candidateVias.length,
           signalVias: unit.signalVias,
           physicalSignalVias,
+          matchingSignalVias,
           signalNet: unit.net,
           centroid: unit.centroid,
           bbox: { minX, maxX, minY, maxY, spanX, spanY, maxSpan },
@@ -539,8 +548,9 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
       totalVias: vias.length,
       totalSignalVias: activeSignalVias.length,
       totalEligibleSignalViaItems: activePhysicalSignalVias.length,
+      totalCompanionSignalVias: usedCompanionSignalIds.size,
       totalParsedSignalVias: allSignalVias.length,
-      excludedSignalVias: allSignalVias.length - activePhysicalSignalVias.length,
+      excludedSignalVias: allSignalVias.length - activePhysicalSignalVias.length - usedCompanionSignalIds.size,
       totalTraces: traceSummary.totalTraces,
       totalTraceSegments: traceSummary.totalTraceSegments,
       traceLineCount: traceSummary.traceLineCount,

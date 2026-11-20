@@ -194,9 +194,11 @@
     var eligibleSigViaCnt = signalVias.filter(function (v) {
       return Boolean(v.isFanoutEligible != null ? v.isFanoutEligible : (v.hasConnections && v.hasTraceConnections));
     }).length;
-    var excludedSigViaCnt = sigViaCnt - eligibleSigViaCnt;
+    var companionSigViaCnt = signalVias.filter(function (v) { return v.isFanoutCompanion; }).length;
+    var excludedSigViaCnt = sigViaCnt - eligibleSigViaCnt - companionSigViaCnt;
     var gndViaCnt = vList.length - sigViaCnt;
     var signalHint = '信号孔段 ' + sigViaCnt + '（参与检查 ' + eligibleSigViaCnt +
+      (companionSigViaCnt > 0 ? ' / 伴随方案比对 ' + companionSigViaCnt : '') +
       (excludedSigViaCnt > 0 ? ' / 未关联连接走线 ' + excludedSigViaCnt + ' 不参与' : '') + '） / 地孔 ' + gndViaCnt;
     var hint = document.getElementById('lblImportParseHint');
     if (hint) {
@@ -362,12 +364,15 @@
   function summarizeClusterSignals(cluster) {
     var sigVias = cluster.signalVias || cluster.vias.filter(function (v) { return v.net && v.net.toUpperCase().indexOf('GND') < 0; });
     var physicalSigVias = cluster.physicalSignalVias || sigVias;
+    var companionSignals = cluster.matchingSignalVias ? cluster.matchingSignalVias.slice(sigVias.length) : [];
     var sigStr = sigVias.map(function (v) {
       var segmentIds = v.physicalViaIds || [v.id];
       var stackText = segmentIds.length > 1 ? '（孔段 #' + segmentIds.join('/#') + '）' : '';
       return '#' + v.id + ' ' + escapeHtml(v.net) + stackText;
     }).join(', ');
-    return { sigVias: sigVias, physicalSigVias: physicalSigVias, sigStr: sigStr, gndCount: cluster.vias.length - physicalSigVias.length };
+    var companionStr = companionSignals.map(function (v) { return '#' + v.id + ' ' + escapeHtml(v.net); }).join(', ');
+    return { sigVias: sigVias, physicalSigVias: physicalSigVias, companionSignals: companionSignals,
+      sigStr: sigStr, companionStr: companionStr, gndCount: cluster.vias.length - physicalSigVias.length - companionSignals.length };
   }
 
   function renderResultsTable() {
@@ -414,8 +419,8 @@
             : '<span class="badge-tag bad">未匹配预设方案</span>'));
 
       var signalView = summarizeClusterSignals(c);
-      var sigVias = signalView.sigVias, physicalSigVias = signalView.physicalSigVias;
-      var sigStr = signalView.sigStr, gndCount = signalView.gndCount;
+      var sigVias = signalView.sigVias, physicalSigVias = signalView.physicalSigVias, companionSignals = signalView.companionSignals;
+      var sigStr = signalView.sigStr, companionStr = signalView.companionStr, gndCount = signalView.gndCount;
       var ts = c.traceSummary || null;
       var traceInfoHtml = (ts && (ts.segmentCount > 0 || (ts.layers && ts.layers.length > 0)))
         ? ('<div style="margin-top:3px;padding:2px 6px;background:#f8fafc;border:1px solid var(--line);border-radius:4px;color:var(--pri-d);font-size:11px">' +
@@ -430,12 +435,14 @@
       return '<tr class="' + rowClass + '" id="row_' + c.id + '">' +
         '<td><input type="checkbox" data-no-persist ' + (isReviewed ? 'checked' : '') + ' onchange="toggleReviewCluster(\'' + c.id + '\', this.checked)"></td>' +
         '<td><strong style="color:var(--pri);cursor:pointer" onclick="locateClusterInCanvas(\'' + c.id + '\', this)">' + escapeHtml(c.id) + '</strong></td>' +
-        '<td><span class="badge-tag purple">' + c.viaCount + '孔段 · 信' + sigVias.length + '孔/' + physicalSigVias.length + '段 · 地' + gndCount + '</span></td>' +
+        '<td><span class="badge-tag purple">' + c.viaCount + '孔段 · 信' + sigVias.length + '孔/' + physicalSigVias.length + '段' +
+          (companionSignals.length ? (' · 顶层Pin' + companionSignals.length) : '') + ' · 地' + gndCount + '</span></td>' +
         '<td><div style="font-family:var(--mono);font-size:11px">[' + c.centroid.x.toFixed(1) + ', ' + c.centroid.y.toFixed(1) + ']</div>' +
           '<div style="font-size:11px;color:var(--sub)">跨度: ' + (maxSpan * 0.0254).toFixed(2) + ' mm</div></td>' +
         '<td style="max-width:210px;font-size:11px">' +
           '<div style="font-weight:700;color:var(--pri-d)">' + (c.signalNet ? escapeHtml(c.signalNet) : sigStr) + '</div>' +
-          '<div style="color:var(--sub);font-size:11px">信号孔: ' + sigStr + ' · 地孔: ' + gndCount + '</div>' + traceInfoHtml + '</td>' +
+          '<div style="color:var(--sub);font-size:11px">信号孔: ' + sigStr +
+          (companionStr ? (' · 顶层Pin: ' + companionStr) : '') + ' · 地孔: ' + gndCount + '</div>' + traceInfoHtml + '</td>' +
         '<td>' + badgeHtml + '</td>' +
         '<td style="min-width:360px;font-size:11px;line-height:1.5">' + comparisonHtml + '</td>' +
         '<td><label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer">' +
@@ -480,7 +487,7 @@
     var schemeVias = cluster.vias;
     if (cluster.physicalSignalVias && cluster.signalVias) {
       var gndVias = cluster.vias.filter(function (v) { return v.net && v.net.toUpperCase().indexOf('GND') >= 0; });
-      schemeVias = cluster.signalVias.concat(gndVias);
+      schemeVias = (cluster.matchingSignalVias || cluster.signalVias).concat(gndVias);
     }
     var scheme = FC.FanoutScheme.fromVias('扇出方案_' + cluster.id + '_' + schemeVias.length + '孔', schemeVias, {
       category: '提取方案',

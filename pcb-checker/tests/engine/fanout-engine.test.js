@@ -596,6 +596,45 @@ Item 3 < Via >
   console.log('  PASS  双孔群与三段盲埋孔堆叠：仅连接 Trace 的下方孔群参与检查');
 }
 
+// 8e. Trace 锚点建立孔组后，同网络的附近 Shape-only SMD Pin 参与完整方案几何匹配
+{
+  const blocks = [
+    ['1', 0, 0, 'PAIR_P', 'HDI_SIG', 'Trace: 1 (04G01P)'],
+    ['2', 20, 0, 'PAIR_N', 'HDI_SIG', 'Trace: 1 (04G01P)'],
+    ['3', 0, 20, 'PAIR_P', 'TOP_PIN', 'Shape: 1 (Top)'],
+    ['4', 20, 20, 'PAIR_N', 'TOP_PIN', 'Shape: 1 (Top)'],
+    ['5', 30, 20, 'PAIR_N', 'UNANCHORED_VIA', 'Via: 99 (05G02P)']
+  ].map(v => `Item ${v[0]} < Via >\n  Origin-xy: [${v[1]}, ${v[2]}]\n  Net: ${v[3]}\n  Padstack Name: ${v[4]}\n  Connections:\n    ${v[5]}\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`).join('\n');
+  const library = new FanoutChecker.FanoutLibrary();
+  library.addScheme(new FanoutChecker.FanoutScheme({
+    id: 'l2_l4_pair', name: 'L2-L4-DIFF',
+    vias: [
+      { id: 1, x: 0, y: 0, net: 'PAIR_P', padstack: 'L2_L4_SIG' },
+      { id: 2, x: 20, y: 0, net: 'PAIR_N', padstack: 'L2_L4_SIG' }
+    ]
+  }));
+  library.addScheme(new FanoutChecker.FanoutScheme({
+    id: 'top_pin_hdi_pair', name: 'TOP-PIN+HDI-DIFF',
+    vias: [
+      { id: 1, x: 0, y: 0, net: 'PAIR_P', padstack: 'HDI_SIG' },
+      { id: 2, x: 20, y: 0, net: 'PAIR_N', padstack: 'HDI_SIG' },
+      { id: 3, x: 0, y: 20, net: 'PAIR_P', padstack: 'TOP_PIN' },
+      { id: 4, x: 20, y: 20, net: 'PAIR_N', padstack: 'TOP_PIN' }
+    ]
+  }));
+  const res = FanoutChecker.runFanoutInspection(blocks, library);
+  assert.strictEqual(res.summary.totalSignalVias, 2, '仍只有两个 Trace 锚点具备建组资格');
+  assert.strictEqual(res.summary.totalCompanionSignalVias, 2, '两个 Shape-only 顶层 Pin 应作为伴随方案对象参与');
+  assert.strictEqual(res.summary.excludedSignalVias, 1, '未由 Trace 锚定的 Via 连接链不得被当成顶层 Pin 吸收');
+  assert.strictEqual(res.clusters.length, 1);
+  assert.deepStrictEqual(res.clusters[0].signalVias.map(v => v.id), [1, 2]);
+  assert.deepStrictEqual(res.clusters[0].matchingSignalVias.map(v => v.id).sort((a, b) => a - b), [1, 2, 3, 4],
+    '孔组建立后应吸收附近同网络顶层 Pin 参与方案比对');
+  assert.strictEqual(res.clusters[0].matchResult.pass, true);
+  assert.strictEqual(res.clusters[0].matchResult.schemeName, 'TOP-PIN+HDI-DIFF');
+  console.log('  PASS  Trace 锚点吸收附近同网络 Shape-only 顶层 Pin 后匹配完整扇出方案');
+}
+
 // 9. 导入 Trace (走线) 数据解析与孔群关联测试
 {
   const fs = require('fs');
