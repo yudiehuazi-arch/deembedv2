@@ -109,6 +109,44 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   console.log('  PASS  多 Item 异型铜皮：完整预览、合计面积与实际相接 Shape 联合比对');
 }
 
+// 1.2b 规则只有总面积时，也应从目标孔出发聚合几何连通的全部 Shape Item
+{
+  const rectShape = (id, minX, minY, maxX, maxY, area, net = '25_N', set = 'Shape') => ({
+    id, layer: 'TOP', set, net, area, areaReported: area, areaComputed: area,
+    areaMm2: area * 0.0254 * 0.0254,
+    boundary: [
+      { type: 'line', x1: minX, y1: minY, x2: maxX, y2: minY },
+      { type: 'line', x1: maxX, y1: minY, x2: maxX, y2: maxY },
+      { type: 'line', x1: maxX, y1: maxY, x2: minX, y2: maxY },
+      { type: 'line', x1: minX, y1: maxY, x2: minX, y2: minY }
+    ],
+    voids: [], arcs: [], centroid: { x: (minX + maxX) / 2, y: (minY + maxY) / 2 },
+    bbox: { minX, minY, maxX, maxY, spanX: maxX - minX, spanY: maxY - minY }
+  });
+  const via = { id: 53330, x: 0, y: 0, padstack: 'via2_8-top', net: '25_N' };
+  const shapes = [
+    rectShape(21834, -1, -1, 1, 1, 6.2),
+    rectShape(21835, 1, -1, 251, 1, 97.4),
+    rectShape(21836, 10, 20, 20, 30, 50),
+    rectShape(21837, -3, -1, -1, 1, 500, 'OTHER_N')
+  ];
+  assert.ok(Math.hypot(via.x - shapes[1].centroid.x, via.y - shapes[1].centroid.y) > 120,
+    '第二块铜皮的几何中心应在旧质心搜索范围之外');
+  const checked = checkSpecialShapedCopper([via], shapes, [{
+    id: 'via2_8_connected', name: 'TOP特定异型泪滴铜皮', set: 'Shape',
+    padstack: 'via2_8-top', layer: 'TOP', expectedArea: 103.6, areaTolerance: 0.01
+  }]);
+  assert.strictEqual(checked.length, 1);
+  assert.strictEqual(checked[0].pass, true, '规则只有总面积时应自动合并与目标孔连通的两块铜皮');
+  assert.deepStrictEqual(checked[0].targetShapeIds, [21834, 21835]);
+  assert.strictEqual(checked[0].actualShapeItemCount, 2);
+  assert.strictEqual(checked[0].expectedShapeItemCount, 1, '模板 Item 数不应限制实际连通分量收集');
+  assert.ok(Math.abs(checked[0].actualArea - 103.6) < 1e-9);
+  assert.ok(!checked[0].targetShapeIds.includes(21836), '同网络但几何不连通的附近铜皮不得纳入');
+  assert.ok(!checked[0].targetShapeIds.includes(21837), '几何相接但网络不同的铜皮不得纳入');
+  console.log('  PASS  规则仅存总面积时按孔边真实几何聚合连通 Shape，质心偏移与无关铜皮不影响判定');
+}
+
 // 1.3 规则 2 必须按 Shape Item 的 Set 类别隔离候选
 {
   const vias = [{ id: 20, x: 100, y: 100, padstack: 'SET_TARGET', net: 'SET_P' }];

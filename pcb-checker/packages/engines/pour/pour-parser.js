@@ -352,22 +352,46 @@
     return false;
   }
 
-  function findAssociatedShapeItems(via, shapeIndex, itemCount) {
-    const wanted = Math.max(1, parseInt(itemCount, 10) || 1);
-    const candidates = geom.queryPointGrid(shapeIndex, via.x - 120, via.y - 120, via.x + 120, via.y + 120)
-      .map(shape => ({ shape, distance: dist2D(via.x, via.y, shape.centroid.x, shape.centroid.y) }))
-      .filter(entry => entry.distance <= 120)
+  function shapeNetCompatible(a, b) {
+    const left = String(a || '').trim().toUpperCase(), right = String(b || '').trim().toUpperCase();
+    return !left || !right || left === right;
+  }
+
+  function viaToShapeDistance(via, shape) {
+    if (shape && shape.bbox) return geom.pointToShapeDistance(via.x, via.y, shape);
+    return shape && shape.centroid ? dist2D(via.x, via.y, shape.centroid.x, shape.centroid.y) : Infinity;
+  }
+
+  function queryShapeAssociationIndex(index, via, radius) {
+    if (!index) return [];
+    if (!index.bboxIndex && !index.pointIndex) {
+      return geom.queryPointGrid(index, via.x - radius, via.y - radius, via.x + radius, via.y + radius);
+    }
+    const found = new Set();
+    geom.queryBBoxGrid(index.bboxIndex, via.x - radius, via.y - radius, via.x + radius, via.y + radius)
+      .forEach(shape => found.add(shape));
+    geom.queryPointGrid(index.pointIndex, via.x - radius, via.y - radius, via.x + radius, via.y + radius)
+      .forEach(shape => found.add(shape));
+    return Array.from(found);
+  }
+
+  /** 从孔边铜皮出发，收集局部范围内同层、同 Set、同网络且真实边界相接的完整连通分量。 */
+  function findAssociatedShapeItems(via, shapeIndex) {
+    const radius = 120;
+    const candidates = queryShapeAssociationIndex(shapeIndex, via, radius)
+      .filter(shape => shapeNetCompatible(via.net, shape.net))
+      .map(shape => ({ shape, distance: viaToShapeDistance(via, shape) }))
+      .filter(entry => entry.distance <= radius)
       .sort((a, b) => a.distance - b.distance || String(a.shape.id).localeCompare(String(b.shape.id), undefined, { numeric: true }));
     if (!candidates.length) return null;
     const selected = [candidates[0].shape], used = new Set(selected);
-    while (selected.length < wanted) {
+    while (true) {
       const next = candidates.find(entry => {
         const shape = entry.shape, first = selected[0];
         if (used.has(shape) || String(shape.layer).toUpperCase() !== String(first.layer).toUpperCase()) return false;
         const shapeSet = normalizeSpecialShapeSet(shape.set, shape.set == null ? 'Shape' : '');
         const firstSet = normalizeSpecialShapeSet(first.set, first.set == null ? 'Shape' : '');
-        if (shapeSet !== firstSet) return false;
-        if (shape.net && first.net && String(shape.net).toUpperCase() !== String(first.net).toUpperCase()) return false;
+        if (shapeSet !== firstSet || !shapeNetCompatible(first.net, shape.net)) return false;
         return selected.some(current => shapeItemsTouch(current, shape, 0.05));
       });
       if (!next) break;
@@ -385,7 +409,10 @@
     });
     const indexes = new Map();
     byLayer.forEach((layerShapes, layer) => {
-      const index = geom.buildPointGrid(layerShapes, 120, shape => shape.centroid);
+      const index = {
+        bboxIndex: geom.buildBBoxGrid(layerShapes.filter(shape => shape && shape.bbox), 120),
+        pointIndex: geom.buildPointGrid(layerShapes, 120, shape => shape.centroid)
+      };
       indexes.set(layer, index);
       const alias = geom.physicalLayerAlias(layer);
       if (!indexes.has(alias)) indexes.set(alias, index);

@@ -224,9 +224,9 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
         if (expectedCenterDistance != null && !pairedHdi) return;
         matchedAssociationVias.add(via);
         targetLayers.forEach(targetLayer => {
-          const expectedIndexes = shapeIndexesBySet.get(expectedSet), bestShape = findAssociatedShapeItems(via, expectedIndexes && expectedIndexes.get(targetLayer), expectedItemCount);
+          const expectedIndexes = shapeIndexesBySet.get(expectedSet), bestShape = findAssociatedShapeItems(via, expectedIndexes && expectedIndexes.get(targetLayer));
           const alternate = bestShape ? null : SPECIAL_SHAPE_SETS.filter(set => set !== expectedSet).map(set => ({ set, indexes: shapeIndexesBySet.get(set) }))
-            .map(item => ({ set: item.set, shape: findAssociatedShapeItems(via, item.indexes && item.indexes.get(targetLayer), expectedItemCount) })).find(item => item.shape);
+            .map(item => ({ set: item.set, shape: findAssociatedShapeItems(via, item.indexes && item.indexes.get(targetLayer)) })).find(item => item.shape);
           const alternateSet = alternate && alternate.set, alternateShape = alternate && alternate.shape;
           const bestShapeIds = bestShape ? (bestShape.itemIds || [bestShape.id]) : [];
           let targetDesc = nearbyHdi
