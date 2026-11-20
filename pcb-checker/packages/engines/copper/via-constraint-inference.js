@@ -280,6 +280,19 @@
     };
   }
 
+  function antiPadCoverageLayers(set) {
+    var found = {};
+    ((set && set.constraints) || []).forEach(function (constraint) {
+      var label = String((constraint.cat || '') + ' ' + (constraint.name || ''));
+      if (!/反焊盘/.test(label) || /非功能/.test(label)) return;
+      Object.keys(constraint.values || {}).forEach(function (key) {
+        var match = /^L(\d+)$/i.exec(key), value = constraint.values[key];
+        if (match && value != null && value !== '' && value !== '无' && !isNaN(parseFloat(value))) found[+match[1]] = 1;
+      });
+    });
+    return Object.keys(found).map(Number).sort(function (a, b) { return a - b; });
+  }
+
   function selectConstraint(sets, unit, n) {
     if (!unit || !unit.signal || !unit.kind || !unit.startLayer || !unit.endLayer) return { rule: null, candidates: [] };
     var sameKind = [], exact = [];
@@ -290,22 +303,35 @@
       sameKind.push(item);
       if (meta.startLayer === unit.startLayer && meta.endLayer === unit.endLayer) exact.push(item);
     });
+    var matched = exact, inferredFromAntiPad = false;
+    var observed = uniq(unit.observedAntiLayers || []).map(Number).filter(function (layer) { return layer > 0; }).sort(function (a, b) { return a - b; });
+    if (!matched.length && observed.length && observed.indexOf(unit.startLayer) >= 0 && observed[observed.length - 1] > unit.endLayer) {
+      var observedEnd = observed[observed.length - 1];
+      matched = sameKind.filter(function (x) {
+        if (x.meta.startLayer !== unit.startLayer) return false;
+        var coverage = antiPadCoverageLayers(x.set), coverageEnd = coverage.length ? coverage[coverage.length - 1] : 0;
+        return coverageEnd === observedEnd;
+      });
+      inferredFromAntiPad = matched.length > 0;
+    }
     var picked = null;
     if (unit.pitchMm != null) {
-      var pitched = exact.filter(function (x) { return x.meta.pitchMm != null; });
-      var pool = pitched.length ? pitched : exact.filter(function (x) { return x.meta.pitchMm == null; });
+      var pitched = matched.filter(function (x) { return x.meta.pitchMm != null; });
+      var pool = pitched.length ? pitched : matched.filter(function (x) { return x.meta.pitchMm == null; });
       pool.forEach(function (x) {
         var delta = x.meta.pitchMm == null ? 0 : Math.abs(x.meta.pitchMm - unit.pitchMm);
         if (!picked || delta < picked.delta) picked = { set: x.set, delta: delta };
       });
     } else {
-      var noPitch = exact.filter(function (x) { return x.meta.pitchMm == null; });
+      var noPitch = matched.filter(function (x) { return x.meta.pitchMm == null; });
       if (noPitch.length) picked = { set: noPitch[0].set, delta: 0 };
     }
-    var candPool = exact.length ? exact : sameKind;
+    var candPool = matched.length ? matched : sameKind;
     return {
       rule: picked ? picked.set : null,
       pitchDeltaMm: picked ? picked.delta : null,
+      inferredFromAntiPad: !!(picked && inferredFromAntiPad),
+      observedAntiLayers: observed,
       candidates: candPool.slice(0, 5).map(function (x) { return x.set.title; })
     };
   }

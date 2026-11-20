@@ -12,7 +12,6 @@
   }
   var HEAD_RE = /Item\s+(\d+)\s*<\s*(Shape|Via|Trace)\s*>/i;
   var XY_RE = /xy\s*\[\s*([+-]?[0-9.]+)\s*,\s*([+-]?[0-9.]+)\s*\]/gi;
-
   function parseBoardItems(text) {
     var raw = String(text || '').replace(/\u0000/g, '');
     var chunks = raw.split(/~{8,}/);
@@ -74,7 +73,6 @@
     });
     return items;
   }
-
   function subsetToLayer(subset, n) {
     var s = String(subset || '').trim();
     if (!s) return 0;
@@ -85,11 +83,9 @@
     var l = s.match(/L\s*(\d+)/i);
     return l ? +l[1] : 0;
   }
-
   function isPadWord(str, from) {
     return /^pad/i.test(String(str).slice(from, from + 3));
   }
-
   function fanCandsOfName(raw) {
     var s = String(raw || '');
     var out = [], seen = {};
@@ -327,6 +323,9 @@
       keys.pitchMm = unit.pitchMm;
       keys.pitchMode = unit.pitchMode;
       keys.mateNet = unit.mateNet;
+      var observedAntiLayers = {};
+      near.forEach(function (sh) { var layer = subsetToLayer(sh.subset, n); if (layer && /keepout|anti-?pad|反焊盘|antipad/i.test((sh.set || '') + ' ' + (sh.head || ''))) observedAntiLayers[layer] = 1; });
+      unit.observedAntiLayers = Object.keys(observedAntiLayers).map(Number);
       var sel = unit.signal ? VI.selectConstraint(sets, unit, n) : { rule: null, candidates: [] };
       var traceList = Object.keys(traceNums).map(function (k) { return +k; });
       var spanText = unit.startLayer && unit.endLayer ? ('L' + unit.startLayer + '-L' + unit.endLayer) : '层跨未识别';
@@ -338,6 +337,7 @@
         ? ('SIG 完整孔组 ' + unit.memberIds.length + ' 段（Via ' + unit.memberIds.join('、') + '），连接 ' + spanText +
           (unit.pitchMm != null ? ('，' + (unit.pitchMode === 'HDI' ? 'HDI 激光孔中心距 ' : '差分孔中心距 ') + unit.pitchMm.toFixed(3) + ' mm' + pitchMembers + '，匹配最近约束值') : '，未找到差分配对孔'))
         : (groundNet ? 'GND 网络：仅显示，不推算信号约束，不执行核查' : 'Padstack 不含 SIG：仅显示，不推算约束，不执行核查');
+      if (sel.inferredFromAntiPad) note += '；Via 孔段仅识别 ' + spanText + '，同心反焊盘覆盖至 L' + sel.observedAntiLayers[sel.observedAntiLayers.length - 1] + '，按覆盖范围补全推算 ' + sel.rule.title;
       if (namingReason) note += '；Padstack 信号命名不符合：' + namingReason;
 
       var rows = near.map(function (sh) {

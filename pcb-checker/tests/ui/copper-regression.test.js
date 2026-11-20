@@ -1142,6 +1142,30 @@ setTimeout(() => {
     w.eval("S.sets=" + JSON.stringify(rules) + "; UI.items=CopperCheck.parseBoardItems(window.__sampleTxt); UI.resLimit=1000; UI.resFilter=''; UI.resRule=''; UI.resSearch=''; UI.onlyBad=false; runCheck(true); renderResults();");
   });
 
+  console.log('== Via 孔段缺失时按同心反焊盘覆盖层补全约束 ==');
+  t('Top-L5 Via 配有 L13 同心反焊盘时补全匹配 Top-L12，并显示 Top 9/10 mil 不符合', () => {
+    const p = {id:770,type:'via',origin:[0,0],net:'37_P',padstack:'BGA-HDI-SIG_L1_L5',traceLayers:[],connections:''};
+    const n = {id:771,type:'via',origin:[19.68503937,0],net:'37_N',padstack:'BGA-HDI-SIG_L1_L5',traceLayers:[],connections:''};
+    w.__antiSpanItems = [p, n,
+      {id:780,type:'shape',circle:true,center:[0,0],radius:9,set:'Route Keepout',subset:'Top',head:'Route Keepout'},
+      {id:781,type:'shape',circle:true,center:[0,0],radius:10,set:'Route Keepout',subset:'L13',head:'Route Keepout'},
+      {id:782,type:'shape',circle:true,center:[19.68503937,0],radius:9,set:'Route Keepout',subset:'Top',head:'Route Keepout'},
+      {id:783,type:'shape',circle:true,center:[19.68503937,0],radius:10,set:'Route Keepout',subset:'L13',head:'Route Keepout'}
+    ];
+    const antiRules = [
+      {kind:'BGA',title:'BGA-Top-L4-0.5mm',constraints:[{cat:'反焊盘尺寸',name:'反焊盘半径',unit:'mil',values:{L1:'10',L5:'10'}}]},
+      {kind:'BGA',title:'BGA-Top-L13-0.5mm',constraints:[{cat:'反焊盘尺寸',name:'反焊盘半径',unit:'mil',values:{L1:'10',L14:'10'}}]},
+      {kind:'BGA',title:'BGA-Top-L12-0.5mm',constraints:[{cat:'反焊盘尺寸',name:'反焊盘半径',unit:'mil',values:{L1:'10',L13:'10'}}]}
+    ];
+    w.eval("S.sets=" + JSON.stringify(antiRules) + "; UI.items=window.__antiSpanItems; UI.resLimit=1000; UI.resFilter=''; UI.resRule=''; UI.resSearch=''; UI.onlyBad=false; runCheck(true); renderResults();");
+    const group = w.eval("UI.result.groups.find(function(g){return String(g.via.id)==='770';})");
+    const top = group.rows.find(row => row.shapeId === 780);
+    if (!group.rule || group.rule.title !== 'BGA-Top-L12-0.5mm') throw new Error('未按反焊盘覆盖层补全 Top-L12');
+    if (!top || top.actual !== 9 || top.expect !== '10' || top.status !== '不符合') throw new Error(JSON.stringify(top));
+    const card = [...d.querySelectorAll('#checkOut .set')].find(el => el.textContent.includes('Via 770'));
+    if (!card || !card.textContent.includes('同心反焊盘覆盖至 L13') || !card.querySelector('tr.fail')) throw new Error('结果页未显示补全依据或不符合行');
+  });
+
   console.log('== 缺失层检查：规则有要求但数据无铜皮的层标记为不符合 ==');
   const botD2M5Rules = [{
     kind: 'SMA', title: 'Bot-SMA-L19-D2M5mil', fanLayer: 19,

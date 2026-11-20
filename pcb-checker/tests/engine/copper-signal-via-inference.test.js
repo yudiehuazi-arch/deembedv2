@@ -174,5 +174,27 @@ t('解析 Padstack Defined from/to 作为名称层号不足时的层跨后备', 
   assert(span.start === 2 && span.end === 12, JSON.stringify(span));
 });
 
+t('Via 孔段不完整时按同心反焊盘覆盖层补全 Top-L12 约束并检出 Top 半径不符', () => {
+  const p = { id: 70, type: 'via', origin: [0, 0], net: '37_P', padstack: 'BGA-HDI-SIG_L1_L5', traceLayers: [] };
+  const n = { id: 71, type: 'via', origin: [mil(0.5), 0], net: '37_N', padstack: 'BGA-HDI-SIG_L1_L5', traceLayers: [] };
+  const circles = [p, n].flatMap((via, index) => [
+    { id: 80 + index * 2, type: 'shape', circle: true, center: via.origin.slice(), radius: 9, set: 'Route Keepout', subset: 'Top', head: 'Route Keepout' },
+    { id: 81 + index * 2, type: 'shape', circle: true, center: via.origin.slice(), radius: 10, set: 'Route Keepout', subset: 'L13', head: 'Route Keepout' }
+  ]);
+  const rules = [
+    { kind: 'BGA', title: 'BGA-Top-L4-0.5mm', constraints: [{ cat: '反焊盘尺寸', name: '反焊盘半径', unit: 'mil', values: { L1: '10', L5: '10' } }] },
+    { kind: 'BGA', title: 'BGA-Top-L13-0.5mm', constraints: [{ cat: '反焊盘尺寸', name: '反焊盘半径', unit: 'mil', values: { L1: '10', L14: '10' } }] },
+    { kind: 'BGA', title: 'BGA-Top-L12-0.5mm', constraints: [{ cat: '反焊盘尺寸', name: '反焊盘半径', unit: 'mil', values: { L1: '10', L13: '10' } }] }
+  ];
+  const out = C.runCopperCheck([p, n, ...circles], rules, { layerCount: 14, posTol: 0.05, valTol: 0.01 });
+  const group = out.groups.find(g => String(g.via.id) === '70');
+  const top = group.rows.find(row => row.shapeId === 80);
+  assert(group.rule && group.rule.title === 'BGA-Top-L12-0.5mm', group.rule && group.rule.title);
+  assert(top && top.actual === 9 && top.expect === '10' && top.status === '不符合', JSON.stringify(top));
+  assert(group.note.includes('同心反焊盘覆盖至 L13') && group.note.includes('按覆盖范围补全推算 BGA-Top-L12-0.5mm'), group.note);
+  const withoutCoverage = C.runCopperCheck([p, n, circles[0], circles[2]], rules, { layerCount: 14, posTol: 0.05, valTol: 0.01 });
+  assert(!withoutCoverage.groups.find(g => String(g.via.id) === '70').rule, '没有覆盖末层证据时不得猜测 Top-L12 约束');
+});
+
 console.log(`\n结果: ${passed} 通过, ${failed} 失败`);
 process.exit(failed ? 1 : 0);
