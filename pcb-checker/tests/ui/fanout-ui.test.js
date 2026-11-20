@@ -232,23 +232,42 @@ test('检查结果逐孔说明 Padstack、位置、缺孔和多孔问题及目�
   assert.ok(mismatchText.includes('孔 #11') && mismatchText.includes('当前「WRONG_P」') && mismatchText.includes('应改为「EXPECTED_P」'));
   assert.ok(mismatchText.includes('[120, 100]') && mismatchText.includes('EXPECTED_N'), '缺孔应写清目标坐标与 Padstack');
 
-  const misplaced = {
+  const missingWithRedundant = {
     vias: [
-      { id: 31, x: 140, y: 100, padstack: 'GND_WRONG_POS', net: 'GND' },
-      { id: 32, x: 160, y: 100, padstack: 'GND_EXTRA', net: 'GND' }
+      { id: 31, x: 140, y: 100, padstack: 'GND_NEARBY', net: 'GND' },
+      { id: 32, x: 160, y: 100, padstack: 'GND_REDUNDANT', net: 'GND' }
     ],
     signalVias: [],
     matchResult: {
       pass: false,
       status: 'DISTANCE_MISMATCH',
-      message: '伴随地孔位置异常',
+      message: '缺少 2 个伴随地孔',
       viaAudit: [],
-      missingVias: [{ expectedX: 120, expectedY: 100, expectedPadstack: 'GND_TARGET', role: '伴随地孔1' }]
+      missingVias: [
+        { expectedX: 120, expectedY: 100, expectedPadstack: 'GND_TARGET', role: '伴随地孔1' },
+        { expectedX: 120, expectedY: 120, expectedPadstack: 'GND_TARGET', role: '伴随地孔2' }
+      ]
     }
   };
-  const misplacedText = window.FanoutResultDetails.toText(misplaced, library, 2);
-  assert.ok(misplacedText.includes('孔 #31 当前在 [140, 100]') && misplacedText.includes('应移到 [120, 100]'), '位置问题应指出具体孔号、当前位置和目标位置');
-  assert.ok(misplacedText.includes('多出孔') && misplacedText.includes('孔 #32'), '未被方案使用的剩余孔应明确标为多出孔');
+  const missingDetail = window.FanoutResultDetails.build(missingWithRedundant, library, 2);
+  const missingMarkers = window.getFanoutClusterIssueMarkers(missingWithRedundant);
+  assert.strictEqual(missingDetail.issues.filter(issue => issue.kind === 'missing').length, 2, '两个未命中方案位置应保持为两条缺孔');
+  assert.deepStrictEqual(Array.from(missingMarkers, marker => marker.kind), ['missing', 'missing'], '结果明细与定位视图都应只显示两个缺孔');
+  assert.ok(!missingDetail.issues.some(issue => issue.kind === 'position' || issue.kind === 'extra'), '附近冗余地孔不得被结果层猜成位置不对或多出孔');
+
+  const explicitGeometry = {
+    vias: [], signalVias: [],
+    matchResult: {
+      pass: false,
+      status: 'DISTANCE_MISMATCH',
+      message: '伴随地孔位置异常',
+      positionMismatches: [{ viaId: 31, actualX: 140, actualY: 100, expectedX: 120, expectedY: 100, deviation: 20, expectedPadstack: 'GND_TARGET' }],
+      extraVias: [{ viaId: 32, x: 160, y: 100, actualPadstack: 'GND_EXTRA' }]
+    }
+  };
+  const explicitText = window.FanoutResultDetails.toText(explicitGeometry, library, 2);
+  assert.ok(explicitText.includes('位置不对') && explicitText.includes('孔 #31') && explicitText.includes('应移到 [120, 100]'), '引擎明确输出的位置问题应显示具体孔号和目标位置');
+  assert.ok(explicitText.includes('多出孔') && explicitText.includes('孔 #32'), '只有引擎明确输出的多余孔才显示为多出孔');
 
   const noMatch = {
     vias: [

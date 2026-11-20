@@ -20,8 +20,8 @@ const CASES = [
 test('五个检查模块均提供独立、可切换且默认收起的检查说明页', () => {
   CASES.forEach(item => {
     const source = fs.readFileSync(path.join(CHECKER_DIR, item.page), 'utf8');
-    assert.match(source, /assets\/styles\/check-guide\.css\?v=51/, item.page + ' 未加载检查说明样式');
-    assert.match(source, /packages\/shared\/check-guide\.js\?v=51/, item.page + ' 未加载检查说明脚本');
+    assert.match(source, /assets\/styles\/check-guide\.css\?v=52/, item.page + ' 未加载检查说明样式');
+    assert.match(source, /packages\/shared\/check-guide\.js\?v=52/, item.page + ' 未加载检查说明脚本');
 
     const ctx = openPage(item.page, { syncCheck: true });
     const { d } = ctx;
@@ -61,6 +61,7 @@ test('共享检查说明用白话写清操作步骤、判断依据与验证标�
     '双方案对比使用同一画布比例和中心原点', '手动粘贴的 TXT 只在本次对比中使用', '空内容或解析失败时会保留上次成功的对比方案',
     '会先应用当前约束和搜索条件', '数量为 0 表示当前组合没有可显示的完整孔',
     'Via 孔段不完整', '同心 Route Keepout 反焊盘明确延伸到某条同起始层规则的覆盖末层',
+    '不会仅因存在缺孔就被猜成位置不对或多出孔',
     '走线首端和尾端在所有被检查参考层上的反焊盘都豁免',
     '不要求 Padstack 层跨经过该层'].forEach(keyword => {
     assert(js.includes(keyword), '检查说明未写清关键判断依据：' + keyword);

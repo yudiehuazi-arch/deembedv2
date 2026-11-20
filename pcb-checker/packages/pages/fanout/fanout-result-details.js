@@ -102,29 +102,12 @@
         '孔 #' + item.viaId + '：当前在 ' + point(item.actualX, item.actualY) + '，应移到 ' + point(item.expectedX, item.expectedY) +
         '，偏差 ' + fmt(item.deviation) + ' mil；目标 Padstack 为「' + (item.expectedPadstack || '-') + '」。');
     });
-    var missing = result.missingVias || [], usedIds = {};
-    (result.viaAudit || []).forEach(function (item) { if (item.viaId != null) usedIds[String(item.viaId)] = true; });
-    var unmatchedGnd = (cluster.vias || []).filter(function (via) { return !isSignalVia(via) && !usedIds[String(via.id)]; });
-    missing.forEach(function (item) {
-      var bestIndex = -1, bestDistance = Infinity;
-      unmatchedGnd.forEach(function (via, index) {
-        if (!via) return;
-        var distance = Math.hypot(via.x - item.expectedX, via.y - item.expectedY);
-        if (distance < bestDistance) { bestDistance = distance; bestIndex = index; }
-      });
-      var misplaced = bestIndex >= 0 ? unmatchedGnd[bestIndex] : null;
-      if (misplaced) {
-        unmatchedGnd[bestIndex] = null;
-        pushUnique(issues, seen, 'position', '位置不对', '孔 #' + misplaced.id + ' 当前在 ' + point(misplaced.x, misplaced.y) +
-          '，应移到 ' + point(item.expectedX, item.expectedY) + '，偏差 ' + fmt(bestDistance) + ' mil；当前 Padstack 为「' +
-          (misplaced.padstack || '-') + '」，目标应为「' + (item.expectedPadstack || '-') + '」。');
-      } else {
-        pushUnique(issues, seen, 'missing', '缺少孔',
-          '方案要求在 ' + point(item.expectedX, item.expectedY) + ' 放置 1 个' + (item.role || '伴随地孔') +
-          '，Padstack 应为「' + (item.expectedPadstack || '-') + '」；当前该位置没有合格孔。');
-      }
+    (result.missingVias || []).forEach(function (item) {
+      pushUnique(issues, seen, 'missing', '缺少孔',
+        '方案要求在 ' + point(item.expectedX, item.expectedY) + ' 放置 1 个' + (item.role || '伴随地孔') +
+        '，Padstack 应为「' + (item.expectedPadstack || '-') + '」；当前该位置没有合格孔。');
     });
-    (missing.length ? unmatchedGnd.filter(Boolean) : []).concat(result.extraVias || []).forEach(function (item) {
+    (result.extraVias || []).forEach(function (item) {
       pushUnique(issues, seen, 'extra', '多出孔',
         '孔 #' + (item.viaId != null ? item.viaId : item.id) + ' 位于 ' + point(item.x, item.y) + '，Padstack 为「' +
         (item.padstack || item.actualPadstack || '-') + '」，方案中没有对应位置；若不是其他用途孔，应删除或移出该孔群。');
