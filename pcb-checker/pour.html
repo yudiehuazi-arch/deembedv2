@@ -4,12 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PCB 铜皮检查工具</title>
-<link rel="stylesheet" href="assets/styles/tokens.css?v=77">
-<link rel="stylesheet" href="assets/styles/eda-shell.css?v=77">
-<link rel="stylesheet" href="assets/styles/eda-dock.css?v=77">
-<link rel="stylesheet" href="assets/styles/components.css?v=77">
-<link rel="stylesheet" href="assets/styles/pages/pour.css?v=77">
-<link rel="stylesheet" href="assets/styles/check-guide.css?v=77">
+<link rel="stylesheet" href="assets/styles/tokens.css?v=78">
+<link rel="stylesheet" href="assets/styles/eda-shell.css?v=78">
+<link rel="stylesheet" href="assets/styles/eda-dock.css?v=78">
+<link rel="stylesheet" href="assets/styles/components.css?v=78">
+<link rel="stylesheet" href="assets/styles/pages/pour.css?v=78">
+<link rel="stylesheet" href="assets/styles/check-guide.css?v=78">
 </head>
 <body class="eda-workbench">
 
@@ -395,14 +395,14 @@
       <div class="card">
         <div class="row" style="justify-content:space-between">
           <div>
-            <h2 style="margin:0">铜皮五项检查缺陷规律与工程整改分析 <span class="eda-tip" tabindex="0" data-tip="按规则与层别聚合超标项，列出全部关联网络及对应 SI / DFM 整改措施">?</span></h2>
+            <h2 style="margin:0">铜皮五项检查缺陷规律与工程整改分析 <span class="eda-tip" tabindex="0" data-tip="主数量按异常目标对象统计，与检查明细的按目标对象汇总一致；失败模板和层别记录作为原因明细单独显示">?</span></h2>
           </div>
           <button type="button" class="btn sec small" onclick="exportAnalysisReport()">导出 Markdown 分析报告</button>
         </div>
 
         <div class="pour-analysis-filter" aria-label="缺陷类型筛选">
           <div class="pour-analysis-filter-head">
-            <div><strong>按缺陷类型查看</strong><span>选择一种缺陷后，下方总结表和原因明细只显示这一类结果。</span></div>
+            <div><strong>按缺陷类型查看</strong><span>按钮数量按异常目标对象统计；下方另列同一对象的全部失败模板与层别明细。</span></div>
             <span id="lblAnalysisFilterStatus">当前显示：孔经过层铺铜覆盖检查</span>
           </div>
           <div class="pour-analysis-filter-buttons">
@@ -613,26 +613,27 @@
   </div>
 </div>
 
-<script src="packages/shared/check-guide.js?v=77"></script>
-<script src="packages/shared/dom-utils.js?v=77"></script>
-<script src="packages/shared/shape-preview-canvas.js?v=77"></script>
-<script src="packages/engines/pour/pour-geom.js?v=77"></script>
-<script src="packages/engines/pour/pour-parser.js?v=77"></script>
-<script src="packages/engines/pour/pour-trace-margin.js?v=77"></script>
-<script src="packages/engines/pour/pour-hdi-association.js?v=77"></script>
-<script src="packages/engines/pour/pour-engine.js?v=77"></script>
-<script src="packages/pages/pour/pour-state.js?v=77"></script><script src="packages/pages/pour/pour-check-runner.js?v=77"></script>
-<script src="packages/pages/pour/pour-rules-ui.js?v=77"></script>
-<script src="packages/pages/pour/pour-result-problem.js?v=77"></script>
-<script src="packages/pages/pour/pour-results-ui.js?v=77"></script>
-<script src="packages/pages/pour/pour-results-filters.js?v=77"></script>
-<script src="packages/pages/pour/pour-results-column-filters.js?v=77"></script>
-<script src="packages/pages/pour/pour-canvas-viewer.js?v=77"></script>
-<script src="packages/pages/pour/pour-canvas-defects.js?v=77"></script>
-<script src="packages/pages/pour/pour-canvas-navigation.js?v=77"></script>
-<script src="packages/pages/pour/pour-defect-summary.js?v=77"></script>
-<script src="packages/shared/eda-tooltip.js?v=77"></script>
-<script src="packages/shared/eda-shell.js?v=77"></script>
-<script src="packages/shared/ui-prefs.js?v=77"></script>
+<script src="packages/shared/check-guide.js?v=78"></script>
+<script src="packages/shared/dom-utils.js?v=78"></script>
+<script src="packages/shared/shape-preview-canvas.js?v=78"></script>
+<script src="packages/engines/pour/pour-geom.js?v=78"></script>
+<script src="packages/engines/pour/pour-parser.js?v=78"></script>
+<script src="packages/engines/pour/pour-trace-margin.js?v=78"></script>
+<script src="packages/engines/pour/pour-hdi-association.js?v=78"></script>
+<script src="packages/engines/pour/pour-engine.js?v=78"></script>
+<script src="packages/pages/pour/pour-state.js?v=78"></script><script src="packages/pages/pour/pour-check-runner.js?v=78"></script>
+<script src="packages/pages/pour/pour-rules-ui.js?v=78"></script>
+<script src="packages/pages/pour/pour-result-problem.js?v=78"></script>
+<script src="packages/pages/pour/pour-results-ui.js?v=78"></script>
+<script src="packages/pages/pour/pour-results-filters.js?v=78"></script>
+<script src="packages/pages/pour/pour-analysis-export.js?v=78"></script>
+<script src="packages/pages/pour/pour-results-column-filters.js?v=78"></script>
+<script src="packages/pages/pour/pour-canvas-viewer.js?v=78"></script>
+<script src="packages/pages/pour/pour-canvas-defects.js?v=78"></script>
+<script src="packages/pages/pour/pour-canvas-navigation.js?v=78"></script>
+<script src="packages/pages/pour/pour-defect-summary.js?v=78"></script>
+<script src="packages/shared/eda-tooltip.js?v=78"></script>
+<script src="packages/shared/eda-shell.js?v=78"></script>
+<script src="packages/shared/ui-prefs.js?v=78"></script>
 </body>
 </html>

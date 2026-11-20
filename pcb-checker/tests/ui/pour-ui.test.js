@@ -895,7 +895,7 @@ test('缺陷规律分析可按五类缺陷按钮单独筛选总结表和原因�
   buttonCases.forEach(([buttonId, category, expected, summaryLabel]) => {
     const button = $(buttonId);
     const count = button.querySelector('b');
-    if (!button || count.textContent !== '1') throw new Error(expected + ' 按钮或数量异常');
+    if (!button || count.textContent !== '1 个对象' || count.title !== '1 条失败明细') throw new Error(expected + ' 按钮或统计口径异常');
     button.click();
     if (w.State.analysisCategoryFilter !== category || !button.classList.contains('active') || button.getAttribute('aria-pressed') !== 'true') throw new Error(expected + ' 未进入选中状态');
     if (w.State.rawResults !== mocks) throw new Error('切换缺陷类型时不应重新执行检查');
@@ -920,6 +920,65 @@ test('缺陷规律分析可按五类缺陷按钮单独筛选总结表和原因�
   w.renderAnalysisTab();
 });
 
+test('规则 2 的 8 个异常孔与 22 条模板失败明细使用不同且明确的统计口径', () => {
+  const saved = {
+    rawResults: w.State.rawResults,
+    summary: w.State.summary,
+    analysisCategoryFilter: w.State.analysisCategoryFilter
+  };
+  const detailCounts = [3, 3, 3, 3, 3, 3, 2, 2];
+  const defects = [];
+  detailCounts.forEach((count, viaIndex) => {
+    for (let detailIndex = 0; detailIndex < count; detailIndex++) {
+      defects.push({
+        checkCategory: 'special_shape', checkCategoryName: '② 特定异型铜皮比对检查', pass: false,
+        viaId: 2001 + viaIndex, viaPadstack: 'RULE2_TEST', viaNet: '25_N',
+        viaCoord: [1000 + viaIndex * 10, 2000 + viaIndex * 10], layer: 'Top',
+        templateName: '同孔多模板', expectedSet: 'Shape', associationFailed: true,
+        associationSummary: '未找到关联的 HDI 信号孔', detailIndex
+      });
+    }
+  });
+  w.State.rawResults = defects;
+  w.State.summary = Object.assign({}, saved.summary || {}, {
+    totalDefects: 22,
+    breakdown: { viaCoverageDefects: 0, specialShapeDefects: 22, traceMarginDefects: 0, smallCopperDefects: 0, arcRadiusDefects: 0 }
+  });
+  w.State.analysisCategoryFilter = 'special_shape';
+  w.renderAnalysisTab();
+
+  const stats = w.getPourAnalysisDefectStats();
+  if (stats.totalObjects !== 8 || stats.totalRaw !== 22 || stats.objectCounts.special_shape !== 8 || stats.rawCounts.special_shape !== 22) {
+    throw new Error('规则 2 分析统计未得到 8 个异常孔 / 22 条失败明细');
+  }
+  if ($('cntAnalysisSpecial').textContent !== '8 个对象' || $('cntAnalysisSpecial').title !== '22 条失败明细') {
+    throw new Error('规则 2 分类按钮未按异常目标对象显示主数量');
+  }
+  const analysisText = $('pnlAnalysisContainer').textContent;
+  if (!analysisText.includes('8 个异常目标对象 / 22 条失败明细') ||
+      !analysisText.includes('8 个异常目标对象、22 条失败明细') ||
+      analysisText.includes('共 22 条异常')) {
+    throw new Error('分析页未清楚区分异常目标对象与失败模板/层别明细');
+  }
+  const summaryCanvas = d.querySelector('.pour-defect-board-canvas');
+  if (!summaryCanvas || summaryCanvas.dataset.objectCount !== '8' || summaryCanvas.dataset.detailCount !== '22') {
+    throw new Error('缺陷总结行仍按 22 条模板明细放大异常对象数');
+  }
+
+  let reportCaptured = null;
+  w.showExportBox = function (filename, content) { reportCaptured = { filename, content }; };
+  w.exportAnalysisReport();
+  if (!reportCaptured || !reportCaptured.content.includes('检出异常目标对象: 8 个') ||
+      !reportCaptured.content.includes('失败模板/层别明细: 22 条')) {
+    throw new Error('Markdown 分析报告未区分 8 个异常目标对象与 22 条失败明细');
+  }
+
+  w.State.rawResults = saved.rawResults;
+  w.State.summary = saved.summary;
+  w.State.analysisCategoryFilter = saved.analysisCategoryFilter || 'via_coverage';
+  w.renderAnalysisTab();
+});
+
 test('大文件仅在文本框显示截断预览，并通过 Web Worker 后台执行几何检查', () => {
   const input = $('txtDataInput');
   const originalText = input.value;
@@ -933,7 +992,7 @@ test('大文件仅在文本框显示截断预览，并通过 Web Worker 后台�
 
   const workerSource = fs.readFileSync(path.join(__dirname, '../../packages/pages/pour/pour-check-worker.js'), 'utf8');
   if (!workerSource.includes('importScripts') || !workerSource.includes('runAllCopperChecks')) throw new Error('后台检查线程未加载铜皮引擎');
-  if ((workerSource.match(/\?v=77/g) || []).length !== 5) throw new Error('后台检查线程未使用当前铜皮引擎缓存版本');
+  if ((workerSource.match(/\?v=78/g) || []).length !== 5) throw new Error('后台检查线程未使用当前铜皮引擎缓存版本');
   const OriginalWorker = w.Worker;
   let workerUrl = '', postedText = '', terminated = false;
   function FakeWorker(url) { workerUrl = url; }

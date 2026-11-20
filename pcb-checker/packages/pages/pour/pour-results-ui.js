@@ -349,7 +349,7 @@
           (list.length > 5 ? (' 等' + list.length + '个') : '');
         return '<span style="display:inline-flex;align-items:center;background:#ffffff;border:1px solid var(--line-strong);border-radius:4px;padding:2px 6px;font-size:11px;font-family:var(--mono)">' +
           '<code>' + esc(netName) + '</code>' +
-          '<span style="color:var(--sub);margin-left:4px;font-size:11px">' + list.length + '项: ' + esc(itemStr) + '</span>' +
+          '<span style="color:var(--sub);margin-left:4px;font-size:11px">' + list.length + ' 个对象: ' + esc(itemStr) + '</span>' +
         '</span>';
       }).join('') +
     '</div>';
@@ -364,10 +364,14 @@
       return;
     }
 
-    var b = State.summary.breakdown;
-    var defects = State.rawResults.filter(function (r) { return !r.pass; });
-    defects = defects.filter(function (r) { return r.checkCategory === (State.analysisCategoryFilter || 'via_coverage'); });
-    var badTotal = defects.length;
+    var selectedCategory = State.analysisCategoryFilter || 'via_coverage';
+    var stats = typeof root.getPourAnalysisDefectStats === 'function' ? root.getPourAnalysisDefectStats() : null;
+    var allDefects = stats ? stats.rawDefects : State.rawResults.filter(function (r) { return !r.pass; });
+    var defects = allDefects.filter(function (r) { return r.checkCategory === selectedCategory; });
+    var objectCounts = stats ? stats.objectCounts : {};
+    var rawCounts = stats ? stats.rawCounts : {};
+    var badTotal = stats ? (objectCounts[selectedCategory] || 0) : defects.length;
+    var rawBadTotal = stats ? (rawCounts[selectedCategory] || 0) : defects.length;
 
     var layerBadMap = {};
     defects.forEach(function (r) {
@@ -435,13 +439,14 @@
     var h = root.PourDefectSummary ? root.PourDefectSummary.render(defects, State) : '';
     h += '<div class="card">';
     h += '<h3 style="margin-top:0;color:var(--heading)">各规则不符合原因与目标网络映射明细' +
-      (badTotal ? (' · 共 <span style="color:var(--bad)">' + badTotal + '</span> 条') : '') + '</h3>';
+      (badTotal ? (' · <span style="color:var(--bad)">' + badTotal + '</span> 个异常目标对象 / ' + rawBadTotal + ' 条失败明细') : '') + '</h3>';
+    h += '<div class="hint" style="margin:-4px 0 10px">异常目标对象与检查明细的“按目标对象汇总”口径一致；同一对象命中的多个模板或层别失败保留为下方原因明细，不重复增加对象数。</div>';
 
     if (!badTotal) {
-      h += '<div class="hint" style="color:var(--ok);font-weight:600">当前检查全部符合规则约束，无超标记录。</div>';
+      h += '<div class="hint" style="color:var(--ok);font-weight:600">当前检查全部符合规则约束，无异常目标对象或失败明细。</div>';
     } else {
       var layerKeys = Object.keys(layerBadMap).sort(function (a, b) { return layerBadMap[b] - layerBadMap[a]; });
-      h += '<div style="margin:8px 0 14px 0"><span class="hint" style="font-weight:600">按层分布：</span>' +
+      h += '<div style="margin:8px 0 14px 0"><span class="hint" style="font-weight:600">失败明细按层分布：</span>' +
         '<div class="row" style="gap:6px;margin-top:4px">' +
         layerKeys.map(function (lk) {
           return '<span style="padding:2px 8px;border-radius:4px;background:var(--surface-subtle);border:1px solid var(--line);font-size:12px">' +
@@ -452,7 +457,7 @@
       var badKeys = Object.keys(badMap).sort(function (a, b) { return badMap[b].n - badMap[a].n; });
       h += '<div class="tbl-wrap"><table class="pour-analysis-detail-table"><thead><tr>' +
         '<th style="width:200px">规则 · 检查项</th>' +
-        '<th style="width:72px">条数</th>' +
+        '<th style="width:88px">失败明细数</th>' +
         '<th>具体原因与对应过孔/走线网络</th>' +
         '<th style="width:170px">Padstack / 目标层</th>' +
       '</tr></thead><tbody>';
@@ -494,7 +499,7 @@
 
     h += '<div class="pattern-card" data-analysis-category="via_coverage">' +
       '<h3><span>① 孔经过层铺铜覆盖检查 — 缺陷规律与工程分析</span>' +
-      '<span class="badge-tag ' + (b.viaCoverageDefects > 0 ? 'bad' : 'ok') + '">' + b.viaCoverageDefects + ' 处层位不符合</span></h3>' +
+      '<span class="badge-tag ' + ((objectCounts.via_coverage || 0) > 0 ? 'bad' : 'ok') + '">' + (objectCounts.via_coverage || 0) + ' 个异常对象 / ' + (rawCounts.via_coverage || 0) + ' 条失败明细</span></h3>' +
       '<div class="pattern-box">' +
         '<strong>高发分布与 SI 影响：</strong>异常集中在 <strong>' + topLayersText + '</strong>。过孔穿越层缺失参考铜箔或反焊盘避让过大，导致寄生电感上升、特征阻抗突跳与回流路径拉长。' +
       '</div>' +
@@ -503,7 +508,7 @@
 
     h += '<div class="pattern-card" data-analysis-category="special_shape">' +
       '<h3><span>② 特定异型铜皮比对检查 — 缺陷规律与工程分析</span>' +
-      '<span class="badge-tag ' + (b.specialShapeDefects > 0 ? 'bad' : 'ok') + '">' + b.specialShapeDefects + ' 处异型铜皮不匹配</span></h3>' +
+      '<span class="badge-tag ' + ((objectCounts.special_shape || 0) > 0 ? 'bad' : 'ok') + '">' + (objectCounts.special_shape || 0) + ' 个异常对象 / ' + (rawCounts.special_shape || 0) + ' 条失败明细</span></h3>' +
       '<div class="pattern-box">' +
         '<strong>偏差成因：</strong>指定层过孔周围未生成异型泪滴铜皮，或铜皮被邻近网络反焊盘切割导致面积超出容差。' +
       '</div>' +
@@ -512,7 +517,7 @@
 
     h += '<div class="pattern-card" data-analysis-category="trace_ref_margin">' +
       '<h3><span>③ 走线参考层投影覆盖与两侧邻近铜 — 缺陷规律与工程分析</span>' +
-      '<span class="badge-tag ' + (b.traceMarginDefects > 0 ? 'bad' : 'ok') + '">' + b.traceMarginDefects + ' 处参考层异常</span></h3>' +
+      '<span class="badge-tag ' + ((objectCounts.trace_ref_margin || 0) > 0 ? 'bad' : 'ok') + '">' + (objectCounts.trace_ref_margin || 0) + ' 个异常对象 / ' + (rawCounts.trace_ref_margin || 0) + ' 条失败明细</span></h3>' +
       '<div class="pattern-box">' +
         '<strong>投影缺铜与回流风险：</strong>除走线首尾端在所有被检查参考层上的反焊盘外，走线完整线宽投影未被参考铜覆盖，或整条走线任一侧在规则距离内完全无铜时，回流路径会被拉长并增加阻抗突变与边缘辐射风险。' +
         '</div>' +
@@ -521,7 +526,7 @@
 
     h += '<div class="pattern-card" data-analysis-category="isolated_copper">' +
       '<h3><span>④ 孤立小铜皮检查 — 缺陷规律与工程分析</span>' +
-      '<span class="badge-tag ' + (b.smallCopperDefects > 0 ? 'bad' : 'ok') + '">' + b.smallCopperDefects + ' 处孤立小铜皮 &lt; ' + esc(State.smallCopperAreaThreshold) + ' sq mil</span></h3>' +
+      '<span class="badge-tag ' + ((objectCounts.isolated_copper || 0) > 0 ? 'bad' : 'ok') + '">' + (objectCounts.isolated_copper || 0) + ' 个异常对象 / ' + (rawCounts.isolated_copper || 0) + ' 条失败明细</span></h3>' +
       '<div class="pattern-box">' +
         '<strong>浮空碎铜风险：</strong>密集过孔阵列间隙残留无网络过孔连接的浮空铜岛，高频下形成耦合辐射单元并在回流焊受热时增加起泡风险。' +
       '</div>' +
@@ -530,7 +535,7 @@
 
     h += '<div class="pattern-card" data-analysis-category="arc_radius">' +
       '<h3><span>⑤ 铜皮最小圆弧半径检查 — 缺陷规律与工程分析</span>' +
-      '<span class="badge-tag ' + (b.arcRadiusDefects > 0 ? 'bad' : 'ok') + '">' + b.arcRadiusDefects + ' 处圆弧 &lt; ' + esc(State.minArcRadius) + ' mil</span></h3>' +
+      '<span class="badge-tag ' + ((objectCounts.arc_radius || 0) > 0 ? 'bad' : 'ok') + '">' + (objectCounts.arc_radius || 0) + ' 个异常对象 / ' + (rawCounts.arc_radius || 0) + ' 条失败明细</span></h3>' +
       '<div class="pattern-box">' +
         '<strong>制程蚀刻隐患：</strong>铜皮避让密集孔群拐角处圆弧半径过小，湿法蚀刻易滞留药液产生侧蚀酸角。' +
       '</div>' +
@@ -538,48 +543,6 @@
     '</div>';
 
     container.innerHTML = h; if (root.applyAnalysisCategoryVisibility) root.applyAnalysisCategoryVisibility(container); if (root.PourDefectSummary && root.PourDefectSummary.mount) root.PourDefectSummary.mount(container);
-  }
-
-  function exportAnalysisReport() {
-    var State = root.State;
-    if (!State.summary) {
-      root.alert('暂无分析数据可导出');
-      return;
-    }
-
-    var b = State.summary.breakdown;
-    var totalObj = State.groupedResults ? State.groupedResults.length : State.summary.totalChecks;
-    var defObj = State.groupedResults ? State.groupedResults.filter(function (g) { return !g.pass; }).length : State.summary.totalDefects;
-
-    var report = [
-      '# PCB 铜皮五项检查缺陷规律与工程分析报告',
-      '生成时间: ' + new Date().toLocaleString(),
-      '',
-      '## 1. 全板检查统计',
-      '- 导入铜皮总数: ' + State.summary.totalShapes + ' 块',
-      '- 导入过孔总数: ' + State.summary.totalVias + ' 个',
-      '- 导入走线总数: ' + State.summary.totalTraces + ' 条',
-      '- 目标对象总数: ' + totalObj + ' 个',
-      '- 检出缺陷对象: ' + defObj + ' 个 / 逐层超标项 ' + State.summary.totalDefects + ' 处',
-      '',
-      '## 2. 分类规律与整改措施',
-      '### ① 孔经过层铺铜覆盖检查: ' + b.viaCoverageDefects + ' 处超标',
-      '- 整改措施: 在相关内层补充参考铜皮，或周边 30–50 mil 增设 GND 回流孔。',
-      '',
-      '### ② 特定异型铜皮比对检查: ' + b.specialShapeDefects + ' 处超标',
-      '- 整改措施: 核查指定层异型铜皮自动生成规则并修复反焊盘切割区域。',
-      '',
-      '### ③ 走线参考层投影覆盖与两侧邻近铜检查: ' + b.traceMarginDefects + ' 处超标',
-      '- 整改措施: 补齐首尾端所有被检查层反焊盘豁免区以外的完整走线投影参考铜，并确保整条走线左右两侧各有铜皮位于规则距离内。',
-      '',
-      '### ④ 孤立小铜皮检查: ' + b.smallCopperDefects + ' 处超标',
-      '- 整改措施: 开启铺铜孤立死铜自动移除策略。',
-      '',
-      '### ⑤ 铜皮最小圆弧半径检查: ' + b.arcRadiusDefects + ' 处超标',
-      '- 整改措施: 调整铜皮轮廓避让圆弧平滑半径至阈值以上。'
-    ].join('\n');
-
-    root.showExportBox('铜皮检查缺陷规律分析报告.md', report, '已生成 Markdown 分析报告。', 'text/markdown');
   }
 
   root.updateTopKPIs = updateTopKPIs;
@@ -596,5 +559,4 @@
   root.toggleSelectAll = toggleSelectAll;
   root.exportResultsCSV = exportResultsCSV;
   root.renderAnalysisTab = renderAnalysisTab;
-  root.exportAnalysisReport = exportAnalysisReport;
 })(typeof window !== 'undefined' ? window : globalThis);

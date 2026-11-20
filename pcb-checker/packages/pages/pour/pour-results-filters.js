@@ -49,13 +49,31 @@
     arc_radius: { buttonId: 'btnAnalysisArc', countId: 'cntAnalysisArc', label: '铜皮最小圆弧半径检查' }
   };
 
-  function analysisDefectCounts() {
-    var counts = { via_coverage: 0, special_shape: 0, trace_ref_margin: 0, isolated_copper: 0, arc_radius: 0 };
-    ((root.State && root.State.rawResults) || []).forEach(function (record) {
-      if (!record || record.pass || !Object.prototype.hasOwnProperty.call(counts, record.checkCategory)) return;
-      counts[record.checkCategory]++;
+  function analysisDefectStats() {
+    var rawCounts = { via_coverage: 0, special_shape: 0, trace_ref_margin: 0, isolated_copper: 0, arc_radius: 0 };
+    var objectCounts = { via_coverage: 0, special_shape: 0, trace_ref_margin: 0, isolated_copper: 0, arc_radius: 0 };
+    var rawDefects = ((root.State && root.State.rawResults) || []).filter(function (record) {
+      return record && !record.pass && Object.prototype.hasOwnProperty.call(rawCounts, record.checkCategory);
     });
-    return counts;
+    rawDefects.forEach(function (record) { rawCounts[record.checkCategory]++; });
+
+    var objectDefects;
+    if (root.PourChecker && typeof root.PourChecker.groupResultsByTargetObject === 'function') {
+      objectDefects = root.PourChecker.groupResultsByTargetObject(rawDefects);
+    } else {
+      objectDefects = ((root.State && root.State.groupedResults) || []).filter(function (record) { return record && !record.pass; });
+    }
+    objectDefects.forEach(function (record) {
+      if (record && Object.prototype.hasOwnProperty.call(objectCounts, record.checkCategory)) objectCounts[record.checkCategory]++;
+    });
+    return {
+      rawDefects: rawDefects,
+      objectDefects: objectDefects,
+      rawCounts: rawCounts,
+      objectCounts: objectCounts,
+      totalRaw: rawDefects.length,
+      totalObjects: objectDefects.length
+    };
   }
 
   function syncAnalysisCategoryButtons() {
@@ -63,7 +81,7 @@
     if (!State) return;
     var selected = ANALYSIS_CATEGORIES[State.analysisCategoryFilter] ? State.analysisCategoryFilter : 'via_coverage';
     State.analysisCategoryFilter = selected;
-    var counts = analysisDefectCounts();
+    var stats = analysisDefectStats();
     Object.keys(ANALYSIS_CATEGORIES).forEach(function (key) {
       var config = ANALYSIS_CATEGORIES[key];
       var button = document.getElementById(config.buttonId);
@@ -72,10 +90,13 @@
         button.classList.toggle('active', key === selected);
         button.setAttribute('aria-pressed', key === selected ? 'true' : 'false');
       }
-      if (count) count.textContent = String(counts[key] || 0);
+      if (count) {
+        count.textContent = String(stats.objectCounts[key] || 0) + ' 个对象';
+        count.title = String(stats.rawCounts[key] || 0) + ' 条失败明细';
+      }
     });
     var status = document.getElementById('lblAnalysisFilterStatus');
-    if (status) status.textContent = '当前显示：' + ANALYSIS_CATEGORIES[selected].label;
+    if (status) status.textContent = '当前显示：' + ANALYSIS_CATEGORIES[selected].label + '（按异常目标对象计数）';
   }
 
   function applyAnalysisCategoryVisibility(container) {
@@ -96,6 +117,7 @@
 
   root.setResultStatusFilter = setResultStatusFilter;
   root.setCategoryFilter = setCategoryFilter;
+  root.getPourAnalysisDefectStats = analysisDefectStats;
   root.setAnalysisCategoryFilter = setAnalysisCategoryFilter;
   root.syncAnalysisCategoryButtons = syncAnalysisCategoryButtons;
   root.applyAnalysisCategoryVisibility = applyAnalysisCategoryVisibility;

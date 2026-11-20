@@ -33,6 +33,13 @@
     };
   }
 
+  function groupedObjects(records) {
+    if (root.PourChecker && typeof root.PourChecker.groupResultsByTargetObject === 'function') {
+      return root.PourChecker.groupResultsByTargetObject(records || []);
+    }
+    return records || [];
+  }
+
   function buildRows(defects, State) {
     var map = {}, viasById = idMap(State.vias);
     (defects || []).forEach(function (record) {
@@ -42,20 +49,33 @@
       var key = [record.checkCategory, id.padstack, id.network].join('|');
       if (!map[key]) map[key] = {
         category: record.checkCategory, config: config, padstack: id.padstack,
-        network: id.network, count: 0, layers: {}, points: [], pointKeys: {}
+        network: id.network, detailCount: 0, objectCount: 0, layers: {}, records: [], points: [], pointKeys: {}
       };
       var row = map[key];
-      row.count++;
+      row.detailCount++;
+      row.records.push(record);
       var layer = record.layer || record.refLayer || record.traceLayer;
       if (layer) row.layers[String(layer)] = 1;
-      var marker = typeof root.getPourDefectMarker === 'function' ? root.getPourDefectMarker(record) : null;
-      if (marker) {
+    });
+    return Object.keys(map).map(function (key) {
+      var row = map[key];
+      var objects = groupedObjects(row.records);
+      row.objectCount = objects.length;
+      objects.forEach(function (object) {
+        var marker = typeof root.getPourDefectMarker === 'function' ? root.getPourDefectMarker(object) : null;
+        if (!marker && object.subRecords) {
+          object.subRecords.some(function (record) {
+            marker = typeof root.getPourDefectMarker === 'function' ? root.getPourDefectMarker(record) : null;
+            return !!marker;
+          });
+        }
+        if (!marker) return;
         var pointKey = marker.targetLabel + '|' + marker.x + '|' + marker.y;
         if (!row.pointKeys[pointKey]) { row.pointKeys[pointKey] = 1; row.points.push(marker); }
-      }
-    });
-    return Object.keys(map).map(function (key) { return map[key]; }).sort(function (a, b) {
-      return a.config.order - b.config.order || b.count - a.count || a.network.localeCompare(b.network);
+      });
+      return row;
+    }).sort(function (a, b) {
+      return a.config.order - b.config.order || b.objectCount - a.objectCount || b.detailCount - a.detailCount || a.network.localeCompare(b.network);
     });
   }
 
@@ -188,22 +208,23 @@
 
   function render(defects, State) {
     var rows = buildRows(defects, State);
-    var total = rows.reduce(function (sum, row) { return sum + row.count; }, 0);
+    var totalObjects = groupedObjects(defects).length;
+    var totalDetails = (defects || []).length;
     currentModel = { rows: rows, bounds: boardBounds(State), vias: State.vias || [] };
     var h = '<div class="card pour-defect-summary"><div class="pour-defect-summary-head">' +
-      '<div><h3>缺陷总结表</h3><div class="hint">按孔 Padstack、网络与异常类型归纳，共 ' + rows.length + ' 类、' + total + ' 条异常；位置图显示全部 ' + currentModel.vias.length + ' 个孔。</div></div></div>';
+      '<div><h3>缺陷总结表</h3><div class="hint">按孔 Padstack、网络与异常类型归纳，共 ' + rows.length + ' 类、' + totalObjects + ' 个异常目标对象、' + totalDetails + ' 条失败明细；同一对象的多模板或多层失败不重复计入对象数。位置图显示全部 ' + currentModel.vias.length + ' 个孔。</div></div></div>';
     if (!rows.length) return h + '<div class="hint pour-defect-summary-empty">当前没有异常记录。</div></div>';
     h += '<div class="tbl-wrap"><table class="pour-defect-summary-table"><thead><tr>' +
       '<th>孔 Padstack</th><th>网络</th><th>异常类型</th><th>如何修改</th><th>板上位置</th></tr></thead><tbody>';
     rows.forEach(function (row, rowIndex) {
       var layerText = Object.keys(row.layers).join('、');
-      var typeText = row.config.type + (layerText ? ' · ' + layerText : '') + (row.count > 1 ? ' · ' + row.count + ' 条' : '');
+      var typeText = row.config.type + (layerText ? ' · ' + layerText : '') + ' · ' + row.objectCount + ' 个对象 / ' + row.detailCount + ' 条失败明细';
       var location = positionText(row.points) || '无可用坐标';
       h += '<tr><td><b>' + esc(row.padstack) + '</b></td><td><code>' + esc(row.network) + '</code></td>' +
         '<td><span class="pour-defect-type" style="--defect-color:' + row.config.color + '">' + esc(typeText) + '</span></td>' +
         '<td class="pour-defect-fix">' + esc(row.config.fix) + '</td><td><div class="pour-defect-board">' +
           '<button type="button" class="pour-defect-board-open" data-row-index="' + rowIndex + '" aria-label="放大查看' + esc(row.config.type) + '板上位置">' +
-            '<canvas class="pour-defect-board-canvas" data-row-index="' + rowIndex + '" data-all-via-count="' + currentModel.vias.length + '" width="520" height="292"></canvas>' +
+            '<canvas class="pour-defect-board-canvas" data-row-index="' + rowIndex + '" data-all-via-count="' + currentModel.vias.length + '" data-object-count="' + row.objectCount + '" data-detail-count="' + row.detailCount + '" width="520" height="292"></canvas>' +
             '<span>放大查看</span></button><div>' + esc(location) + '</div></div></td></tr>';
     });
     return h + '</tbody></table></div></div>';
