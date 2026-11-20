@@ -753,7 +753,7 @@ Item 3 < Via >
   }
   const summaryText = summaryTable.textContent;
   if (!summaryText.includes('PROBE_STACK') || !summaryText.includes('TEST_N') ||
-      !summaryText.includes('孔层铺铜缺失') || !summaryText.includes('在异常层补铺铜') ||
+      !summaryText.includes('孔层铺铜缺失') || !summaryText.includes('在 L1 的孔心 55 mil 内补铜') ||
       !summaryText.includes('Via #3')) {
     throw new Error('缺陷总结表未完整显示 Padstack、网络、异常类型、修改建议与板上位置');
   }
@@ -979,6 +979,52 @@ test('规则 2 的 8 个异常孔与 22 条模板失败明细使用不同且明�
   w.renderAnalysisTab();
 });
 
+test('规则 2 缺陷总结直接列出网络、缺铜与面积的具体修改动作', () => {
+  const saved = {
+    rawResults: w.State.rawResults,
+    summary: w.State.summary,
+    analysisCategoryFilter: w.State.analysisCategoryFilter
+  };
+  const mismatch = {
+    hdiNetMismatch: true, hdiConnectionLayer: 'Top',
+    hdiConnectionShapeIds: [21847, 21848], hdiConnectionShapeNets: ['25_N'],
+    actualHdiViaId: 54649, actualHdiViaNet: '33_P'
+  };
+  const base = {
+    checkCategory: 'special_shape', checkCategoryName: '② 特定异型铜皮比对检查', pass: false,
+    viaId: 53534, viaPadstack: 'via2_8-top', viaNet: '25_N', viaCoord: [24740.7, 29060.4]
+  };
+  w.State.rawResults = [
+    { ...base, ...mismatch, layer: 'Top', templateName: '网络模板', expectedSet: 'Shape', targetShapeId: 21847,
+      targetShapeIds: [21847, 21848], actualArea: 109.8, expectedArea: 109.8, areaTolerance: 1 },
+    { ...base, ...mismatch, layer: 'L1', templateName: '缺铜模板', expectedSet: 'Board Geometry', actualSet: 'Shape',
+      targetShapeId: null, mismatchedSetShapeIds: [401] },
+    { ...base, ...mismatch, layer: 'L4', templateName: '面积模板', expectedSet: 'Shape', targetShapeId: 301,
+      targetShapeIds: [301], actualArea: 100, expectedArea: 103.6, areaTolerance: 1 }
+  ];
+  w.State.summary = Object.assign({}, saved.summary || {}, {
+    totalDefects: 3,
+    breakdown: { viaCoverageDefects: 0, specialShapeDefects: 3, traceMarginDefects: 0, smallCopperDefects: 0, arcRadiusDefects: 0 }
+  });
+  w.State.analysisCategoryFilter = 'special_shape';
+  w.renderAnalysisTab();
+
+  const fixText = d.querySelector('.pour-defect-fix').textContent.replace(/\s+/g, ' ').trim();
+  [
+    '将 Top 铜皮 #21847、#21848（25_N）与 HDI #54649（33_P）的 Net 改为一致。',
+    'L1：补 Set=Board Geometry 的异型铜皮；当前位置只有 Set=Shape（#401）。',
+    'L4：将 Shape #301 总面积从 100 调整到 103.6 ±1 sq mil。'
+  ].forEach(expected => {
+    if (!fixText.includes(expected)) throw new Error('“如何修改”缺少具体动作：' + expected + '，实际：' + fixText);
+  });
+  if (fixText.includes('按模板重生成异型铜皮')) throw new Error('“如何修改”仍使用无具体对象与目标值的通用建议');
+
+  w.State.rawResults = saved.rawResults;
+  w.State.summary = saved.summary;
+  w.State.analysisCategoryFilter = saved.analysisCategoryFilter || 'via_coverage';
+  w.renderAnalysisTab();
+});
+
 test('大文件仅在文本框显示截断预览，并通过 Web Worker 后台执行几何检查', () => {
   const input = $('txtDataInput');
   const originalText = input.value;
@@ -992,7 +1038,7 @@ test('大文件仅在文本框显示截断预览，并通过 Web Worker 后台�
 
   const workerSource = fs.readFileSync(path.join(__dirname, '../../packages/pages/pour/pour-check-worker.js'), 'utf8');
   if (!workerSource.includes('importScripts') || !workerSource.includes('runAllCopperChecks')) throw new Error('后台检查线程未加载铜皮引擎');
-  if ((workerSource.match(/\?v=78/g) || []).length !== 5) throw new Error('后台检查线程未使用当前铜皮引擎缓存版本');
+  if ((workerSource.match(/\?v=79/g) || []).length !== 5) throw new Error('后台检查线程未使用当前铜皮引擎缓存版本');
   const OriginalWorker = w.Worker;
   let workerUrl = '', postedText = '', terminated = false;
   function FakeWorker(url) { workerUrl = url; }

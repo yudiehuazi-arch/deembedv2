@@ -79,6 +79,109 @@
     });
   }
 
+  function shortNumber(value) {
+    var number = Number(value);
+    if (!isFinite(number)) return '-';
+    return String(Math.round(number * 1000) / 1000);
+  }
+
+  function shortIds(values) {
+    var ids = [], seen = {};
+    (values || []).forEach(function (value) {
+      if (value == null || seen[String(value)]) return;
+      seen[String(value)] = 1; ids.push(String(value));
+    });
+    var text = ids.slice(0, 4).map(function (id) { return '#' + id; }).join('、');
+    return text + (ids.length > 4 ? ' 等' + ids.length + '个' : '');
+  }
+
+  function specialShapeFixes(records) {
+    var fixes = [], seen = {};
+    function add(text) {
+      if (!text || seen[text]) return;
+      seen[text] = 1; fixes.push(text);
+    }
+    var networkGroups = {}, missingGroups = {}, areaGroups = {};
+    var noHdiVias = [], noPairHdis = [];
+    (records || []).forEach(function (record) {
+      if (record.hdiNetMismatch) {
+        var copperNets = (record.hdiConnectionShapeNets || []).join(' / ') || record.viaNet || '-';
+        var key = [record.hdiConnectionLayer || '接触层', copperNets, record.actualHdiViaNet || '-'].join('|');
+        if (!networkGroups[key]) networkGroups[key] = { layer: record.hdiConnectionLayer || '接触层', copperNets: copperNets, hdiNet: record.actualHdiViaNet || '-', shapeIds: [], hdiIds: [] };
+        networkGroups[key].shapeIds = networkGroups[key].shapeIds.concat(record.hdiConnectionShapeIds || []);
+        networkGroups[key].hdiIds.push(record.actualHdiViaId);
+      }
+      if (record.associationFailed) {
+        if (record.actualHdiViaId == null) noHdiVias.push(record.viaId);
+        else if (record.pairedHdiViaId == null) noPairHdis.push(record.actualHdiViaId);
+        else add('调整 HDI #' + record.actualHdiViaId + ' 与差分 HDI #' + record.pairedHdiViaId +
+          ' 的中心距，使其命中配置模板（当前 ' + shortNumber(record.actualDifferentialCenterDistance) + ' mil）。');
+        return;
+      }
+      if (record.targetShapeId == null) {
+        var missingKey = [record.layer || '目标层', record.expectedSet || 'Shape', record.actualSet || ''].join('|');
+        if (!missingGroups[missingKey]) missingGroups[missingKey] = { layer: record.layer || '目标层', expectedSet: record.expectedSet || 'Shape', actualSet: record.actualSet || '', ids: [] };
+        missingGroups[missingKey].ids = missingGroups[missingKey].ids.concat(record.mismatchedSetShapeIds || []);
+        return;
+      }
+      var actual = Number(record.actualArea), expected = Number(record.expectedArea), tolerance = Number(record.areaTolerance);
+      if (isFinite(actual) && isFinite(expected) && isFinite(tolerance) && Math.abs(actual - expected) > tolerance + 1e-9) {
+        var areaKey = [record.layer || '目标层', actual, expected, tolerance].join('|');
+        if (!areaGroups[areaKey]) areaGroups[areaKey] = { layer: record.layer || '目标层', actual: actual, expected: expected, tolerance: tolerance, ids: [] };
+        areaGroups[areaKey].ids = areaGroups[areaKey].ids.concat(record.targetShapeIds && record.targetShapeIds.length ? record.targetShapeIds : [record.targetShapeId]);
+      }
+    });
+    Object.keys(networkGroups).forEach(function (key) {
+      var group = networkGroups[key];
+      add('将 ' + group.layer + ' 铜皮 ' + shortIds(group.shapeIds) + '（' + group.copperNets + '）与 HDI ' +
+        shortIds(group.hdiIds) + '（' + group.hdiNet + '）的 Net 改为一致。');
+    });
+    if (noHdiVias.length) add('在孔 ' + shortIds(noHdiVias) + ' 的规则搜索范围内放置同网络、Padstack 含 HDI 的孔。');
+    if (noPairHdis.length) add('为 HDI ' + shortIds(noPairHdis) + ' 补对应差分网络的 HDI 孔。');
+    Object.keys(missingGroups).forEach(function (key) {
+      var group = missingGroups[key];
+      var actual = group.actualSet ? '；当前位置只有 Set=' + group.actualSet + (group.ids.length ? '（' + shortIds(group.ids) + '）' : '') : '';
+      add(group.layer + '：补 Set=' + group.expectedSet + ' 的异型铜皮' + actual + '。');
+    });
+    Object.keys(areaGroups).forEach(function (key) {
+      var group = areaGroups[key];
+      add(group.layer + '：将 Shape ' + shortIds(group.ids) + ' 总面积从 ' + shortNumber(group.actual) +
+        ' 调整到 ' + shortNumber(group.expected) + ' ±' + shortNumber(group.tolerance) + ' sq mil。');
+    });
+    return fixes;
+  }
+
+  function rowFixes(row) {
+    var records = row.records || [], fixes = [];
+    if (row.category === 'special_shape') fixes = specialShapeFixes(records);
+    else if (row.category === 'via_coverage') {
+      records.forEach(function (record) {
+        fixes.push('在 ' + (record.layer || '目标层') + ' 的孔心 ' + shortNumber(record.requiredDist || 50) + ' mil 内补铜。');
+      });
+    } else if (row.category === 'trace_ref_margin') {
+      records.forEach(function (record) {
+        if (record.footprintCovered === false) fixes.push('补齐 ' + (record.refLayer || '参考层') + ' 的完整走线投影铜。');
+        if (record.leftSideCopper === false) fixes.push('在走线左侧 ' + shortNumber(record.minMargin) + ' mil 内补铜。');
+        if (record.rightSideCopper === false) fixes.push('在走线右侧 ' + shortNumber(record.minMargin) + ' mil 内补铜。');
+      });
+    } else if (row.category === 'isolated_copper') {
+      fixes.push('删除 Shape ' + shortIds(records.map(function (record) { return record.shapeId; })) + '，或将其接入正确网络。');
+    } else if (row.category === 'arc_radius') {
+      records.forEach(function (record) {
+        fixes.push('将 Shape #' + record.shapeId + ' 第 ' + (record.arcIndex || '-') + ' 段圆弧半径增至 ≥ ' + shortNumber(record.requiredRadius) + ' mil。');
+      });
+    }
+    var unique = [], seen = {};
+    fixes.forEach(function (fix) { if (fix && !seen[fix]) { seen[fix] = 1; unique.push(fix); } });
+    return unique.length ? unique.slice(0, 4) : [row.config.fix];
+  }
+
+  function renderFixes(row) {
+    return '<div style="display:flex;flex-direction:column;gap:5px">' + rowFixes(row).map(function (fix, index) {
+      return '<div><b>' + (index + 1) + '.</b> ' + esc(fix) + '</div>';
+    }).join('') + '</div>';
+  }
+
   function boardBounds(State) {
     var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     function add(x, y) {
@@ -222,7 +325,7 @@
       var location = positionText(row.points) || '无可用坐标';
       h += '<tr><td><b>' + esc(row.padstack) + '</b></td><td><code>' + esc(row.network) + '</code></td>' +
         '<td><span class="pour-defect-type" style="--defect-color:' + row.config.color + '">' + esc(typeText) + '</span></td>' +
-        '<td class="pour-defect-fix">' + esc(row.config.fix) + '</td><td><div class="pour-defect-board">' +
+        '<td class="pour-defect-fix">' + renderFixes(row) + '</td><td><div class="pour-defect-board">' +
           '<button type="button" class="pour-defect-board-open" data-row-index="' + rowIndex + '" aria-label="放大查看' + esc(row.config.type) + '板上位置">' +
             '<canvas class="pour-defect-board-canvas" data-row-index="' + rowIndex + '" data-all-via-count="' + currentModel.vias.length + '" data-object-count="' + row.objectCount + '" data-detail-count="' + row.detailCount + '" width="520" height="292"></canvas>' +
             '<span>放大查看</span></button><div>' + esc(location) + '</div></div></td></tr>';
