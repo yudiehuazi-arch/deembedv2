@@ -26,6 +26,9 @@
     const distanceMm = Math.hypot(left.x - right.x, left.y - right.y) * MM_PER_MIL;
     return STACK_OFFSETS_MM.some(offset => Math.abs(distanceMm - offset) <= STACK_OFFSET_TOL_MM + 1e-9);
   }
+  function isNearTraceAnchor(via, anchors) {
+    return anchors.some(anchor => isStackOffset(via, anchor));
+  }
   function buildSignalTopology(signalVias) {
     const list = Array.isArray(signalVias) ? signalVias : [], byId = new Map(), neighbors = new Map();
     const connect = (leftId, rightId) => {
@@ -40,7 +43,8 @@
       const sourceId = String(via.id), sourceNet = normalizedNet(via);
       (via.connectedViaIds || []).forEach(targetId => {
         const target = byId.get(String(targetId));
-        if (target && sourceNet && sourceNet !== 'UNNAMED_NET' && sourceNet === normalizedNet(target)) connect(sourceId, String(target.id));
+        if (target && sourceNet && sourceNet !== 'UNNAMED_NET' && sourceNet === normalizedNet(target) &&
+          isStackOffset(via, target) && stackBoundarySide(via, target)) connect(sourceId, String(target.id));
       });
     });
     list.forEach(left => {
@@ -79,7 +83,9 @@
         const id = queue.shift(), member = topology.byId.get(id); if (member) component.push(member);
         (topology.neighbors.get(id) || []).forEach(nextId => { if (!visited.has(nextId)) { visited.add(nextId); queue.push(nextId); } });
       }
-      if (component.some(member => member.hasConnections)) component.forEach(member => { member.isFanoutEligible = true; activeIds.add(String(member.id)); });
+      const traceAnchors = component.filter(member => member.hasTraceConnections);
+      if (traceAnchors.length) component.filter(member => member.hasTraceConnections || isNearTraceAnchor(member, traceAnchors))
+        .forEach(member => { member.isFanoutEligible = true; activeIds.add(String(member.id)); });
     });
     labelActiveStacks(topology, activeIds);
     return topology.list.filter(via => activeIds.has(String(via.id))); }

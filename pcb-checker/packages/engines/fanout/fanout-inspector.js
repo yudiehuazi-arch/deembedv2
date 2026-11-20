@@ -217,7 +217,7 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
     const allowMirror = options.allowMirror !== false;
     const gndVias = vias.filter(v => v.net && v.net.toUpperCase().includes('GND'));
     const allSignalVias = vias.filter(v => !v.net || !v.net.toUpperCase().includes('GND'));
-    // 先按同网络、显式引用及层跨/中心连续性合并物理孔段；任一孔段含 Connections，整组逻辑孔即参与检查。
+    // Trace Connections 孔触发检查；同网络、层跨连续且命中最大 0.175 mm 支持偏移的孔段随完整多段孔参与。
     allSignalVias.forEach(via => { via.isFanoutCompanion = false; });
     const activePhysicalSignalVias = selectConnectedSignalVias(allSignalVias);
     const activeSignalVias = collapseSignalStacks(activePhysicalSignalVias);
@@ -240,7 +240,7 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
       const stackAudit = signalStackAudit(unitSigVias);
       const unitNets = new Set(unitSigVias.map(via => String(via.net || '').toUpperCase()));
       const unitPhysicalIds = new Set(physicalSignalVias.map(via => String(via.id)));
-      // 原始 EDA 导出偶尔会把一个 Shape-only 顶层 Pin 写到其他差分网络。仅在完整信号拓扑
+      // 原始 EDA 导出偶尔会把一个已具备 Trace 资格的顶层 Pin 写到其他差分网络。仅在完整信号拓扑
       // 恰好少一个零钻孔对象，且 Padstack/位置唯一时，才允许将邻近的独立逻辑孔恢复为候选。
       const netAliasCandidates = signalIndex.findGndNear(unit.centroid.x, unit.centroid.y, 80.0)
         .map(item => item.via)

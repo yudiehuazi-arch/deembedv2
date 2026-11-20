@@ -376,8 +376,8 @@ test('检查结果逐孔说明 Padstack、位置、缺孔和多孔问题及目�
     { id: 52, net: 'PAIR_P', isFanoutEligible: true, isFanoutNetRecovered: true },
     { id: 53, net: 'IDLE', isFanoutEligible: false }
   ], []);
-  assert.ok(document.getElementById('lblImportParseHint').textContent.includes('参与检查 2 / 几何恢复 Net 1 / 整组无 Connections 1 不参与'),
-    '导入概览应区分正式受检对象、几何恢复 Net 与整组无 Connections 排除项');
+  assert.ok(document.getElementById('lblImportParseHint').textContent.includes('参与检查 2 / 几何恢复 Net 1 / 无 Trace 连接资格 1 不参与'),
+    '导入概览应区分正式受检对象、几何恢复 Net 与无 Trace 资格排除项');
 
   window.switchTab('tabResults');
   window.setResultFilter('all');
@@ -434,14 +434,14 @@ test('快捷改名关键词重复点选拼接、放大查看无重叠标注、�
   window.switchTab('tabLibrary');
 });
 
-test('任意 Connections 均创建检查组，并按网络、层跨与孔心偏移合并完整堆叠', () => {
+test('仅 Trace Connections 触发检查，并按网络、层跨与 0.175 mm 距离合并完整堆叠', () => {
   assert.strictEqual(document.getElementById('chkAllowSubsetMatch'), null, '完整拓扑检查不应再暴露子集匹配开关');
   assert.strictEqual(document.getElementById('selRedundantPolicy'), null, '完整拓扑检查不应再允许冗余孔策略');
   assert.strictEqual(document.getElementById('btnFilterSubset'), null, '结果筛选不应保留永远不会通过的子集状态');
   const eligibilityHint = document.getElementById('fanoutConnectionsEligibilityHint').textContent;
-  assert.ok(eligibilityHint.includes('层跨连续性与孔心偏移'), '导入页应明确展示多段孔几何合并依据');
-  assert.ok(eligibilityHint.includes('Connections（Trace / Via / Shape）'), '资格说明应覆盖所有 Connections 类型');
-  assert.ok(eligibilityHint.includes('全部孔段都无 Connections 时排除'));
+  assert.ok(eligibilityHint.includes('Connections 中含 Trace'), '导入页应明确只有 Trace 连接孔触发检查');
+  assert.ok(eligibilityHint.includes('支持值（最大 0.175 mm）'), '导入页应明确多段孔相对触发孔的支持偏移上限');
+  assert.ok(eligibilityHint.includes('只有 Shape 的独立 Via 不检查'));
 
   const mixedTxt = `
 Item 1 < Via >
@@ -476,16 +476,14 @@ Item 6 < Via >
   document.getElementById('txtViaInput').value = mixedTxt;
   window.executeFanoutCheck();
   assert.strictEqual(window.State.summary.totalParsedSignalVias, 3);
-  assert.strictEqual(window.State.summary.totalSignalVias, 2);
-  assert.strictEqual(window.State.summary.excludedSignalVias, 1);
-  assert.strictEqual(window.State.clusters.length, 2, 'Trace 与 Shape-only Connections 信号孔都应创建检查组');
-  const routedCluster = window.State.clusters.find(cluster => cluster.signalVias.some(v => v.id === 1));
-  const shapeCluster = window.State.clusters.find(cluster => cluster.signalVias.some(v => v.id === 6));
+  assert.strictEqual(window.State.summary.totalSignalVias, 1);
+  assert.strictEqual(window.State.summary.excludedSignalVias, 2);
+  assert.strictEqual(window.State.clusters.length, 1, '只有 Trace Connections 信号孔创建检查组');
+  const routedCluster = window.State.clusters[0];
   assert.deepStrictEqual(Array.from(routedCluster.signalVias, v => v.id), [1]);
-  assert.deepStrictEqual(Array.from(shapeCluster.signalVias, v => v.id), [6]);
-  assert.ok(!routedCluster.vias.some(v => v.id === 5 || v.id === 6), '远处 Shape 组和无 Connections 信号孔不得污染当前组');
+  assert.ok(!routedCluster.vias.some(v => v.id === 5 || v.id === 6), 'Shape-only 和无 Connections 信号孔不得污染当前组');
   assert.ok(routedCluster.vias.some(v => v.net === 'GND'), '附近 GND 应继续关联为伴随地孔');
-  assert.ok(document.getElementById('lblImportParseHint').textContent.includes('参与检查 2 / 整组无 Connections 1 不参与'));
+  assert.ok(document.getElementById('lblImportParseHint').textContent.includes('参与检查 1 / 无 Trace 连接资格 2 不参与'));
 
   const noConnectedTxt = mixedTxt
     .replace('  Connections:\n    Trace: 1 (Top)\n', '')
@@ -495,10 +493,10 @@ Item 6 < Via >
   assert.strictEqual(window.State.vias.length, 6, '全部过孔仍应保留供导入概览和视口显示');
   assert.strictEqual(window.State.summary.totalSignalVias, 0);
   assert.strictEqual(window.State.summary.totalClusters, 0);
-  assert.strictEqual(window.State.clusters.length, 0, '所有逻辑信号孔都无 Connections 时不得回退组群');
+  assert.strictEqual(window.State.clusters.length, 0, '所有逻辑信号孔都无 Trace Connections 时不得回退组群');
   assert.strictEqual(document.getElementById('statTotalClusters').textContent, '0');
   assert.strictEqual(document.getElementById('cntFilterAll').textContent, '0');
-  assert.ok(document.getElementById('lblImportParseHint').textContent.includes('参与检查 0 / 整组无 Connections 3 不参与'));
+  assert.ok(document.getElementById('lblImportParseHint').textContent.includes('参与检查 0 / 无 Trace 连接资格 3 不参与'));
 
   window.switchTab('tabCanvas');
   window.fitCanvasToLayout();

@@ -4,11 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>PCB 扇出方案检查工具</title>
-<link rel="stylesheet" href="assets/styles/tokens.css?v=65">
-<link rel="stylesheet" href="assets/styles/eda-shell.css?v=65">
-<link rel="stylesheet" href="assets/styles/eda-dock.css?v=65">
-<link rel="stylesheet" href="assets/styles/components.css?v=65">
-<link rel="stylesheet" href="assets/styles/pages/fanout.css?v=65"><link rel="stylesheet" href="assets/styles/check-guide.css?v=65">
+<link rel="stylesheet" href="assets/styles/tokens.css?v=66">
+<link rel="stylesheet" href="assets/styles/eda-shell.css?v=66">
+<link rel="stylesheet" href="assets/styles/eda-dock.css?v=66">
+<link rel="stylesheet" href="assets/styles/components.css?v=66">
+<link rel="stylesheet" href="assets/styles/pages/fanout.css?v=66"><link rel="stylesheet" href="assets/styles/check-guide.css?v=66">
 </head>
 <body class="eda-workbench">
 
@@ -163,7 +163,7 @@
         <div class="dropzone" id="dropzoneVia" onclick="document.getElementById('fileViaInput').click()" data-tip="支持 .txt / .csv / .dat 文件拖拽或点击上传">
           <input type="file" id="fileViaInput" accept=".txt,.csv,.dat" style="display:none" onchange="handleViaFileUpload(event)">
           <div class="t1">点击上传过孔与走线 TXT 文件，或拖拽至此处</div>
-          <div class="t2" id="fanoutConnectionsEligibilityHint">先按同网络、层跨连续性与孔心偏移合并完整多段 Via；整组任一孔段含 Connections（Trace / Via / Shape）即参与检查，仅当全部孔段都无 Connections 时排除</div>
+          <div class="t2" id="fanoutConnectionsEligibilityHint">仅 Connections 中含 Trace 的 Via 触发检查；同网络、层跨连续且孔心偏移命中支持值（最大 0.175 mm）的其他孔段随完整多段孔参与；只有 Shape 的独立 Via 不检查</div>
         </div>
 
         <details class="eda-fold" open>
@@ -636,24 +636,24 @@
     </div>
   </div>
 </div>
-<script src="packages/shared/check-guide.js?v=65"></script><script src="packages/shared/dom-utils.js?v=65"></script>
-<script src="packages/engines/fanout/fanout-parser.js?v=65"></script>
-<script src="packages/engines/fanout/fanout-palette.js?v=65"></script>
-<script src="packages/engines/fanout/fanout-scheme.js?v=65"></script>
-<script src="packages/engines/fanout/fanout-clustering.js?v=65"></script>
-<script src="packages/engines/fanout/fanout-topology.js?v=65"></script>
-<script src="packages/engines/fanout/fanout-inspector.js?v=65"></script>
-<script src="packages/engines/fanout/fanout-layout.js?v=65"></script>
-<script src="packages/engines/fanout/fanout-canvas.js?v=65"></script>
-<script src="packages/pages/fanout/fanout-state.js?v=65"></script>
-<script src="packages/pages/fanout/fanout-library-ui.js?v=65"></script><script src="packages/pages/fanout/fanout-scheme-compare.js?v=65"></script>
-<script src="packages/pages/fanout/fanout-scheme-viewer.js?v=65"></script>
-<script src="packages/pages/fanout/fanout-result-details.js?v=65"></script><script src="packages/pages/fanout/fanout-results-ui.js?v=65"></script>
-<script src="packages/pages/fanout/fanout-analysis-ui.js?v=65"></script>
-<script src="packages/pages/fanout/fanout-canvas-review.js?v=65"></script>
-<script src="packages/pages/fanout/fanout-canvas-viewer.js?v=65"></script>
-<script src="packages/shared/eda-tooltip.js?v=65"></script>
-<script src="packages/shared/eda-shell.js?v=65"></script>
-<script src="packages/shared/ui-prefs.js?v=65"></script>
+<script src="packages/shared/check-guide.js?v=66"></script><script src="packages/shared/dom-utils.js?v=66"></script>
+<script src="packages/engines/fanout/fanout-parser.js?v=66"></script>
+<script src="packages/engines/fanout/fanout-palette.js?v=66"></script>
+<script src="packages/engines/fanout/fanout-scheme.js?v=66"></script>
+<script src="packages/engines/fanout/fanout-clustering.js?v=66"></script>
+<script src="packages/engines/fanout/fanout-topology.js?v=66"></script>
+<script src="packages/engines/fanout/fanout-inspector.js?v=66"></script>
+<script src="packages/engines/fanout/fanout-layout.js?v=66"></script>
+<script src="packages/engines/fanout/fanout-canvas.js?v=66"></script>
+<script src="packages/pages/fanout/fanout-state.js?v=66"></script>
+<script src="packages/pages/fanout/fanout-library-ui.js?v=66"></script><script src="packages/pages/fanout/fanout-scheme-compare.js?v=66"></script>
+<script src="packages/pages/fanout/fanout-scheme-viewer.js?v=66"></script>
+<script src="packages/pages/fanout/fanout-result-details.js?v=66"></script><script src="packages/pages/fanout/fanout-results-ui.js?v=66"></script>
+<script src="packages/pages/fanout/fanout-analysis-ui.js?v=66"></script>
+<script src="packages/pages/fanout/fanout-canvas-review.js?v=66"></script>
+<script src="packages/pages/fanout/fanout-canvas-viewer.js?v=66"></script>
+<script src="packages/shared/eda-tooltip.js?v=66"></script>
+<script src="packages/shared/eda-shell.js?v=66"></script>
+<script src="packages/shared/ui-prefs.js?v=66"></script>
 </body>
 </html>
