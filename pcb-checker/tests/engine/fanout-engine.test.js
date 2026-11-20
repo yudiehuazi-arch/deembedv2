@@ -939,6 +939,14 @@ Item 3 < Via >
     [0, 1], { x: 0, y: 0 }, { x: 0, y: 0 }, 1, 0, false, 2);
   assert.strictEqual(oneToOne.missingVias.length, 0, '一对一映射应通过增广配对避免贪心抢占唯一候选孔');
   assert.strictEqual(oneToOne.usedGndIndices.size, 2);
+
+  const coincidentPads = FanoutChecker.matchCompanionGnd(
+    [{ id: 1, x: 0, y: 0, net: 'GND', padstack: 'GND_A' }, { id: 2, x: 0, y: 0, net: 'GND', padstack: 'GND_B' }],
+    [{ id: 21, x: 0, y: 0, net: 'GND', padstack: 'GND_A' }, { id: 22, x: 0, y: 0, net: 'GND', padstack: 'GND_C' }],
+    [0, 1], { x: 0, y: 0 }, { x: 0, y: 0 }, 1, 0, false, 2);
+  assert.deepStrictEqual(coincidentPads.audit.map(item => [item.viaId, item.isMatch]), [[21, true], [22, false]],
+    '同坐标多段 GND 应先保留 Padstack 精确配对，只把真正不同的孔段报错');
+  assert.strictEqual(coincidentPads.padMismatchList.length, 1);
   console.log('  PASS  信号优先姿态匹配后，GND 数量、Padstack、中心位置执行一对一严格核验');
 }
 

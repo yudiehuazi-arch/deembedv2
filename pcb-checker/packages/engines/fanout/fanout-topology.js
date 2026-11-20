@@ -159,7 +159,15 @@
         expectedY: originVia.y + dx * sinA + dy * cosA };
     });
     const exact = maximumGndMapping(expected, nearbyGnd, footprintIndices, tolerance, true);
-    const mapping = exact.size === expected.length ? exact : maximumGndMapping(expected, nearbyGnd, footprintIndices, tolerance, false);
+    const mapping = new Map(exact);
+    if (mapping.size < expected.length) {
+      const exactExpected = new Set(mapping.keys()), exactActual = new Set(Array.from(mapping.values(), item => item.index));
+      const remainingExpectedIndices = expected.map((_, index) => index).filter(index => !exactExpected.has(index));
+      const remainingActualIndices = footprintIndices.filter(index => !exactActual.has(index));
+      const fallback = maximumGndMapping(remainingExpectedIndices.map(index => expected[index]), nearbyGnd,
+        remainingActualIndices, tolerance, false);
+      fallback.forEach((candidate, index) => mapping.set(remainingExpectedIndices[index], candidate));
+    }
     const usedGndIndices = new Set(), padMismatchList = [], missingVias = [], audit = [];
     expected.forEach((item, index) => {
       const chosen = mapping.get(index), role = item.via.role || (`伴随地孔${item.via.id}`);

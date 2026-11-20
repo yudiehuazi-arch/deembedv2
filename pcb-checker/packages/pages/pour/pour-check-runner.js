@@ -6,7 +6,7 @@
   if (typeof document === 'undefined') return;
 
   var State = root.State;
-  var WORKER_URL = 'packages/pages/pour/pour-check-worker.js?v=71';
+  var WORKER_URL = 'packages/pages/pour/pour-check-worker.js?v=72';
   var LARGE_FILE_LIMIT = 2 * 1024 * 1024;
   var PREVIEW_CHARS = 200000;
   var IDLE_BUTTON_TEXT = '▶ 运行铜皮五项检查';
