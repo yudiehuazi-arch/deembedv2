@@ -138,7 +138,7 @@
   }
 
   function formatResultStatus(r) {
-    return r.pass ? '符合' : ('不符合' + (r.failCount ? ' · ' + r.failCount + ' 层未检出' : ''));
+    return r.pass ? '符合' : ('不符合' + (r.failCount ? ' · ' + r.failCount + (r.checkCategory === 'special_shape' ? ' 项未通过' : ' 层未检出') : ''));
   }
   function formatTraceReferenceIssue(record) {
     var issues = [], distance = record.minMargin != null ? record.minMargin + ' mil' : '规则距离';
@@ -163,7 +163,7 @@
     var layerText = layers.length ? layers.join('、') + ' 层' : '目标层';
     var hasProblem = failed.length > 0;
     if (r.checkCategory === 'via_coverage') return layerText + (hasProblem ? '缺铜皮' : '铜皮覆盖符合要求');
-    if (r.checkCategory === 'special_shape') return selected[0] && selected[0].associationFailed ? layerText + '模板关联条件未命中：' + selected[0].associationSummary : layerText + (hasProblem ? '异型铜皮不匹配' : '异型铜皮匹配');
+    if (r.checkCategory === 'special_shape') return selected[0] && selected[0].associationFailed ? layerText + '模板关联条件未命中：' + selected[0].associationSummary : layerText + '【' + selected.map(function (record) { return record.templateName || '异型模板'; }).filter(function (value, index, values) { return values.indexOf(value) === index; }).join('、') + '】' + (hasProblem ? '异型铜皮不匹配' : '异型铜皮匹配');
     if (r.checkCategory === 'trace_ref_margin') {
       if (!hasProblem) {
         var margin = r.minMargin != null ? r.minMargin : (selected[0] && selected[0].minMargin);

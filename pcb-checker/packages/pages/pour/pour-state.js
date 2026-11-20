@@ -68,7 +68,7 @@
       r1_dist: ['50.0', '40.0', '30.0', '20.0', '15.0'],
 
       r2_name: ['L2特定异型泪滴铜皮', 'L19特定异型铜皮', 'SMA专用接地异型铜皮', 'BGA局部加宽铜皮'],
-      r2_padstack: ['BGA_3510', 'HDI_045drill', 'SMA_Bot-L19', 'BGA_GND'],
+      r2_padstack: ['BGA_3510', 'SMA-HDI-SIG-045drill-ring3_L1_L2', 'HDI_045drill', 'SMA_Bot-L19', 'BGA_GND'],
       r2_diff_dist: ['10.0', '19.68', '20.0', '23.62'],
       r2_hdi_radius: ['0.175', '0.150', '0.125', '0.100'],
       r2_layer: ['02G01P', '19IS08', 'L2', 'L4', 'L17'],

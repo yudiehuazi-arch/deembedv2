@@ -128,6 +128,7 @@ function renderRulesUI() {
             <input type="number" step="0.1" value="${r.expectedArea != null ? r.expectedArea : 452.4}" onchange="State.rules.specialShapeTemplates[${i}].expectedArea=parseFloat(this.value)" style="width:65px"> sq mil (±<input type="number" step="1" value="${r.areaTolerance || 30}" onchange="State.rules.specialShapeTemplates[${i}].areaTolerance=parseFloat(this.value)" style="width:40px">)
           </td>
           <td style="text-align:right">
+            <button class="btn sec small" style="padding:2px 6px;font-size:11px" onclick="duplicatePourShapeTemplate(${i})">复制加层</button>
             <button class="btn sec small" style="padding:2px 6px;font-size:11px" onclick="editPourShapeTemplate(${i})">编辑</button>
             <button class="btn danger small" style="padding:2px 6px;margin-left:4px" onclick="deletePourShapeTemplate(${i})">删除</button>
           </td>

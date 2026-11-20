@@ -282,6 +282,25 @@ test('规则 1/2/3 多规则配置表格与历史快捷标签初始化正常', (
   }
 });
 
+test('同一过孔类型可复制为另一层异型铜皮要求', () => {
+  const source = w.State.specialShapeTemplates[0];
+  const before = w.State.specialShapeTemplates.length;
+  const sourceArea = source.expectedArea;
+  w.duplicateRule2ForLayer(0);
+  if (!$('modalRule2').classList.contains('open')) throw new Error('复制加层后未打开新模板编辑框');
+  if ($('modalR2InpPadstack').value !== source.padstack) throw new Error('复制加层未保留过孔类型');
+  $('modalR2InpName').value = '同过孔 L3 异型铜皮';
+  $('modalR2InpLayer').value = 'L3';
+  w.saveRule2FromModal();
+  const copy = w.State.specialShapeTemplates[1];
+  if (w.State.specialShapeTemplates.length !== before + 1 || copy.padstack !== source.padstack || copy.layer !== 'L3') {
+    throw new Error('同一过孔的新增层要求未作为独立模板保存');
+  }
+  if (copy.expectedArea !== sourceArea) throw new Error('无原始 Shape TXT 的模板复制后丢失基准面积');
+  if (!$('tblRule2Body').textContent.includes('复制加层')) throw new Error('规则表缺少复制加层操作');
+  w.deleteRule2(1);
+});
+
 test('异型铜皮预览按离散轮廓绘制，不把圆弧画成整圆', () => {
   const shape = w.PourChecker.parsePcbElements(SPECIAL_SHAPE_TXT).shapes[0];
   const calls = { lineTo: 0, arc: 0 };

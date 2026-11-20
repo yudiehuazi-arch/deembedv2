@@ -197,6 +197,17 @@ async function test(name, fn) {
     if (!w.State.rules.specialShapeTemplates.every(t => t.differentialCenterDistance > 0 && t.hdiSearchRadiusMm > 0)) {
       throw new Error('默认异型模板缺少差分孔中心距或 HDI 搜索距离');
     }
+    const copySource = w.State.rules.specialShapeTemplates[0];
+    const copyBefore = w.State.rules.specialShapeTemplates.length;
+    w.duplicatePourShapeTemplate(0);
+    if ($('modalPourShapeInpPadstack').value !== copySource.padstack) throw new Error('综合页复制加层未保留过孔类型');
+    $('modalPourShapeInpLayer').value = 'L3';
+    w.savePourShapeFromModal();
+    const layerCopy = w.State.rules.specialShapeTemplates[copyBefore];
+    if (!layerCopy || layerCopy.padstack !== copySource.padstack || layerCopy.layer !== 'L3' || layerCopy.expectedArea !== copySource.expectedArea) {
+      throw new Error('综合页未将同一过孔的新增层要求保存为独立模板');
+    }
+    w.State.rules.specialShapeTemplates.splice(copyBefore, 1);
     const before = w.State.rules.specialShapeTemplates.length;
     w.openAddPourShapeModal();
     if ($('modalPourShapeInpDiffDist').value !== '' || $('modalPourShapeInpHdiRadius').value !== '') throw new Error('综合页新增模板不应预填可选字段默认值');

@@ -6,9 +6,11 @@
 // Copper Pour Rule 2 Shape Template Modal & Edit Mode (Matching image-3.png)
 // =========================================================================
 let g_editingPourShapeIdx = -1;
+let g_modalPourShapeSource = null;
 
 function openAddPourShapeModal() {
   g_editingPourShapeIdx = -1;
+  g_modalPourShapeSource = null;
   const modal = $('modalPourShape');
   if (!modal) return;
 
@@ -39,6 +41,7 @@ function editPourShapeTemplate(idx) {
   g_editingPourShapeIdx = idx;
   const t = State.rules.specialShapeTemplates && State.rules.specialShapeTemplates[idx];
   if (!t) return;
+  g_modalPourShapeSource = t;
 
   const modal = $('modalPourShape');
   if (!modal) return;
@@ -76,6 +79,16 @@ function editPourShapeTemplate(idx) {
 
   previewModalPourShape();
   modal.style.display = 'flex';
+}
+
+function duplicatePourShapeTemplate(idx) {
+  const source = State.rules.specialShapeTemplates && State.rules.specialShapeTemplates[idx];
+  if (!source) return;
+  editPourShapeTemplate(idx);
+  g_editingPourShapeIdx = -1;
+  g_modalPourShapeSource = source;
+  $('modalPourShapeTitle').textContent = '基于现有模板新增层要求';
+  $('modalPourShapeInpName').value = `${source.name || '异型铜皮模板'}_新增层`;
 }
 
 function closePourShapeModal() {
@@ -137,8 +150,13 @@ function savePourShapeFromModal() {
   const tol = parseFloat($('modalPourShapeInpTol').value) || 30.0;
   const rawTxt = $('modalPourShapeTxt').value;
 
-  const parsedShape = parseModalPourShapeText(rawTxt);
-  const area = parsedShape && parsedShape.area > 0 ? parsedShape.area : 0;
+  let parsedShape = parseModalPourShapeText(rawTxt);
+  let area = parsedShape && parsedShape.area > 0 ? parsedShape.area : 0;
+  const sourceRaw = g_modalPourShapeSource && (g_modalPourShapeSource.rawTxt || g_modalPourShapeSource.rawShapeText || '');
+  if (!rawTxt.trim() && !String(sourceRaw).trim() && g_modalPourShapeSource) {
+    area = Number(g_modalPourShapeSource.expectedArea) || 0;
+    parsedShape = g_modalPourShapeSource.shape || null;
+  }
 
   if (g_editingPourShapeIdx >= 0) {
     const t = State.rules.specialShapeTemplates[g_editingPourShapeIdx];
@@ -171,6 +189,7 @@ function savePourShapeFromModal() {
   }
 
   closePourShapeModal();
+  g_modalPourShapeSource = null;
   renderRulesUI();
 }
 

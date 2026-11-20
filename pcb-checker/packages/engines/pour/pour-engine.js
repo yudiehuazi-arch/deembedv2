@@ -258,7 +258,7 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
             actualArea: bestShape ? bestShape.area : 0, expectedArea, areaTolerance: tolArea, pass: isMatch,
             message: isMatch
               ? `✅ 符合：${targetDesc}，在 ${targetLayer} 层的铜皮与异型模板【${tmplName}】匹配 (${bestShapeIds.length} 个 Shape Item 合计面积 ${bestShape ? roundN(bestShape.area, 1) : '-'} sq mil)`
-              : `❌ 不符合：${targetDesc}，在 ${targetLayer} 层异型铜皮不匹配 (${failReason})`
+              : `❌ 不符合：${targetDesc}，在 ${targetLayer} 层与异型模板【${tmplName}】不匹配 (${failReason})`
           });
         });
       });
@@ -348,7 +348,7 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
         targetType = 'via';
         targetLabel = `${r.viaPadstack || '-'} / ${r.viaNet || 'GND'} / 孔 #${r.viaId}`;
       } else if (r.checkCategory === 'special_shape') {
-        key = `special_shape_${r.viaId}_${r.templateId || r.layer}`;
+        key = `special_shape_${r.viaId}`;
         targetType = 'via';
         targetLabel = `${r.viaPadstack || '-'} / ${r.viaNet || 'GND'} / 孔 #${r.viaId}`;
       } else if (r.checkCategory === 'trace_ref_margin') {
@@ -420,10 +420,12 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
         const s0 = subs[0];
         const failedSubs = subs.filter(s => !s.pass);
         const layersChecked = [...new Set(subs.map(s => s.layer))];
+        const templateNames = [...new Set(subs.map(s => s.templateName).filter(Boolean))];
         g.layer = layersChecked.join(', ');
         g.layerListStr = g.layer;
-        g.expectedArea = s0.expectedArea;
-        g.actualArea = s0.actualArea;
+        g.templateNames = templateNames;
+        g.expectedArea = templateNames.length === 1 ? s0.expectedArea : null;
+        g.actualArea = templateNames.length === 1 ? s0.actualArea : null;
         g.failCount = failedSubs.length;
         g.passCount = subs.length - failedSubs.length;
         const hdiMetrics = [];
@@ -432,9 +434,9 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
         if (s0.expectedDifferentialCenterDistance != null) hdiMetrics.push(`HDI 中心距规则 ${s0.expectedDifferentialCenterDistance} mil`);
         if (s0.hdiSearchRadiusMm != null) hdiMetrics.push(`搜索距离 ≤ ${s0.hdiSearchRadiusMm} mm`);
         g.metricsStr = s0.associationFailed ? s0.associationSummary :
-          (hdiMetrics.length ? hdiMetrics.join('；') + '；' : '') + subs.map(s => `${s.layer} 实测面积 ${roundN(s.actualArea, 1)} sq mil`).join('；');
+          (hdiMetrics.length ? hdiMetrics.join('；') + '；' : '') + subs.map(s => `${s.layer}【${s.templateName}】实测 ${roundN(s.actualArea, 1)} / 要求 ${roundN(s.expectedArea, 1)} ±${s.areaTolerance} sq mil`).join('；');
         g.message = s0.associationFailed ? s0.message : (allPass
-          ? `✅ 符合：孔 #${g.viaId} 在目标层【${g.layerListStr}】的铜皮均匹配异型模板【${s0.templateName}】`
+          ? `✅ 符合：孔 #${g.viaId} 在目标层【${g.layerListStr}】的 ${subs.length} 项异型铜皮要求均匹配【${templateNames.join('、')}】`
           : failedSubs.map(s => s.message).join('；'));
       } else if (g.checkCategory === 'trace_ref_margin') {
         const failedSubs = subs.filter(s => !s.pass);

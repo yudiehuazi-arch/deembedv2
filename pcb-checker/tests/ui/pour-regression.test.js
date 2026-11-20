@@ -375,8 +375,8 @@ test('判定状态与五类检查可组合筛选，孔层铺铜使用层别缺�
   const layerOptions = readColumnOptions('layer');
   if (!layerOptions.includes('L2, L3') || !layerOptions.includes('L8')) throw new Error('涉及层别筛选未列出表格中的全部不同值');
   const statusOptions = readColumnOptions('status');
-  if (!statusOptions.includes('符合') || !statusOptions.includes('不符合') || !statusOptions.includes('不符合 · 1 层未检出') || !statusOptions.includes('不符合 · 2 层未检出')) {
-    throw new Error('判定筛选未区分符合、普通不符合及不同未检出层数：' + statusOptions.join(' / '));
+  if (!statusOptions.includes('符合') || !statusOptions.includes('不符合') || !statusOptions.includes('不符合 · 1 层未检出') || !statusOptions.includes('不符合 · 2 项未通过')) {
+    throw new Error('判定筛选未区分符合、普通不符合、未检出层数及异型模板未通过项数：' + statusOptions.join(' / '));
   }
   const problemOptions = readColumnOptions('problem');
   if (!problemOptions.includes('L2 层缺铜皮') || !problemOptions.includes('L5 层完整走线投影缺铜') ||
@@ -386,9 +386,9 @@ test('判定状态与五类检查可组合筛选，孔层铺铜使用层别缺�
   w.setResultColumnFilter('status', ['不符合 · 1 层未检出']);
   if (w.State.filteredResults.length !== 1 || w.State.filteredResults[0].groupKey !== 'mock_cov_fail') throw new Error('判定完整文本筛选未生效');
   w.setResultColumnFilter('status', []);
-  w.setResultColumnFilter('problem', ['L4 层异型铜皮不匹配']);
+  w.setResultColumnFilter('problem', ['L4 层【异型模板】异型铜皮不匹配']);
   if (w.State.filteredResults.length !== 1 || w.State.filteredResults[0].groupKey !== 'mock_shape_fail') throw new Error('问题点枚举筛选未生效');
-  if (JSON.stringify(readColumnOptions('layer')) !== '["L4"]' || JSON.stringify(readColumnOptions('status')) !== '["不符合 · 2 层未检出"]') {
+  if (JSON.stringify(readColumnOptions('layer')) !== '["L4"]' || JSON.stringify(readColumnOptions('status')) !== '["不符合 · 2 项未通过"]') {
     throw new Error('其他列筛选下拉未基于当前问题点筛选后的列表联动');
   }
   w.setResultColumnFilter('problem', []);
@@ -439,13 +439,13 @@ test('判定状态与五类检查可组合筛选，孔层铺铜使用层别缺�
     throw new Error('目标列筛选未用局部关键词兼容 21-N 与 21_N');
   }
   w.setResultColumnFilter('target', '');
-  if (JSON.stringify(readColumnOptions('status')) !== '["不符合 · 2 层未检出"]' ||
+  if (JSON.stringify(readColumnOptions('status')) !== '["不符合 · 2 项未通过"]' ||
       JSON.stringify(readColumnOptions('layer')) !== '["L4"]' ||
-      JSON.stringify(readColumnOptions('problem')) !== '["L4 层异型铜皮不匹配"]') {
+      JSON.stringify(readColumnOptions('problem')) !== '["L4 层【异型模板】异型铜皮不匹配"]') {
     throw new Error('表头筛选下拉未按当前“不符合项 × 异型铜皮”列表统计全部可能性');
   }
   [
-    ['special_shape', 'L4 层异型铜皮不匹配'],
+    ['special_shape', 'L4 层【异型模板】异型铜皮不匹配'],
     ['trace_ref_margin', 'L5 层完整走线投影缺铜'],
     ['isolated_copper', 'L6 层存在孤立小铜皮'],
     ['arc_radius', 'L7 层铜皮圆弧半径过小']

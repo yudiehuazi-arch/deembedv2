@@ -79,7 +79,8 @@
         '<td><strong>' + (radiusText == null ? '<span class="hint">未启用</span>' : esc(radiusText) + ' mm') + '</strong></td>' +
         '<td><span class="badge-tag gray">' + esc(t.layer) + '</span></td>' +
         '<td><strong>' + esc(areaNum) + ' sq mil</strong> ±' + esc(t.areaTolerance) + '</td>' +
-        '<td><div class="row" style="gap:4px">' +
+        '<td><div class="row" style="gap:4px;flex-wrap:nowrap">' +
+          '<button type="button" class="btn sec small" onclick="duplicateRule2ForLayer(' + idx + ')">复制加层</button>' +
           '<button type="button" class="btn sec small" onclick="openEditRule2Modal(' + idx + ')">编辑</button>' +
           '<button type="button" class="btn bad small" onclick="deleteRule2(' + idx + ')">删除</button>' +
         '</div></td>' +
@@ -183,6 +184,7 @@
 
   function openAddRule2Modal() {
     State.editingIndex = -1;
+    State.editingRule2Original = null;
     document.getElementById('modalR2Title').textContent = '新增特定异型铜皮模板';
     enableRule2Inputs();
     document.getElementById('modalR2InpName').value = 'L2特定异型铜皮_' + (State.specialShapeTemplates.length + 1);
@@ -202,6 +204,7 @@
     State.editingIndex = idx;
     var t = State.specialShapeTemplates[idx];
     if (!t) return;
+    State.editingRule2Original = t;
     document.getElementById('modalR2Title').textContent = '编辑特定异型铜皮模板';
     enableRule2Inputs();
     document.getElementById('modalR2InpName').value = t.name;
@@ -266,8 +269,12 @@
     recordHistory('r2_tol', String(tol));
 
     var expectedArea = 0;
-    if (State.modalShapeParsed && State.modalShapeParsed.area > 0) {
-      expectedArea = State.modalShapeParsed.area;
+    var savedShape = State.modalShapeParsed;
+    if (savedShape && savedShape.area > 0) {
+      expectedArea = savedShape.area;
+    } else if (!rawTxt.trim() && State.editingRule2Original && !String(State.editingRule2Original.rawShapeText || '').trim()) {
+      expectedArea = Number(State.editingRule2Original.expectedArea) || 0;
+      savedShape = State.editingRule2Original.shape || null;
     }
 
     var newTmpl = {
@@ -280,8 +287,8 @@
       expectedArea: expectedArea,
       areaTolerance: tol,
       rawShapeText: rawTxt,
-      shapeItemCount: State.modalShapeParsed ? (State.modalShapeParsed.itemCount || 1) : 0,
-      shape: State.modalShapeParsed
+      shapeItemCount: savedShape ? (savedShape.itemCount || (State.editingRule2Original && State.editingRule2Original.shapeItemCount) || 1) : 0,
+      shape: savedShape
     };
 
     if (State.editingIndex >= 0) {
@@ -292,11 +299,23 @@
 
     renderRule2Table();
     closeModal('modalRule2');
+    State.editingRule2Original = null;
   }
 
   function deleteRule2(idx) {
     State.specialShapeTemplates.splice(idx, 1);
     renderRule2Table();
+  }
+
+  function duplicateRule2ForLayer(idx) {
+    var source = State.specialShapeTemplates[idx];
+    if (!source) return;
+    var copy = JSON.parse(JSON.stringify(source));
+    copy.id = 'tmpl_' + Date.now() + '_' + (idx + 1);
+    copy.name = (source.name || '异型铜皮模板') + '_新增层';
+    State.specialShapeTemplates.splice(idx + 1, 0, copy);
+    renderRule2Table();
+    openEditRule2Modal(idx + 1);
   }
 
   function openAddRule3Modal() {
@@ -545,6 +564,7 @@
   root.previewModalShape = previewModalShape;
   root.saveRule2FromModal = saveRule2FromModal;
   root.deleteRule2 = deleteRule2;
+  root.duplicateRule2ForLayer = duplicateRule2ForLayer;
   root.openAddRule3Modal = openAddRule3Modal;
   root.openEditRule3Modal = openEditRule3Modal;
   root.saveRule3FromModal = saveRule3FromModal;

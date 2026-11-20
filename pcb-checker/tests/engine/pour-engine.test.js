@@ -218,6 +218,37 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   console.log('  PASS  第二项：过孔类型、差分孔中心距与多个目标层依次匹配异型铜皮模板');
 }
 
+// 3.1 同一 Padstack 可有多条逐层异型铜皮要求，命中项全部为必检项
+{
+  const padstack = 'SMA-HDI-SIG-045drill-ring3_L1_L2';
+  const vias = [{ id: 14, x: 100, y: 100, padstack, net: 'SMA_P' }];
+  const shapes = [
+    { id: 203, layer: '02G01P', area: 118.3, centroid: { x: 100, y: 100 } },
+    { id: 204, layer: '03G02P', area: 96.5, centroid: { x: 100, y: 100 } }
+  ];
+  const templates = [
+    { id: 'same_via_l2', name: 'SMA L2 异型铜皮', padstack, layer: 'L2', expectedArea: 118.3, areaTolerance: 0.1 },
+    { id: 'same_via_l3', name: 'SMA L3 异型铜皮', padstack, layer: 'L3', expectedArea: 96.5, areaTolerance: 0.1 }
+  ];
+  const results = checkSpecialShapedCopper(vias, shapes, templates);
+  assert.strictEqual(results.length, 2, '同一过孔命中的两条模板都必须生成检查记录');
+  assert.deepStrictEqual(results.map(item => item.templateId), ['same_via_l2', 'same_via_l3']);
+  assert.ok(results.every(item => item.pass), 'L2 与 L3 两项铜皮要求均满足时才应全部通过');
+  const grouped = groupResultsByTargetObject(results);
+  assert.strictEqual(grouped.length, 1, '同一过孔的多条异型铜皮要求应合并为一个目标结果');
+  assert.strictEqual(grouped[0].subRecords.length, 2);
+  assert.deepStrictEqual(grouped[0].templateNames, ['SMA L2 异型铜皮', 'SMA L3 异型铜皮']);
+  assert.ok(grouped[0].pass && grouped[0].metricsStr.includes('L2【SMA L2 异型铜皮】') && grouped[0].metricsStr.includes('L3【SMA L3 异型铜皮】'));
+
+  const missingL3 = checkSpecialShapedCopper(vias, shapes.slice(0, 1), templates);
+  const failedGroup = groupResultsByTargetObject(missingL3)[0];
+  assert.strictEqual(missingL3.length, 2, '缺少 L3 铜皮时不得因 L2 已通过而跳过第二条要求');
+  assert.strictEqual(failedGroup.pass, false);
+  assert.strictEqual(failedGroup.failCount, 1);
+  assert.ok(failedGroup.message.includes('SMA L3 异型铜皮'));
+  console.log('  PASS  第二项：同一过孔类型支持多条逐层模板，全部命中要求均参与判定');
+}
+
 // 4. 每颗目标 Via 独立关联最近的同网络 HDI Via，并按实测中心距选择模板
 {
   const defaultRadiusMil = 0.175 * 1000 / 25.4;
