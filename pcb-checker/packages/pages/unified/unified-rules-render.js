@@ -129,6 +129,7 @@ function renderRulesUI() {
             <select data-no-persist onchange="State.rules.specialShapeTemplates[${i}].set=PourChecker.normalizeSpecialShapeSet(this.value,'Shape')" style="width:110px">
               <option value="Shape" ${PourChecker.normalizeSpecialShapeSet(r.set, 'Shape') === 'Shape' ? 'selected' : ''}>Shape</option>
               <option value="Route Keepout" ${PourChecker.normalizeSpecialShapeSet(r.set, 'Shape') === 'Route Keepout' ? 'selected' : ''}>Route Keepout</option>
+              <option value="Board Geometry" ${PourChecker.normalizeSpecialShapeSet(r.set, 'Shape') === 'Board Geometry' ? 'selected' : ''}>Board Geometry</option>
             </select>
           </td>
           <td style="font-family:var(--mono);font-size:12px;font-weight:600;color:#111827">

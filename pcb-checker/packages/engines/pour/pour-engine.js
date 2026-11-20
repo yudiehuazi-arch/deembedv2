@@ -10,14 +10,13 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
   root.PourChecker = Object.assign(root.PourChecker || {}, api);
 })(typeof globalThis !== "undefined" ? globalThis : this, function (geom, parser, traceMargin) {
   "use strict";
-  var MM_PER_MIL = geom.MM_PER_MIL, MIL_PER_MM = geom.MIL_PER_MM;
-  var dist2D = geom.dist2D, roundN = geom.roundN;
+  var MM_PER_MIL = geom.MM_PER_MIL, MIL_PER_MM = geom.MIL_PER_MM, dist2D = geom.dist2D, roundN = geom.roundN;
   var pointToShapeDistance = geom.pointToShapeDistance;
   var shapeRing = geom.shapeRing, pointInShape = geom.pointInShape;
   var checkTraceReferenceMargin = traceMargin.checkTraceReferenceMargin;
   var buildPointGrid = geom.buildPointGrid, queryPointGrid = geom.queryPointGrid;
   var buildBBoxGrid = geom.buildBBoxGrid, queryBBoxGrid = geom.queryBBoxGrid, physicalLayerAlias = geom.physicalLayerAlias;
-  var expandLayerRange = parser.expandLayerRange, parsePcbElements = parser.parsePcbElements, normalizeSpecialShapeSet = parser.normalizeSpecialShapeSet;
+  var expandLayerRange = parser.expandLayerRange, parsePcbElements = parser.parsePcbElements, normalizeSpecialShapeSet = parser.normalizeSpecialShapeSet, SPECIAL_SHAPE_SETS = parser.SPECIAL_SHAPE_SETS;
   var parseShapeBlock = parser.parseShapeBlock, findAssociatedShapeItems = parser.findAssociatedShapeItems, buildShapePointIndexes = parser.buildShapePointIndexes;
   var SPECIAL_SHAPE_CENTER_DISTANCE_TOLERANCE = 0.01;
   function checkViaLayerCoverage(vias, shapes, rules = [], availableLayers = []) {
@@ -172,7 +171,7 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
   function checkSpecialShapedCopper(vias, shapes, templates = []) {
     const results = [];
     const availableShapeLayers = [...new Set(shapes.map(shape => String(shape.layer || '').toUpperCase()).filter(Boolean))];
-    const shapeIndexesBySet = new Map(['Shape', 'Route Keepout'].map(set => [set,
+    const shapeIndexesBySet = new Map(SPECIAL_SHAPE_SETS.map(set => [set,
       buildShapePointIndexes(shapes.filter(shape => normalizeSpecialShapeSet(
         shape.set, shape.set == null ? 'Shape' : '') === set))]));
     const hdiByNet = new Map();
@@ -226,8 +225,9 @@ var geom = (typeof module === "object" && module.exports) ? require("./pour-geom
         matchedAssociationVias.add(via);
         targetLayers.forEach(targetLayer => {
           const expectedIndexes = shapeIndexesBySet.get(expectedSet), bestShape = findAssociatedShapeItems(via, expectedIndexes && expectedIndexes.get(targetLayer), expectedItemCount);
-          const alternateSet = expectedSet === 'Shape' ? 'Route Keepout' : 'Shape', alternateIndexes = shapeIndexesBySet.get(alternateSet);
-          const alternateShape = bestShape ? null : findAssociatedShapeItems(via, alternateIndexes && alternateIndexes.get(targetLayer), expectedItemCount);
+          const alternate = bestShape ? null : SPECIAL_SHAPE_SETS.filter(set => set !== expectedSet).map(set => ({ set, indexes: shapeIndexesBySet.get(set) }))
+            .map(item => ({ set: item.set, shape: findAssociatedShapeItems(via, item.indexes && item.indexes.get(targetLayer), expectedItemCount) })).find(item => item.shape);
+          const alternateSet = alternate && alternate.set, alternateShape = alternate && alternate.shape;
           const bestShapeIds = bestShape ? (bestShape.itemIds || [bestShape.id]) : [];
           let targetDesc = nearbyHdi
             ? `孔 #${via.id} 在 ${roundN(nearbyHdi.distance, 3)} mil 内关联同网络 HDI 孔 #${nearbyHdi.via.id}` : `孔 #${via.id}`;

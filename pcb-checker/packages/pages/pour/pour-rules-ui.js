@@ -27,7 +27,7 @@
   function normalizeRule2Set(value) {
     var PC = root.PourChecker;
     return PC && PC.normalizeSpecialShapeSet ? PC.normalizeSpecialShapeSet(value, 'Shape') :
-      (String(value || '').toLowerCase() === 'route keepout' ? 'Route Keepout' : 'Shape');
+      ({ 'route keepout': 'Route Keepout', 'board geometry': 'Board Geometry' }[String(value || '').trim().toLowerCase()] || 'Shape');
   }
 
   /* ---------- 规则 1 / 2 / 3 列表与缩略图 ---------- */

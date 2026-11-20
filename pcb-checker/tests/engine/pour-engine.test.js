@@ -68,6 +68,8 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   assert.ok(!Object.keys(shape).includes('rawText'), '原始 TXT 不应污染 Shape 的 JSON 导出字段');
   assert.ok(!Object.keys(shape).includes('_ring') && !Object.keys(shape).includes('_voidRings'),
     '离散轮廓缓存不应进入 Worker 结构化克隆数据');
+  const boardShape = parsePcbElements(shapeTxt.replace(/Set:\s*Shape/i, 'Set: Board Geometry')).shapes[0];
+  assert.strictEqual(boardShape.set, 'Board Geometry', '应解析 Board Geometry Set 类别');
   console.log('  PASS  EDA 异型铜皮：Seg 与 Arc seg 按原始顺序解析并保留源 TXT');
 }
 
@@ -112,17 +114,19 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   const vias = [{ id: 20, x: 100, y: 100, padstack: 'SET_TARGET', net: 'SET_P' }];
   const shapes = [
     { id: 21, layer: 'L2', set: 'Shape', net: 'SET_P', area: 100, centroid: { x: 100, y: 100 } },
-    { id: 22, layer: 'L2', set: 'Route Keepout', net: 'SET_P', area: 200, centroid: { x: 100, y: 100 } }
+    { id: 22, layer: 'L2', set: 'Route Keepout', net: 'SET_P', area: 200, centroid: { x: 100, y: 100 } },
+    { id: 23, layer: 'L2', set: 'Board Geometry', net: 'SET_P', area: 300, centroid: { x: 100, y: 100 } }
   ];
   const base = { padstack: 'SET_TARGET', layer: 'L2', areaTolerance: 0.01 };
   const results = checkSpecialShapedCopper(vias, shapes, [
     Object.assign({ id: 'set_shape', name: 'Shape 模板', set: ' shape ', expectedArea: 100 }, base),
-    Object.assign({ id: 'set_keepout', name: 'Keepout 模板', set: 'ROUTE   KEEPOUT', expectedArea: 200 }, base)
+    Object.assign({ id: 'set_keepout', name: 'Keepout 模板', set: 'ROUTE   KEEPOUT', expectedArea: 200 }, base),
+    Object.assign({ id: 'set_board', name: 'Board Geometry 模板', set: ' board   geometry ', expectedArea: 300 }, base)
   ]);
-  assert.strictEqual(results.length, 2);
-  assert.ok(results.every(result => result.pass), '两类 Set 应各自只匹配同类别 Shape Item');
+  assert.strictEqual(results.length, 3);
+  assert.ok(results.every(result => result.pass), '三类 Set 应各自只匹配同类别 Shape Item');
   assert.deepStrictEqual(results.map(result => [result.expectedSet, result.actualSet, result.targetShapeId]), [
-    ['Shape', 'Shape', 21], ['Route Keepout', 'Route Keepout', 22]
+    ['Shape', 'Shape', 21], ['Route Keepout', 'Route Keepout', 22], ['Board Geometry', 'Board Geometry', 23]
   ]);
 
   const mismatch = checkSpecialShapedCopper(vias, shapes.slice(1), [
@@ -133,6 +137,14 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   assert.strictEqual(mismatch.actualSet, 'Route Keepout');
   assert.deepStrictEqual(mismatch.mismatchedSetShapeIds, [22]);
   assert.match(mismatch.message, /Set=Shape.*Set=Route Keepout/);
+
+  const boardMismatch = checkSpecialShapedCopper(vias, shapes.slice(2), [
+    Object.assign({ id: 'keepout_only', name: 'Keepout 模板', set: 'Route Keepout', expectedArea: 300 }, base)
+  ])[0];
+  assert.strictEqual(boardMismatch.pass, false, 'Board Geometry 不得代替 Route Keepout 类别模板');
+  assert.strictEqual(boardMismatch.actualSet, 'Board Geometry');
+  assert.deepStrictEqual(boardMismatch.mismatchedSetShapeIds, [23]);
+  assert.match(boardMismatch.message, /Set=Route Keepout.*Set=Board Geometry/);
 
   const mixedCount = checkSpecialShapedCopper(vias, shapes, [
     Object.assign({ id: 'mixed_count', name: '两 Item Shape 模板', set: 'Shape', expectedArea: 300, shapeItemCount: 2 }, base)
@@ -147,7 +159,7 @@ console.log('== 铜皮五项检查引擎单元测试 ==');
   assert.strictEqual(legacy.expectedSet, 'Shape', '旧模板缺少 Set 时必须按 Shape 兼容');
   assert.strictEqual(legacy.targetShapeId, 21);
   assert.ok(legacy.pass);
-  console.log('  PASS  规则 2：Shape 与 Route Keepout 按 Set 类别隔离，旧模板默认 Shape');
+  console.log('  PASS  规则 2：Shape、Route Keepout 与 Board Geometry 按 Set 类别隔离，旧模板默认 Shape');
 }
 
 // 2. 第一项：孔经过层铺铜覆盖检查 (Via Layer Coverage Check)

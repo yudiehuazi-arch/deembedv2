@@ -17,12 +17,14 @@
   var polygonArea = geom.polygonArea;
   var polygonCentroid = geom.polygonCentroid;
 
-  /** 规则 2 只接受两类 Set；旧模板与缺失 Set 的测试对象按 Shape 兼容。 */
+  /** 规则 2 接受三类 Set；旧模板与缺失 Set 的测试对象按 Shape 兼容。 */
+  const SPECIAL_SHAPE_SETS = ['Shape', 'Route Keepout', 'Board Geometry'];
   function normalizeSpecialShapeSet(value, fallback) {
     const key = String(value == null ? '' : value).trim().replace(/\s+/g, ' ').toLowerCase();
     if (key === 'shape') return 'Shape';
     if (key === 'route keepout') return 'Route Keepout';
-    return fallback === 'Route Keepout' ? 'Route Keepout' : (fallback === 'Shape' ? 'Shape' : '');
+    if (key === 'board geometry') return 'Board Geometry';
+    return SPECIAL_SHAPE_SETS.includes(fallback) ? fallback : '';
   }
 
   function expandLayerRange(layerInput, availableLayers = []) {
@@ -511,6 +513,7 @@
   }
 
   return {
+    SPECIAL_SHAPE_SETS: SPECIAL_SHAPE_SETS,
     normalizeSpecialShapeSet: normalizeSpecialShapeSet,
     expandLayerRange: expandLayerRange,
     parsePcbElements: parsePcbElements,

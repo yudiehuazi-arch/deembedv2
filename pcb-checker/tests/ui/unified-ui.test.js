@@ -178,12 +178,13 @@ async function test(name, fn) {
       { differentialCenterDistance: '', hdiSearchRadiusMm: '' },
       { differentialCenterDistance: 10 },
       { hdiSearchRadiusMm: 0.15 },
-      { differentialCenterDistance: 10, hdiSearchRadiusMm: 0.15, set: 'route   keepout' }
+      { differentialCenterDistance: 10, hdiSearchRadiusMm: 0.15, set: 'route   keepout' },
+      { set: ' board   geometry ' }
     ]);
     if (normalizedTemplates[0].differentialCenterDistance !== null || normalizedTemplates[0].hdiSearchRadiusMm !== null ||
         normalizedTemplates[1].differentialCenterDistance !== 10 || normalizedTemplates[1].hdiSearchRadiusMm !== null ||
         normalizedTemplates[2].differentialCenterDistance !== null || normalizedTemplates[2].hdiSearchRadiusMm !== 0.15 ||
-        normalizedTemplates[0].set !== 'Shape' || normalizedTemplates[3].set !== 'Route Keepout') {
+        normalizedTemplates[0].set !== 'Shape' || normalizedTemplates[3].set !== 'Route Keepout' || normalizedTemplates[4].set !== 'Board Geometry') {
       throw new Error('规则 2 可选字段与 Set 类别未按兼容规则归一化');
     }
     w.renderRulesUI();
@@ -196,8 +197,8 @@ async function test(name, fn) {
       throw new Error('规则 2 表格缺少可修改的 HDI 搜索距离列');
     }
     if (!rule2Headers.includes('异型铜皮 Set 类别')) throw new Error('规则 2 表格缺少 Set 类别列');
-    if (!$('modalPourShapeInpSet') || [...$('modalPourShapeInpSet').options].map(option => option.value).join('|') !== 'Shape|Route Keepout') {
-      throw new Error('规则 2 弹窗缺少 Shape 与 Route Keepout 选项');
+    if (!$('modalPourShapeInpSet') || [...$('modalPourShapeInpSet').options].map(option => option.value).join('|') !== 'Shape|Route Keepout|Board Geometry') {
+      throw new Error('规则 2 弹窗缺少 Shape、Route Keepout 与 Board Geometry 选项');
     }
     if (!w.State.rules.specialShapeTemplates.every(t => t.differentialCenterDistance > 0 && t.hdiSearchRadiusMm > 0)) {
       throw new Error('默认异型模板缺少差分孔中心距或 HDI 搜索距离');
@@ -208,10 +209,10 @@ async function test(name, fn) {
     if ($('modalPourShapeInpPadstack').value !== copySource.padstack) throw new Error('综合页复制加层未保留过孔类型');
     if ($('modalPourShapeInpSet').value !== copySource.set) throw new Error('综合页复制加层未保留 Set 类别');
     $('modalPourShapeInpLayer').value = 'L3';
-    $('modalPourShapeInpSet').value = 'Route Keepout';
+    $('modalPourShapeInpSet').value = 'Board Geometry';
     w.savePourShapeFromModal();
     const layerCopy = w.State.rules.specialShapeTemplates[copyBefore];
-    if (!layerCopy || layerCopy.padstack !== copySource.padstack || layerCopy.layer !== 'L3' || layerCopy.set !== 'Route Keepout' || layerCopy.expectedArea !== copySource.expectedArea) {
+    if (!layerCopy || layerCopy.padstack !== copySource.padstack || layerCopy.layer !== 'L3' || layerCopy.set !== 'Board Geometry' || layerCopy.expectedArea !== copySource.expectedArea) {
       throw new Error('综合页未将同一过孔的新增层与 Set 要求保存为独立模板');
     }
     w.State.rules.specialShapeTemplates.splice(copyBefore, 1);
