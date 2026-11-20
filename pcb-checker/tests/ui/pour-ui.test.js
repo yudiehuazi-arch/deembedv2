@@ -1011,9 +1011,9 @@ test('规则 2 缺陷总结直接列出网络、缺铜与面积的具体修改�
 
   const fixText = d.querySelector('.pour-defect-fix').textContent.replace(/\s+/g, ' ').trim();
   [
-    '将 Top 铜皮 #21847、#21848（25_N）与 HDI #54649（33_P）的 Net 改为一致。',
+    '将 Top 铜皮 #21847、#21848 与 HDI #54649 的 Net 改为一致（当前铜皮 25_N，HDI 33_P）。',
     'L1：补 Set=Board Geometry 的异型铜皮；当前位置只有 Set=Shape（#401）。',
-    'L4：将 Shape #301 总面积从 100 调整到 103.6 ±1 sq mil。'
+    'L4：将各目标 Shape（#301）面积调整到 103.6 ±1 sq mil（当前均为 100）。'
   ].forEach(expected => {
     if (!fixText.includes(expected)) throw new Error('“如何修改”缺少具体动作：' + expected + '，实际：' + fixText);
   });
@@ -1063,6 +1063,52 @@ test('缺陷总结将异常类型和修改动作相同的不同网络合并到�
   w.renderAnalysisTab();
 });
 
+test('缺陷总结五种类型均按异常语义和修改目标合并对象', () => {
+  const defects = [];
+  [['N1', 7001, 10], ['N2', 7002, 20]].forEach(([net, viaId, x]) => defects.push({
+    checkCategory: 'via_coverage', pass: false, viaId, viaPadstack: 'VIA_TEST', viaNet: net,
+    viaCoord: [x, 10], layer: 'L2', requiredDist: 50
+  }));
+  [['21_N', 7101, 21602, 21601, 30], ['21_P', 7102, 21726, 21725, 40]].forEach(([net, viaId, l10Shape, l5Shape, x]) => {
+    [['L10', l10Shape], ['L5', l5Shape]].forEach(([layer, shapeId]) => defects.push({
+      checkCategory: 'special_shape', pass: false, viaId, viaPadstack: 'PTH-SIG', viaNet: net,
+      viaCoord: [x, 20], layer, expectedSet: 'Shape', targetShapeId: shapeId, targetShapeIds: [shapeId],
+      actualArea: 50.265, expectedArea: 97.383, areaTolerance: 1
+    }));
+  });
+  [['100_N', 7201, 50], ['100_P', 7202, 60]].forEach(([net, traceId, x]) => {
+    ['TOP', 'L3'].forEach(refLayer => defects.push({
+      checkCategory: 'trace_ref_margin', pass: false, ruleIndex: 1, traceId, traceNet: net, traceLayer: 'L8',
+      refLayer, minMargin: 100, footprintCovered: false, leftSideCopper: true, rightSideCopper: true,
+      missingPoint: { x, y: 30 }
+    }));
+  });
+  [7301, 7302].forEach((shapeId, index) => defects.push({
+    checkCategory: 'isolated_copper', pass: false, shapeId, layer: 'TOP', centroid: { x: 70 + index, y: 40 }
+  }));
+  [7401, 7402].forEach((shapeId, index) => defects.push({
+    checkCategory: 'arc_radius', pass: false, shapeId, layer: 'TOP', arcIndex: index + 1,
+    requiredRadius: 10, centerCoord: [80 + index, 50]
+  }));
+
+  const rows = w.PourDefectSummary.buildRows(defects, w.State);
+  if (rows.length !== 5) throw new Error('五种缺陷应各合并为一行，实际共 ' + rows.length + ' 行');
+  const byCategory = Object.fromEntries(rows.map(row => [row.category, row]));
+  ['via_coverage', 'special_shape', 'trace_ref_margin', 'isolated_copper', 'arc_radius'].forEach(category => {
+    if (!byCategory[category] || byCategory[category].objectCount !== 2) {
+      throw new Error(category + ' 未合并两个异常对象');
+    }
+  });
+  const special = byCategory.special_shape;
+  if (special.network !== '21_N、21_P' || special.detailCount !== 4 ||
+      !special.fixes.join(' ').includes('#21602、#21726') || !special.fixes.join(' ').includes('#21601、#21725')) {
+    throw new Error('规则 2 未跨网络合并同目标面积动作，或丢失 Shape 编号：' + JSON.stringify(special.fixes));
+  }
+  if (byCategory.trace_ref_margin.detailCount !== 4 || byCategory.trace_ref_margin.network !== '100_N、100_P') {
+    throw new Error('规则 3 未合并相同投影缺铜动作');
+  }
+});
+
 test('大文件仅在文本框显示截断预览，并通过 Web Worker 后台执行几何检查', () => {
   const input = $('txtDataInput');
   const originalText = input.value;
@@ -1076,7 +1122,7 @@ test('大文件仅在文本框显示截断预览，并通过 Web Worker 后台�
 
   const workerSource = fs.readFileSync(path.join(__dirname, '../../packages/pages/pour/pour-check-worker.js'), 'utf8');
   if (!workerSource.includes('importScripts') || !workerSource.includes('runAllCopperChecks')) throw new Error('后台检查线程未加载铜皮引擎');
-  if ((workerSource.match(/\?v=80/g) || []).length !== 5) throw new Error('后台检查线程未使用当前铜皮引擎缓存版本');
+  if ((workerSource.match(/\?v=81/g) || []).length !== 5) throw new Error('后台检查线程未使用当前铜皮引擎缓存版本');
   const OriginalWorker = w.Worker;
   let workerUrl = '', postedText = '', terminated = false;
   function FakeWorker(url) { workerUrl = url; }

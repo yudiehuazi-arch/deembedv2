@@ -73,12 +73,11 @@
         var pointKey = marker.targetLabel + '|' + marker.x + '|' + marker.y;
         if (!row.pointKeys[pointKey]) { row.pointKeys[pointKey] = 1; row.points.push(marker); }
       });
-      row.fixes = rowFixes(row);
       return row;
     });
     var merged = {}, mergedOrder = [];
     baseRows.forEach(function (row) {
-      var mergeKey = JSON.stringify([row.category, Object.keys(row.layers).sort(), row.fixes.slice().sort()]);
+      var mergeKey = rowMergeSignature(row);
       if (!merged[mergeKey]) {
         row.padstacks = {}; row.padstacks[row.padstack] = 1;
         row.networks = {}; row.networks[row.network] = 1;
@@ -101,6 +100,7 @@
       row.network = Object.keys(row.networks).join('、');
       row.detailCount = row.records.length;
       row.objectCount = groupedObjects(row.records).length;
+      row.fixes = rowFixes(row);
       return row;
     }).sort(function (a, b) {
       return a.config.order - b.config.order || b.objectCount - a.objectCount || b.detailCount - a.detailCount || a.network.localeCompare(b.network);
@@ -130,20 +130,21 @@
       seen[text] = 1; fixes.push(text);
     }
     var networkGroups = {}, missingGroups = {}, areaGroups = {};
-    var noHdiVias = [], noPairHdis = [];
+    var noHdiVias = [], noPairHdis = [], badPitchPairs = [];
     (records || []).forEach(function (record) {
       if (record.hdiNetMismatch) {
         var copperNets = (record.hdiConnectionShapeNets || []).join(' / ') || record.viaNet || '-';
-        var key = [record.hdiConnectionLayer || '接触层', copperNets, record.actualHdiViaNet || '-'].join('|');
-        if (!networkGroups[key]) networkGroups[key] = { layer: record.hdiConnectionLayer || '接触层', copperNets: copperNets, hdiNet: record.actualHdiViaNet || '-', shapeIds: [], hdiIds: [] };
+        var key = record.hdiConnectionLayer || '接触层';
+        if (!networkGroups[key]) networkGroups[key] = { layer: key, copperNets: {}, hdiNets: {}, shapeIds: [], hdiIds: [] };
+        networkGroups[key].copperNets[copperNets] = 1;
+        networkGroups[key].hdiNets[record.actualHdiViaNet || '-'] = 1;
         networkGroups[key].shapeIds = networkGroups[key].shapeIds.concat(record.hdiConnectionShapeIds || []);
         networkGroups[key].hdiIds.push(record.actualHdiViaId);
       }
       if (record.associationFailed) {
         if (record.actualHdiViaId == null) noHdiVias.push(record.viaId);
         else if (record.pairedHdiViaId == null) noPairHdis.push(record.actualHdiViaId);
-        else add('调整 HDI #' + record.actualHdiViaId + ' 与差分 HDI #' + record.pairedHdiViaId +
-          ' 的中心距，使其命中配置模板（当前 ' + shortNumber(record.actualDifferentialCenterDistance) + ' mil）。');
+        else badPitchPairs.push('#' + record.actualHdiViaId + '/#' + record.pairedHdiViaId);
         return;
       }
       if (record.targetShapeId == null) {
@@ -154,18 +155,21 @@
       }
       var actual = Number(record.actualArea), expected = Number(record.expectedArea), tolerance = Number(record.areaTolerance);
       if (isFinite(actual) && isFinite(expected) && isFinite(tolerance) && Math.abs(actual - expected) > tolerance + 1e-9) {
-        var areaKey = [record.layer || '目标层', actual, expected, tolerance].join('|');
-        if (!areaGroups[areaKey]) areaGroups[areaKey] = { layer: record.layer || '目标层', actual: actual, expected: expected, tolerance: tolerance, ids: [] };
+        var areaKey = [record.layer || '目标层', expected, tolerance].join('|');
+        if (!areaGroups[areaKey]) areaGroups[areaKey] = { layer: record.layer || '目标层', actuals: {}, expected: expected, tolerance: tolerance, ids: [] };
+        areaGroups[areaKey].actuals[shortNumber(actual)] = 1;
         areaGroups[areaKey].ids = areaGroups[areaKey].ids.concat(record.targetShapeIds && record.targetShapeIds.length ? record.targetShapeIds : [record.targetShapeId]);
       }
     });
     Object.keys(networkGroups).forEach(function (key) {
       var group = networkGroups[key];
-      add('将 ' + group.layer + ' 铜皮 ' + shortIds(group.shapeIds) + '（' + group.copperNets + '）与 HDI ' +
-        shortIds(group.hdiIds) + '（' + group.hdiNet + '）的 Net 改为一致。');
+      add('将 ' + group.layer + ' 铜皮 ' + shortIds(group.shapeIds) + ' 与 HDI ' + shortIds(group.hdiIds) +
+        ' 的 Net 改为一致（当前铜皮 ' + Object.keys(group.copperNets).join(' / ') + '，HDI ' + Object.keys(group.hdiNets).join(' / ') + '）。');
     });
     if (noHdiVias.length) add('在孔 ' + shortIds(noHdiVias) + ' 的规则搜索范围内放置同网络、Padstack 含 HDI 的孔。');
     if (noPairHdis.length) add('为 HDI ' + shortIds(noPairHdis) + ' 补对应差分网络的 HDI 孔。');
+    if (badPitchPairs.length) add('调整 HDI 差分对 ' + badPitchPairs.slice(0, 4).join('、') +
+      (badPitchPairs.length > 4 ? ' 等' + badPitchPairs.length + '对' : '') + ' 的中心距，使其命中配置模板。');
     Object.keys(missingGroups).forEach(function (key) {
       var group = missingGroups[key];
       var actual = group.actualSet ? '；当前位置只有 Set=' + group.actualSet + (group.ids.length ? '（' + shortIds(group.ids) + '）' : '') : '';
@@ -173,8 +177,9 @@
     });
     Object.keys(areaGroups).forEach(function (key) {
       var group = areaGroups[key];
-      add(group.layer + '：将 Shape ' + shortIds(group.ids) + ' 总面积从 ' + shortNumber(group.actual) +
-        ' 调整到 ' + shortNumber(group.expected) + ' ±' + shortNumber(group.tolerance) + ' sq mil。');
+      var actuals = Object.keys(group.actuals);
+      add(group.layer + '：将各目标 Shape（' + shortIds(group.ids) + '）面积调整到 ' + shortNumber(group.expected) +
+        ' ±' + shortNumber(group.tolerance) + ' sq mil（当前' + (actuals.length === 1 ? '均为 ' : '为 ') + actuals.join(' / ') + '）。');
     });
     return fixes;
   }
@@ -195,13 +200,57 @@
     } else if (row.category === 'isolated_copper') {
       fixes.push('删除 Shape ' + shortIds(records.map(function (record) { return record.shapeId; })) + '，或将其接入正确网络。');
     } else if (row.category === 'arc_radius') {
+      var arcGroups = {};
       records.forEach(function (record) {
-        fixes.push('将 Shape #' + record.shapeId + ' 第 ' + (record.arcIndex || '-') + ' 段圆弧半径增至 ≥ ' + shortNumber(record.requiredRadius) + ' mil。');
+        var radius = shortNumber(record.requiredRadius);
+        if (!arcGroups[radius]) arcGroups[radius] = [];
+        arcGroups[radius].push('#' + record.shapeId + ' 第' + (record.arcIndex || '-') + '段');
+      });
+      Object.keys(arcGroups).forEach(function (radius) {
+        var targets = arcGroups[radius];
+        fixes.push('将 ' + targets.slice(0, 4).join('、') + (targets.length > 4 ? ' 等' + targets.length + '段' : '') +
+          ' 的圆弧半径增至 ≥ ' + radius + ' mil。');
       });
     }
     var unique = [], seen = {};
     fixes.forEach(function (fix) { if (fix && !seen[fix]) { seen[fix] = 1; unique.push(fix); } });
     return unique.length ? unique.slice(0, 4) : [row.config.fix];
+  }
+
+  function rowMergeSignature(row) {
+    var descriptors = {}, records = row.records || [];
+    function add(value) { descriptors[value] = 1; }
+    records.forEach(function (record) {
+      if (row.category === 'via_coverage') {
+        add('coverage|' + (record.layer || '目标层') + '|' + shortNumber(record.requiredDist || 50));
+      } else if (row.category === 'special_shape') {
+        var found = false;
+        if (record.hdiNetMismatch) { add('network|' + (record.hdiConnectionLayer || '接触层')); found = true; }
+        if (record.associationFailed) {
+          add(record.actualHdiViaId == null ? 'association|no-hdi' :
+            (record.pairedHdiViaId == null ? 'association|no-pair' : 'association|pitch'));
+          found = true;
+        } else if (record.targetShapeId == null) {
+          add('missing|' + (record.layer || '目标层') + '|' + (record.expectedSet || 'Shape') + '|' + (record.actualSet || ''));
+          found = true;
+        } else {
+          var actual = Number(record.actualArea), expected = Number(record.expectedArea), tolerance = Number(record.areaTolerance);
+          if (isFinite(actual) && isFinite(expected) && isFinite(tolerance) && Math.abs(actual - expected) > tolerance + 1e-9) {
+            add('area|' + (record.layer || '目标层') + '|' + shortNumber(expected) + '|' + shortNumber(tolerance));
+            found = true;
+          }
+        }
+        if (!found) add('special|other');
+      } else if (row.category === 'trace_ref_margin') {
+        add('trace|' + (record.refLayer || '参考层') + '|' + (record.footprintCovered === false ? 'projection' : '') + '|' +
+          (record.leftSideCopper === false ? 'left' : '') + '|' + (record.rightSideCopper === false ? 'right' : '') + '|' + shortNumber(record.minMargin));
+      } else if (row.category === 'isolated_copper') {
+        add('isolated');
+      } else if (row.category === 'arc_radius') {
+        add('arc|' + shortNumber(record.requiredRadius));
+      }
+    });
+    return JSON.stringify([row.category, Object.keys(row.layers).sort(), Object.keys(descriptors).sort()]);
   }
 
   function renderFixes(row) {
