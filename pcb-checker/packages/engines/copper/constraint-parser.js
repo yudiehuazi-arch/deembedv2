@@ -249,7 +249,7 @@
         if (pad) rules.push({ cat: '焊盘尺寸', name: padName, scope: 'L' + r.layer, value: pad, unit: 'mil', raw: 'L' + r.layer + ' 焊盘 ' + pad });
       });
       if (!rules.length) return;
-      out.push({ kind: kind, title: title, group: grp, item: it, txtHead: explicitTitle ? ('约束名称：' + explicitTitle) : it, source: filename || '导入文本', sourceType: 'text', image: '', rules: rules });
+      out.push({ kind: kind, title: title, group: grp, item: it, txtHead: explicitTitle ? ('约束名称：' + explicitTitle) : it, matchMode: /^L\s*\d+\s*-\s*L\s*\d+$/i.test(explicitTitle) ? 'connections-trace-layers' : '', source: filename || '导入文本', sourceType: 'text', image: '', rules: rules });
     }
 
     lines.forEach(function (line0) {

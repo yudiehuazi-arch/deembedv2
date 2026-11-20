@@ -193,6 +193,26 @@ t('未标 BGA/SMA 的换层 SIG Via 按“其他”类型和完整层跨匹配�
     JSON.stringify(out.groups.map(g => g.rule && g.rule.title)));
 });
 
+t('换层孔命名表只按 Connections Trace 的两个走线层选约束，未命中则不检查', () => {
+  const raw = id => `Item ${id} < Via >\n Origin-xy: [${id * 10}, 0]\n Net: CHANGE_${id}\n Padstack Name: CHANGE-SIG_L3_L29\n Connections:\n  Trace:            2 (07IS03 33IS10)\n~~~~~~~~`;
+  const unmatchedRaw = `Item 69 < Via >\n Origin-xy: [690, 0]\n Net: CHANGE_69\n Padstack Name: CHANGE-SIG_L3_L29\n Connections:\n  Trace:            2 (08IS03 33IS10)\n~~~~~~~~`;
+  const rules = [
+    { kind: '其他', title: 'L3-L29', matchMode: 'connections-trace-layers', constraints: [] },
+    { kind: '其他', title: 'L7-L33', matchMode: 'connections-trace-layers', constraints: [] }
+  ];
+  const vias = C.parseBoardItems(raw(67) + '\n' + unmatchedRaw);
+  assert(vias[0].traceLayers.join('/') === '07IS03/33IS10', JSON.stringify(vias[0].traceLayers));
+  const out = C.runCopperCheck(vias, rules, { layerCount: 44 });
+  const matched = out.groups.find(g => String(g.via.id) === '67');
+  const unmatched = out.groups.find(g => String(g.via.id) === '69');
+  assert(matched.rule && matched.rule.title === 'L7-L33', matched.rule && matched.rule.title);
+  assert(matched.matchMode === 'connections-trace-layers' && matched.matchTraceLayers.join('/') === '7/33', JSON.stringify(matched));
+  assert(matched.note.includes('Connections Trace 走线层 L7、L33') && matched.note.includes('匹配约束 L7-L33'), matched.note);
+  assert(!unmatched.rule && unmatched.excludedByConstraint && unmatched.failCount === 0, JSON.stringify(unmatched));
+  assert(unmatched.note.includes('对应 L8-L33') && unmatched.note.includes('不进行检查'), unmatched.note);
+  assert(!unmatched.rows.some(row => row.status === '不符合'), JSON.stringify(unmatched.rows));
+});
+
 t('L1-L5 孔段读取 L13 同心 Shape，但不借此改变约束匹配层跨', () => {
   const p = { id: 70, type: 'via', origin: [0, 0], net: '37_P', padstack: 'BGA-HDI-SIG_L1_L5', traceLayers: [] };
   const n = { id: 71, type: 'via', origin: [mil(0.5), 0], net: '37_N', padstack: 'BGA-HDI-SIG_L1_L5', traceLayers: [] };

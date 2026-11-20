@@ -122,6 +122,7 @@ const sets = parseAndFill(sampleText);
   t('按“约束名称”直接识别为 6 条约束，而不是把层值拆成多列', () => {
     eq(changeSets.map(s => s.title), ['L3-L29', 'L5-L31', 'L7-L33', 'L10-L36', 'L12-L38', 'L14-L40']);
     eq(changeSets.map(s => s.constraints.map(c => c.name)), Array(6).fill(['反焊盘半径', '焊盘半径']));
+    eq(changeSets.map(s => s.matchMode), Array(6).fill('connections-trace-layers'), '六条规则均应使用 Connections Trace 双层匹配');
     eq(changeSets.map(s => CP.fanLayerOf(s)), [0, 0, 0, 0, 0, 0], '层跨名称不得误标为出线层');
   });
   t('每条约束完整读取 L1-L44 反焊盘及 5 个明确焊盘值', () => {

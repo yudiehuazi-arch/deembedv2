@@ -313,7 +313,6 @@
           }
         }
       });
-
       var keys = padKeys(via.padstack);
       keys.signal = unit.signal;
       keys.kind = unit.kind || keys.kind;
@@ -325,24 +324,27 @@
       keys.pitchMode = unit.pitchMode;
       keys.mateNet = unit.mateNet;
       var sel = unit.signal ? VI.selectConstraint(sets, unit, n) : { rule: null, candidates: [] };
-      var traceList = Object.keys(traceNums).map(function (k) { return +k; });
+      var inspectSignal = unit.signal && !sel.excluded;
+      var traceList = sel.mode === 'connections-trace-layers' ? sel.traceLayers : Object.keys(traceNums).map(function (k) { return +k; });
       var spanText = unit.startLayer && unit.endLayer ? ('L' + unit.startLayer + '-L' + unit.endLayer) : '层跨未识别';
       var pitchMembers = unit.pitchMode === 'HDI' ? ('，参与 Via ' + unit.pitchViaIds.join('、') + ' ↔ Via ' + unit.matePitchViaIds.join('、')) : '';
-      var namingIssues = VI.padstackNamingIssues(unit.vias);
+      var namingIssues = sel.excluded ? [] : VI.padstackNamingIssues(unit.vias);
       var namingReason = namingIssues.map(function (x) { return 'Via ' + x.via.id + '：' + x.reason; }).join('；');
       var groundNet = String(unit.via.net || '').trim().toUpperCase() === 'GND';
-      var note = unit.signal
-        ? ('SIG 完整孔组 ' + unit.memberIds.length + ' 段（Via ' + unit.memberIds.join('、') + '），连接 ' + spanText +
-          (unit.pitchMm != null ? ('，' + (unit.pitchMode === 'HDI' ? 'HDI 激光孔中心距 ' : '差分孔中心距 ') + unit.pitchMm.toFixed(3) + ' mm' + pitchMembers + '，匹配最近约束值') : '，未找到差分配对孔'))
+      var traceNote = sel.rule
+        ? ('Connections Trace 走线层 ' + (sel.traceLayers || []).map(function (l) { return 'L' + l; }).join('、') + '，匹配约束 ' + sel.rule.title + '，按该约束执行检查')
+        : (sel.targetTitle ? ('Connections Trace 走线层对应 ' + sel.targetTitle + '，未找到同名约束，不进行检查') : 'Connections 中未提取到两个不同的 Trace 走线层，不进行检查');
+      var legacyNote = 'SIG 完整孔组 ' + unit.memberIds.length + ' 段（Via ' + unit.memberIds.join('、') + '），连接 ' + spanText +
+        (unit.pitchMm != null ? ('，' + (unit.pitchMode === 'HDI' ? 'HDI 激光孔中心距 ' : '差分孔中心距 ') + unit.pitchMm.toFixed(3) + ' mm' + pitchMembers + '，匹配最近约束值') : '，未找到差分配对孔');
+      var note = unit.signal ? (sel.mode === 'connections-trace-layers' ? traceNote : legacyNote)
         : (groundNet ? 'GND 网络：仅显示，不推算信号约束，不执行核查' : 'Padstack 不含 SIG：仅显示，不推算约束，不执行核查');
       if (namingReason) note += '；Padstack 信号命名不符合：' + namingReason;
-
       var rows = near.map(function (sh) {
         var ctype = checkTypeOf(sh);
         var layer = subsetToLayer(sh.subset, n);
-        var on = unit.signal && enabled[ctype] !== false;
+        var on = inspectSignal && enabled[ctype] !== false;
         var status = '未检查', expect = '', constraint = '';
-        if (!unit.signal || !on) status = '未检查';
+        if (!inspectSignal || !on) status = '未检查';
         else if (!sel.rule) status = '未选规则';
         else if (!layer) status = '层未识别';
         else {
@@ -398,9 +400,8 @@
           });
         });
       }
-
       // 匹配规则后显示 L1-Ln；同心 Shape 全部读取，来源优先取覆盖层、否则取最近孔段。
-      if (unit.signal && unit.startLayer && unit.endLayer) {
+      if (inspectSignal && unit.startLayer && unit.endLayer) {
         var spanTypes = {}, spanPresent = {};
         rows.forEach(function (r) {
           if (r.isPadstackCheck || !r.checkType || typeof r.layer !== 'number' || r.layer <= 0) return;
@@ -437,8 +438,7 @@
           });
         }
       }
-
-      if (unit.signal) {
+      if (inspectSignal) {
       var padOn = enabled['Padstack层名'] !== false;
       var connLayerNums = [];
       var connLayerSeen = {};
@@ -523,6 +523,7 @@
       return {
         via: via, vias: unit.vias, sourceSegments: VI.sourceSegments(unit.vias, n), signal: unit.signal, keys: keys,
         rule: sel.rule, candidates: sel.candidates, note: note, namingError: namingReason,
+        matchMode: sel.mode || '', matchTraceLayers: sel.traceLayers || [], excludedByConstraint: !!sel.excluded,
         startLayer: unit.startLayer, endLayer: unit.endLayer,
         pitchMm: unit.pitchMm, pitchMode: unit.pitchMode, pitchViaIds: unit.pitchViaIds,
         matePitchViaIds: unit.matePitchViaIds, mateNet: unit.mateNet,

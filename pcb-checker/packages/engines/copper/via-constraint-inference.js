@@ -191,6 +191,7 @@
       startLayer: layers.length ? layers[0] : 0,
       endLayer: layers.length ? layers[layers.length - 1] : 0,
       segmentLayers: layers,
+      traceLayers: traces,
       mateNet: '',
       mateGroupId: '',
       pitchMm: null,
@@ -299,8 +300,33 @@
     };
   }
 
+  function traceLayerSelection(sets, unit, n) {
+    var special = (sets || []).filter(function (set) { return set && set.matchMode === 'connections-trace-layers'; });
+    if (!special.length) return null;
+    var seen = {}, layers = [];
+    (unit && unit.traceLayers || []).forEach(function (name) {
+      var layer = layerNum(name, n);
+      if (layer > 0 && !seen[layer]) { seen[layer] = 1; layers.push(layer); }
+    });
+    layers.sort(function (a, b) { return a - b; });
+    var target = layers.length === 2 ? ('L' + layers[0] + '-L' + layers[1]) : '';
+    var rule = null;
+    if (target) rule = special.find(function (set) {
+      return String(set.title || '').replace(/\s+/g, '').toUpperCase() === target.toUpperCase();
+    }) || null;
+    if (!rule && special.length !== (sets || []).length) return null;
+    return {
+      rule: rule,
+      candidates: special.map(function (set) { return set.title; }).slice(0, 6),
+      mode: 'connections-trace-layers', traceLayers: layers, targetTitle: target, excluded: !rule
+    };
+  }
+
   function selectConstraint(sets, unit, n) {
-    if (!unit || !unit.signal || !unit.kind || !unit.startLayer || !unit.endLayer) return { rule: null, candidates: [] };
+    if (!unit || !unit.signal) return { rule: null, candidates: [] };
+    var traceSelected = traceLayerSelection(sets, unit, n);
+    if (traceSelected) return traceSelected;
+    if (!unit.kind || !unit.startLayer || !unit.endLayer) return { rule: null, candidates: [] };
     var sameKind = [], exact = [];
     (sets || []).forEach(function (set) {
       var meta = ruleMeta(set, n);

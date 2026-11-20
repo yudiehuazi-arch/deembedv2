@@ -11,7 +11,7 @@ const { openPage, CHECKER_DIR } = require('../helpers/open-page');
 
 const CASES = [
   { page: 'index.html', module: 'trace', tab: 'guide', section: 'tab-guide', schemes: 3, sequence: '⑦', keyword: '差分对逐层与总长差' },
-  { page: 'copper.html', module: 'copper', tab: 'guide', section: 'tab-guide', schemes: 3, sequence: '⑦', keyword: '反焊盘、焊盘与非功能焊盘尺寸' },
+  { page: 'copper.html', module: 'copper', tab: 'guide', section: 'tab-guide', schemes: 4, sequence: '⑦', keyword: 'Connections Trace 双层换层孔约束' },
   { page: 'dfm.html', module: 'dfm', tab: 'guide', section: 'tab-guide', schemes: 3, sequence: '⑥', keyword: 'GND 孔盘到信号孔盘间距' },
   { page: 'fanout.html', module: 'fanout', tab: 'tabGuide', section: 'tabGuide', schemes: 3, sequence: '⑥', keyword: '信号孔资格与伴随对象' },
   { page: 'pour.html', module: 'pour', tab: 'tabGuide', section: 'tabGuide', schemes: 5, sequence: '⑥', keyword: '走线参考层投影与邻近铜' }
@@ -61,6 +61,7 @@ test('共享检查说明用白话写清操作步骤、判断依据与验证标�
     '双方案对比使用同一画布比例和中心原点', '手动粘贴的 TXT 只在本次对比中使用', '空内容或解析失败时会保留上次成功的对比方案',
     '会先应用当前约束和搜索条件', '数量为 0 表示当前组合没有可显示的完整孔',
     '每个整合孔只放在一张检查表里', '当前叠层为 14 层时，匹配约束后的结果表固定显示 L1-L14', '读取每个原始孔段同心位置的全部 Shape',
+    'Trace: 2 (07IS03 33IS10)', '组成约束名 L7-L33', '找不到就不执行尺寸和 Padstack 检查', '没有同名约束时，结果明确显示不进行检查',
     '没有孔段覆盖时，只在同心孔段中选择层跨端点最近的一段作为来源',
     'Connections 必须含 Trace', '只有 Shape 的顶层 Pin 不能独立触发',
     '先用 Trace 信号孔确定方案位置、旋转和镜像', '不受多段孔 0.175 mm 合并档位限制', '0 / 0.025 / 0.075 / 0.125 / 0.175 mm 支持偏移', '方案比对会展开其中全部物理段', '方案足迹内未被方案使用的 GND 视为数量不符',
