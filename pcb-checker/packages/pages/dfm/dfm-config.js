@@ -466,7 +466,7 @@
         if (!file) return;
         var reader = new FileReader();
         reader.onload = function () {
-          try { DfmRuleConfig.loadFromObject(JSON.parse(String(reader.result || ''))); }
+          try { DfmRuleConfig.loadFromObject(JSON.parse(String(reader.result || '').replace(/^\uFEFF/, ''))); }
           catch (err) { alert('读取加工能力规则失败：' + err.message); }
           e.target.value = '';
         };

@@ -61,8 +61,14 @@ function test(name, fn) {
   });
 
   test('非法快照文件被拒绝，且不改动现有规则', () => {
-    assert.throws(() => w.DfmRuleConfig.loadFromObject({ kind: 'other' }), /文件格式不正确/);
+    assert.throws(() => w.DfmRuleConfig.loadFromObject({ kind: 'other' }), /从本页“保存规则到本地”导出/);
     assert.strictEqual(rows(), 2);
+  });
+
+  test('误选扇出方案库时明确指出文件类型和正确导入入口', () => {
+    const fanout = [{ id: 'scheme-1', name: 'BGA-L2-L4', vias: [{ x: 0, y: 0 }] }];
+    assert.throws(() => w.DfmRuleConfig.loadFromObject(fanout), /扇出方案库（1 套）.*扇出方案检查.*导入 JSON/);
+    assert.strictEqual(rows(), 2, '识别为扇出文件后不得修改加工能力规则');
   });
 
   test('点击「保存规则到本地」先弹出 JSON 窗口，点「下载 JSON」才生成文件', () => {

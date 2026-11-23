@@ -4,12 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PCB 加工能力与空间间距检查工具</title>
-<link rel="stylesheet" href="assets/styles/tokens.css?v=92">
-<link rel="stylesheet" href="assets/styles/eda-shell.css?v=92">
-<link rel="stylesheet" href="assets/styles/eda-dock.css?v=92">
-<link rel="stylesheet" href="assets/styles/components.css?v=92">
-<link rel="stylesheet" href="assets/styles/pages/dfm.css?v=92"><link rel="stylesheet" href="assets/styles/check-guide.css?v=92">
-<link rel="stylesheet" href="assets/styles/pages/dfm-panels.css?v=92">
+<link rel="stylesheet" href="assets/styles/tokens.css?v=93">
+<link rel="stylesheet" href="assets/styles/eda-shell.css?v=93">
+<link rel="stylesheet" href="assets/styles/eda-dock.css?v=93">
+<link rel="stylesheet" href="assets/styles/components.css?v=93">
+<link rel="stylesheet" href="assets/styles/pages/dfm.css?v=93"><link rel="stylesheet" href="assets/styles/check-guide.css?v=93">
+<link rel="stylesheet" href="assets/styles/pages/dfm-panels.css?v=93">
 </head>
 <body class="eda-workbench">
 
@@ -88,7 +88,7 @@
             <button type="button" class="btn sec small" onclick="applyPresetScheme('std_6mil')" data-tip="GND 6.0 / 信号 6.0 / 孔盘 6.0 mil">6.0 mil 预设</button>
             <button type="button" class="btn sec small" onclick="applyPresetScheme('high_density_5mil')" data-tip="GND 5.0 / 信号 5.0 / 孔盘 5.0 mil">5.0 mil 高密预设</button>
             <button type="button" class="btn sec small" id="btnSaveDfmRules" data-tip="下载当前完整加工能力参数与分层规则为 JSON">保存规则到本地</button>
-            <button type="button" class="btn sec small" id="btnLoadDfmRules" data-tip="从本地 JSON 文件恢复加工能力规则">读取本地规则</button>
+            <button type="button" class="btn sec small" id="btnLoadDfmRules" data-tip="仅读取从本页“保存规则到本地”导出的加工能力规则 JSON；扇出方案库请到扇出页面导入">读取本地规则</button>
             <input type="file" id="fileDfmRules" accept=".json,application/json" style="display:none">
           </div>
         </div>
@@ -611,26 +611,26 @@
 
 <div class="tooltip" id="canvasTooltip"></div>
 
-<script src="packages/shared/check-guide.js?v=92"></script><script src="packages/shared/dom-utils.js?v=92"></script>
-<script src="packages/geometry/pad-primitives.js?v=92"></script>
-<script src="packages/geometry/pad-region.js?v=92"></script>
-<script src="packages/engines/dfm/dfm-layers.js?v=92"></script>
-<script src="packages/engines/dfm/dfm-parser.js?v=92"></script>
-<script src="packages/engines/dfm/dfm-engine.js?v=92"></script>
-<script src="packages/engines/dfm/dfm-pattern.js?v=92"></script>
-<script src="packages/pages/dfm/dfm-config.js?v=92"></script>
-<script src="packages/pages/dfm/dfm-padstack-rules.js?v=92"></script>
-<script src="packages/pages/dfm/dfm-rule-export.js?v=92"></script>
-<script src="packages/pages/dfm/dfm-rules-io.js?v=92"></script>
-<script src="packages/pages/dfm/dfm-result-nav.js?v=92"></script>
-<script src="packages/pages/dfm/dfm-results-pairs.js?v=92"></script>
-<script src="packages/pages/dfm/dfm-results-ui.js?v=92"></script>
-<script src="packages/pages/dfm/dfm-pattern-ui.js?v=92"></script>
-<script src="packages/pages/dfm/dfm-pattern-filter-popover.js?v=92"></script>
-<script src="packages/pages/dfm/dfm-pattern-modes.js?v=92"></script>
-<script src="packages/pages/dfm/dfm-canvas-vias.js?v=92"></script><script src="packages/pages/dfm/dfm-canvas-defects.js?v=92"></script><script src="packages/pages/dfm/dfm-canvas-viewer.js?v=92"></script>
-<script src="packages/shared/eda-tooltip.js?v=92"></script>
-<script src="packages/shared/eda-shell.js?v=92"></script>
-<script src="packages/shared/ui-prefs.js?v=92"></script>
+<script src="packages/shared/check-guide.js?v=93"></script><script src="packages/shared/dom-utils.js?v=93"></script>
+<script src="packages/geometry/pad-primitives.js?v=93"></script>
+<script src="packages/geometry/pad-region.js?v=93"></script>
+<script src="packages/engines/dfm/dfm-layers.js?v=93"></script>
+<script src="packages/engines/dfm/dfm-parser.js?v=93"></script>
+<script src="packages/engines/dfm/dfm-engine.js?v=93"></script>
+<script src="packages/engines/dfm/dfm-pattern.js?v=93"></script>
+<script src="packages/pages/dfm/dfm-config.js?v=93"></script>
+<script src="packages/pages/dfm/dfm-padstack-rules.js?v=93"></script>
+<script src="packages/pages/dfm/dfm-rule-export.js?v=93"></script>
+<script src="packages/pages/dfm/dfm-rules-io.js?v=93"></script>
+<script src="packages/pages/dfm/dfm-result-nav.js?v=93"></script>
+<script src="packages/pages/dfm/dfm-results-pairs.js?v=93"></script>
+<script src="packages/pages/dfm/dfm-results-ui.js?v=93"></script>
+<script src="packages/pages/dfm/dfm-pattern-ui.js?v=93"></script>
+<script src="packages/pages/dfm/dfm-pattern-filter-popover.js?v=93"></script>
+<script src="packages/pages/dfm/dfm-pattern-modes.js?v=93"></script>
+<script src="packages/pages/dfm/dfm-canvas-vias.js?v=93"></script><script src="packages/pages/dfm/dfm-canvas-defects.js?v=93"></script><script src="packages/pages/dfm/dfm-canvas-viewer.js?v=93"></script>
+<script src="packages/shared/eda-tooltip.js?v=93"></script>
+<script src="packages/shared/eda-shell.js?v=93"></script>
+<script src="packages/shared/ui-prefs.js?v=93"></script>
 </body>
 </html>
