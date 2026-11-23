@@ -204,7 +204,10 @@
   }
 
   function checkTypeOf(shape) {
+    var set = String(shape.set || '').trim().toLowerCase();
     var blob = ((shape.set || '') + ' ' + (shape.head || '')).toLowerCase();
+    if (set === 'shape') return '非功能焊盘尺寸';
+    if (set === 'route keepout') return '反焊盘尺寸';
     if (/非功能|non-?func|unused|nfp/.test(blob)) return '非功能焊盘尺寸';
     if (/keepout|anti-?pad|反焊盘|antipad/.test(blob)) return '反焊盘尺寸';
     if (/焊盘|etch|regular/.test(blob)) return '焊盘尺寸';
@@ -224,9 +227,9 @@
     var cons = (set && set.constraints) || [];
     var hit = cons.find(function (c) {
       var blob = (c.cat || '') + ' ' + (c.name || '');
-      if (checkType === '非功能焊盘尺寸') return /非功能/.test(blob);
+      if (checkType === '非功能焊盘尺寸') return /焊盘/.test(blob) && !/反焊盘|非功能|形状/.test(blob);
       if (checkType === '反焊盘尺寸') return /反焊盘/.test(blob) && !/非功能|形状/.test(blob);
-      if (checkType === '焊盘尺寸') return /焊盘/.test(blob) && !/反焊盘/.test(blob) && !/非功能/.test(blob);
+      if (checkType === '焊盘尺寸') return /焊盘/.test(blob) && !/反焊盘|非功能|形状/.test(blob);
       return false;
     });
     if (!hit) return { missing: '规则里没有这项' };
@@ -253,9 +256,10 @@
     var posTol = opts.posTol == null ? 0.05 : opts.posTol;
     var valTol = opts.valTol == null ? 0.01 : opts.valTol;
     var enabled = opts.enabled || { '反焊盘尺寸': true, '焊盘尺寸': true, '非功能焊盘尺寸': true, 'Padstack层名': true };
+    var productMode = opts.productMode == null ? (sets || []).some(function (set) { return set && set.matchMode === 'connections-trace-layers'; }) : !!opts.productMode;
     var vias = items.filter(function (it) { return it.type === 'via' && it.origin; });
-    var circles = items.filter(function (it) { return KS.isEligible(it); });
-    var polygons = items.filter(function (it) { return it.type === 'shape' && !KS.isEligible(it); });
+    var circles = items.filter(function (it) { return KS.isEligible(it) || (productMode && KS.isNonFunctionalPad(it)); });
+    var polygons = items.filter(function (it) { return it.type === 'shape' && !KS.isEligible(it) && !(productMode && KS.isNonFunctionalPad(it)); });
     var viaUnits = VI.groupVias(vias, n);
     VI.attachDifferentialPitch(viaUnits);
 
@@ -295,7 +299,7 @@
             if (list) list.forEach(function (sh) {
               var sourceLayer = subsetToLayer(sh.subset, n);
               if (!sourceLayer || KS.distanceTo(sh, part.origin) > posTol) return;
-              if (!nearSeen[sh.id]) { nearSeen[sh.id] = 1; near.push(sh); used[sh.id] = 1; }
+              if (!nearSeen[sh.id]) { nearSeen[sh.id] = 1; near.push(sh); }
               var owners = nearOwners[sh.id] || (nearOwners[sh.id] = []);
               if (!owners.some(function (v) { return String(v.id) === String(part.id); })) owners.push(part);
             });
@@ -333,13 +337,15 @@
       var note = effectiveSignal ? (sel.mode === 'connections-trace-layers' ? traceNote : legacyNote)
         : (groundNet ? 'GND 网络：仅显示，不推算信号约束，不执行核查' : '没有可用的 Connections Trace 或 SIG 完整孔：不执行核查');
       if (namingReason) note += '；Padstack 信号命名不符合：' + namingReason;
-      var rows = KS.collapseCoincident(near, function (sh) { return subsetToLayer(sh.subset, n); }, posTol).map(function (bundle) {
+      var checkedShapes = near.filter(function (sh) { return KS.isEligible(sh) || (sel.mode === 'connections-trace-layers' && KS.isNonFunctionalPad(sh)); });
+      checkedShapes.forEach(function (sh) { used[sh.id] = 1; });
+      var rows = KS.collapseCoincident(checkedShapes, function (sh) { return subsetToLayer(sh.subset, n); }, posTol, checkTypeOf).map(function (bundle) {
         var sh = bundle.shape, mergedIds = bundle.members.map(function (item) { return item.id; }).sort(function (a, b) { return +a - +b; });
         var ctype = checkTypeOf(sh);
         var layer = subsetToLayer(sh.subset, n);
         var on = inspectSignal && enabled[ctype] !== false;
         var status = '未检查', expect = '', constraint = '', reason = '';
-        var expectedShape = sel.rule && layer ? KS.ruleShape(sel.rule, layer) : '圆形';
+        var expectedShape = ctype === '反焊盘尺寸' && sel.rule && layer ? KS.ruleShape(sel.rule, layer) : '';
         var actualText = (sh.shapeKind || '无法识别') + ' · 圆弧半径 ' + (sh.arcRadii || [sh.radius]).join(' / ') + ' mil';
         if (!inspectSignal || !on) status = '未检查';
         else if (!sel.rule) status = '未选规则';
@@ -349,11 +355,11 @@
           constraint = rv.constraint || '';
           if (rv.missing) { status = '无约束'; expect = rv.missing; }
           else {
-            var shapeEval = KS.evaluate(sh, rv.value, expectedShape, valTol);
+            var shapeEval = KS.evaluate(sh, rv.value, expectedShape || sh.shapeKind, valTol);
             expect = rv.text; status = shapeEval.status; reason = shapeEval.reason; actualText = shapeEval.actualText;
           }
         }
-        if (mergedIds.length > 1) actualText += '（同层同心合并 ' + mergedIds.length + ' 个 Route Keepout，取最大半径）';
+        if (mergedIds.length > 1) actualText += '（同层同心合并 ' + mergedIds.length + ' 个 ' + (ctype === '非功能焊盘尺寸' ? 'Set=Shape' : 'Route Keepout') + '，取最大半径）';
         return {
           shapeId: sh.id, mergedShapeIds: mergedIds, subset: sh.subset, layer: layer, checkType: ctype,
           actual: sh.radius, actualText: actualText, shapeKind: sh.shapeKind, expectedShape: expectedShape,
@@ -376,7 +382,9 @@
         });
         sel.rule.constraints.forEach(function (c) {
           var ctype = constraintCheckType(c);
-          if (ctype !== '反焊盘尺寸' || enabled[ctype] === false) return;
+          if (ctype === '非功能焊盘尺寸') return;
+          if (ctype === '焊盘尺寸' && sel.mode === 'connections-trace-layers') ctype = '非功能焊盘尺寸';
+          if ((ctype !== '反焊盘尺寸' && ctype !== '非功能焊盘尺寸') || enabled[ctype] === false) return;
           var vals = c.values || {};
           Object.keys(vals).forEach(function (k) {
             var lm = k.match(/^L(\d+)$/i);
@@ -391,8 +399,8 @@
               present[ln + ':' + ctype] = 1;
               rows.push({
                 shapeId: 'none', subset: '—', layer: ln, checkType: ctype,
-                actual: '无铜皮', expect: String(v), expectedShape: KS.ruleShape(sel.rule, ln), status: '不符合',
-                constraint: c.name || '', reason: '规则要求检查该层，但没有匹配到同心 Route Keepout',
+                actual: ctype === '反焊盘尺寸' ? '无铜皮' : '无非功能焊盘', expect: String(v), expectedShape: ctype === '反焊盘尺寸' ? KS.ruleShape(sel.rule, ln) : '', status: '不符合',
+                constraint: c.name || '', reason: ctype === '反焊盘尺寸' ? '规则要求检查该层，但没有匹配到同心 Route Keepout' : '规则配置了焊盘尺寸，但没有匹配到同层同心的 Set=Shape 非功能焊盘',
                 missing: true, enabled: true
               });
             }
@@ -410,7 +418,9 @@
         if (sel.rule && sel.rule.constraints) {
           sel.rule.constraints.forEach(function (c) {
             var ctype = constraintCheckType(c);
-            if (ctype === '反焊盘尺寸' && enabled[ctype] !== false) spanTypes[ctype] = 1;
+            if (ctype === '非功能焊盘尺寸') return;
+            if (ctype === '焊盘尺寸' && sel.mode === 'connections-trace-layers') ctype = '非功能焊盘尺寸';
+            if ((ctype === '反焊盘尺寸' || ctype === '非功能焊盘尺寸') && enabled[ctype] !== false) spanTypes[ctype] = 1;
           });
         }
         for (var spanLayer = sel.rule ? 1 : unit.startLayer; spanLayer <= (sel.rule ? n : unit.endLayer); spanLayer++) {
@@ -424,11 +434,11 @@
               subset: '—',
               layer: spanLayer,
               checkType: ctype,
-              actual: '无铜皮',
+              actual: ctype === '反焊盘尺寸' ? '无铜皮' : '无非功能焊盘',
               expect: checked ? rv.text : rv.missing,
-              expectedShape: sel.rule ? KS.ruleShape(sel.rule, spanLayer) : '圆形', status: checked ? '不符合' : '未检查',
+              expectedShape: ctype === '反焊盘尺寸' && sel.rule ? KS.ruleShape(sel.rule, spanLayer) : '', status: checked ? '不符合' : '未检查',
               constraint: rv.constraint || '',
-              reason: checked ? '完整孔经过该层，但没有匹配到铜皮数据' : rv.missing,
+              reason: checked ? (ctype === '反焊盘尺寸' ? '完整孔经过该层，但没有匹配到铜皮数据' : '规则配置了焊盘尺寸，但该层没有匹配到 Set=Shape 非功能焊盘') : rv.missing,
               missing: true,
               spanPlaceholder: true,
               enabled: true
@@ -560,6 +570,9 @@
       polygons: polygons,
       viaCount: vias.length,
       circleCount: circles.length,
+      routeKeepoutCount: circles.filter(function (sh) { return KS.isEligible(sh); }).length,
+      nonFunctionalPadCount: circles.filter(function (sh) { return KS.isNonFunctionalPad(sh); }).length,
+      productMode: productMode,
       maxLayer: hi
     };
   }

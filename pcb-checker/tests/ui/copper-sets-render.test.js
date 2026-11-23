@@ -117,6 +117,7 @@ setTimeout(() => {
   t('OSFP 空白层表头可识别，并自动切至产品板方案', () => {
     w.eval('(function(txt){S.scheme="research";S.queue=[{id:4,name:"rule-osfp.txt",text:txt,status:""}];rebuild();})')(osfpStyleText);
     eq([w.eval('S.scheme'), w.eval('S.sets[0].title'), w.eval('S.sets[0].matchMode')], ['product', 'L36-L42', 'connections-trace-layers']);
+    if (d.getElementById('ckNfp').disabled || !d.getElementById('ckPadstack').disabled) throw new Error('产品板检查开关未同步');
     const value = key => d.querySelector(`.cCell[data-si="0"][data-ci="1"][data-key="${key}"]`).value;
     eq([value('L35'), value('L36'), value('L37')], ['圆形', '无', '长圆形'], '有反焊盘的层保留形状，未填写反焊盘和形状的层显示无');
     let anti = d.querySelector('.cCell[data-si="0"][data-ci="0"][data-key="L36"]');

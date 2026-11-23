@@ -128,6 +128,40 @@ t('尺寸检查只读取 Set=Route Keepout，其他 Shape 与焊盘规则都不�
   assert(!result.unmatchedCircles.some(shape => shape.id === 31), '非 Route Keepout 不应进入未配对列表');
 });
 
+t('产品板把 Set=Shape 作为非功能焊盘，并以同层焊盘尺寸判定且不与 Route Keepout 合并', () => {
+  const via = {
+    id: 90, type: 'via', origin: [500, 500], net: 'CHANGE_90', padstack: 'VIAOR40DOR15F_D6MIL',
+    traceConnected: true, traceLayers: ['07IS03', '33IS10']
+  };
+  const routeKeepout = { id: 901, type: 'shape', circle: true, center: via.origin.slice(), radius: 17, set: 'Route Keepout', subset: '07IS03' };
+  const nonFunctionalPad = { id: 902, type: 'shape', circle: true, center: via.origin.slice(), radius: 5, set: 'Shape', subset: '07IS03' };
+  const ignoredSet = { id: 903, type: 'shape', circle: true, center: via.origin.slice(), radius: 5, set: 'Pad Shape', subset: '07IS03' };
+  const productRule = { kind: '其他', title: 'L7-L33', matchMode: 'connections-trace-layers', constraints: [
+    { cat: '反焊盘尺寸', name: '反焊盘半径', unit: 'mil', values: { L7: '17' } },
+    { cat: '焊盘尺寸', name: '焊盘半径', unit: 'mil', values: { L7: '5', L8: '6' } },
+    { cat: '非功能焊盘尺寸', name: '非功能焊盘半径', unit: 'mil', values: { L7: '99' } }
+  ] };
+  const out = C.runCopperCheck([via, routeKeepout, nonFunctionalPad, ignoredSet], [productRule], {
+    layerCount: 33, posTol: 0.05, valTol: 0.01,
+    enabled: { '反焊盘尺寸': true, '非功能焊盘尺寸': true, 'Padstack层名': true }
+  });
+  const group = out.groups[0];
+  const routeRow = group.rows.find(row => row.shapeId === 901);
+  const padRow = group.rows.find(row => row.shapeId === 902);
+  const missingPad = group.rows.find(row => row.layer === 8 && row.checkType === '非功能焊盘尺寸');
+  assert(out.productMode && out.circleCount === 2 && out.routeKeepoutCount === 1 && out.nonFunctionalPadCount === 1, JSON.stringify(out));
+  assert(routeRow && routeRow.checkType === '反焊盘尺寸' && routeRow.expect === '17' && routeRow.status === '符合', JSON.stringify(routeRow));
+  assert(padRow && padRow.checkType === '非功能焊盘尺寸' && padRow.expect === '5' && padRow.status === '符合', JSON.stringify(padRow));
+  assert(routeRow.mergedShapeIds.join('/') === '901' && padRow.mergedShapeIds.join('/') === '902', '两类同心 Shape 不得互相合并');
+  assert(missingPad && missingPad.missing && missingPad.actual === '无非功能焊盘' && missingPad.expect === '6' && missingPad.status === '不符合', JSON.stringify(missingPad));
+  assert(!group.rows.some(row => row.shapeId === 903 || row.expect === '99' || row.isPadstackCheck), JSON.stringify(group.rows));
+
+  productRule.constraints[1].values.L7 = '6';
+  const mismatch = C.runCopperCheck([via, routeKeepout, nonFunctionalPad], [productRule], { layerCount: 33, valTol: 0.01 }).groups[0];
+  const mismatchPad = mismatch.rows.find(row => row.shapeId === 902);
+  assert(mismatchPad.status === '不符合' && mismatchPad.expect === '6', JSON.stringify(mismatchPad));
+});
+
 t('标准长圆形按两个圆弧中心配对，只检查形状和两端圆弧半径', () => {
   const txt = `Item 100 < Shape >
   Set: Route Keepout

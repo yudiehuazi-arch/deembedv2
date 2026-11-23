@@ -66,6 +66,9 @@ function renderConstraintSets() {
   const container = $('setsContainer');
   if (!container) return;
   const sets = State.rules.constraintSets || [];
+  const productMode = sets.some(set => set && set.matchMode === 'connections-trace-layers');
+  if ($('cfgCheckNfp')) $('cfgCheckNfp').disabled = !productMode;
+  if ($('cfgCheckPadstackLayers')) $('cfgCheckPadstackLayers').disabled = productMode;
   if (!sets.length) {
     container.innerHTML = '<div style="padding:16px;text-align:center;color:#6b7280;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:8px">暂无约束规则。可点击上方「导入约束 TXT」或「恢复预设约束方案」。</div>';
     return;

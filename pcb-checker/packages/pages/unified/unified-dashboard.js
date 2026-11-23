@@ -255,7 +255,7 @@ function clearAllReviews() {
 
 function renderModularViews() {
   if ($('pnlModTrace')) $('pnlModTrace').innerHTML = `走线检查：线宽组合、总线长、差分逐层与总长线长差。健康分 <b>${State.results.trace.score}%</b>。`;
-  if ($('pnlModCopper')) $('pnlModCopper').innerHTML = `约束检查：反焊盘尺寸与 Padstack 连接层。健康分 <b>${State.results.copper.score}%</b>。`;
+  if ($('pnlModCopper')) $('pnlModCopper').innerHTML = `约束检查：反焊盘、产品板非功能焊盘与 Padstack 连接层。健康分 <b>${State.results.copper.score}%</b>。`;
   if ($('pnlModDfm')) $('pnlModDfm').innerHTML = `DFM 检查：孔-孔、线-孔间距，盲埋孔按 Padstack Defined 穿层过滤${State.dfmSkippedPairs ? `，排除 ${State.dfmSkippedPairs} 处非穿层对偶` : ''}），共检出 <b>${State.results.dfm.checks.length}</b> 处间隙隐患。当前 DFM 健康分 <b>${State.results.dfm.score}%</b>。`;
   if ($('pnlModFanout')) $('pnlModFanout').innerHTML = `扇出检查：聚类 <b>${State.results.fanout.checks.length}</b> 个孔群。健康分 <b>${State.results.fanout.score}%</b>。`;
   if ($('pnlModPour')) $('pnlModPour').innerHTML = `铜皮检查：孔铺铜、异型铜皮、参考层投影与邻近铜、碎铜、圆弧。健康分 <b>${State.results.pour.score}%</b>。`;
@@ -384,7 +384,7 @@ function renderAnalysisGuidance() {
       if (r.category === 'dfm') guidance = '焊盘与走线间隙低于安全极限，建议微调走线线位或增加 1~2mil 间隙以提升制造良率。';
       else if (r.category === 'pour') guidance = '铺铜覆盖不足易导致参考地阻抗突变；碎铜死铜易引发高频天线效应与蚀刻脱落，建议补齐铺铜或清理死铜。';
       else if (r.category === 'trace') guidance = '走线线宽组合不符合出线层阻抗规范，易引起高频反射，需按阻抗匹配表修正线宽。';
-      else if (r.category === 'copper') guidance = '叠层反焊盘尺寸或过孔 Padstack 命名层与实际连接层不符，需更新过孔封装反焊盘或封装层名定义。';
+      else if (r.category === 'copper') guidance = '叠层反焊盘、产品板非功能焊盘尺寸或 Padstack 命名与规则不符，需更新对应 Shape 或封装定义。';
 
       return `
         <tr>

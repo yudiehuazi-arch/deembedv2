@@ -16,8 +16,10 @@
     var select = $('selConstraintScheme'), hint = $('constraintSchemeHint');
     if (select) select.value = S.scheme;
     if (hint) hint.textContent = S.scheme === 'product'
-      ? '产品板检查：按 Connections Trace 双层精确匹配命名约束；当前可用 ' + App.activeSets().length + ' 条。'
+      ? '产品板检查：按 Connections Trace 双层精确匹配命名约束，并检查 Set=Shape 非功能焊盘；当前可用 ' + App.activeSets().length + ' 条。'
       : 'PCB/HDI/SLP预研板检查：按完整孔层跨、类型和差分孔距匹配；当前可用 ' + App.activeSets().length + ' 条。';
+    if ($('ckNfp')) $('ckNfp').disabled = S.scheme !== 'product';
+    if ($('ckPadstack')) $('ckPadstack').disabled = S.scheme === 'product';
   }
 
   function renderFiles() {

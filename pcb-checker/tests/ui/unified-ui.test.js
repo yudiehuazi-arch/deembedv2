@@ -60,6 +60,7 @@ async function test(name, fn) {
     if ($('edaActiveStageLabel').textContent.trim() !== '① 数据导入') throw new Error('面包屑未同步：' + $('edaActiveStageLabel').textContent);
     if (d.querySelectorAll('#tabRules .rule-acc').length !== 5) throw new Error('规则配置应含 5 个引擎手风琴');
     if (d.querySelectorAll('#tabData .data-cat-box').length !== 4) throw new Error('数据导入应含 4 个数据框');
+    if (!$('cfgCheckNfp') || !$('cfgCheckNfp').disabled || $('cfgCheckPadstackLayers').disabled) throw new Error('预研板约束检查开关状态错误');
   });
 
   await test('无数据时运行检查被拦截，不产生缺陷', () => {
@@ -124,6 +125,37 @@ async function test(name, fn) {
     if (!c || !c.tTrace) throw new Error('上下文构建失败');
     const n = w.runTraceEngine(c).length;
     if (n !== 16) throw new Error('走线阶段应产出 16 项，实际 ' + n);
+  });
+
+  await test('综合检查产品板流程启用 Set=Shape 非功能焊盘并禁用 Padstack 检查', () => {
+    const oldSets = w.State.rules.constraintSets;
+    const oldResult = w.State.results.copper;
+    w.State.rules.constraintSets = [{ kind: '其他', title: 'L7-L33', matchMode: 'connections-trace-layers', constraints: [
+      { cat: '反焊盘尺寸', name: '反焊盘半径', unit: 'mil', values: { L7: '17' } },
+      { cat: '焊盘尺寸', name: '焊盘半径', unit: 'mil', values: { L7: '5', L8: '6' } }
+    ] }];
+    w.renderConstraintSets();
+    if ($('cfgCheckNfp').disabled || !$('cfgCheckPadstackLayers').disabled) throw new Error('产品板开关未同步');
+    const txt = [
+      'Item 901 < Shape >', '  Set: Shape', '  Subset: 07IS03', '  Type: Shape(Static)', 'Exterior Boundary:',
+      '  Arc seg: xy [495, 500] xy [495, 500] Width (0)', '    Center-xy: [500, 500] Radius (5) CCW', '~~~~~~~~',
+      'Item 902 < Shape >', '  Set: Route Keepout', '  Subset: 07IS03', '  Type: Shape(Static)', 'Exterior Boundary:',
+      '  Arc seg: xy [483, 500] xy [483, 500] Width (0)', '    Center-xy: [500, 500] Radius (17) CCW', '~~~~~~~~',
+      'Item 90 < Via >', '  Origin-xy: [500, 500]', '  Net: CHANGE_90', '  Padstack Name: VIAOR40DOR15F_D6MIL',
+      '  Connections:', '    Trace: 2 (07IS03 33IS10)', '~~~~~~~~'
+    ].join('\n');
+    $('cfgCheckNfp').checked = true;
+    $('cfgCheckPadstackLayers').checked = true;
+    const checks = w.runCopperEngine({ tConstraint: txt, parsedConstraint: { vias: [] } });
+    const actual = checks.find(check => check.item === '非功能焊盘尺寸' && check.layer === 'L7');
+    const missing = checks.find(check => check.item === '非功能焊盘尺寸' && check.layer === 'L8');
+    if (!actual || actual.actual !== 5 || actual.rule !== '5' || !actual.pass) throw new Error('非功能焊盘实测结果错误：' + JSON.stringify(actual));
+    if (!missing || missing.actual !== '无非功能焊盘' || missing.pass) throw new Error('缺失非功能焊盘未报告：' + JSON.stringify(missing));
+    if (checks.some(check => /Padstack/.test(check.item))) throw new Error('产品板不应执行 Padstack 检查');
+    w.State.rules.constraintSets = oldSets;
+    w.State.results.copper = oldResult;
+    w.renderConstraintSets();
+    if (!$('cfgCheckNfp').disabled || $('cfgCheckPadstackLayers').disabled) throw new Error('恢复预研板后开关未复原');
   });
 
   await test('缺陷清单：筛选、复核与 XSS 转义', () => {

@@ -208,7 +208,7 @@ function runTraceEngine(ctx) {
   return traceChecks;
 }
 
-/** 约束检查：过孔反焊盘与 Padstack 层名。结果写入 State.results 并返回缺陷条目。 */
+/** 约束检查：过孔反焊盘、产品板非功能焊盘与 Padstack 层名。结果写入 State.results 并返回缺陷条目。 */
 function runCopperEngine(ctx) {
   const { tConstraint, parsedConstraint } = ctx;
   // ==========================================
@@ -216,21 +216,24 @@ function runCopperEngine(ctx) {
   // ==========================================
   const copperChecks = [];
   const chkAnti = $('cfgCheckAntiPad') ? $('cfgCheckAntiPad').checked : true;
+  const chkNfp = $('cfgCheckNfp') ? $('cfgCheckNfp').checked : true;
   const chkPadstack = $('cfgCheckPadstackLayers') ? $('cfgCheckPadstackLayers').checked : true;
   const antiTol = parseFloat($('cfgAntiPadTol')?.value) || 0.5;
   const layerN = unifiedLayerCount();
+  const sets = State.rules.constraintSets || [];
+  const productMode = sets.some(set => set && set.matchMode === 'connections-trace-layers');
 
   if (tConstraint && typeof CopperCheck !== 'undefined' && CopperCheck.runCopperCheck) {
     const boardItems = CopperCheck.parseBoardItems(tConstraint);
-    const sets = State.rules.constraintSets || [];
     const checkRes = CopperCheck.runCopperCheck(boardItems, sets, {
       layerCount: layerN,
       valTol: antiTol,
+      productMode,
       enabled: {
         '反焊盘尺寸': chkAnti,
         '焊盘尺寸': false,
-        '非功能焊盘尺寸': false,
-        'Padstack层名': chkPadstack
+        '非功能焊盘尺寸': productMode && chkNfp,
+        'Padstack层名': !productMode && chkPadstack
       }
     });
 
@@ -242,7 +245,7 @@ function runCopperEngine(ctx) {
         const isPass = r.status === '符合';
         const layerStr = (typeof r.layer === 'number' && r.layer > 0) ? `L${r.layer}` : (String(r.layer).startsWith('L') ? r.layer : `L${r.layer}`);
         
-        let reasonStr = isPass ? '符合设计约束要求' : `实测值 ${r.actual} 与规则设定值 ${r.expect} 偏差超出容差 ${antiTol} mil`;
+        let reasonStr = isPass ? '符合设计约束要求' : (r.reason || `实测值 ${r.actual} 与规则设定值 ${r.expect} 偏差超出容差 ${antiTol} mil`);
         if (r.checkType === 'Padstack层名' && !isPass) {
           reasonStr = `Padstack 命名【${via.padstack}】缺少连接层【${r.expect}】`;
         }
@@ -268,7 +271,7 @@ function runCopperEngine(ctx) {
   }
 
   // Fallback Padstack check if tConstraint was provided but no groups generated
-  if (tConstraint && copperChecks.length === 0) {
+  if (tConstraint && !productMode && chkPadstack && copperChecks.length === 0) {
     parsedConstraint.vias.filter(v => /SIG/i.test(v.padstack || '')).forEach(v => {
       const padName = v.padstack || '';
       const connLayers = v.connectedLayers || [];

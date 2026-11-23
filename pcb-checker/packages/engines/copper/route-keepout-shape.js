@@ -1,5 +1,5 @@
 /* ============================================================================
- * route-keepout-shape.js —— 圆形/长圆形 Route Keepout 几何识别与形状规则核对
+ * route-keepout-shape.js —— 圆形/长圆形 Route Keepout 与 Set=Shape 几何识别、归并和规则核对
  * ========================================================================== */
 (function (root, factory) {
   var api = factory();
@@ -236,15 +236,15 @@
     });
   }
 
-  function collapseCoincident(items, layerOf, tol) {
+  function collapseCoincident(items, layerOf, tol, kindOf) {
     var groups = [];
     (items || []).forEach(function (item) {
-      var layer = layerOf(item), center = item.center;
+      var layer = layerOf(item), center = item.center, kind = kindOf ? kindOf(item) : '';
       var group = center && groups.find(function (candidate) {
-        return candidate.layer === layer && close(candidate.center, center, tol);
+        return candidate.layer === layer && candidate.kind === kind && close(candidate.center, center, tol);
       });
       if (group) group.items.push(item);
-      else groups.push({ layer: layer, center: center, items: [item] });
+      else groups.push({ layer: layer, center: center, kind: kind, items: [item] });
     });
     var out = [];
     groups.forEach(function (group) {
@@ -261,6 +261,11 @@
   function isEligible(item) {
     normalizeItem(item);
     return !!(item && item.type === 'shape' && item.arcShape && String(item.set || '').trim().toLowerCase() === 'route keepout');
+  }
+
+  function isNonFunctionalPad(item) {
+    normalizeItem(item);
+    return !!(item && item.type === 'shape' && item.arcShape && String(item.set || '').trim().toLowerCase() === 'shape');
   }
 
   function normalizeShapeName(raw) {
@@ -302,6 +307,7 @@
     distanceTo: distanceTo,
     collapseCoincident: collapseCoincident,
     isEligible: isEligible,
+    isNonFunctionalPad: isNonFunctionalPad,
     normalizeShapeName: normalizeShapeName,
     ruleShape: ruleShape,
     evaluate: evaluate

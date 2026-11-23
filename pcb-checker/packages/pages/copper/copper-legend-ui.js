@@ -72,7 +72,7 @@
         if (row.status !== '不符合') return;
         badTotal++;
         var ctype = row.checkType || '检查项';
-        var isMiss = (row.actual === '无铜皮' || row.statusNote === '缺失层');
+        var isMiss = !!row.missing || row.statusNote === '缺失层';
         var layerNum = row.layer;
         var lKey = String(layerNum).startsWith('L') ? String(layerNum) : ('L' + layerNum);
         layerBadMap[lKey] = (layerBadMap[lKey] || 0) + 1;
@@ -80,7 +80,7 @@
         var reasonTxt = '';
         var actualVal = row.actual, expectVal = row.expect;
         if (isMiss) {
-          reasonTxt = '<b class="bad">无铜皮</b>（缺失该层铜皮，规则要求 ' + esc(row.expect) + ' mil）';
+          reasonTxt = '<b class="bad">' + esc(row.actual) + '</b>（缺失该层' + (row.checkType === '非功能焊盘尺寸' ? '非功能焊盘' : '铜皮') + '，规则要求 ' + esc(row.expect) + ' mil）';
         } else if (row.reason) {
           reasonTxt = esc(row.reason);
         } else if (row.actual != null && row.expect != null && !isNaN(row.actual) && !isNaN(row.expect)) {
@@ -178,11 +178,12 @@
     }
 
     h += '<div class="hint" style="margin-top:20px;padding-top:12px;border-top:1px solid var(--line)">当前比对参数：位置容差 ' + pos + ' mil，数值容差 ' + val + ' mil。</div>' +
-      '<h3>1. 铜皮 × 完整信号孔怎么配对</h3><ol class="rules">' +
+      '<h3>1. 圆弧 Shape × 完整信号孔怎么配对</h3><ol class="rules">' +
       '<li>差分网络中，与 SIG 孔段按离散孔心距相邻的 GND 命名孔段会并入同一完整孔并参与约束推算；同时单独报告 Padstack 命名不符合。网络名为 GND 的过孔不参与信号约束推算，即使 Padstack 名称包含 SIG；其他独立非 SIG 过孔也不推算尺寸约束。</li>' +
       '<li>同网络孔段中心距命中 0 / 0.025 / 0.075 / 0.125 / 0.175 mm（允许 ±0.005 mm）时组成一个完整孔。</li>' +
       '<li>完整孔读取圆心或长圆形任一端圆弧中心距离 ≤ ' + pos + ' mil 的 Route Keepout；只纳入完整圆形或由两条等半径半圆弧与两条平行直线组成的标准长圆形，半圆允许由同心同半径且首尾连续的多条 Arc seg 拼成。</li>' +
-      '<li>同一物理层且几何中心一致的 Route Keepout，如果大轮廓完整包住小轮廓，则合并为一项并取最大圆弧半径；不同层、不同中心或未完全包围时不合并。</li>' +
+      '<li>同一物理层且几何中心一致的同类 Shape，如果大轮廓完整包住小轮廓，则合并为一项并取最大圆弧半径；不同 Set、不同层、不同中心或未完全包围时不合并。</li>' +
+      '<li>产品板检查还读取 Set=Shape 作为非功能焊盘；Set=Route Keepout 与 Set=Shape 分开归组，不会互相合并。</li>' +
       '</ol>' +
       '<h3>2. 怎么推算该用哪条约束</h3><ol class="rules">' +
       '<li>从孔组 Padstack 提取 SIG、SMA/BGA 与各段连接层，Top 按 L1、Bottom 按当前叠层末层，合并得到完整层跨。</li>' +
@@ -195,8 +196,9 @@
       '<li>一个完整孔只显示一张检查表：表头列出打包的全部 Via、各自 Padstack 层跨和共同匹配的约束；当前叠层为 14 层时固定显示 L1-L14，没有规则值的层标为未检查。</li>' +
       '<li>每条 Route Keepout 先按圆心纳入整合孔；来源优先取覆盖本层的 Via/Padstack，没有覆盖孔段时取同心孔段中层跨端点最近的一段。共用交界层仍保留两个物理孔的两条 Shape。</li>' +
       '<li>规则要求检查但没有匹配到 Route Keepout 的层仍保留，显示无铜皮和不符合；孔段层跨外 Shape 不会补长孔段层跨或改变约束匹配。</li>' +
+      '<li>产品板规则中某层有焊盘尺寸时，使用同层同心 Set=Shape 的圆弧半径作为非功能焊盘实测值；缺少 Set=Shape 时显示无非功能焊盘并判为不符合。</li>' +
       '<li>Subset 前导数字映射层号；该层有反焊盘尺寸但未写形状时默认圆形，尺寸和形状都未写时均为无；写长圆形时同时核对标准结构与两端圆弧半径，半径差值 ≤ ' + val + ' mil 判为符合，不检查总长、方向和面积。</li>' +
-      '<li>Padstack层名核对过孔名称是否覆盖 Connections 全部连接层。</li>' +
+      '<li>Padstack层名只用于 PCB/HDI/SLP 预研板方案；产品板方案改为检查 Set=Shape 非功能焊盘。</li>' +
       '</ol>';
 
     var noRuleKeys = Object.keys(noRuleMap).sort(function (a, b) { return noRuleMap[b].vias - noRuleMap[a].vias; });
@@ -213,9 +215,9 @@
       h += '</tbody></table>';
     }
 
-    h += '<h3>未配对 Route Keepout · 共 ' + r.unmatchedCircles.length + ' 个</h3>';
+    h += '<h3>未配对' + (r.productMode ? '可检查 Shape' : ' Route Keepout') + ' · 共 ' + r.unmatchedCircles.length + ' 个</h3>';
     if (!r.unmatchedCircles.length) {
-      h += '<div class="hint">本次所有可检查 Route Keepout 都配到了过孔。</div>';
+      h += '<div class="hint">本次所有可检查' + (r.productMode ? ' Shape' : ' Route Keepout') + ' 都配到了过孔。</div>';
     } else {
       h += '<table><thead><tr><th>铜皮#</th><th>层</th><th>Subset</th><th>形状与圆弧半径</th><th>最近过孔#</th><th>距离 mil</th><th>差多少才配上</th></tr></thead><tbody>';
       r.unmatchedCircles.slice(0, 40).forEach(function (sh) {
@@ -223,13 +225,13 @@
         var d = nr ? nr.dist : null;
         var gap = (d == null) ? '' : (d - pos);
         h += '<tr><td>' + sh.id + '</td><td>L' + CC.subsetToLayer(sh.subset, App.layerCount()) + '</td><td>' + esc(sh.subset) + '</td>' +
-          '<td>' + esc((sh.shapeKind || '圆形') + ' · ' + (sh.arcRadii || [sh.radius]).join(' / ') + ' mil') + '</td><td>' + (nr ? ('Via ' + nr.viaId) : (r.viaCount ? '200 mil 内无过孔' : '无过孔')) + '</td>' +
+          '<td>' + esc((r.productMode ? ((sh.set || 'Shape') + ' · ') : '') + (sh.shapeKind || '圆形') + ' · ' + (sh.arcRadii || [sh.radius]).join(' / ') + ' mil') + '</td><td>' + (nr ? ('Via ' + nr.viaId) : (r.viaCount ? '200 mil 内无过孔' : '无过孔')) + '</td>' +
           '<td>' + (d == null ? '—' : d.toFixed(3)) + '</td>' +
           '<td class="hint">' + (gap == null ? '—' : (gap > 0 ? ('还差 ' + gap.toFixed(3) + ' mil，超过位置容差 ' + pos) : '容差内')) + '</td></tr>';
       });
       h += '</tbody></table>';
     }
-    h += '<div class="hint" style="margin-top:10px">其他 Set、非圆弧或非标准长圆形 Shape ' + r.polygons.length + ' 个不参与约束配对；同孔同层重复 Route Keepout 记录 ' + dupGroups + ' 处。</div></div>';
+    h += '<div class="hint" style="margin-top:10px">当前方案不检查的 Set、非圆弧或非标准长圆形 Shape ' + r.polygons.length + ' 个；同孔同层重复可检查 Shape ' + dupGroups + ' 处。</div></div>';
     box.innerHTML = h;
   }
 

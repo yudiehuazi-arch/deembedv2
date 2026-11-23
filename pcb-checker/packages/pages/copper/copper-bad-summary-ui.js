@@ -58,11 +58,11 @@
       addCauseScope(named, group);
       return;
     }
-    if (row.reason && row.actual !== '无铜皮') {
+    if (row.reason && !row.missing) {
       var measured = entry.namedCauses[row.reason] || (entry.namedCauses[row.reason] = newCauseBucket({ text: row.reason }));
       addCauseScope(measured, group); return;
     }
-    var dim = dimensionName(row.checkType), missing = row.actual === '无铜皮' || row.statusNote === '缺失层';
+    var dim = dimensionName(row.checkType), missing = !!row.missing || row.statusNote === '缺失层';
     var key = [row.checkType, row.expect, missing ? 'missing' : 'value', dim ? '' : row.actual].join('|');
     var bucket = entry.causes[key] || (entry.causes[key] = newCauseBucket({
       checkType: row.checkType || '检查项', dim: dim, expect: row.expect, actual: row.actual,

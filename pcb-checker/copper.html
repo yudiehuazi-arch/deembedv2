@@ -150,14 +150,15 @@
     <!-- ================= ③ 导入数据 ================= -->
     <section class="tab" id="tab-data">
       <div class="card">
-        <h2>导入板级 Item 数据 <span class="eda-tip" tabindex="0" data-tip="按当前检查方案识别信号孔并匹配约束；尺寸检查只读取 Set=Route Keepout 的完整圆形或标准长圆形 Shape">?</span></h2>
+        <h2>导入板级 Item 数据 <span class="eda-tip" tabindex="0" data-tip="反焊盘读取 Set=Route Keepout；产品板的非功能焊盘读取 Set=Shape；两类均要求完整圆形或标准长圆形">?</span></h2>
         <div id="dataDrop" tabindex="0" data-tip="支持包含 Shape、Via、Trace 的 EDA 导出 TXT">
           <div class="t1">点击选择板级数据 TXT，或拖拽至此处</div>
-          <div class="t2">尺寸检查读取圆形或长圆形 Route Keepout，并关联过孔 Via 记录</div>
+          <div class="t2">读取 Route Keepout 反焊盘；产品板方案同时读取 Set=Shape 非功能焊盘</div>
         </div>
         <input type="file" id="dataFile" accept=".txt,text/plain" style="display:none">
         <div class="row" style="margin-top:12px">
           <label class="chk" data-tip="核对 Set=Route Keepout 的圆形或长圆形 Shape；长圆形只检查形状及两端圆弧半径"><input type="checkbox" id="ckAnti" checked>检查Route Keepout反焊盘尺寸与形状</label>
+          <label class="chk" data-tip="仅用于产品板检查；将 Set=Shape 作为非功能焊盘，实测圆弧半径与同层焊盘尺寸规则比较"><input type="checkbox" id="ckNfp" checked>检查Set=Shape非功能焊盘尺寸</label>
           <label class="chk" data-tip="仅用于 PCB/HDI/SLP预研板检查；产品板检查不判定 Padstack 名称"><input type="checkbox" id="ckPadstack" checked>检查Padstack层名</label>
           <span class="hint">其他 Set 和无法识别为完整圆形或标准长圆形的 Shape 不检查。</span>
         </div>
@@ -172,7 +173,7 @@
       </div>
 
       <div class="card" id="matchCard">
-        <h2>Route Keepout × 信号孔配对与约束推算 <span class="eda-tip" tabindex="0" data-tip="PCB/HDI/SLP预研板检查按完整信号孔匹配；产品板检查按 Connections Trace 双层精确匹配；两者都只读取 Route Keepout Shape">?</span></h2>
+        <h2>圆弧 Shape × 信号孔配对与约束推算 <span class="eda-tip" tabindex="0" data-tip="两套方案都读取 Route Keepout 反焊盘；产品板方案还读取 Set=Shape 非功能焊盘，并使用焊盘尺寸规则判定">?</span></h2>
         <div id="matchOut"><div class="hint">尚未导入数据。</div></div>
       </div>
     </section>
@@ -227,7 +228,7 @@
             <label class="fld" id="copperCanvasIssueDetailLabel"><span id="copperCanvasIssueDetailTitle">扇出方案</span> <select id="selCopperCanvasIssueDetail" data-no-persist><option value="">全部扇出方案</option></select></label>
             <label class="fld" data-tip="定位结果默认显示全部层，避免隐藏其他孔群；需要时可手动只看单层">显示层 <select id="selCopperCanvasLayer" data-no-persist><option value="">全部层</option></select></label>
             <label class="chk"><input type="checkbox" id="ckCopperCanvasVias" checked>过孔</label>
-            <label class="chk"><input type="checkbox" id="ckCopperCanvasShapes" checked>圆弧Route Keepout</label>
+            <label class="chk"><input type="checkbox" id="ckCopperCanvasShapes" checked>可检查圆弧Shape</label>
             <label class="chk"><input type="checkbox" id="ckCopperCanvasTraces" checked>走线</label>
             <label class="chk"><input type="checkbox" id="ckCopperCanvasGrid" checked>网格</label>
           </div>

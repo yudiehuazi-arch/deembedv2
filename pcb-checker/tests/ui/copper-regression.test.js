@@ -273,7 +273,7 @@ setTimeout(() => {
     const bar = $('badTypeFilters');
     if (bar.hidden) throw new Error('不符合类型选项未显示');
     const labels = [...bar.querySelectorAll('.bad-type-chip .cl')].map(x => x.textContent);
-    if (JSON.stringify(labels) !== JSON.stringify(['全部不符合','Padstack命名不符合','反焊盘尺寸不符合'])) throw new Error(JSON.stringify(labels));
+    if (JSON.stringify(labels) !== JSON.stringify(['全部不符合','Padstack命名不符合','反焊盘尺寸不符合','非功能焊盘尺寸不符合'])) throw new Error(JSON.stringify(labels));
     bar.querySelector('[data-bad-type="Padstack信号命名"]').click();
     if (renderedGroups() !== 0) throw new Error('Padstack 命名筛选应为空');
     bar.querySelector('[data-bad-type="反焊盘尺寸"]').click();
@@ -464,7 +464,7 @@ setTimeout(() => {
     if (!zoom || zoom.hidden || !zoom.querySelector('.bad-summary-zoom-image').src.startsWith('data:image/svg+xml')) throw new Error('位置图无法放大');
     zoom.querySelector('.bad-summary-zoom-close').click();
     if (!zoom.hidden) throw new Error('位置图放大层无法关闭');
-    ['铜皮 × 完整信号孔怎么配对','怎么推算该用哪条约束','每一层怎么判','各约束下不符合的具体原因展开明细','没推算到约束的分布','未配对 Route Keepout'].forEach(x => {
+    ['圆弧 Shape × 完整信号孔怎么配对','怎么推算该用哪条约束','每一层怎么判','各约束下不符合的具体原因展开明细','没推算到约束的分布','未配对 Route Keepout'].forEach(x => {
       if (h.indexOf(x) < 0) throw new Error('缺小节：' + x);
     });
     if ($('tab-result').querySelector('#legendOut')) throw new Error('结果页还挂着规律卡片');
@@ -1298,7 +1298,7 @@ setTimeout(() => {
     $('tabs').querySelector('[data-tab="legend"]').click();
     const h = $('legendOut').innerHTML;
     if (h.indexOf('各约束下不符合') < 0) throw new Error('没渲染分布');
-    if (h.indexOf('铜皮 × 完整信号孔怎么配对') < 0) throw new Error('没渲染规律');
+    if (h.indexOf('圆弧 Shape × 完整信号孔怎么配对') < 0) throw new Error('没渲染规律');
   });
   t('⑥ 页内容有缓存，重复切页签不会重复渲染', () => {
     const v1 = $('legendOut').dataset.ver;
@@ -1335,7 +1335,7 @@ setTimeout(() => {
     // 1. 包含各约束下展开明细小节且置于顶部
     if (h.indexOf('各约束下不符合的具体原因展开明细') < 0) throw new Error('缺少各约束展开明细小节');
     const posDetail = h.indexOf('各约束下不符合的具体原因展开明细');
-    const posRules = h.indexOf('铜皮 × 完整信号孔怎么配对');
+    const posRules = h.indexOf('圆弧 Shape × 完整信号孔怎么配对');
     if (posDetail < 0 || posRules < 0 || posDetail > posRules) throw new Error('各约束下不符合展开明细未置于页面顶部');
 
     // 2. 确认已删掉「不符合原因汇总排行」
@@ -1457,7 +1457,7 @@ setTimeout(() => {
     w.eval("S.sets.push({kind:'BGA',title:'BGA-Top-L4-0.8mm',constraints:[]}); UI.resRule='BGA-Top-L4-0.8mm'; UI.resFilter='bad'; UI.resBadType='Padstack信号命名'; UI.viewVer++; renderResults();");
     const nums = {};
     $('badTypeFilters').querySelectorAll('.bad-type-chip').forEach(btn => { nums[btn.dataset.badType || 'all'] = +btn.querySelector('.cn').textContent; });
-    if (JSON.stringify(nums) !== JSON.stringify({all:0,'Padstack信号命名':0,'反焊盘尺寸':0})) throw new Error('零记录约束仍显示全局数量：' + JSON.stringify(nums));
+    if (JSON.stringify(nums) !== JSON.stringify({all:0,'Padstack信号命名':0,'反焊盘尺寸':0,'非功能焊盘尺寸':0})) throw new Error('零记录约束仍显示全局数量：' + JSON.stringify(nums));
     if (d.querySelectorAll('#checkOut .set').length !== 0) throw new Error('零记录约束不应显示结果卡片');
     if ($('badTypeFilters').textContent.indexOf('数量跟随约束和搜索条件') < 0) throw new Error('缺少计数口径提示');
 

@@ -117,7 +117,7 @@
               <span style="font-size:13px;font-weight:700;color:#111827">② 约束检查数据</span>
               <span id="badgeData_constraint" class="tag-badge" style="background:#e3e8ef;color:#6b7280;font-size:11px">未导入</span>
             </div>
-            <div style="font-size:12px;color:#6b7280;line-height:1.4">约束检查所需的过孔与反焊盘铜皮数据 <span class="eda-tip" tabindex="0" data-tip="反焊盘尺寸 / Padstack 层名核对">?</span></div>
+            <div style="font-size:12px;color:#6b7280;line-height:1.4">约束检查所需的过孔与圆弧 Shape 数据 <span class="eda-tip" tabindex="0" data-tip="Route Keepout 反焊盘 / 产品板 Set=Shape 非功能焊盘 / Padstack 层名核对">?</span></div>
           </div>
           <div class="data-cat-drop" id="dropZone_constraint" onclick="$('fileData_constraint').click()">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>
@@ -255,7 +255,7 @@
         <!-- 2. Constraint Rules (完整复原独立页约束格式：指引名片 + 逐层参数表 + TXT/JSON导入) -->
         <div class="rule-acc">
           <div class="rule-acc-header" onclick="toggleAcc(this)">
-            <h4>2. 约束检查规则 <span class="eda-tip" tabindex="0" data-tip="叠层反焊盘尺寸 / 焊盘 / Padstack层名核对 - 检查反焊盘尺寸与Padstack层名两项">?</span></h4>
+            <h4>2. 约束检查规则 <span class="eda-tip" tabindex="0" data-tip="检查 Route Keepout 反焊盘、产品板 Set=Shape 非功能焊盘与 Padstack 层名">?</span></h4>
             <div style="display:flex;gap:4px" onclick="event.stopPropagation()">
               <button class="btn sec small" style="padding:2px 6px" onclick="importConstraintTxtPrompt()">导入约束 TXT</button>
               <button class="btn sec small" style="padding:2px 6px" onclick="importConstraintJsonPrompt()">导入约束 JSON</button>
@@ -275,11 +275,11 @@
             <!-- Global Stack & Switches -->
             <div style="font-size:12px;color:#6b7280;display:flex;gap:14px;flex-wrap:wrap;align-items:center;background:#f8fafc;padding:8px 12px;border:1px solid #e3e8ef;border-radius:6px;margin-bottom:12px">
               <div><b>总叠层数:</b> <input type="number" id="cfgLayerCount" value="" min="1" max="64" placeholder="自动" style="width:70px" onchange="onLayerCountChange()"> 层 <button type="button" class="btn sec small" onclick="resetAutoLayerCount()">按 TXT 自动</button> <span id="unifiedLayerCountHint" style="font-size:11px;color:#6b7280"></span></div>
-              <div><b>反焊盘尺寸容差:</b> <input type="number" id="cfgAntiPadTol" value="0.5" step="0.1" style="width:60px"> mil</div>
+              <div><b>反焊盘 / 非功能焊盘尺寸容差:</b> <input type="number" id="cfgAntiPadTol" value="0.5" step="0.1" style="width:60px"> mil</div>
               <div><label><input type="checkbox" id="cfgCheckAntiPad" checked> <b>检查反焊盘尺寸</b></label></div>
+              <div><label><input type="checkbox" id="cfgCheckNfp" checked> <b>检查产品板 Set=Shape 非功能焊盘尺寸</b></label></div>
               <div><label><input type="checkbox" id="cfgCheckPadstackLayers" checked> <b>检查 Padstack 层名包含所有连接层</b></label></div>
             </div>
-
             <div id="jumpNav" class="jumpnav"></div>
 
             <div id="setsContainer" style="display:flex;flex-direction:column;gap:14px"></div>

@@ -17,8 +17,8 @@
     return {
       '反焊盘尺寸': $('ckAnti') ? $('ckAnti').checked : true,
       '焊盘尺寸': false,
-      '非功能焊盘尺寸': false,
-      'Padstack层名': $('ckPadstack') ? $('ckPadstack').checked : true
+      '非功能焊盘尺寸': S.scheme === 'product' && ($('ckNfp') ? $('ckNfp').checked : true),
+      'Padstack层名': S.scheme !== 'product' && ($('ckPadstack') ? $('ckPadstack').checked : true)
     };
   }
 
@@ -64,7 +64,7 @@
       layerCount: App.layerCount(),
       posTol: isNaN(pos) ? 0.05 : pos,
       valTol: isNaN(val) ? 0.01 : val,
-      enabled: checkEnabled()
+      enabled: checkEnabled(), productMode: S.scheme === 'product'
     });
     var r = UI.result;
     UI.viewVer++;
@@ -80,7 +80,7 @@
     var bad = r.groups.reduce(function (n, g) { return n + (g.failCount || 0); }, 0);
     var bigNote = gcount > 800 ? (' 数据量 ' + gcount + ' 个过孔，默认渲染前 ' + UI.resLimit + ' 组。') : '';
     if ($('checkHint')) {
-      $('checkHint').textContent = '方案 ' + App.schemeName() + '，过孔段 ' + r.viaCount + '，信号孔组 ' + (r.signalGroupCount || 0) + '，Route Keepout ' + r.circleCount + '，不符合 ' + bad + '。' +
+      $('checkHint').textContent = '方案 ' + App.schemeName() + '，过孔段 ' + r.viaCount + '，信号孔组 ' + (r.signalGroupCount || 0) + '，Route Keepout ' + (r.routeKeepoutCount == null ? r.circleCount : r.routeKeepoutCount) + (r.productMode ? ('，Set=Shape 非功能焊盘 ' + (r.nonFunctionalPadCount || 0)) : '') + '，不符合 ' + bad + '。' +
         '检查耗时 ' + UI.chkMs + ' ms。' + bigNote +
         (!selectedSets.length ? ' 当前检查方案没有可用规则，请在 ① 规则约束 导入对应 TXT 或切换方案。' : '') +
         (r.maxLayer > App.layerCount() ? (' 数据写到 L' + r.maxLayer + '，当前叠层按 L' + App.layerCount() + ' 比对。') : '');
@@ -125,7 +125,7 @@
   function viaNoShapeHtml(g) {
     return '<tr><td class="muted">—</td><td class="muted">—</td><td class="muted">—</td><td class="muted">—</td>' +
       '<td>Via ' + g.via.id + '</td><td>' + esc(g.via.net || '无网络') + '</td><td>' + esc(g.via.padstack || '无 Padstack') + '</td>' +
-      '<td>' + esc(keyTxt(g)) + '</td><td colspan="2" class="muted">' + esc(g.note || '附近没有可检查的 Route Keepout') + '</td></tr>';
+      '<td>' + esc(keyTxt(g)) + '</td><td colspan="2" class="muted">' + esc(g.note || (g.matchMode === 'connections-trace-layers' ? '附近没有可检查的 Route Keepout / Set=Shape' : '附近没有可检查的 Route Keepout')) + '</td></tr>';
   }
 
   function circleRowHtml(sh) {
@@ -147,8 +147,8 @@
     var tiles = [
       { f: 'via', n: r.viaCount, label: '过孔', tip: '点击筛选全部过孔记录' },
       { f: 'matched', n: matched, label: '已配对过孔', tip: '点击仅看已配对到铜皮的过孔' },
-      { f: 'circle', n: r.circleCount, label: '圆弧Route Keepout', tip: '点击查看全部圆形与长圆形 Route Keepout' },
-      { f: 'unmatched', n: r.unmatchedCircles.length, label: '未配对铜皮', tip: '点击仅看未配对到过孔的铜皮' }
+      { f: 'circle', n: r.circleCount, label: r.productMode ? '可检查圆弧Shape' : '圆弧Route Keepout', tip: r.productMode ? '点击查看 Route Keepout 与 Set=Shape 非功能焊盘' : '点击查看全部圆形与长圆形 Route Keepout' },
+      { f: 'unmatched', n: r.unmatchedCircles.length, label: r.productMode ? '未配对Shape' : '未配对铜皮', tip: '点击仅看未配对到过孔的 Shape' }
     ];
     var h = '<div class="row" style="margin-bottom:8px">' + tiles.map(function (t) {
       return '<div class="stat click' + (f === t.f ? ' on' : '') + '" data-f="' + t.f + '" data-tip="' + esc(t.tip) + '"><b>' + t.n + '</b>' +
@@ -183,7 +183,7 @@
       }
     }
     h += '</tbody></table></div>';
-    h += '<div class="hint" style="margin-top:8px">显示 ' + shown + ' / ' + total + ' 行 · 未配对 Route Keepout ' + r.unmatchedCircles.length +
+    h += '<div class="hint" style="margin-top:8px">显示 ' + shown + ' / ' + total + ' 行 · 未配对' + (r.productMode ? '可检查 Shape ' : ' Route Keepout ') + r.unmatchedCircles.length +
       ' 个 · 其他 Shape ' + r.polygons.length + ' 个不参与约束配对。</div>';
     if (total > shown) {
       h += '<div class="row" style="margin-top:8px"><button type="button" class="btn gray" id="btnMoreMatch">显示更多 · 剩余 ' + (total - shown) + ' 行</button>' +
@@ -395,7 +395,8 @@
     var options = [
       { key: '', label: '全部不符合' },
       { key: 'Padstack信号命名', label: 'Padstack命名不符合' },
-      { key: '反焊盘尺寸', label: '反焊盘尺寸不符合' }
+      { key: '反焊盘尺寸', label: '反焊盘尺寸不符合' },
+      { key: '非功能焊盘尺寸', label: '非功能焊盘尺寸不符合' }
     ];
     box.innerHTML = '<span class="hint no-rule-net-title">按不符合类型显示，数量跟随约束和搜索条件</span>' + options.map(function (o) {
       var count = (UI.result.groups || []).filter(function (g) {
@@ -426,7 +427,7 @@
     })();
     var out = byRule ? (byRule + (f ? ' + ' + base : '')) : base;
     if (f === 'norule' && UI.resNet) out += ' · 网络类别 ' + resultNetLabel(UI.resNet);
-    if (f === 'bad' && UI.resBadType) out += ' · ' + (UI.resBadType === 'Padstack信号命名' ? 'Padstack命名不符合' : '反焊盘尺寸不符合');
+    if (f === 'bad' && UI.resBadType) out += ' · ' + (UI.resBadType === 'Padstack信号命名' ? 'Padstack命名不符合' : (UI.resBadType + '不符合'));
     if (bySearch) out += (out ? ' · ' : '') + bySearch;
     return out;
   }
@@ -455,7 +456,7 @@
     if (tile) tile.querySelector('b').textContent = done + '/' + total;
     if ($('resHint')) {
       $('resHint').textContent = resFilterText() + '。已复核 ' + done + ' / 不符合 ' + total + '。渲染 ' + UI.resMs + ' ms' +
-        '。反焊盘 ' + (checkEnabled()['反焊盘尺寸'] ? '开' : '关') + '，焊盘 ' + (checkEnabled()['焊盘尺寸'] ? '开' : '关') + '，非功能焊盘 ' + (checkEnabled()['非功能焊盘尺寸'] ? '开' : '关') + '。';
+        '。反焊盘 ' + (checkEnabled()['反焊盘尺寸'] ? '开' : '关') + '，Set=Shape 非功能焊盘 ' + (checkEnabled()['非功能焊盘尺寸'] ? '开' : '关') + '。';
     }
   }
 
@@ -488,7 +489,7 @@
         '<div class="stat click' + (rf === 'bad' ? ' on' : '') + '" data-res="bad" data-tip="只看含不符合项的完整孔，孔内仍显示全部层"><b class="' + (bad ? 'bad' : 'ok') + '">' + bad + '</b><span class="hint">不符合</span></div>' +
         '<div class="stat"><b>' + rowsAll + '</b><span class="hint">检查记录</span></div>' +
         '<div class="stat click' + (rf === 'matched' ? ' on' : '') + '" data-res="matched" data-tip="点击切换仅看已配对过孔"><b>' + rc.matched + '</b><span class="hint">已配对过孔</span></div>' +
-        '<div class="stat"><b>' + r.unmatchedCircles.length + '</b><span class="hint">未配对铜皮</span></div>' +
+        '<div class="stat"><b>' + r.unmatchedCircles.length + '</b><span class="hint">' + (r.productMode ? '未配对Shape' : '未配对铜皮') + '</span></div>' +
         '<div class="stat click' + (rf === 'norule' ? ' on' : '') + '" data-res="norule" data-tip="点击切换仅看未推算到约束的过孔"><b>' + noRule + '</b><span class="hint">没推算到约束</span></div>' +
         '<div class="stat" id="rvStat"><b>0/0</b><span class="hint">已复核</span></div>';
     }
@@ -517,9 +518,9 @@
         (failCount ? ('<label class="grpRvw" data-tip="将本孔所有不符合项一次标为已复核"><input type="checkbox" class="grpBox" data-no-persist data-si="' + si + '">总复核</label>') : '') +
         '<span>约束 ' + (g.rule ? esc(g.rule.title) : (g.signal !== false ? '未推算到' : '非 SIG · 不检查')) + (g.namingError ? ' · <b class="bad">Padstack命名不符合</b>' : '') + '</span>' +
         '<button type="button" class="btn gray small copper-locate-btn" data-si="' + si + '" data-tip="在空间几何视口定位该完整孔">定位</button></div><div class="body">' +
-        '<div class="srcnote">孔段打包：' + esc(sourceBundle || '无可识别孔段') + '。共同匹配约束【' + esc(g.rule ? g.rule.title : '未推算到') + '】，以下按当前叠层从 L1 检查到末层，并读取圆心或端部圆弧中心匹配的 Route Keepout。提取：' + esc(keyTxt(g)) + (g.note ? ' · ' + esc(g.note) : '') + (g.via.connections ? ' · ' + esc(g.via.connections) : '') + '</div>';
+        '<div class="srcnote">孔段打包：' + esc(sourceBundle || '无可识别孔段') + '。共同匹配约束【' + esc(g.rule ? g.rule.title : '未推算到') + '】，以下按当前叠层从 L1 检查到末层，并读取圆心或端部圆弧中心匹配的' + (r.productMode ? ' Route Keepout / Set=Shape' : ' Route Keepout') + '。提取：' + esc(keyTxt(g)) + (g.note ? ' · ' + esc(g.note) : '') + (g.via.connections ? ' · ' + esc(g.via.connections) : '') + '</div>';
       if (!rows.length) {
-        h += '<div class="hint">该过孔附近无可检查的 Route Keepout。</div>';
+        h += '<div class="hint">该过孔附近无可检查的' + (r.productMode ? ' Route Keepout / Set=Shape' : ' Route Keepout') + '。</div>';
       } else {
         h += '<table><thead><tr><th class="rvw">复核</th><th>层</th><th>Subset</th><th>本层来源 Via</th><th>本层来源 Padstack</th><th>检查项</th><th>实测</th><th>规则值</th><th>结果</th></tr></thead><tbody>';
         rows.forEach(function (row) {
@@ -566,7 +567,6 @@
     if ($('btnAllRows')) $('btnAllRows').classList.toggle('on', !rf);
     refreshReview();
   }
-
 
   function renderLegend(force) {
     if (typeof App.renderLegend === "function") return App.renderLegend(force);
