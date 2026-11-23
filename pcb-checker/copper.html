@@ -4,14 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PCB 约束检查 · 规则</title>
-<link rel="stylesheet" href="assets/styles/tokens.css?v=90">
-<link rel="stylesheet" href="assets/styles/eda-shell.css?v=90">
-<link rel="stylesheet" href="assets/styles/eda-dock.css?v=90">
-<link rel="stylesheet" href="assets/styles/components.css?v=90">
-<link rel="stylesheet" href="assets/styles/pages/copper.css?v=90">
-<link rel="stylesheet" href="assets/styles/check-guide.css?v=90">
-<link rel="stylesheet" href="assets/styles/pages/copper-canvas.css?v=90">
-<link rel="stylesheet" href="assets/styles/pages/copper-summary.css?v=90">
+<link rel="stylesheet" href="assets/styles/tokens.css?v=91">
+<link rel="stylesheet" href="assets/styles/eda-shell.css?v=91">
+<link rel="stylesheet" href="assets/styles/eda-dock.css?v=91">
+<link rel="stylesheet" href="assets/styles/components.css?v=91">
+<link rel="stylesheet" href="assets/styles/pages/copper.css?v=91">
+<link rel="stylesheet" href="assets/styles/check-guide.css?v=91">
+<link rel="stylesheet" href="assets/styles/pages/copper-canvas.css?v=91">
+<link rel="stylesheet" href="assets/styles/pages/copper-summary.css?v=91">
 </head>
 <body class="eda-workbench">
 
@@ -140,6 +140,7 @@
           <div class="hint" style="line-height:1.85">
             <div><b>参数行命名</b>：方案面别 + 封装 + 扇出层 + D2M 参数组合为 <code>Bot-SMA-L19-D2M6mil</code>。</div>
             <div><b>表格型命名</b>：按子表连接层与孔距拆分为独立约束，如 <code>SMA-Top-L2</code>、<code>BGA-L2-L4-0.5mm</code>。</div>
+            <div><b>产品板命名</b>：<code>约束名称：Lx-Ly</code> 的端点可省略 <code>L</code> 或倒序填写，导入后按小到大统一为精确的 <code>Lx-Ly</code>；表头第一格可写“层”或留空。</div>
             <div><b>作用域展开</b>：<code>L18及以上</code> 覆盖 L1 至 L18；<code>出线层</code> 对应规则名中的扇出层号；未声明尺寸填为 <code>无</code>，未声明反焊盘形状默认为 <code>圆形</code>。</div>
           </div>
         </div>
@@ -297,17 +298,17 @@
 
 <div id="expMask"></div>
 
-<script src="packages/shared/check-guide.js?v=90"></script>
-<script src="packages/engines/copper/via-constraint-inference.js?v=90"></script><script src="packages/engines/copper/route-keepout-shape.js?v=90"></script><script src="packages/engines/copper/copper-engine.js?v=90"></script>
-<script src="packages/engines/copper/constraint-parser.js?v=90"></script>
-<script src="packages/pages/copper/copper-state.js?v=90"></script>
-<script src="packages/pages/copper/copper-sets-ui.js?v=90"></script>
-<script src="packages/pages/copper/copper-canvas-viewer.js?v=90"></script>
-<script src="packages/pages/copper/copper-results-ui.js?v=90"></script>
-<script src="packages/pages/copper/copper-bad-summary-ui.js?v=90"></script>
-<script src="packages/pages/copper/copper-legend-ui.js?v=90"></script>
-<script src="packages/shared/eda-tooltip.js?v=90"></script>
-<script src="packages/shared/eda-shell.js?v=90"></script>
-<script src="packages/shared/ui-prefs.js?v=90"></script>
+<script src="packages/shared/check-guide.js?v=91"></script>
+<script src="packages/engines/copper/via-constraint-inference.js?v=91"></script><script src="packages/engines/copper/route-keepout-shape.js?v=91"></script><script src="packages/engines/copper/copper-engine.js?v=91"></script>
+<script src="packages/engines/copper/constraint-parser.js?v=91"></script>
+<script src="packages/pages/copper/copper-state.js?v=91"></script>
+<script src="packages/pages/copper/copper-sets-ui.js?v=91"></script>
+<script src="packages/pages/copper/copper-canvas-viewer.js?v=91"></script>
+<script src="packages/pages/copper/copper-results-ui.js?v=91"></script>
+<script src="packages/pages/copper/copper-bad-summary-ui.js?v=91"></script>
+<script src="packages/pages/copper/copper-legend-ui.js?v=91"></script>
+<script src="packages/shared/eda-tooltip.js?v=91"></script>
+<script src="packages/shared/eda-shell.js?v=91"></script>
+<script src="packages/shared/ui-prefs.js?v=91"></script>
 </body>
 </html>

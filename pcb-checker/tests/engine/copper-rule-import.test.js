@@ -7,6 +7,11 @@ const sampleText = fs.readFileSync(path.join(SAMPLE_DIR, "约束示例_表格型
 const legacyText = fs.readFileSync(path.join(SAMPLE_DIR, "L17层扇出SMA.txt"), "utf8");
 const changeLayerText = fs.readFileSync(path.join(SAMPLE_DIR, "rule-changelayervia.txt"), "utf8");
 const obroundText = fs.readFileSync(path.join(SAMPLE_DIR, "约束示例_长圆形.txt"), "utf8");
+const osfpStyleText = [
+  '约束名称：L42-36', '\t反焊盘半径\t反焊盘形状\t焊盘半径', 'L35\t18mil\t圆\t', 'L36\t\t\t', 'L37\t13mil\t长圆形\t8', '',
+  '约束名称：42-40', '\t反焊盘半径\t反焊盘形状\t焊盘半径', 'L40\t\t\t', 'L41\t18mil\t圆\t', '',
+  '约束名称：L2-5', '\t反焊盘半径\t反焊盘形状\t焊盘半径', 'L2\t16mil\t圆\t', 'L5\t\t\t'
+].join('\n');
 
 let passed = 0, failed = 0;
 function t(name, fn) {
@@ -147,6 +152,18 @@ const sets = parseAndFill(sampleText);
       const s = changeSets.find(x => x.title === name);
       eq([cellOf(s, '反焊盘半径', start), cellOf(s, '反焊盘半径', end), cellOf(s, '焊盘半径', padLayer)], ['无', '无', '8'], name);
     });
+  });
+
+  console.log('== OSFP 空白层表头与简写层跨 ==');
+  const osfpSets = parseAndFill(osfpStyleText);
+  t('空白首列表头仍按层表解析，简写/倒序层跨统一为精确 Lx-Ly', () => {
+    eq(osfpSets.map(s => s.title), ['L36-L42', 'L40-L42', 'L2-L5']);
+    eq(osfpSets.map(s => s.matchMode), Array(3).fill('connections-trace-layers'));
+  });
+  t('带 mil 数值去重单位，“圆”规范为“圆形”，长圆形与焊盘值不丢失', () => {
+    const s = osfpSets[0];
+    eq([cellOf(s, '反焊盘半径', 35), cellOf(s, '反焊盘形状', 35)], ['18', '圆形']);
+    eq([cellOf(s, '反焊盘半径', 37), cellOf(s, '反焊盘形状', 37), cellOf(s, '焊盘半径', 37)], ['13', '长圆形', '8']);
   });
 
   console.log('== 长圆形反焊盘规则 ==');

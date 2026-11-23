@@ -14,6 +14,10 @@ const { w, d } = ctx;
 const sampleText = fs.readFileSync(path.join(CHECKER_DIR, 'sample/约束示例_表格型.txt'), 'utf8');
 const changeLayerText = fs.readFileSync(path.join(CHECKER_DIR, 'sample/rule-changelayervia.txt'), 'utf8');
 const obroundText = fs.readFileSync(path.join(CHECKER_DIR, 'sample/约束示例_长圆形.txt'), 'utf8');
+const osfpStyleText = [
+  '约束名称：L42-36', '\t反焊盘半径\t反焊盘形状\t焊盘半径',
+  'L35\t18mil\t圆\t', 'L36\t\t\t', 'L37\t13mil\t长圆形\t8'
+].join('\n');
 
 let passed = 0, failed = 0;
 function t(name, fn) {
@@ -108,6 +112,13 @@ setTimeout(() => {
     const value = (si, ci, key) => d.querySelector(`.cCell[data-si="${si}"][data-ci="${ci}"][data-key="${key}"]`).value;
     eq([value(0, 0, 'L1'), value(0, 0, 'L3'), value(0, 0, 'L21'), value(0, 1, 'L5'), value(0, 2, 'L5')], ['16', '无', '无', '圆形', '8']);
     eq([value(5, 0, 'L14'), value(5, 0, 'L40'), value(5, 1, 'L38'), value(5, 2, 'L38')], ['无', '无', '圆形', '8']);
+  });
+
+  t('OSFP 空白层表头可识别，并自动切至产品板方案', () => {
+    w.eval('(function(txt){S.scheme="research";S.queue=[{id:4,name:"rule-osfp.txt",text:txt,status:""}];rebuild();})')(osfpStyleText);
+    eq([w.eval('S.scheme'), w.eval('S.sets[0].title'), w.eval('S.sets[0].matchMode')], ['product', 'L36-L42', 'connections-trace-layers']);
+    const value = key => d.querySelector(`.cCell[data-si="0"][data-ci="1"][data-key="${key}"]`).value;
+    eq([value('L35'), value('L37')], ['圆形', '长圆形']);
   });
 
   t('长圆形约束显示可编辑形状列，L5 选择长圆形并保留 13 mil', () => {

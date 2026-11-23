@@ -332,6 +332,10 @@
       }
     });
     S.sets = sets;
+    if (!activeSets().length && S.sets.length) {
+      var alternate = S.scheme === 'product' ? 'research' : 'product';
+      if (S.sets.some(function (set) { return schemeOfSet(set) === alternate; })) S.scheme = alternate;
+    }
     reexpandAll();
     var n = S.sets.reduce(function (a, s) { return a + (s.constraints || []).length; }, 0);
     var nSets = S.sets.length, activeCount = activeSets().length;
