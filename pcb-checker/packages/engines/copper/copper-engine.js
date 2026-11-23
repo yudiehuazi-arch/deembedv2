@@ -333,7 +333,8 @@
       var note = effectiveSignal ? (sel.mode === 'connections-trace-layers' ? traceNote : legacyNote)
         : (groundNet ? 'GND 网络：仅显示，不推算信号约束，不执行核查' : '没有可用的 Connections Trace 或 SIG 完整孔：不执行核查');
       if (namingReason) note += '；Padstack 信号命名不符合：' + namingReason;
-      var rows = near.map(function (sh) {
+      var rows = KS.collapseCoincident(near, function (sh) { return subsetToLayer(sh.subset, n); }, posTol).map(function (bundle) {
+        var sh = bundle.shape, mergedIds = bundle.members.map(function (item) { return item.id; }).sort(function (a, b) { return +a - +b; });
         var ctype = checkTypeOf(sh);
         var layer = subsetToLayer(sh.subset, n);
         var on = inspectSignal && enabled[ctype] !== false;
@@ -352,8 +353,9 @@
             expect = rv.text; status = shapeEval.status; reason = shapeEval.reason; actualText = shapeEval.actualText;
           }
         }
+        if (mergedIds.length > 1) actualText += '（同层同心合并 ' + mergedIds.length + ' 个 Route Keepout，取最大半径）';
         return {
-          shapeId: sh.id, subset: sh.subset, layer: layer, checkType: ctype,
+          shapeId: sh.id, mergedShapeIds: mergedIds, subset: sh.subset, layer: layer, checkType: ctype,
           actual: sh.radius, actualText: actualText, shapeKind: sh.shapeKind, expectedShape: expectedShape,
           expect: expect, status: status, constraint: constraint, reason: reason, enabled: on
         };

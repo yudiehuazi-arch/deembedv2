@@ -92,6 +92,24 @@ setTimeout(() => {
     if (!r.rows.includes('L19:反焊盘尺寸:6/5:不符合')) throw new Error(r.rows);
   });
 
+  t('同层同心 Route Keepout 在结果页合并显示并取最大半径', () => {
+    w.__sampleTxt = sampleTxt;
+    const merged = w.eval(`(function(){
+      S.sets = ${JSON.stringify(rules)};
+      UI.items = CopperCheck.parseBoardItems(window.__sampleTxt);
+      var outer = UI.items.find(function(item){ return item.id === 1; });
+      UI.items.push(Object.assign({}, outer, { id: 99, radius: 13, arcRadii: [13] }));
+      UI.resLimit = 1000; UI.matchLimit = 1000; runCheck(true); renderMatch(); renderResults();
+      var rows = UI.result.groups[0].rows.filter(function(row){ return row.layer === 1 && !row.missing; });
+      return { count: rows.length, row: rows[0] };
+    })()`);
+    if (merged.count !== 1 || merged.row.actual !== 17 || merged.row.status !== '符合') throw new Error(JSON.stringify(merged));
+    if (merged.row.mergedShapeIds.join('/') !== '1/99') throw new Error(JSON.stringify(merged.row));
+    if (!$('matchOut').textContent.includes('1 + 99') || !$('checkOut').textContent.includes('同层同心合并 2 个 Route Keepout，取最大半径')) {
+      throw new Error('合并编号或最大半径说明未显示');
+    }
+  });
+
   t('③ 导入数据页统计方块点击筛选正常', () => {
     const mix = [
       'Total 6 Items', '',

@@ -116,7 +116,7 @@
     var inferred = g.rule ? ('<b>' + esc(g.rule.title) + '</b>')
       : (g.signal !== false ? '<b class="bad">未选中规则</b>' : '<b class="muted">非 SIG · 不推算</b>');
     return '<tr class="' + (fail ? 'fail' : '') + '">' +
-      '<td>' + row.shapeId + '</td><td>L' + row.layer + '</td><td>' + esc(row.subset) + '</td><td>' + esc(row.actualText || row.actual) + '</td>' +
+      '<td>' + (row.mergedShapeIds || [row.shapeId]).join(' + ') + '</td><td>L' + row.layer + '</td><td>' + esc(row.subset) + '</td><td>' + esc(row.actualText || row.actual) + '</td>' +
       '<td>Via ' + g.via.id + '</td><td>' + esc(g.via.net || '无网络') + '</td><td>' + esc(g.via.padstack || '无 Padstack') + '</td>' +
       '<td>' + esc(keyTxt(g)) + (g.note ? '<div class="hint">' + esc(g.note) + '</div>' : '') + '</td>' +
       '<td>' + inferred + cand + '<div class="hint">' + esc(row.checkType) + '</div></td></tr>';
@@ -235,7 +235,7 @@
       var row = rows[i];
       if (row.subset && row.subset.toLowerCase().indexOf(q) >= 0) return true;
       if (('l' + row.layer) === q || ('layer' + row.layer) === q) return true;
-      if (String(row.shapeId) === q) return true;
+      if (String(row.shapeId) === q || (row.mergedShapeIds || []).some(function (id) { return String(id) === q; })) return true;
     }
     return false;
   }

@@ -1,6 +1,7 @@
 /* SIG 盲埋孔段合并、差分中心距和完整层跨约束推算回归 */
 'use strict';
 const C = require('../../packages/engines/copper');
+const KS = require('../../packages/engines/copper/route-keepout-shape.js');
 
 let passed = 0, failed = 0;
 function t(name, fn) {
@@ -236,6 +237,65 @@ Item 144 < Via >
   assert(!malformed.obround && !malformed.arcShape && malformed.shapeKind === '其他圆弧', JSON.stringify(malformed));
   const winding = C.parseBoardItems(txt.split('[8051.77, 4028.55]').join('[8025.77, 4028.55]')).find(item => item.id === 43);
   assert(!winding.obround && winding.shapeKind === '其他圆弧', '同心但总弧度不是半圆的任意多圆弧轮廓不得误判成长圆形');
+});
+
+t('同层同心且完全包围的多个 Route Keepout 合并后取最大半径', () => {
+  const txt = `Item 3415 < Shape >
+  Set: Route Keepout
+  Subset: 34G15P
+  Type: Shape(Static)
+Exterior Boundary:
+  Arc seg: xy [482.00, 500.00]  xy [482.00, 500.00] Width (0.00)
+    Center-xy: [500.00, 500.00] Radius (18.00) CCW
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Item 3416 < Shape >
+  Set: Route Keepout
+  Subset: 34G15P
+  Type: Shape(Static)
+Exterior Boundary:
+  Arc seg: xy [487.00, 500.00]  xy [487.00, 500.00] Width (0.00)
+    Center-xy: [500.00, 500.00] Radius (13.00) CCW
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Item 3417 < Shape >
+  Set: Route Keepout
+  Subset: 35IS16
+  Type: Shape(Static)
+Exterior Boundary:
+  Arc seg: xy [488.00, 500.00]  xy [488.00, 500.00] Width (0.00)
+    Center-xy: [500.00, 500.00] Radius (12.00) CCW
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Item 37199 < Via >
+  Origin-xy: [500.00, 500.00]
+  Net: MERGE_RKO
+  Padstack Name: VIAOR375DOR125F-27-B
+  Connections:
+    Trace: 2 (27V08P 42IS21)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`;
+  const items = C.parseBoardItems(txt);
+  const rule = { kind: '其他', title: 'L27-L42', matchMode: 'connections-trace-layers', constraints: [
+    { cat: '反焊盘尺寸', name: '反焊盘半径', unit: 'mil', values: { L34: '18', L35: '12' } },
+    { cat: '反焊盘形状', name: '反焊盘形状', unit: '', values: { L34: '圆形', L35: '圆形' } }
+  ] };
+  const out = C.runCopperCheck(items, [rule], { layerCount: 42, posTol: 0.05, valTol: 0.01 });
+  const group = out.groups.find(g => String(g.via.id) === '37199');
+  assert(group, JSON.stringify(out.groups.map(g => g.via.id)));
+  const realRows = group.rows.filter(row => !row.missing && !row.isPadstackCheck);
+  assert(out.circleCount === 3 && out.unmatchedCircles.length === 0, JSON.stringify(out.unmatchedCircles));
+  assert(realRows.length === 2, JSON.stringify(realRows));
+  const l34 = realRows.find(row => row.layer === 34), l35 = realRows.find(row => row.layer === 35);
+  assert(l34.shapeId === 3415 && l34.actual === 18 && l34.status === '符合', JSON.stringify(l34));
+  assert(l34.mergedShapeIds.join('/') === '3415/3416', JSON.stringify(l34));
+  assert(l34.actualText === '圆形 · 圆弧半径 18 mil（同层同心合并 2 个 Route Keepout，取最大半径）', l34.actualText);
+  assert(l35.shapeId === 3417 && l35.mergedShapeIds.join('/') === '3417' && !l35.actualText.includes('合并'), JSON.stringify(l35));
+  assert(group.failCount === 0, JSON.stringify(group.failRows));
+
+  const outer = items.find(item => item.id === 3415);
+  const crossing = {
+    id: 3420, type: 'shape', subset: '34G15P', circle: false, obround: true, arcShape: true,
+    shapeKind: '长圆形', center: [500, 500], matchingCenters: [[490, 500], [510, 500]], radius: 13, arcRadii: [13, 13]
+  };
+  assert(KS.collapseCoincident([outer, crossing], () => 34, 0.05).length === 2,
+    '同层同心但没有完全包围的轮廓不得合并');
 });
 
 t('L5/L10 交界层的每条 Route Keepout 只追溯实际所在孔段', () => {

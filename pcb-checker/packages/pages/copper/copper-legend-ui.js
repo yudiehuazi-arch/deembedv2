@@ -182,6 +182,7 @@
       '<li>差分网络中，与 SIG 孔段按离散孔心距相邻的 GND 命名孔段会并入同一完整孔并参与约束推算；同时单独报告 Padstack 命名不符合。网络名为 GND 的过孔不参与信号约束推算，即使 Padstack 名称包含 SIG；其他独立非 SIG 过孔也不推算尺寸约束。</li>' +
       '<li>同网络孔段中心距命中 0 / 0.025 / 0.075 / 0.125 / 0.175 mm（允许 ±0.005 mm）时组成一个完整孔。</li>' +
       '<li>完整孔读取圆心或长圆形任一端圆弧中心距离 ≤ ' + pos + ' mil 的 Route Keepout；只纳入完整圆形或由两条等半径半圆弧与两条平行直线组成的标准长圆形，半圆允许由同心同半径且首尾连续的多条 Arc seg 拼成。</li>' +
+      '<li>同一物理层且几何中心一致的 Route Keepout，如果大轮廓完整包住小轮廓，则合并为一项并取最大圆弧半径；不同层、不同中心或未完全包围时不合并。</li>' +
       '</ol>' +
       '<h3>2. 怎么推算该用哪条约束</h3><ol class="rules">' +
       '<li>从孔组 Padstack 提取 SIG、SMA/BGA 与各段连接层，Top 按 L1、Bottom 按当前叠层末层，合并得到完整层跨。</li>' +
@@ -368,7 +369,7 @@
       rows.forEach(function (row) {
         var layerDisplay = (typeof row.layer === 'number' && row.layer > 0) ? ('L' + row.layer) : (String(row.layer).startsWith('L') ? row.layer : (row.layer === '—' ? '—' : ('L' + row.layer)));
         lines.push([
-          row.shapeId, g.via.id, g.via.net || '', g.via.padstack || '', g.rule ? g.rule.title : '',
+          (row.mergedShapeIds || [row.shapeId]).join(' + '), g.via.id, g.via.net || '', g.via.padstack || '', g.rule ? g.rule.title : '',
           layerDisplay, row.subset, row.sourceViaSpans || (row.sourceViaIds || []).join('/'), row.sourcePadstack || '',
           row.checkType, row.actualText || row.actual, (row.expect || '') + (row.expectedShape ? (' · ' + row.expectedShape) : ''), row.status, (UI.reviewed[reviewKey(g, row)] ? '已复核' : '')
         ].map(function (x) {

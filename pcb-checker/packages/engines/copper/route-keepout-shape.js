@@ -205,6 +205,59 @@
     return best;
   }
 
+  function maxRadius(item) {
+    normalizeItem(item);
+    var radii = (item && item.arcRadii || []).map(Number).filter(isFinite);
+    return radii.length ? Math.max.apply(null, radii) : Number(item && item.radius) || 0;
+  }
+
+  function axisOf(item) {
+    normalizeItem(item);
+    if (item && item.circle && item.center) return [item.center, item.center];
+    return centersOf(item);
+  }
+
+  function pointAxisDistance(point, axis) {
+    if (!axis.length) return Infinity;
+    var a = axis[0], b = axis[axis.length - 1], dx = b[0] - a[0], dy = b[1] - a[1];
+    var d2 = dx * dx + dy * dy;
+    if (!d2) return pointDist(point, a);
+    var t = Math.max(0, Math.min(1, ((point[0] - a[0]) * dx + (point[1] - a[1]) * dy) / d2));
+    return pointDist(point, [a[0] + t * dx, a[1] + t * dy]);
+  }
+
+  function containsShape(outer, inner, tol) {
+    var outerRadius = maxRadius(outer), innerRadius = maxRadius(inner);
+    var allowance = outerRadius - innerRadius + tol;
+    if (allowance < 0) return false;
+    var outerAxis = axisOf(outer), innerAxis = axisOf(inner);
+    return outerAxis.length && innerAxis.length && innerAxis.every(function (point) {
+      return pointAxisDistance(point, outerAxis) <= allowance;
+    });
+  }
+
+  function collapseCoincident(items, layerOf, tol) {
+    var groups = [];
+    (items || []).forEach(function (item) {
+      var layer = layerOf(item), center = item.center;
+      var group = center && groups.find(function (candidate) {
+        return candidate.layer === layer && close(candidate.center, center, tol);
+      });
+      if (group) group.items.push(item);
+      else groups.push({ layer: layer, center: center, items: [item] });
+    });
+    var out = [];
+    groups.forEach(function (group) {
+      var rest = group.items.slice().sort(function (a, b) { return maxRadius(b) - maxRadius(a) || String(a.id).localeCompare(String(b.id)); });
+      while (rest.length) {
+        var outer = rest.shift(), merged = [outer], keep = [];
+        rest.forEach(function (item) { (containsShape(outer, item, tol) ? merged : keep).push(item); });
+        out.push({ shape: outer, members: merged }); rest = keep;
+      }
+    });
+    return out;
+  }
+
   function isEligible(item) {
     normalizeItem(item);
     return !!(item && item.type === 'shape' && item.arcShape && String(item.set || '').trim().toLowerCase() === 'route keepout');
@@ -247,6 +300,7 @@
     normalizeItem: normalizeItem,
     centersOf: centersOf,
     distanceTo: distanceTo,
+    collapseCoincident: collapseCoincident,
     isEligible: isEligible,
     normalizeShapeName: normalizeShapeName,
     ruleShape: ruleShape,
