@@ -118,7 +118,13 @@ setTimeout(() => {
     w.eval('(function(txt){S.scheme="research";S.queue=[{id:4,name:"rule-osfp.txt",text:txt,status:""}];rebuild();})')(osfpStyleText);
     eq([w.eval('S.scheme'), w.eval('S.sets[0].title'), w.eval('S.sets[0].matchMode')], ['product', 'L36-L42', 'connections-trace-layers']);
     const value = key => d.querySelector(`.cCell[data-si="0"][data-ci="1"][data-key="${key}"]`).value;
-    eq([value('L35'), value('L37')], ['圆形', '长圆形']);
+    eq([value('L35'), value('L36'), value('L37')], ['圆形', '无', '长圆形'], '有反焊盘的层保留形状，未填写反焊盘和形状的层显示无');
+    let anti = d.querySelector('.cCell[data-si="0"][data-ci="0"][data-key="L36"]');
+    anti.value = '12'; anti.dispatchEvent(new w.Event('change', { bubbles: true }));
+    eq(value('L36'), '圆形', '补写反焊盘尺寸后形状默认圆形');
+    anti = d.querySelector('.cCell[data-si="0"][data-ci="0"][data-key="L36"]');
+    anti.value = '无'; anti.dispatchEvent(new w.Event('change', { bubbles: true }));
+    eq(value('L36'), '无', '清除反焊盘尺寸后自动恢复无形状');
   });
 
   t('长圆形约束显示可编辑形状列，L5 选择长圆形并保留 13 mil', () => {

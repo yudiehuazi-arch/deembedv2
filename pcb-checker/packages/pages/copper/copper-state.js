@@ -154,10 +154,11 @@
       var oldAuto = shape.auto || {}, explicit = CP.applyScopes(shape.scopes || [], n, CP.fanLayerOf(set));
       var values = Object.assign({}, shape.values || {}), auto = {}, sources = {};
       for (var i = 1; i <= n; i++) {
-        var key = 'L' + i, next = explicit.values[key] || '圆形';
+        var key = 'L' + i, antiValue = anti.values && anti.values[key], hasAnti = antiValue != null && antiValue !== '' && antiValue !== '无';
+        var next = explicit.values[key] || (hasAnti ? '圆形' : '无');
         auto[key] = next;
-        if (values[key] == null || values[key] === '' || values[key] === '无' || values[key] === oldAuto[key]) values[key] = next;
-        sources[key] = values[key] === next ? (explicit.sources[key] || '默认圆形') : '手工填写';
+        if (values[key] == null || values[key] === '' || values[key] === oldAuto[key]) values[key] = next;
+        sources[key] = values[key] === next ? (explicit.sources[key] || (next === '圆形' ? '默认圆形' : '')) : '手工填写';
       }
       Object.keys(values).forEach(function (key) { var m = /^L(\d+)$/.exec(key); if (m && +m[1] > n) delete values[key]; });
       shape.values = values; shape.auto = auto; shape.sources = sources; shape.extras = explicit.extras;

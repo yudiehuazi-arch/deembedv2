@@ -233,8 +233,9 @@
     document.querySelectorAll('.cCell').forEach(function (el) {
       var s = S.sets[+el.dataset.si];
       if (!(s && s.constraints[+el.dataset.ci])) return;
-      var raw = el.value.trim();
-      s.constraints[+el.dataset.ci].values[el.dataset.key] = (raw === '' || raw === '无') ? '' : raw;
+      var raw = el.value.trim(), constraint = s.constraints[+el.dataset.ci];
+      var isShape = /反焊盘形状/.test((constraint.cat || '') + ' ' + (constraint.name || ''));
+      constraint.values[el.dataset.key] = (raw === '' || (raw === '无' && !isShape)) ? '' : raw;
     });
   }
 
@@ -290,6 +291,10 @@
         render();
       } else if (e.target.classList && (e.target.classList.contains('cCell') || e.target.classList.contains('cName') || e.target.classList.contains('cUnit'))) {
         collect();
+        if (e.target.classList.contains('cCell')) {
+          App.ensureCoreColumns(S.sets, App.layerCount());
+          render();
+        }
         UI.viewVer++;
         if (UI.items.length && root.runCheck) root.runCheck(true);
         else { UI.result = null; App.syncTelemetry(); }
