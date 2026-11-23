@@ -6,6 +6,7 @@ const SAMPLE_DIR = path.resolve(__dirname, "../../sample");
 const sampleText = fs.readFileSync(path.join(SAMPLE_DIR, "约束示例_表格型.txt"), "utf8");
 const legacyText = fs.readFileSync(path.join(SAMPLE_DIR, "L17层扇出SMA.txt"), "utf8");
 const changeLayerText = fs.readFileSync(path.join(SAMPLE_DIR, "rule-changelayervia.txt"), "utf8");
+const obroundText = fs.readFileSync(path.join(SAMPLE_DIR, "约束示例_长圆形.txt"), "utf8");
 
 let passed = 0, failed = 0;
 function t(name, fn) {
@@ -146,6 +147,15 @@ const sets = parseAndFill(sampleText);
       const s = changeSets.find(x => x.title === name);
       eq([cellOf(s, '反焊盘半径', start), cellOf(s, '反焊盘半径', end), cellOf(s, '焊盘半径', padLayer)], ['无', '无', '8'], name);
     });
+  });
+
+  console.log('== 长圆形反焊盘规则 ==');
+  t('可选形状列逐层读取圆形/长圆形，半径列保持原值', () => {
+    const s = parseAndFill(obroundText)[0];
+    eq(s.title, 'L5-L7');
+    eq(s.constraints.map(c => c.name), ['反焊盘半径', '反焊盘形状']);
+    eq([cellOf(s, '反焊盘半径', 5), cellOf(s, '反焊盘形状', 5)], ['13', '长圆形']);
+    eq([cellOf(s, '反焊盘半径', 4), cellOf(s, '反焊盘形状', 4)], ['16', '圆形']);
   });
 
   console.log('== GBK 编码 ==');

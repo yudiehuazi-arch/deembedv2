@@ -104,11 +104,13 @@
   function cellHtml(si, ci, key, c) {
     var v = (c.values && c.values[key] != null) ? String(c.values[key]).trim() : '';
     var src = (c.sources && c.sources[key]) || '';
-    if (!v || v === '无') {
-      return '<td class="nosrc"><input class="cCell none" data-no-persist data-si="' + si + '" data-ci="' + ci + '" data-key="' + esc(key) + '" value="无"></td>';
+    var attrs = ' class="cCell" data-no-persist data-si="' + si + '" data-ci="' + ci + '" data-key="' + esc(key) + '"';
+    if (/反焊盘形状/.test((c.cat || '') + ' ' + (c.name || ''))) {
+      return '<td><select' + attrs + '><option value="无"' + (!v || v === '无' ? ' selected' : '') + '>无</option><option value="圆形"' + (v === '圆形' ? ' selected' : '') + '>圆形</option><option value="长圆形"' + (v === '长圆形' ? ' selected' : '') + '>长圆形</option></select>' +
+        (v && v !== '无' ? '<div class="srcnote">来源：' + esc(src || '手工填写') + '</div>' : '') + '</td>';
     }
-    return '<td><input class="cCell" data-no-persist data-si="' + si + '" data-ci="' + ci + '" data-key="' + esc(key) + '" value="' + esc(v) + '">' +
-      '<div class="srcnote">来源：' + esc(src || '手工填写') + '</div></td>';
+    if (!v || v === '无') return '<td class="nosrc"><input' + attrs + ' value="无"></td>';
+    return '<td><input' + attrs + ' value="' + esc(v) + '"><div class="srcnote">来源：' + esc(src || '手工填写') + '</div></td>';
   }
 
   function render() {
@@ -171,11 +173,12 @@
       } else {
         h += '<div class="layerwrap"><table class="layertable"><thead><tr><th class="lname">层</th>';
         cons.forEach(function (c, ci) {
+          var isShape = /反焊盘形状/.test((c.cat || '') + ' ' + (c.name || ''));
           var src = (c.scopes || []).map(function (s) { return (s.scope || '未写层') + ' ' + s.value + (c.unit || ''); }).join('；');
           h += '<th data-tip="' + esc(src) + '">' +
             (c.cat ? '<span class="subh">' + esc(c.cat) + '</span>' : '') +
             '<input class="cName" data-no-persist data-si="' + si + '" data-ci="' + ci + '" value="' + esc(c.name) + '" data-tip="约束参数列名">' +
-            '<div class="subh"><input class="cUnit" data-no-persist data-si="' + si + '" data-ci="' + ci + '" value="' + esc(c.unit || 'mil') + '" style="width:52px"> ' +
+            '<div class="subh">' + (isShape ? '类型 ' : ('<input class="cUnit" data-no-persist data-si="' + si + '" data-ci="' + ci + '" value="' + esc(c.unit || 'mil') + '" style="width:52px"> ')) +
             '<button type="button" class="btn danger small" data-act="delcol" data-si="' + si + '" data-ci="' + ci + '">删除</button></div>' +
             (c.unscoped ? '<div class="srcnote">未标层值：' + esc(c.unscoped) + '</div>' : '') +
             '</th>';
@@ -342,7 +345,7 @@
         collect();
         var data = {
           kind: 'pcb-copper-rules',
-          version: 4,
+          version: 5,
           layerCount: App.layerCount(),
           scheme: S.scheme,
           sets: S.sets.map(function (s) {

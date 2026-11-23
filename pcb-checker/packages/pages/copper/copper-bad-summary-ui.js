@@ -58,6 +58,10 @@
       addCauseScope(named, group);
       return;
     }
+    if (row.reason && row.actual !== '无铜皮') {
+      var measured = entry.namedCauses[row.reason] || (entry.namedCauses[row.reason] = newCauseBucket({ text: row.reason }));
+      addCauseScope(measured, group); return;
+    }
     var dim = dimensionName(row.checkType), missing = row.actual === '无铜皮' || row.statusNote === '缺失层';
     var key = [row.checkType, row.expect, missing ? 'missing' : 'value', dim ? '' : row.actual].join('|');
     var bucket = entry.causes[key] || (entry.causes[key] = newCauseBucket({
@@ -140,7 +144,7 @@
     var points = [], minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     (UI.items || []).forEach(function (item) {
       var point = itemPoint(item);
-      if (!point || (item.type !== 'via' && !item.circle)) return;
+      if (!point || (item.type !== 'via' && !item.arcShape && !item.circle)) return;
       points.push({ x: point[0], y: point[1], via: item.type === 'via' });
       minX = Math.min(minX, point[0]); maxX = Math.max(maxX, point[0]);
       minY = Math.min(minY, point[1]); maxY = Math.max(maxY, point[1]);

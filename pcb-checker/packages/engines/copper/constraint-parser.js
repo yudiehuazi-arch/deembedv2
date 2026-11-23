@@ -215,6 +215,7 @@
     if (!/反焊盘/.test(src)) return null;
     var lines = src.split(/\r?\n/);
     var group = '', item = '', explicitTitle = '', padName = '焊盘半径', rows = [], used = {}, out = [], headerSeen = false;
+    var antiCol = 1, shapeCol = -1, padCol = 2;
 
     function flush() {
       if (!item || !rows.length) return;
@@ -245,7 +246,9 @@
       rows.forEach(function (r) {
         var anti = String(r.anti || '').trim().replace(/^(?:—|–|-|不加)$/i, '无');
         var pad = String(r.pad || '').trim().replace(/^(?:—|–|-|不加)$/i, '无');
+        var shape = String(r.shape || '').trim();
         if (anti) rules.push({ cat: '反焊盘尺寸', name: '反焊盘半径', scope: 'L' + r.layer, value: anti, unit: 'mil', raw: 'L' + r.layer + ' 反焊盘 ' + anti + 'mil' });
+        if (shape) rules.push({ cat: '反焊盘形状', name: '反焊盘形状', scope: 'L' + r.layer, value: shape, unit: '', raw: 'L' + r.layer + ' 反焊盘形状 ' + shape });
         if (pad) rules.push({ cat: '焊盘尺寸', name: padName, scope: 'L' + r.layer, value: pad, unit: 'mil', raw: 'L' + r.layer + ' 焊盘 ' + pad });
       });
       if (!rules.length) return;
@@ -257,12 +260,15 @@
       if (!line) return;
       var cols = line.indexOf('\t') >= 0 ? line.split('\t').map(function (s) { return s.trim(); }) : [];
       if (cols.length >= 2 && /^层$/.test(cols[0]) && /反焊盘/.test(line)) {
-        padName = /直径/.test(cols[2] || '') ? '焊盘直径' : '焊盘半径';
+        antiCol = cols.findIndex(function (c) { return /反焊盘/.test(c) && !/形状/.test(c); });
+        shapeCol = cols.findIndex(function (c) { return /反焊盘形状|形状/.test(c); });
+        padCol = cols.findIndex(function (c) { return /焊盘/.test(c) && !/反焊盘|形状/.test(c); });
+        padName = /直径/.test(cols[padCol] || '') ? '焊盘直径' : '焊盘半径';
         headerSeen = true;
         return;
       }
       if (headerSeen && cols.length >= 2 && /^L?\s*\d+$/i.test(cols[0])) {
-        rows.push({ layer: +String(cols[0]).replace(/^L/i, ''), anti: cols[1], pad: cols[2] || '' });
+        rows.push({ layer: +String(cols[0]).replace(/^L/i, ''), anti: cols[antiCol] || '', shape: shapeCol >= 0 ? (cols[shapeCol] || '') : '', pad: padCol >= 0 ? (cols[padCol] || '') : '' });
         return;
       }
       var named = line.match(/^约束名称\s*[:：]\s*(.+)$/);
@@ -405,7 +411,7 @@
     ordered.forEach(function (row) {
       var sc = row.sc;
       var layers = layersForScope(sc.scope, n, fan);
-      var src = sc.raw || ((sc.scope ? sc.scope + ' ' : '') + (sc.value || '') + (sc.unit || 'mil'));
+      var src = sc.raw || ((sc.scope ? sc.scope + ' ' : '') + (sc.value || '') + (sc.unit == null ? 'mil' : sc.unit));
       if (!layers.length) {
         if (!sc.scope) return;
         var key = 'X:' + sc.scope;
@@ -442,7 +448,7 @@
       var scope = sp.scope || ((r.scope && r.scope !== r.name) ? r.scope : '');
       var key = (r.cat || '') + '\n' + name;
       if (!index[key]) {
-        index[key] = { name: name, cat: r.cat || '', unit: r.unit || 'mil', scopes: [], values: {}, auto: {}, extras: [], unscoped: '' };
+        index[key] = { name: name, cat: r.cat || '', unit: r.unit == null ? 'mil' : r.unit, scopes: [], values: {}, auto: {}, extras: [], unscoped: '' };
         list.push(index[key]);
       }
       var c = index[key];
@@ -451,8 +457,8 @@
         c.scopes.push({
           scope: scope,
           value: r.value,
-          unit: r.unit || c.unit,
-          raw: r.raw || ((scope + ' ' + name + ' ' + r.value + (r.unit || 'mil')).trim())
+          unit: r.unit == null ? c.unit : r.unit,
+          raw: r.raw || ((scope + ' ' + name + ' ' + r.value + (r.unit == null ? 'mil' : r.unit)).trim())
         });
       } else {
         c.unscoped = r.value;

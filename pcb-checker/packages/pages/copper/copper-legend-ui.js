@@ -81,6 +81,8 @@
         var actualVal = row.actual, expectVal = row.expect;
         if (isMiss) {
           reasonTxt = '<b class="bad">无铜皮</b>（缺失该层铜皮，规则要求 ' + esc(row.expect) + ' mil）';
+        } else if (row.reason) {
+          reasonTxt = esc(row.reason);
         } else if (row.actual != null && row.expect != null && !isNaN(row.actual) && !isNaN(row.expect)) {
           var diff = row.actual - row.expect;
           var diffStr = (diff > 0 ? '+' : '') + diff.toFixed(2);
@@ -179,7 +181,7 @@
       '<h3>1. 铜皮 × 完整信号孔怎么配对</h3><ol class="rules">' +
       '<li>差分网络中，与 SIG 孔段按离散孔心距相邻的 GND 命名孔段会并入同一完整孔并参与约束推算；同时单独报告 Padstack 命名不符合。网络名为 GND 的过孔不参与信号约束推算，即使 Padstack 名称包含 SIG；其他独立非 SIG 过孔也不推算尺寸约束。</li>' +
       '<li>同网络孔段中心距命中 0 / 0.025 / 0.075 / 0.125 / 0.175 mm（允许 ±0.005 mm）时组成一个完整孔。</li>' +
-      '<li>完整孔读取每个原始孔段圆心距离 ≤ ' + pos + ' mil 的全部圆形 Route Keepout，不按 Padstack 名称层跨裁掉同心的 L13、L14 等 Shape；多边形不参与。</li>' +
+      '<li>完整孔读取圆心或长圆形任一端圆弧中心距离 ≤ ' + pos + ' mil 的 Route Keepout；只纳入完整圆形或由两条等半径半圆弧与两条平行直线组成的标准长圆形。</li>' +
       '</ol>' +
       '<h3>2. 怎么推算该用哪条约束</h3><ol class="rules">' +
       '<li>从孔组 Padstack 提取 SIG、SMA/BGA 与各段连接层，Top 按 L1、Bottom 按当前叠层末层，合并得到完整层跨。</li>' +
@@ -191,8 +193,8 @@
       '<h3>3. 每一层怎么判</h3><ol class="rules">' +
       '<li>一个完整孔只显示一张检查表：表头列出打包的全部 Via、各自 Padstack 层跨和共同匹配的约束；当前叠层为 14 层时固定显示 L1-L14，没有规则值的层标为未检查。</li>' +
       '<li>每条 Route Keepout 先按圆心纳入整合孔；来源优先取覆盖本层的 Via/Padstack，没有覆盖孔段时取同心孔段中层跨端点最近的一段。共用交界层仍保留两个物理孔的两条 Shape。</li>' +
-      '<li>规则要求检查但没有同心 Shape 的层仍保留，显示无铜皮和不符合；同心层外 Shape 会参与尺寸检查，但不会补长孔段层跨或改变约束匹配。</li>' +
-      '<li>Subset 前导数字映射层号，实测半径与规则值差值 ≤ ' + val + ' mil 判为符合，缺失应有层铜皮判为无铜皮不符合。</li>' +
+      '<li>规则要求检查但没有匹配到 Route Keepout 的层仍保留，显示无铜皮和不符合；孔段层跨外 Shape 不会补长孔段层跨或改变约束匹配。</li>' +
+      '<li>Subset 前导数字映射层号；规则未写形状时默认圆形，写长圆形时同时核对标准长圆形结构与两端圆弧半径，半径差值 ≤ ' + val + ' mil 判为符合，不检查总长、方向和面积。</li>' +
       '<li>Padstack层名核对过孔名称是否覆盖 Connections 全部连接层。</li>' +
       '</ol>';
 
@@ -210,23 +212,23 @@
       h += '</tbody></table>';
     }
 
-    h += '<h3>未配对铜皮 · 共 ' + r.unmatchedCircles.length + ' 个</h3>';
+    h += '<h3>未配对 Route Keepout · 共 ' + r.unmatchedCircles.length + ' 个</h3>';
     if (!r.unmatchedCircles.length) {
-      h += '<div class="hint">本次所有圆形铜皮都配到了过孔。</div>';
+      h += '<div class="hint">本次所有可检查 Route Keepout 都配到了过孔。</div>';
     } else {
-      h += '<table><thead><tr><th>铜皮#</th><th>层</th><th>Subset</th><th>半径 mil</th><th>最近过孔#</th><th>距离 mil</th><th>差多少才配上</th></tr></thead><tbody>';
+      h += '<table><thead><tr><th>铜皮#</th><th>层</th><th>Subset</th><th>形状与圆弧半径</th><th>最近过孔#</th><th>距离 mil</th><th>差多少才配上</th></tr></thead><tbody>';
       r.unmatchedCircles.slice(0, 40).forEach(function (sh) {
         var nr = (sh.nearest !== undefined && sh.nearest !== null) ? sh.nearest : (r.nearestViaOf ? r.nearestViaOf(sh) : null);
         var d = nr ? nr.dist : null;
         var gap = (d == null) ? '' : (d - pos);
         h += '<tr><td>' + sh.id + '</td><td>L' + CC.subsetToLayer(sh.subset, App.layerCount()) + '</td><td>' + esc(sh.subset) + '</td>' +
-          '<td>' + esc(sh.radius) + '</td><td>' + (nr ? ('Via ' + nr.viaId) : (r.viaCount ? '200 mil 内无过孔' : '无过孔')) + '</td>' +
+          '<td>' + esc((sh.shapeKind || '圆形') + ' · ' + (sh.arcRadii || [sh.radius]).join(' / ') + ' mil') + '</td><td>' + (nr ? ('Via ' + nr.viaId) : (r.viaCount ? '200 mil 内无过孔' : '无过孔')) + '</td>' +
           '<td>' + (d == null ? '—' : d.toFixed(3)) + '</td>' +
           '<td class="hint">' + (gap == null ? '—' : (gap > 0 ? ('还差 ' + gap.toFixed(3) + ' mil，超过位置容差 ' + pos) : '容差内')) + '</td></tr>';
       });
       h += '</tbody></table>';
     }
-    h += '<div class="hint" style="margin-top:10px">多边形铜皮 ' + r.polygons.length + ' 个不参与过孔配对；同孔同层重复铜皮记录 ' + dupGroups + ' 处。</div></div>';
+    h += '<div class="hint" style="margin-top:10px">其他 Set、非圆弧或非标准长圆形 Shape ' + r.polygons.length + ' 个不参与约束配对；同孔同层重复 Route Keepout 记录 ' + dupGroups + ' 处。</div></div>';
     box.innerHTML = h;
   }
 
@@ -357,7 +359,7 @@
   function exportCsv() {
     var r = UI.result;
     if (!r) { if ($('resHint')) $('resHint').textContent = '尚未产生检查结果。'; return; }
-    var lines = ['铜皮,整合孔,网络,整合孔Padstack,约束,层,Subset,本层来源Via及层跨,本层来源Padstack,检查项,实测,规则值,结果,复核'];
+    var lines = ['铜皮,整合孔,网络,整合孔Padstack,约束,层,Subset,本层来源Via及层跨,本层来源Padstack,检查项,实测形状与圆弧半径,规则半径与形状,结果,复核'];
     var rf = effectiveResFilter();
     r.groups.forEach(function (g) {
       if (!resultGroupMatch(g, rf)) return;
@@ -368,7 +370,7 @@
         lines.push([
           row.shapeId, g.via.id, g.via.net || '', g.via.padstack || '', g.rule ? g.rule.title : '',
           layerDisplay, row.subset, row.sourceViaSpans || (row.sourceViaIds || []).join('/'), row.sourcePadstack || '',
-          row.checkType, row.actual, row.expect, row.status, (UI.reviewed[reviewKey(g, row)] ? '已复核' : '')
+          row.checkType, row.actualText || row.actual, (row.expect || '') + (row.expectedShape ? (' · ' + row.expectedShape) : ''), row.status, (UI.reviewed[reviewKey(g, row)] ? '已复核' : '')
         ].map(function (x) {
           return '"' + String(x == null ? '' : x).replace(/"/g, '""') + '"';
         }).join(','));

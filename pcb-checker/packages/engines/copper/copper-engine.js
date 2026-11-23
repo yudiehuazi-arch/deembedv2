@@ -4,7 +4,9 @@
 (function (root) {
   'use strict';
   var VI = root && root.CopperViaInference;
+  var KS = root && root.CopperKeepoutShape;
   if (!VI && typeof require === 'function') VI = require('./via-constraint-inference.js');
+  if (!KS && typeof require === 'function') KS = require('./route-keepout-shape.js');
   var FIELD_RE = {};
   function fieldRe(name) {
     if (!FIELD_RE[name]) FIELD_RE[name] = new RegExp('(?:^|\\n)\\s*' + name + '\\s*:\\s*([^\\n]+)', 'i');
@@ -41,15 +43,9 @@
         pts: null,
         head: body.slice(0, 200)
       };
-      var center = body.match(/Center-xy:\s*\[\s*([+-]?[0-9.]+)\s*,\s*([+-]?[0-9.]+)\s*\]/i);
-      if (center) item.center = [+center[1], +center[2]];
       var origin = body.match(/Origin-xy:\s*\[\s*([+-]?[0-9.]+)\s*,\s*([+-]?[0-9.]+)\s*\]/i);
       if (origin) item.origin = [+origin[1], +origin[2]];
-      var segs = (body.match(/\n\s*Seg:/gi) || []).length;
-      var arcs = (body.match(/Arc seg:/gi) || []).length;
-      var rad = body.match(/Radius\s*\(\s*([0-9.]+)\s*\)/i);
-      if (rad) item.radius = +rad[1];
-      item.circle = item.type === 'shape' && arcs === 1 && segs === 0 && item.center && item.radius != null;
+      if (item.type === 'shape') KS.applyGeometry(item, KS.analyzeBoundary(body));
       if (item.type === 'trace') {
         var pts = [];
         XY_RE.lastIndex = 0;
@@ -217,15 +213,11 @@
 
   function constraintCheckType(c) {
     var blob = ((c && c.cat || '') + ' ' + (c && c.name || '')).toLowerCase();
+    if (/反焊盘形状/.test(blob)) return '';
     if (/非功能/.test(blob)) return '非功能焊盘尺寸';
     if (/反焊盘/.test(blob)) return '反焊盘尺寸';
     if (/焊盘/.test(blob)) return '焊盘尺寸';
     return '';
-  }
-
-  function dist(a, b) {
-    var dx = a[0] - b[0], dy = a[1] - b[1];
-    return Math.sqrt(dx * dx + dy * dy);
   }
 
   function ruleValue(set, checkType, layer) {
@@ -233,7 +225,7 @@
     var hit = cons.find(function (c) {
       var blob = (c.cat || '') + ' ' + (c.name || '');
       if (checkType === '非功能焊盘尺寸') return /非功能/.test(blob);
-      if (checkType === '反焊盘尺寸') return /反焊盘/.test(blob) && !/非功能/.test(blob);
+      if (checkType === '反焊盘尺寸') return /反焊盘/.test(blob) && !/非功能|形状/.test(blob);
       if (checkType === '焊盘尺寸') return /焊盘/.test(blob) && !/反焊盘/.test(blob) && !/非功能/.test(blob);
       return false;
     });
@@ -262,15 +254,17 @@
     var valTol = opts.valTol == null ? 0.01 : opts.valTol;
     var enabled = opts.enabled || { '反焊盘尺寸': true, '焊盘尺寸': true, '非功能焊盘尺寸': true, 'Padstack层名': true };
     var vias = items.filter(function (it) { return it.type === 'via' && it.origin; });
-    var circles = items.filter(function (it) { return it.circle && String(it.set || '').trim().toLowerCase() === 'route keepout'; });
-    var polygons = items.filter(function (it) { return it.type === 'shape' && !it.circle; });
+    var circles = items.filter(function (it) { return KS.isEligible(it); });
+    var polygons = items.filter(function (it) { return it.type === 'shape' && !KS.isEligible(it); });
     var viaUnits = VI.groupVias(vias, n);
     VI.attachDifferentialPitch(viaUnits);
 
     var circleGrid = {}, traceGrid = {};
     circles.forEach(function (sh) {
-      var k = cellKey(sh.center[0], sh.center[1]);
-      (circleGrid[k] || (circleGrid[k] = [])).push(sh);
+      KS.centersOf(sh).forEach(function (center) {
+        var k = cellKey(center[0], center[1]);
+        (circleGrid[k] || (circleGrid[k] = [])).push(sh);
+      });
     });
 
     items.forEach(function (tr) {
@@ -300,7 +294,7 @@
             var list = circleGrid[cx + ',' + cy];
             if (list) list.forEach(function (sh) {
               var sourceLayer = subsetToLayer(sh.subset, n);
-              if (!sourceLayer || dist(part.origin, sh.center) > posTol) return;
+              if (!sourceLayer || KS.distanceTo(sh, part.origin) > posTol) return;
               if (!nearSeen[sh.id]) { nearSeen[sh.id] = 1; near.push(sh); used[sh.id] = 1; }
               var owners = nearOwners[sh.id] || (nearOwners[sh.id] = []);
               if (!owners.some(function (v) { return String(v.id) === String(part.id); })) owners.push(part);
@@ -343,7 +337,9 @@
         var ctype = checkTypeOf(sh);
         var layer = subsetToLayer(sh.subset, n);
         var on = inspectSignal && enabled[ctype] !== false;
-        var status = '未检查', expect = '', constraint = '';
+        var status = '未检查', expect = '', constraint = '', reason = '';
+        var expectedShape = sel.rule && layer ? KS.ruleShape(sel.rule, layer) : '圆形';
+        var actualText = (sh.shapeKind || '无法识别') + ' · 圆弧半径 ' + (sh.arcRadii || [sh.radius]).join(' / ') + ' mil';
         if (!inspectSignal || !on) status = '未检查';
         else if (!sel.rule) status = '未选规则';
         else if (!layer) status = '层未识别';
@@ -352,13 +348,14 @@
           constraint = rv.constraint || '';
           if (rv.missing) { status = '无约束'; expect = rv.missing; }
           else {
-            expect = rv.text;
-            status = Math.abs(sh.radius - rv.value) <= valTol ? '符合' : '不符合';
+            var shapeEval = KS.evaluate(sh, rv.value, expectedShape, valTol);
+            expect = rv.text; status = shapeEval.status; reason = shapeEval.reason; actualText = shapeEval.actualText;
           }
         }
         return {
           shapeId: sh.id, subset: sh.subset, layer: layer, checkType: ctype,
-          actual: sh.radius, expect: expect, status: status, constraint: constraint, enabled: on
+          actual: sh.radius, actualText: actualText, shapeKind: sh.shapeKind, expectedShape: expectedShape,
+          expect: expect, status: status, constraint: constraint, reason: reason, enabled: on
         };
       });
       if (namingIssues.length) rows = namingIssues.map(function (issue) {
@@ -392,8 +389,8 @@
               present[ln + ':' + ctype] = 1;
               rows.push({
                 shapeId: 'none', subset: '—', layer: ln, checkType: ctype,
-                actual: '无铜皮', expect: String(v), status: '不符合',
-                constraint: c.name || '', reason: '规则要求检查该层，但没有匹配到同心铜皮数据',
+                actual: '无铜皮', expect: String(v), expectedShape: KS.ruleShape(sel.rule, ln), status: '不符合',
+                constraint: c.name || '', reason: '规则要求检查该层，但没有匹配到同心 Route Keepout',
                 missing: true, enabled: true
               });
             }
@@ -427,7 +424,7 @@
               checkType: ctype,
               actual: '无铜皮',
               expect: checked ? rv.text : rv.missing,
-              status: checked ? '不符合' : '未检查',
+              expectedShape: sel.rule ? KS.ruleShape(sel.rule, spanLayer) : '圆形', status: checked ? '不符合' : '未检查',
               constraint: rv.constraint || '',
               reason: checked ? '完整孔经过该层，但没有匹配到铜皮数据' : rv.missing,
               missing: true,
@@ -531,30 +528,12 @@
       };
     });
 
-    var viaGrid = {};
-    vias.forEach(function (v) {
-      var k = cellKey(v.origin[0], v.origin[1]);
-      (viaGrid[k] || (viaGrid[k] = [])).push(v);
-    });
-
-    var NEAR_CAP = 40;
     function nearestVia(sh) {
-      var cx = Math.floor(sh.center[0] / BUCKET), cy = Math.floor(sh.center[1] / BUCKET);
       var best = null;
-      for (var r = 1; r <= NEAR_CAP; r++) {
-        for (var i = cx - r; i <= cx + r; i++) {
-          for (var j = cy - r; j <= cy + r; j++) {
-            if (Math.max(Math.abs(i - cx), Math.abs(j - cy)) < r - 1) continue;
-            var list = viaGrid[i + ',' + j];
-            if (!list) continue;
-            for (var q = 0; q < list.length; q++) {
-              var d = dist(sh.center, list[q].origin);
-              if (!best || d < best.dist) best = { viaId: list[q].id, dist: d, padstack: list[q].padstack || '' };
-            }
-          }
-        }
-        if (best && best.dist <= r * BUCKET) break;
-      }
+      vias.forEach(function (via) {
+        var d = KS.distanceTo(sh, via.origin);
+        if (!best || d < best.dist) best = { viaId: via.id, dist: d, padstack: via.padstack || '' };
+      });
       return best;
     }
 

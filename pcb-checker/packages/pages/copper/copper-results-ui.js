@@ -116,7 +116,7 @@
     var inferred = g.rule ? ('<b>' + esc(g.rule.title) + '</b>')
       : (g.signal !== false ? '<b class="bad">未选中规则</b>' : '<b class="muted">非 SIG · 不推算</b>');
     return '<tr class="' + (fail ? 'fail' : '') + '">' +
-      '<td>' + row.shapeId + '</td><td>L' + row.layer + '</td><td>' + esc(row.subset) + '</td><td>' + esc(row.actual) + '</td>' +
+      '<td>' + row.shapeId + '</td><td>L' + row.layer + '</td><td>' + esc(row.subset) + '</td><td>' + esc(row.actualText || row.actual) + '</td>' +
       '<td>Via ' + g.via.id + '</td><td>' + esc(g.via.net || '无网络') + '</td><td>' + esc(g.via.padstack || '无 Padstack') + '</td>' +
       '<td>' + esc(keyTxt(g)) + (g.note ? '<div class="hint">' + esc(g.note) + '</div>' : '') + '</td>' +
       '<td>' + inferred + cand + '<div class="hint">' + esc(row.checkType) + '</div></td></tr>';
@@ -125,11 +125,11 @@
   function viaNoShapeHtml(g) {
     return '<tr><td class="muted">—</td><td class="muted">—</td><td class="muted">—</td><td class="muted">—</td>' +
       '<td>Via ' + g.via.id + '</td><td>' + esc(g.via.net || '无网络') + '</td><td>' + esc(g.via.padstack || '无 Padstack') + '</td>' +
-      '<td>' + esc(keyTxt(g)) + '</td><td colspan="2" class="muted">' + esc(g.note || '附近没有圆形铜皮') + '</td></tr>';
+      '<td>' + esc(keyTxt(g)) + '</td><td colspan="2" class="muted">' + esc(g.note || '附近没有可检查的 Route Keepout') + '</td></tr>';
   }
 
   function circleRowHtml(sh) {
-    return '<tr class="fail"><td>' + sh.id + '</td><td>L' + CC.subsetToLayer(sh.subset, App.layerCount()) + '</td><td>' + esc(sh.subset) + '</td><td>' + esc(sh.radius) + '</td>' +
+    return '<tr class="fail"><td>' + sh.id + '</td><td>L' + CC.subsetToLayer(sh.subset, App.layerCount()) + '</td><td>' + esc(sh.subset) + '</td><td>' + esc((sh.shapeKind || '圆形') + ' · ' + (sh.arcRadii || [sh.radius]).join(' / ') + ' mil') + '</td>' +
       '<td colspan="5" class="muted">没有配对到过孔</td></tr>';
   }
 
@@ -147,7 +147,7 @@
     var tiles = [
       { f: 'via', n: r.viaCount, label: '过孔', tip: '点击筛选全部过孔记录' },
       { f: 'matched', n: matched, label: '已配对过孔', tip: '点击仅看已配对到铜皮的过孔' },
-      { f: 'circle', n: r.circleCount, label: '圆形铜皮', tip: '点击查看全部圆形铜皮记录' },
+      { f: 'circle', n: r.circleCount, label: '圆弧Route Keepout', tip: '点击查看全部圆形与长圆形 Route Keepout' },
       { f: 'unmatched', n: r.unmatchedCircles.length, label: '未配对铜皮', tip: '点击仅看未配对到过孔的铜皮' }
     ];
     var h = '<div class="row" style="margin-bottom:8px">' + tiles.map(function (t) {
@@ -155,7 +155,7 @@
         '<span class="hint">' + esc(t.label) + '</span>' + (f === t.f ? '<span class="fnote">筛选中</span>' : '') + '</div>';
     }).join('') + '</div>';
 
-    h += '<div class="tbl-wrap"><table><thead><tr><th>铜皮#</th><th>层</th><th>Subset</th><th>半径 mil</th><th>过孔#</th><th>网络</th><th>Padstack Name</th><th>提取的关键信息</th><th>推算的约束</th></tr></thead><tbody>';
+    h += '<div class="tbl-wrap"><table><thead><tr><th>铜皮#</th><th>层</th><th>Subset</th><th>形状与圆弧半径</th><th>过孔#</th><th>网络</th><th>Padstack Name</th><th>提取的关键信息</th><th>推算的约束</th></tr></thead><tbody>';
     if (!total) h += '<tr><td colspan="9" class="muted">当前分类无记录。</td></tr>';
 
     var shown = 0;
@@ -183,8 +183,8 @@
       }
     }
     h += '</tbody></table></div>';
-    h += '<div class="hint" style="margin-top:8px">显示 ' + shown + ' / ' + total + ' 行 · 未配对圆形铜皮 ' + r.unmatchedCircles.length +
-      ' 个 · 多边形铜皮 ' + r.polygons.length + ' 个不参与过孔配对。</div>';
+    h += '<div class="hint" style="margin-top:8px">显示 ' + shown + ' / ' + total + ' 行 · 未配对 Route Keepout ' + r.unmatchedCircles.length +
+      ' 个 · 其他 Shape ' + r.polygons.length + ' 个不参与约束配对。</div>';
     if (total > shown) {
       h += '<div class="row" style="margin-top:8px"><button type="button" class="btn gray" id="btnMoreMatch">显示更多 · 剩余 ' + (total - shown) + ' 行</button>' +
         '<button type="button" class="btn gray" id="btnMoreMatchAll">全部展开</button></div>';
@@ -517,9 +517,9 @@
         (failCount ? ('<label class="grpRvw" data-tip="将本孔所有不符合项一次标为已复核"><input type="checkbox" class="grpBox" data-no-persist data-si="' + si + '">总复核</label>') : '') +
         '<span>约束 ' + (g.rule ? esc(g.rule.title) : (g.signal !== false ? '未推算到' : '非 SIG · 不检查')) + (g.namingError ? ' · <b class="bad">Padstack命名不符合</b>' : '') + '</span>' +
         '<button type="button" class="btn gray small copper-locate-btn" data-si="' + si + '" data-tip="在空间几何视口定位该完整孔">定位</button></div><div class="body">' +
-        '<div class="srcnote">孔段打包：' + esc(sourceBundle || '无可识别孔段') + '。共同匹配约束【' + esc(g.rule ? g.rule.title : '未推算到') + '】，以下按当前叠层从 L1 检查到末层，并读取各孔段全部同心 Shape。提取：' + esc(keyTxt(g)) + (g.note ? ' · ' + esc(g.note) : '') + (g.via.connections ? ' · ' + esc(g.via.connections) : '') + '</div>';
+        '<div class="srcnote">孔段打包：' + esc(sourceBundle || '无可识别孔段') + '。共同匹配约束【' + esc(g.rule ? g.rule.title : '未推算到') + '】，以下按当前叠层从 L1 检查到末层，并读取圆心或端部圆弧中心匹配的 Route Keepout。提取：' + esc(keyTxt(g)) + (g.note ? ' · ' + esc(g.note) : '') + (g.via.connections ? ' · ' + esc(g.via.connections) : '') + '</div>';
       if (!rows.length) {
-        h += '<div class="hint">该过孔附近无圆形铜皮。</div>';
+        h += '<div class="hint">该过孔附近无可检查的 Route Keepout。</div>';
       } else {
         h += '<table><thead><tr><th class="rvw">复核</th><th>层</th><th>Subset</th><th>本层来源 Via</th><th>本层来源 Padstack</th><th>检查项</th><th>实测</th><th>规则值</th><th>结果</th></tr></thead><tbody>';
         rows.forEach(function (row) {
@@ -536,7 +536,7 @@
             '<td class="via-source" data-tip="' + esc(sourceVia) + '">' + esc(sourceVia) + '</td>' +
             '<td class="padstack-source" data-tip="' + esc(sourcePadstack) + '">' + esc(sourcePadstack) + '</td>' +
             '<td>' + esc(row.checkType) + '</td>' +
-            '<td class="' + (fail ? 'bad' : '') + '"' + reasonTooltip + '>' + esc(row.actual) + '</td><td' + reasonTooltip + '>' + esc(row.expect || '无') + '</td>' +
+            '<td class="' + (fail ? 'bad' : '') + '"' + reasonTooltip + '>' + esc(row.actualText || row.actual) + '</td><td' + reasonTooltip + '>' + esc((row.expect || '无') + (row.expectedShape ? (' · ' + row.expectedShape) : '')) + '</td>' +
             '<td class="' + (fail ? 'bad' : (row.status === '符合' ? 'ok' : 'muted')) + '"' + reasonTooltip + '><span class="resTxt">' + esc(row.status) + '</span>' +
             (fail ? '<span class="rvTag"' + (rvd ? '' : ' style="display:none"') + '>已复核</span>' : '') + '</td></tr>';
         });

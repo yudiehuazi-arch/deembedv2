@@ -127,6 +127,53 @@ t('尺寸检查只读取 Set=Route Keepout，其他 Shape 与焊盘规则都不�
   assert(!result.unmatchedCircles.some(shape => shape.id === 31), '非 Route Keepout 不应进入未配对列表');
 });
 
+t('标准长圆形按两个圆弧中心配对，只检查形状和两端圆弧半径', () => {
+  const txt = `Item 100 < Shape >
+  Set: Route Keepout
+  Subset: 05IS02
+  Type: Shape(Static)
+Exterior Boundary:
+  Seg: xy [4102.95, 4041.55]  xy [4126.57, 4041.55] Width (0.00)
+  Arc seg: xy [4126.57, 4041.55]  xy [4126.57, 4015.55] Width (0.00)
+    Center-xy: [4126.57, 4028.55] Radius (13.00) CW
+  Seg: xy [4126.57, 4015.55]  xy [4102.95, 4015.55] Width (0.00)
+  Arc seg: xy [4102.95, 4015.55]  xy [4102.95, 4041.55] Width (0.00)
+    Center-xy: [4102.95, 4028.55] Radius (13.00) CW
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Item 101 < Via >
+  Origin-xy: [4126.57, 4028.55]
+  Net: CHANGE_A
+  Padstack Name: VIAOR40DOR15F_D6MIL
+  Connections:
+    Trace: 2 (05IS02 07IS03)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Item 102 < Via >
+  Origin-xy: [4102.95, 4028.55]
+  Net: CHANGE_B
+  Padstack Name: VIAOR40DOR15F_D6MIL
+  Connections:
+    Trace: 2 (05IS02 07IS03)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`;
+  const items = C.parseBoardItems(txt);
+  const shape = items.find(item => item.id === 100);
+  assert(shape.obround && !shape.circle && shape.shapeKind === '长圆形', JSON.stringify(shape));
+  assert(shape.arcRadii.join('/') === '13/13' && shape.matchingCenters.length === 2, JSON.stringify(shape));
+  const rule = { kind: '其他', title: 'L5-L7', matchMode: 'connections-trace-layers', constraints: [
+    { cat: '反焊盘尺寸', name: '反焊盘半径', unit: 'mil', values: { L5: '13' } },
+    { cat: '反焊盘形状', name: '反焊盘形状', unit: '', values: { L5: '长圆形' } }
+  ] };
+  const out = C.runCopperCheck(items, [rule], { layerCount: 7, posTol: 0.05, valTol: 0.01 });
+  assert(out.circleCount === 1 && out.groups.length === 2, JSON.stringify(out.groups.map(g => g.via.id)));
+  out.groups.forEach(group => {
+    const row = group.rows.find(r => r.shapeId === 100);
+    assert(row && row.status === '符合' && row.shapeKind === '长圆形' && row.expectedShape === '长圆形', JSON.stringify(row));
+    assert(row.actualText === '长圆形 · 圆弧半径 13 / 13 mil', row.actualText);
+  });
+  rule.constraints[1].values.L5 = '圆形';
+  const mismatch = C.runCopperCheck(items, [rule], { layerCount: 7, posTol: 0.05, valTol: 0.01 }).groups[0].rows.find(r => r.shapeId === 100);
+  assert(mismatch.status === '不符合' && mismatch.reason.includes('形状应为圆形，实际为长圆形'), JSON.stringify(mismatch));
+});
+
 t('L5/L10 交界层的每条 Route Keepout 只追溯实际所在孔段', () => {
   [
     { layer: 5, hdiPad: 'BGA-HDI-SIG_L2_L5', hdiVia: '1' },

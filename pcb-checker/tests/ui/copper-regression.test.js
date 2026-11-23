@@ -154,7 +154,7 @@ setTimeout(() => {
     }]) + "; UI.items=CopperCheck.parseBoardItems(window.__mixTxt); UI.matchFilter=''; runCheck(true); return 1;})()");
     if (r !== 1) throw new Error('eval');
     const h = $('matchOut').innerHTML;
-    ['过孔','已配对过孔','圆形铜皮','未配对铜皮'].forEach(x => { if (h.indexOf(x) < 0) throw new Error('缺方块 ' + x); });
+    ['过孔','已配对过孔','圆弧Route Keepout','未配对铜皮'].forEach(x => { if (h.indexOf(x) < 0) throw new Error('缺方块 ' + x); });
   });
   t('默认显示全部 4 行', () => { if (bodyRows() !== 4) throw new Error('rows=' + bodyRows()); });
   t('混合样本中每个孔都只有一个组级定位按钮', () => {
@@ -179,7 +179,7 @@ setTimeout(() => {
     d.querySelector('#matchOut .stat.click[data-f="circle"]').click();
     if (bodyRows() !== 3) throw new Error('rows=' + bodyRows());
     if ($('matchOut').innerHTML.indexOf('没有配对到过孔') < 0) throw new Error('缺未配对铜皮行');
-    if ($('matchOut').innerHTML.indexOf('附近没有圆形铜皮') >= 0) throw new Error('不该出现未配对过孔行');
+    if ($('matchOut').innerHTML.indexOf('附近没有可检查的 Route Keepout') >= 0) throw new Error('不该出现未配对过孔行');
   });
   t('点「未配对铜皮」= 只 1 行，且只有铜皮信息', () => {
     d.querySelector('#matchOut .stat.click[data-f="unmatched"]').click();
@@ -464,7 +464,7 @@ setTimeout(() => {
     if (!zoom || zoom.hidden || !zoom.querySelector('.bad-summary-zoom-image').src.startsWith('data:image/svg+xml')) throw new Error('位置图无法放大');
     zoom.querySelector('.bad-summary-zoom-close').click();
     if (!zoom.hidden) throw new Error('位置图放大层无法关闭');
-    ['铜皮 × 完整信号孔怎么配对','怎么推算该用哪条约束','每一层怎么判','各约束下不符合的具体原因展开明细','没推算到约束的分布','未配对铜皮'].forEach(x => {
+    ['铜皮 × 完整信号孔怎么配对','怎么推算该用哪条约束','每一层怎么判','各约束下不符合的具体原因展开明细','没推算到约束的分布','未配对 Route Keepout'].forEach(x => {
       if (h.indexOf(x) < 0) throw new Error('缺小节：' + x);
     });
     if ($('tab-result').querySelector('#legendOut')) throw new Error('结果页还挂着规律卡片');
@@ -515,7 +515,7 @@ setTimeout(() => {
   t('没有未配对铜皮时给一句提示', () => {
     w.__sampleTxt = sampleTxt;
     w.eval("UI.items=CopperCheck.parseBoardItems(window.__sampleTxt); runCheck(true); renderLegend(true);");
-    if ($('legendOut').innerHTML.indexOf('本次所有圆形铜皮都配到了过孔') < 0) throw new Error('缺提示');
+    if ($('legendOut').innerHTML.indexOf('本次所有可检查 Route Keepout 都配到了过孔') < 0) throw new Error('缺提示');
   });
 
   console.log('== Padstack 关键字提取（多段层号 / Bot / L19 / D2M） ==');

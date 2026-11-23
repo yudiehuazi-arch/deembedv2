@@ -4,14 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PCB 约束检查 · 规则</title>
-<link rel="stylesheet" href="assets/styles/tokens.css?v=88">
-<link rel="stylesheet" href="assets/styles/eda-shell.css?v=88">
-<link rel="stylesheet" href="assets/styles/eda-dock.css?v=88">
-<link rel="stylesheet" href="assets/styles/components.css?v=88">
-<link rel="stylesheet" href="assets/styles/pages/copper.css?v=88">
-<link rel="stylesheet" href="assets/styles/check-guide.css?v=88">
-<link rel="stylesheet" href="assets/styles/pages/copper-canvas.css?v=88">
-<link rel="stylesheet" href="assets/styles/pages/copper-summary.css?v=88">
+<link rel="stylesheet" href="assets/styles/tokens.css?v=89">
+<link rel="stylesheet" href="assets/styles/eda-shell.css?v=89">
+<link rel="stylesheet" href="assets/styles/eda-dock.css?v=89">
+<link rel="stylesheet" href="assets/styles/components.css?v=89">
+<link rel="stylesheet" href="assets/styles/pages/copper.css?v=89">
+<link rel="stylesheet" href="assets/styles/check-guide.css?v=89">
+<link rel="stylesheet" href="assets/styles/pages/copper-canvas.css?v=89">
+<link rel="stylesheet" href="assets/styles/pages/copper-summary.css?v=89">
 </head>
 <body class="eda-workbench">
 
@@ -41,10 +41,10 @@
     <div class="eda-rail-label">工序流程 <span data-tip="支持快捷键 Alt+1..7 快速切换工序">Alt+1..7</span></div>
     <nav id="tabs">
       <button type="button" data-tab="rules" class="active" data-tip="设定叠层总层数并导入参数行或三列表格约束 TXT">① 规则约束</button>
-      <button type="button" data-tab="sets" data-tip="核对并微调按叠层展开的反焊盘与焊盘约束矩阵">② 生成的约束</button>
+      <button type="button" data-tab="sets" data-tip="核对并微调按叠层展开的反焊盘半径与形状约束矩阵">② 生成的约束</button>
       <button type="button" data-tab="data" data-tip="导入含 Shape / Via / Trace 的板级 Item TXT 并查看配对">③ 导入数据</button>
       <button type="button" data-tab="result" data-tip="逐孔逐层核对半径偏差、定位过孔并执行人工复核">④ 检查结果</button>
-      <button type="button" data-tab="canvas" data-tip="查看过孔、圆形铜皮与走线的空间位置，并执行两点距离测量">⑤ 空间几何视口与测量</button>
+      <button type="button" data-tab="canvas" data-tip="查看过孔、圆形或长圆形 Route Keepout 与走线的空间位置，并执行两点距离测量">⑤ 空间几何视口与测量</button>
       <button type="button" data-tab="legend" data-tip="查看各约束不符合原因明细、未匹配过孔与未配对铜皮分布">⑥ 规律分析</button>
       <button type="button" data-tab="guide" data-tip="查看本模块完整操作流程、检查方案与符合/不符合验证标准">⑦ 检查说明</button>
     </nav>
@@ -107,6 +107,7 @@
             <a class="btn ghost small" href="sample/L15层扇出SMA.txt" download>L15 扇出示例</a>
             <a class="btn ghost small" href="sample/L19层扇出SMA_bot_D2M5.txt" download>Bot 面 D2M5 示例</a>
             <a class="btn ghost small" href="sample/约束示例_表格型.txt" download>表格型约束示例</a>
+            <a class="btn ghost small" href="sample/约束示例_长圆形.txt" download>长圆形约束示例</a>
             <span class="hint" id="genHint">尚未导入约束文件。</span>
           </div>
           <div class="row" id="fileList" style="margin-top:10px"></div>
@@ -148,20 +149,20 @@
     <!-- ================= ③ 导入数据 ================= -->
     <section class="tab" id="tab-data">
       <div class="card">
-        <h2>导入板级 Item 数据 <span class="eda-tip" tabindex="0" data-tip="按当前检查方案识别信号孔并匹配约束；尺寸检查只读取 Set 属性为 Route Keepout 的圆形 Shape">?</span></h2>
+        <h2>导入板级 Item 数据 <span class="eda-tip" tabindex="0" data-tip="按当前检查方案识别信号孔并匹配约束；尺寸检查只读取 Set=Route Keepout 的完整圆形或标准长圆形 Shape">?</span></h2>
         <div id="dataDrop" tabindex="0" data-tip="支持包含 Shape、Via、Trace 的 EDA 导出 TXT">
           <div class="t1">点击选择板级数据 TXT，或拖拽至此处</div>
-          <div class="t2">尺寸检查只读取圆形 Route Keepout Shape，并关联过孔 Via 记录</div>
+          <div class="t2">尺寸检查读取圆形或长圆形 Route Keepout，并关联过孔 Via 记录</div>
         </div>
         <input type="file" id="dataFile" accept=".txt,text/plain" style="display:none">
         <div class="row" style="margin-top:12px">
-          <label class="chk" data-tip="只核对 Set=Route Keepout 的圆形 Shape 反焊盘半径，其他 Set 不进入约束检查"><input type="checkbox" id="ckAnti" checked>检查Route Keepout反焊盘尺寸</label>
+          <label class="chk" data-tip="核对 Set=Route Keepout 的圆形或长圆形 Shape；长圆形只检查形状及两端圆弧半径"><input type="checkbox" id="ckAnti" checked>检查Route Keepout反焊盘尺寸与形状</label>
           <label class="chk" data-tip="仅用于 PCB/HDI/SLP预研板检查；产品板检查不判定 Padstack 名称"><input type="checkbox" id="ckPadstack" checked>检查Padstack层名</label>
-          <span class="hint">Set 不是 Route Keepout 的 Shape 不检查。</span>
+          <span class="hint">其他 Set 和无法识别为完整圆形或标准长圆形的 Shape 不检查。</span>
         </div>
         <div class="row" style="margin-top:8px">
-          <label class="fld" data-tip="圆形铜皮圆心与过孔 Origin-xy 的最大配对欧氏距离">位置容差 mil <input type="number" id="posTol" value="0.05" step="0.01" min="0" style="width:74px"></label>
-          <label class="fld" data-tip="实测铜皮半径与规则标准值的最大允许绝对偏差">数值容差 mil <input type="number" id="valTol" value="0.01" step="0.001" min="0" style="width:74px"></label>
+          <label class="fld" data-tip="圆形圆心或长圆形任一端圆弧中心与过孔 Origin-xy 的最大配对欧氏距离">位置容差 mil <input type="number" id="posTol" value="0.05" step="0.01" min="0" style="width:74px"></label>
+          <label class="fld" data-tip="实测圆弧半径与规则标准值的最大允许绝对偏差">数值容差 mil <input type="number" id="valTol" value="0.01" step="0.001" min="0" style="width:74px"></label>
           <button type="button" class="btn" id="btnCheck">开始检查 →</button>
           <a class="btn ghost small" href="sample/铜皮数据示例.txt" download>下载数据示例</a>
           <span class="hint" id="checkHint">尚未导入数据。</span>
@@ -225,7 +226,7 @@
             <label class="fld" id="copperCanvasIssueDetailLabel"><span id="copperCanvasIssueDetailTitle">扇出方案</span> <select id="selCopperCanvasIssueDetail" data-no-persist><option value="">全部扇出方案</option></select></label>
             <label class="fld" data-tip="定位结果默认显示全部层，避免隐藏其他孔群；需要时可手动只看单层">显示层 <select id="selCopperCanvasLayer" data-no-persist><option value="">全部层</option></select></label>
             <label class="chk"><input type="checkbox" id="ckCopperCanvasVias" checked>过孔</label>
-            <label class="chk"><input type="checkbox" id="ckCopperCanvasShapes" checked>圆形铜皮</label>
+            <label class="chk"><input type="checkbox" id="ckCopperCanvasShapes" checked>圆弧Route Keepout</label>
             <label class="chk"><input type="checkbox" id="ckCopperCanvasTraces" checked>走线</label>
             <label class="chk"><input type="checkbox" id="ckCopperCanvasGrid" checked>网格</label>
           </div>
@@ -241,7 +242,7 @@
         <div class="copper-canvas-legend" id="copperCanvasLegend">
           <strong>图例</strong>
           <span><i class="via"></i>过孔</span>
-          <span><i class="shape"></i>圆形铜皮</span>
+          <span><i class="shape"></i>圆形/长圆形Route Keepout</span>
           <span><i class="trace"></i>走线</span>
           <span><i class="located"></i>当前定位完整孔</span>
           <span><i class="all-fail"></i>类别筛选标注</span>
@@ -253,7 +254,7 @@
     <!-- ================= ⑥ 规律分析 ================= -->
     <section class="tab" id="tab-legend">
       <div class="card">
-        <h2>判定规律与当前分布 <span class="eda-tip" tabindex="0" data-tip="汇总各约束分层不符合原因及对应网络孔号、未匹配规则过孔与孤立圆形铜皮">?</span></h2>
+        <h2>判定规律与当前分布 <span class="eda-tip" tabindex="0" data-tip="汇总各约束分层不符合原因及对应网络孔号、未匹配规则过孔与未配对 Route Keepout">?</span></h2>
       </div>
       <div id="copperBadSummary"></div>
       <div id="legendOut"></div>
@@ -296,17 +297,17 @@
 
 <div id="expMask"></div>
 
-<script src="packages/shared/check-guide.js?v=88"></script>
-<script src="packages/engines/copper/via-constraint-inference.js?v=88"></script><script src="packages/engines/copper/copper-engine.js?v=88"></script>
-<script src="packages/engines/copper/constraint-parser.js?v=88"></script>
-<script src="packages/pages/copper/copper-state.js?v=88"></script>
-<script src="packages/pages/copper/copper-sets-ui.js?v=88"></script>
-<script src="packages/pages/copper/copper-canvas-viewer.js?v=88"></script>
-<script src="packages/pages/copper/copper-results-ui.js?v=88"></script>
-<script src="packages/pages/copper/copper-bad-summary-ui.js?v=88"></script>
-<script src="packages/pages/copper/copper-legend-ui.js?v=88"></script>
-<script src="packages/shared/eda-tooltip.js?v=88"></script>
-<script src="packages/shared/eda-shell.js?v=88"></script>
-<script src="packages/shared/ui-prefs.js?v=88"></script>
+<script src="packages/shared/check-guide.js?v=89"></script>
+<script src="packages/engines/copper/via-constraint-inference.js?v=89"></script><script src="packages/engines/copper/route-keepout-shape.js?v=89"></script><script src="packages/engines/copper/copper-engine.js?v=89"></script>
+<script src="packages/engines/copper/constraint-parser.js?v=89"></script>
+<script src="packages/pages/copper/copper-state.js?v=89"></script>
+<script src="packages/pages/copper/copper-sets-ui.js?v=89"></script>
+<script src="packages/pages/copper/copper-canvas-viewer.js?v=89"></script>
+<script src="packages/pages/copper/copper-results-ui.js?v=89"></script>
+<script src="packages/pages/copper/copper-bad-summary-ui.js?v=89"></script>
+<script src="packages/pages/copper/copper-legend-ui.js?v=89"></script>
+<script src="packages/shared/eda-tooltip.js?v=89"></script>
+<script src="packages/shared/eda-shell.js?v=89"></script>
+<script src="packages/shared/ui-prefs.js?v=89"></script>
 </body>
 </html>
