@@ -89,7 +89,7 @@ setTimeout(() => {
     if (/max-width:\s*250px/.test(block)) throw new Error('还是竖列宽度：' + block);
   });
 
-  w.eval('(function(txt){S.queue=[{id:2,name:"rule-changelayervia.txt",text:txt,status:""}];rebuild();})')(changeLayerText);
+  w.eval('(function(txt){S.scheme="product";S.queue=[{id:2,name:"rule-changelayervia.txt",text:txt,status:""}];rebuild();})')(changeLayerText);
 
   t('换层孔 TXT 按用户命名渲染 6 个约束卡和 12 列参数', () => {
     eq([].map.call(d.querySelectorAll('#sets .setTitle'), el => el.value),

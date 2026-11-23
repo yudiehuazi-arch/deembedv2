@@ -262,7 +262,7 @@
     var valTol = opts.valTol == null ? 0.01 : opts.valTol;
     var enabled = opts.enabled || { '反焊盘尺寸': true, '焊盘尺寸': true, '非功能焊盘尺寸': true, 'Padstack层名': true };
     var vias = items.filter(function (it) { return it.type === 'via' && it.origin; });
-    var circles = items.filter(function (it) { return it.circle; });
+    var circles = items.filter(function (it) { return it.circle && String(it.set || '').trim().toLowerCase() === 'route keepout'; });
     var polygons = items.filter(function (it) { return it.type === 'shape' && !it.circle; });
     var viaUnits = VI.groupVias(vias, n);
     VI.attachDifferentialPitch(viaUnits);
@@ -377,7 +377,7 @@
         });
         sel.rule.constraints.forEach(function (c) {
           var ctype = constraintCheckType(c);
-          if (!ctype || enabled[ctype] === false) return;
+          if (ctype !== '反焊盘尺寸' || enabled[ctype] === false) return;
           var vals = c.values || {};
           Object.keys(vals).forEach(function (k) {
             var lm = k.match(/^L(\d+)$/i);
@@ -411,7 +411,7 @@
         if (sel.rule && sel.rule.constraints) {
           sel.rule.constraints.forEach(function (c) {
             var ctype = constraintCheckType(c);
-            if (ctype && enabled[ctype] !== false) spanTypes[ctype] = 1;
+            if (ctype === '反焊盘尺寸' && enabled[ctype] !== false) spanTypes[ctype] = 1;
           });
         }
         for (var spanLayer = sel.rule ? 1 : unit.startLayer; spanLayer <= (sel.rule ? n : unit.endLayer); spanLayer++) {

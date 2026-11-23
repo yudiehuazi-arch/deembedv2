@@ -55,6 +55,17 @@ setTimeout(() => {
     $('tabs').querySelector('[data-tab="rules"]').click();
   });
 
+  t('规则约束页可在两套命名方案间筛选，生成约束与执行规则相互隔离', () => {
+    const select = $('selConstraintScheme');
+    const labels = [...select.options].map(option => option.textContent);
+    if (labels.join('/') !== 'PCB/HDI/SLP预研板检查/产品板检查') throw new Error(labels.join('/'));
+    w.eval("S.sets=[{kind:'BGA',title:'BGA-L1-L19',constraints:[]},{kind:'其他',title:'L7-L33',matchMode:'connections-trace-layers',constraints:[]}]; render();");
+    if (w.eval('activeSets().map(s=>s.title).join()') !== 'BGA-L1-L19') throw new Error('第一套筛选错误');
+    select.value = 'product'; select.dispatchEvent(new w.Event('change', { bubbles: true }));
+    if (w.eval('activeSets().map(s=>s.title).join()') !== 'L7-L33' || !$('constraintSchemeHint').textContent.includes('产品板检查')) throw new Error('第二套筛选错误');
+    select.value = 'research'; select.dispatchEvent(new w.Event('change', { bubbles: true }));
+  });
+
   console.log('== 铜皮 × 过孔 配对、推算与筛选复核 ==');
   const sampleTxt = fs.readFileSync(path.join(CHECKER_DIR, 'sample/铜皮数据示例.txt'), 'utf8')
     .replace('BGA_3510_L19', 'BGA_SIG_L1_L19_3510');

@@ -114,9 +114,9 @@ setTimeout(() => {
     if (d.querySelectorAll('#checkOut tbody tr').length !== 20) throw new Error('未显示完整孔全部层');
     w.eval('UI.onlyBad=false; renderResults()');
   });
-  t('没有规则时提示导入约束 TXT', () => {
+  t('当前方案没有规则时提示导入对应 TXT 或切换方案', () => {
     w.eval('S.sets=[]; runCheck(true)');
-    if ($('checkHint').textContent.indexOf('还没有规则') < 0) throw new Error($('checkHint').textContent);
+    if ($('checkHint').textContent.indexOf('当前检查方案没有可用规则') < 0 || $('checkHint').textContent.indexOf('切换方案') < 0) throw new Error($('checkHint').textContent);
   });
 
   console.log('== 统计方块筛选 ==');

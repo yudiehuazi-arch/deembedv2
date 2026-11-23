@@ -16,8 +16,8 @@
   function checkEnabled() {
     return {
       '反焊盘尺寸': $('ckAnti') ? $('ckAnti').checked : true,
-      '焊盘尺寸': $('ckPad') ? $('ckPad').checked : true,
-      '非功能焊盘尺寸': $('ckNfp') ? $('ckNfp').checked : true,
+      '焊盘尺寸': false,
+      '非功能焊盘尺寸': false,
       'Padstack层名': $('ckPadstack') ? $('ckPadstack').checked : true
     };
   }
@@ -59,8 +59,8 @@
       return false;
     }
     var pos = parseFloat($('posTol').value), val = parseFloat($('valTol').value);
-    var t0 = App.nowMs();
-    UI.result = CC.runCopperCheck(UI.items, S.sets, {
+    var t0 = App.nowMs(), selectedSets = App.activeSets();
+    UI.result = CC.runCopperCheck(UI.items, selectedSets, {
       layerCount: App.layerCount(),
       posTol: isNaN(pos) ? 0.05 : pos,
       valTol: isNaN(val) ? 0.01 : val,
@@ -80,9 +80,9 @@
     var bad = r.groups.reduce(function (n, g) { return n + (g.failCount || 0); }, 0);
     var bigNote = gcount > 800 ? (' 数据量 ' + gcount + ' 个过孔，默认渲染前 ' + UI.resLimit + ' 组。') : '';
     if ($('checkHint')) {
-      $('checkHint').textContent = '过孔段 ' + r.viaCount + '，SIG 完整孔组 ' + (r.signalGroupCount || 0) + '，圆形铜皮 ' + r.circleCount + '，不符合 ' + bad + '。' +
+      $('checkHint').textContent = '方案 ' + App.schemeName() + '，过孔段 ' + r.viaCount + '，信号孔组 ' + (r.signalGroupCount || 0) + '，Route Keepout ' + r.circleCount + '，不符合 ' + bad + '。' +
         '检查耗时 ' + UI.chkMs + ' ms。' + bigNote +
-        (!S.sets.length ? ' 还没有规则，请先在 ① 规则约束 导入约束 TXT。' : '') +
+        (!selectedSets.length ? ' 当前检查方案没有可用规则，请在 ① 规则约束 导入对应 TXT 或切换方案。' : '') +
         (r.maxLayer > App.layerCount() ? (' 数据写到 L' + r.maxLayer + '，当前叠层按 L' + App.layerCount() + ' 比对。') : '');
     }
     renderVisible();
@@ -271,7 +271,7 @@
       else if (f === 'norule') { if (!g.rule) out[key].n++; }
       else out[key].n++;
     });
-    (S.sets || []).forEach(function (s) {
+    App.activeSets().forEach(function (s) {
       var key = s.title || '';
       if (key && !out[key]) { out[key] = { n: 0, title: key, via: 0, badVia: 0, badRec: 0 }; order.push(key); }
     });

@@ -12,6 +12,14 @@
   var $ = App.$;
   var esc = App.esc;
 
+  function renderSchemeSelection() {
+    var select = $('selConstraintScheme'), hint = $('constraintSchemeHint');
+    if (select) select.value = S.scheme;
+    if (hint) hint.textContent = S.scheme === 'product'
+      ? '产品板检查：按 Connections Trace 双层精确匹配命名约束；当前可用 ' + App.activeSets().length + ' 条。'
+      : 'PCB/HDI/SLP预研板检查：按完整孔层跨、类型和差分孔距匹配；当前可用 ' + App.activeSets().length + ' 条。';
+  }
+
   function renderFiles() {
     var box = $('fileList');
     if (!box) return;
@@ -36,8 +44,8 @@
       return kind || '其他';
     };
 
-    var items = S.sets.map(function (set, si) {
-      var title = String(set.title || '');
+    var items = App.activeSetEntries().map(function (entry) {
+      var set = entry.set, si = entry.index, title = String(set.title || '');
       var m = CP.chipMeta(title);
       return { set: set, si: si, group: byKind(set), layer: m.layer, d2m: m.d2m, title: title, kind: set.kind || '其他' };
     });
@@ -65,7 +73,7 @@
   function renderJump() {
     var nav = $('jumpNav');
     if (!nav) return;
-    if (!S.sets.length) {
+    if (!App.activeSets().length) {
       nav.hidden = true;
       nav.innerHTML = '';
       return;
@@ -105,14 +113,16 @@
 
   function render() {
     var n = App.layerCount();
-    var hi = n;
-    S.sets.forEach(function (set) {
+    var hi = n, entries = App.activeSetEntries();
+    entries.forEach(function (entry) {
+      var set = entry.set;
       var fan = CP.fanLayerOf(set);
       (set.constraints || []).forEach(function (c) {
         hi = Math.max(hi, CP.maxLayer(c.scopes || [], n, fan));
       });
     });
     App.updateStackHints();
+    renderSchemeSelection();
     if (hi > n && $('stackHint')) {
       $('stackHint').textContent += ' · TXT 写到 L' + hi + '，高于当前总层数';
     }
@@ -120,14 +130,15 @@
     renderJump();
     var setsBox = $('sets');
     if (!setsBox) return;
-    if (!S.sets.length) {
-      setsBox.innerHTML = '<div class="hint">尚未生成约束，请在 ① 规则约束 导入 TXT 文件。</div>';
+    if (!entries.length) {
+      setsBox.innerHTML = '<div class="hint">当前“' + esc(App.schemeName()) + '”没有可用约束，请导入对应格式的 TXT 或切换检查方案。</div>';
       return;
     }
 
     var h = '';
     var lastGroup = '';
-    S.sets.forEach(function (set, si) {
+    entries.forEach(function (entry) {
+      var set = entry.set, si = entry.index;
       var grp = set.group || '';
       if (grp && grp !== lastGroup) {
         h += '<div class="setgroup">' + esc(grp) + '</div>';
@@ -224,6 +235,15 @@
   }
 
   function bindSetsEvents() {
+    var schemeSelect = $('selConstraintScheme');
+    if (schemeSelect) schemeSelect.onchange = function () {
+      collect();
+      S.scheme = schemeSelect.value === 'product' ? 'product' : 'research';
+      UI.resRule = ''; UI.resFilter = ''; UI.resBadType = ''; UI.result = null;
+      render();
+      if (UI.items.length && root.runCheck) root.runCheck(true);
+      else App.syncTelemetry();
+    };
     var drop = $('drop');
     if (drop) {
       drop.onclick = function () { $('fileInput').click(); };
@@ -322,10 +342,11 @@
         collect();
         var data = {
           kind: 'pcb-copper-rules',
-          version: 3,
+          version: 4,
           layerCount: App.layerCount(),
+          scheme: S.scheme,
           sets: S.sets.map(function (s) {
-            return { kind: s.kind, title: s.title, source: s.source, rules: s.rules, constraints: s.constraints };
+            return { kind: s.kind, title: s.title, source: s.source, matchMode: s.matchMode || '', rules: s.rules, constraints: s.constraints };
           })
         };
         if ($('saveHint')) $('saveHint').textContent = '已生成约束 JSON。';
@@ -347,6 +368,7 @@
           try {
             var d = JSON.parse(String(fr.result).replace(/^\uFEFF/, ''));
             if (!d.sets) throw new Error('非本模块导出的约束 JSON 文件');
+            if (d.scheme === 'research' || d.scheme === 'product') S.scheme = d.scheme;
             if (d.layerCount) {
               S.stack = d.layerCount;
               if ($('inpN')) $('inpN').value = String(d.layerCount);

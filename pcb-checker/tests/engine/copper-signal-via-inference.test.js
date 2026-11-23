@@ -33,12 +33,14 @@ const shapes = [
   { id: 25, type: 'shape', circle: true, center: pParts[2].origin.slice(), radius: 10, set: 'Route Keepout', subset: 'Bottom', head: 'Route Keepout' },
   { id: 26, type: 'shape', circle: true, center: pParts[1].origin.slice(), radius: 10, set: 'Route Keepout', subset: 'L10', head: 'Route Keepout' },
   { id: 27, type: 'shape', circle: true, center: pParts[2].origin.slice(), radius: 10, set: 'Route Keepout', subset: 'L10', head: 'Route Keepout' },
-  { id: 30, type: 'shape', circle: true, center: nonSig.origin.slice(), radius: 10, set: 'Route Keepout', subset: 'L2', head: 'Route Keepout' }
+  { id: 30, type: 'shape', circle: true, center: nonSig.origin.slice(), radius: 10, set: 'Route Keepout', subset: 'L2', head: 'Route Keepout' },
+  { id: 31, type: 'shape', circle: true, center: pParts[0].origin.slice(), radius: 5, set: 'Shape', subset: 'L2', head: 'Regular Pad' }
 ];
 const sets = [0.5, 0.6, 0.7].map(pitch => ({
   kind: 'BGA', title: `BGA-L2-L12-${pitch}mm`,
   constraints: [
-    { cat: '反焊盘尺寸', name: '反焊盘半径', unit: 'mil', values: { L1: '10', L2: '10', L3: '10', L4: '10', L5: '10', L6: '10', L7: '10', L8: '10', L9: '10', L10: '10', L11: '10', L12: '10', L13: '10', L14: '10' } }
+    { cat: '反焊盘尺寸', name: '反焊盘半径', unit: 'mil', values: { L1: '10', L2: '10', L3: '10', L4: '10', L5: '10', L6: '10', L7: '10', L8: '10', L9: '10', L10: '10', L11: '10', L12: '10', L13: '10', L14: '10' } },
+    { cat: '焊盘尺寸', name: '焊盘半径', unit: 'mil', values: { L2: '5' } }
   ]
 }));
 const result = C.runCopperCheck([...pParts, ...nParts, nonSig, ...shapes], sets, { layerCount: 14, posTol: 0.05, valTol: 0.01 });
@@ -117,6 +119,12 @@ t('完整孔读取各孔段同心位置的全部 Route Keepout，不按 Padstack
   assert(real.every(r => r.status === '符合'), real.map(r => `${r.layer}:${r.status}`).join(','));
   assert(real.some(r => r.layer === 1 && r.shapeId === 24) && real.some(r => r.layer === 14 && r.shapeId === 25), '同心 Top/Bottom Shape 未纳入');
   assert(!result.unmatchedCircles.some(s => s.id === 24 || s.id === 25), '同心层跨外 Shape 不应保持未配对');
+});
+
+t('尺寸检查只读取 Set=Route Keepout，其他 Shape 与焊盘规则都不进入结果', () => {
+  assert(result.circleCount === 9, 'Route Keepout 数量=' + result.circleCount);
+  assert(!pGroup.rows.some(r => r.shapeId === 31 || r.checkType === '焊盘尺寸'), JSON.stringify(pGroup.rows));
+  assert(!result.unmatchedCircles.some(shape => shape.id === 31), '非 Route Keepout 不应进入未配对列表');
 });
 
 t('L5/L10 交界层的每条 Route Keepout 只追溯实际所在孔段', () => {

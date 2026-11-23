@@ -8,7 +8,8 @@
   var CP = root.ConstraintParser;
   var CC = root.CopperCheck;
 
-  var S = { sets: [], queue: [], stack: 0 };
+  var S = { sets: [], queue: [], stack: 0, scheme: 'research' };
+  var SCHEME_NAMES = { research: 'PCB/HDI/SLP预研板检查', product: '产品板检查' };
   var UI = {
     items: [],
     result: null,
@@ -51,9 +52,30 @@
     return Math.round(nowMs() - t0);
   }
 
+  function schemeOfSet(set) {
+    return set && set.matchMode === 'connections-trace-layers' ? 'product' : 'research';
+  }
+
+  function activeSetEntries() {
+    var out = [];
+    (S.sets || []).forEach(function (set, index) {
+      if (schemeOfSet(set) === S.scheme) out.push({ set: set, index: index });
+    });
+    return out;
+  }
+
+  function activeSets() {
+    return activeSetEntries().map(function (entry) { return entry.set; });
+  }
+
+  function schemeName() {
+    return SCHEME_NAMES[S.scheme] || SCHEME_NAMES.research;
+  }
+
   function autoLayerCount() {
-    var key = (S.sets || []).length + '#' +
-      (S.sets || []).map(function (s) { return (s.title || '').length + (s.constraints || []).length; }).join(',') + '#' +
+    var selected = activeSets();
+    var key = S.scheme + '#' + selected.length + '#' +
+      selected.map(function (s) { return (s.title || '').length + (s.constraints || []).length; }).join(',') + '#' +
       (S.queue || []).map(function (f) { return (f.text || '').length; }).join(',');
     if (stackCache.key === key && stackCache.n) return stackCache.n;
     var n = S.stack || 0;
@@ -61,7 +83,7 @@
       var m = String(txt || '').match(/L\s*(\d+)/i);
       if (m) n = Math.max(n, +m[1]);
     };
-    (S.sets || []).forEach(function (set) {
+    selected.forEach(function (set) {
       var fan = CP.fanLayerOf(set);
       (set.constraints || []).forEach(function (c) {
         (c.scopes || []).forEach(function (sc) {
@@ -126,7 +148,7 @@
     var bad = r ? r.groups.reduce(function (n, g) { return n + (g.failCount || 0); }, 0) : 0;
     var cells = [
       { k: '有效叠层', v: eff + ' 层', cls: '' },
-      { k: '约束条数', v: String((S.sets || []).length), cls: (S.sets || []).length ? 'ok' : '' },
+      { k: '当前方案约束', v: String(activeSets().length), cls: activeSets().length ? 'ok' : '' },
       { k: '过孔总数', v: r ? String(r.viaCount) : '—', cls: '' },
       { k: '不符合项', v: r ? String(bad) : '—', cls: r ? (bad > 0 ? 'bad' : 'ok') : '' }
     ];
@@ -275,10 +297,10 @@
     S.sets = sets;
     reexpandAll();
     var n = S.sets.reduce(function (a, s) { return a + (s.constraints || []).length; }, 0);
-    var nSets = S.sets.length;
+    var nSets = S.sets.length, activeCount = activeSets().length;
     if ($('genHint')) {
       $('genHint').textContent = n
-        ? ('已生成 ' + nSets + ' 条约束 / ' + n + ' 列参数，已展开至各层。')
+        ? ('已生成 ' + nSets + ' 条约束 / ' + n + ' 列参数；当前“' + schemeName() + '”可用 ' + activeCount + ' 条。')
         : '未识别到有效约束，请核对 TXT 格式。';
     }
     if (root.render) root.render();
@@ -297,6 +319,7 @@
   root.layerCount = layerCount;
   root.updateStackHints = updateStackHints;
   root.reexpandAll = reexpandAll;
+  root.activeSets = activeSets;
   root.addFiles = addFiles;
   root.rebuild = rebuild;
   root.showTab = showTab;
@@ -325,6 +348,10 @@
     layerCount: layerCount,
     updateStackHints: updateStackHints,
     reexpandAll: reexpandAll,
+    activeSets: activeSets,
+    activeSetEntries: activeSetEntries,
+    schemeOfSet: schemeOfSet,
+    schemeName: schemeName,
     syncPin: syncPin,
     syncTelemetry: syncCopperTelemetry,
     showBox: showBox,
