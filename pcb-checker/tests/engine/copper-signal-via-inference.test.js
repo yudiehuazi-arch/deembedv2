@@ -174,6 +174,70 @@ Item 102 < Via >
   assert(mismatch.status === '不符合' && mismatch.reason.includes('形状应为圆形，实际为长圆形'), JSON.stringify(mismatch));
 });
 
+t('两端半圆拆成四条连续 Arc seg 时仍按长圆形配对，不误报无铜皮', () => {
+  const txt = `Item 43 < Shape >
+  Set: Route Keepout
+  Subset: 27V08P
+  Type: Shape(Static)
+Exterior Boundary:
+  Seg: xy [8015.15, 4041.55]  xy [8038.77, 4041.55] Width (0.00)
+  Arc seg: xy [8038.77, 4041.55]  xy [8051.77, 4028.55] Width (0.00)
+    Center-xy: [8038.77, 4028.55] Radius (13.00) CW
+  Arc seg: xy [8051.77, 4028.55]  xy [8038.77, 4015.55] Width (0.00)
+    Center-xy: [8038.77, 4028.55] Radius (13.00) CW
+  Seg: xy [8038.77, 4015.55]  xy [8015.15, 4015.55] Width (0.00)
+  Arc seg: xy [8015.15, 4015.55]  xy [8002.15, 4028.55] Width (0.00)
+    Center-xy: [8015.15, 4028.55] Radius (13.00) CW
+  Arc seg: xy [8002.15, 4028.55]  xy [8015.15, 4041.55] Width (0.00)
+    Center-xy: [8015.15, 4028.55] Radius (13.00) CW
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Item 143 < Via >
+  Origin-xy: [8015.15, 4028.55]
+  Net: SPLIT_A
+  Padstack Name: VIAOR40DOR15F_D6MIL
+  Connections:
+    Trace: 2 (27V08P 38IS12)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Item 144 < Via >
+  Origin-xy: [8038.77, 4028.55]
+  Net: SPLIT_B
+  Padstack Name: VIAOR40DOR15F_D6MIL
+  Connections:
+    Trace: 2 (27V08P 38IS12)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`;
+  const items = C.parseBoardItems(txt);
+  const shape = items.find(item => item.id === 43);
+  assert(shape.obround && shape.arcShape && shape.shapeKind === '长圆形', JSON.stringify(shape));
+  assert(shape.shapeBoundary.arcs.length === 4, JSON.stringify(shape.shapeBoundary));
+  assert(shape.arcRadii.join('/') === '13/13' && shape.matchingCenters.length === 2, JSON.stringify(shape));
+  const oneSplitText = txt.replace(`  Arc seg: xy [8038.77, 4041.55]  xy [8051.77, 4028.55] Width (0.00)
+    Center-xy: [8038.77, 4028.55] Radius (13.00) CW
+  Arc seg: xy [8051.77, 4028.55]  xy [8038.77, 4015.55] Width (0.00)
+    Center-xy: [8038.77, 4028.55] Radius (13.00) CW`, `  Arc seg: xy [8038.77, 4041.55]  xy [8038.77, 4015.55] Width (0.00)
+    Center-xy: [8038.77, 4028.55] Radius (13.00) CW`);
+  const oneSplit = C.parseBoardItems(oneSplitText).find(item => item.id === 43);
+  assert(oneSplit.obround && oneSplit.shapeBoundary.arcs.length === 3 && oneSplit.arcRadii.join('/') === '13/13', JSON.stringify(oneSplit));
+  const rule = { kind: '其他', title: 'L27-L38', matchMode: 'connections-trace-layers', constraints: [
+    { cat: '反焊盘尺寸', name: '反焊盘半径', unit: 'mil', values: { L27: '13' } },
+    { cat: '反焊盘形状', name: '反焊盘形状', unit: '', values: { L27: '长圆形' } }
+  ] };
+  const out = C.runCopperCheck(items, [rule], { layerCount: 38, posTol: 0.05, valTol: 0.01 });
+  assert(out.circleCount === 1 && out.groups.length === 2, JSON.stringify(out.groups.map(g => g.via.id)));
+  out.groups.forEach(group => {
+    const row = group.rows.find(r => r.shapeId === 43);
+    assert(row && !row.missing && row.status === '符合', JSON.stringify(row));
+    assert(row.shapeKind === '长圆形' && row.actualText === '长圆形 · 圆弧半径 13 / 13 mil', JSON.stringify(row));
+  });
+
+  const malformed = C.parseBoardItems(txt.replace(
+    'Center-xy: [8038.77, 4028.55] Radius (13.00) CW',
+    'Center-xy: [8039.77, 4028.55] Radius (13.00) CW'
+  )).find(item => item.id === 43);
+  assert(!malformed.obround && !malformed.arcShape && malformed.shapeKind === '其他圆弧', JSON.stringify(malformed));
+  const winding = C.parseBoardItems(txt.split('[8051.77, 4028.55]').join('[8025.77, 4028.55]')).find(item => item.id === 43);
+  assert(!winding.obround && winding.shapeKind === '其他圆弧', '同心但总弧度不是半圆的任意多圆弧轮廓不得误判成长圆形');
+});
+
 t('L5/L10 交界层的每条 Route Keepout 只追溯实际所在孔段', () => {
   [
     { layer: 5, hdiPad: 'BGA-HDI-SIG_L2_L5', hdiVia: '1' },

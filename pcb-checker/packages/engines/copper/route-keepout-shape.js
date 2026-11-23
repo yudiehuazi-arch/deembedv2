@@ -51,6 +51,70 @@
       Math.abs(pointDist(arc.end, arc.center) - arc.radius) <= tol && Math.abs(pointDist(arc.start, arc.end) - arc.radius * 2) <= tol;
   }
 
+  function sameCircle(a, b, tol) {
+    return close(a.center, b.center, tol) && Math.abs(a.radius - b.radius) <= tol && a.direction === b.direction;
+  }
+
+  function arcSweep(arc) {
+    var a = Math.atan2(arc.start[1] - arc.center[1], arc.start[0] - arc.center[0]);
+    var b = Math.atan2(arc.end[1] - arc.center[1], arc.end[0] - arc.center[0]);
+    if (!arc.direction) {
+      var d = Math.abs(a - b);
+      return Math.min(d, Math.PI * 2 - d);
+    }
+    var sweep = arc.direction === 'CW' ? a - b : b - a;
+    while (sweep < 0) sweep += Math.PI * 2;
+    while (sweep >= Math.PI * 2) sweep -= Math.PI * 2;
+    return sweep;
+  }
+
+  function mergeCoCircularGroup(group, tol) {
+    if (!group.length) return null;
+    if (group.length === 1) return group[0];
+    var center = [
+      group.reduce(function (n, arc) { return n + arc.center[0]; }, 0) / group.length,
+      group.reduce(function (n, arc) { return n + arc.center[1]; }, 0) / group.length
+    ];
+    var radius = group.reduce(function (n, arc) { return n + arc.radius; }, 0) / group.length;
+    if (!group.every(function (arc) {
+      return sameCircle(group[0], arc, tol) && Math.abs(pointDist(arc.start, center) - radius) <= tol &&
+        Math.abs(pointDist(arc.end, center) - radius) <= tol;
+    })) return null;
+    var sweep = group.reduce(function (n, arc) { return n + arcSweep(arc); }, 0);
+    if (Math.abs(sweep - Math.PI) > Math.max(0.002, tol / Math.max(radius, tol) * 4)) return null;
+
+    for (var first = 0; first < group.length; first++) {
+      var chain = [group[first]], used = {}; used[first] = true;
+      while (chain.length < group.length) {
+        var end = chain[chain.length - 1].end, next = -1;
+        for (var i = 0; i < group.length; i++) {
+          if (!used[i] && close(end, group[i].start, tol)) {
+            if (next !== -1) { next = -2; break; }
+            next = i;
+          }
+        }
+        if (next < 0) break;
+        used[next] = true; chain.push(group[next]);
+      }
+      if (chain.length === group.length && !close(chain[chain.length - 1].end, chain[0].start, tol)) {
+        return { start: chain[0].start, end: chain[chain.length - 1].end, center: center, radius: radius, direction: group[0].direction };
+      }
+    }
+    return null;
+  }
+
+  function logicalCapsuleArcs(arcs, tol) {
+    if (arcs.length < 2) return [];
+    var groups = [];
+    arcs.forEach(function (arc) {
+      var group = groups.find(function (candidate) { return sameCircle(candidate[0], arc, tol); });
+      if (group) group.push(arc); else groups.push([arc]);
+    });
+    if (groups.length !== 2) return [];
+    var merged = groups.map(function (group) { return mergeCoCircularGroup(group, tol); });
+    return merged.every(function (arc) { return arc && isSemicircle(arc, tol); }) ? merged : [];
+  }
+
   function boundaryClosed(arcs, segments, tol) {
     var points = [];
     arcs.concat(segments).forEach(function (part) { points.push(part.start, part.end); });
@@ -76,17 +140,21 @@
     var scale = radii.length ? Math.max.apply(null, radii) : 1;
     var tol = Math.max(0.01, scale * 0.002);
     var circle = arcs.length === 1 && segments.length === 0 && arcs[0].radius > 0;
-    var obround = false;
-    if (arcs.length === 2 && segments.length === 2) {
-      var centerAxis = { start: arcs[0].center, end: arcs[1].center };
-      obround = Math.abs(arcs[0].radius - arcs[1].radius) <= tol &&
-        isSemicircle(arcs[0], tol) && isSemicircle(arcs[1], tol) &&
-        parallel(segments[0], segments[1], tol) && parallel(segments[0], centerAxis, tol) &&
-        Math.abs(pointDist(arcs[0].center, arcs[1].center) - pointDist(segments[0].start, segments[0].end)) <= tol &&
-        boundaryClosed(arcs, segments, tol);
+    var obround = false, capsuleArcs = [];
+    if (segments.length === 2) {
+      capsuleArcs = logicalCapsuleArcs(arcs, tol);
+      if (capsuleArcs.length === 2) {
+        var centerAxis = { start: capsuleArcs[0].center, end: capsuleArcs[1].center };
+        obround = Math.abs(capsuleArcs[0].radius - capsuleArcs[1].radius) <= tol &&
+          isSemicircle(capsuleArcs[0], tol) && isSemicircle(capsuleArcs[1], tol) &&
+          parallel(segments[0], segments[1], tol) && parallel(segments[0], centerAxis, tol) &&
+          Math.abs(pointDist(capsuleArcs[0].center, capsuleArcs[1].center) - pointDist(segments[0].start, segments[0].end)) <= tol &&
+          boundaryClosed(arcs, segments, tol);
+      }
     }
     var kind = circle ? '圆形' : (obround ? '长圆形' : (arcs.length ? '其他圆弧' : '非圆弧'));
-    var centers = circle ? [arcs[0].center] : (obround ? arcs.map(function (arc) { return arc.center; }) : []);
+    var centers = circle ? [arcs[0].center] : (obround ? capsuleArcs.map(function (arc) { return arc.center; }) : []);
+    if (obround) radii = capsuleArcs.map(function (arc) { return arc.radius; });
     var center = centers.length ? [
       centers.reduce(function (n, p) { return n + p[0]; }, 0) / centers.length,
       centers.reduce(function (n, p) { return n + p[1]; }, 0) / centers.length
