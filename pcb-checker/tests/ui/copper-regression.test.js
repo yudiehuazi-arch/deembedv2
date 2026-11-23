@@ -629,11 +629,11 @@ setTimeout(() => {
       if (c.values.L16 !== '9') throw new Error('L16 不该被 及以上 覆盖：' + c.values.L16);
     });
     t('bottom 层 = 最底层 L21', () => {
-      const pad = consOf(0, 1);
+      const pad = consOf(0, 2);
       if (pad.values.L21 !== '6.5') throw new Error('焊盘 bottom ' + JSON.stringify(pad.values));
     });
     t('扇出走线层落在 L15 = 3.46', () => {
-      const pad = consOf(0, 1);
+      const pad = consOf(0, 2);
       if (pad.values.L15 !== '3.46') throw new Error('L15 ' + pad.values.L15);
     });
     t('L19/L18/L17层非功能焊盘半径 单独成一条 非功能 约束', () => {

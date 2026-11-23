@@ -2,11 +2,11 @@
 'use strict';
 
 importScripts(
-  '../../engines/pour/pour-geom.js?v=89',
-  '../../engines/pour/pour-parser.js?v=89',
-  '../../engines/pour/pour-trace-margin.js?v=89',
-  '../../engines/pour/pour-hdi-association.js?v=89',
-  '../../engines/pour/pour-engine.js?v=89'
+  '../../engines/pour/pour-geom.js?v=90',
+  '../../engines/pour/pour-parser.js?v=90',
+  '../../engines/pour/pour-trace-margin.js?v=90',
+  '../../engines/pour/pour-hdi-association.js?v=90',
+  '../../engines/pour/pour-engine.js?v=90'
 );
 
 self.onmessage = function (event) {

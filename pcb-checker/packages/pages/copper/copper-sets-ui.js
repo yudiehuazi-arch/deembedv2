@@ -107,7 +107,7 @@
     var attrs = ' class="cCell" data-no-persist data-si="' + si + '" data-ci="' + ci + '" data-key="' + esc(key) + '"';
     if (/反焊盘形状/.test((c.cat || '') + ' ' + (c.name || ''))) {
       return '<td><select' + attrs + '><option value="无"' + (!v || v === '无' ? ' selected' : '') + '>无</option><option value="圆形"' + (v === '圆形' ? ' selected' : '') + '>圆形</option><option value="长圆形"' + (v === '长圆形' ? ' selected' : '') + '>长圆形</option></select>' +
-        (v && v !== '无' ? '<div class="srcnote">来源：' + esc(src || '手工填写') + '</div>' : '') + '</td>';
+        (v && v !== '无' && src !== '默认圆形' ? '<div class="srcnote">来源：' + esc(src || '手工填写') + '</div>' : '') + '</td>';
     }
     if (!v || v === '无') return '<td class="nosrc"><input' + attrs + ' value="无"></td>';
     return '<td><input' + attrs + ' value="' + esc(v) + '"><div class="srcnote">来源：' + esc(src || '手工填写') + '</div></td>';
@@ -115,6 +115,7 @@
 
   function render() {
     var n = App.layerCount();
+    App.ensureCoreColumns(S.sets, n);
     var hi = n, entries = App.activeSetEntries();
     entries.forEach(function (entry) {
       var set = entry.set;
@@ -287,6 +288,11 @@
         collect();
         App.reexpandAll();
         render();
+      } else if (e.target.classList && (e.target.classList.contains('cCell') || e.target.classList.contains('cName') || e.target.classList.contains('cUnit'))) {
+        collect();
+        UI.viewVer++;
+        if (UI.items.length && root.runCheck) root.runCheck(true);
+        else { UI.result = null; App.syncTelemetry(); }
       }
     });
 
