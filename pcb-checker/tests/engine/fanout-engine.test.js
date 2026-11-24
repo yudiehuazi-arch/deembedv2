@@ -950,6 +950,103 @@ Item 3 < Via >
   console.log('  PASS  信号优先姿态匹配后，GND 数量、Padstack、中心位置执行一对一严格核验');
 }
 
+// 8k. 用户 34_N/34_P 50 对象回归：完整 Via+Segment 导出应命中 0.52 mm Top-L12 方案
+{
+  const pads = {
+    g15: 'BGA-HDI-GND-045drill-ring3_L1_L5',
+    g25: 'BGA-HDI-GND-045drill-ring3_L2_L5',
+    g510: 'PTH-GND-150drill-ring0_L5_L10',
+    g1011: 'BGA-HDI-GND-045drill-ring3_L10_L11',
+    g1013: 'BGA-HDI-GND-045drill-ring3_L10_L13',
+    top: 'via2_8-top',
+    s15: 'BGA-HDI-SIG-045drill-ring3_L1_L5',
+    s510: 'PTH-SIG-150drill-ring0_L5_L10',
+    s1012: 'BGA-HDI-SIG-045drill-ring3_L10_L12'
+  };
+  const schemeRows = [
+    [1, 29.477, -27.156, 'GND', 'g15', 4.5], [2, 21.603, -32.877, 'GND', 'g15', 4.5],
+    [3, 11.871, -32.877, 'GND', 'g15', 4.5], [4, -19.625, -27.156, 'GND', 'g15', 4.5],
+    [5, -11.751, -32.877, 'GND', 'g15', 4.5], [6, -2.019, -32.877, 'GND', 'g15', 4.5],
+    [7, 4.926, -28.156, 'GND', 'g15', 4.5], [8, -22.633, -17.9, 'GND', 'g15', 4.5],
+    [9, -19.625, -8.644, 'GND', 'g15', 4.5], [10, 29.477, -8.644, 'GND', 'g15', 4.5],
+    [11, 21.603, -2.923, 'GND', 'g25', 4.5], [12, 11.871, -2.923, 'GND', 'g25', 4.5],
+    [13, -11.751, -2.923, 'GND', 'g25', 4.5], [14, -2.019, -2.923, 'GND', 'g25', 4.5],
+    [15, 4.926, -7.644, 'GND', 'g25', 4.5], [16, 32.484, -17.9, 'GND', 'g15', 4.5],
+    [17, -3.933, -35.617, 'GND', 'g510', 6], [18, -3.933, -0.183, 'GND', 'g510', 6],
+    [19, -16.461, -5.373, 'GND', 'g510', 6], [20, -22.136, -17.9, 'GND', 'g510', 6],
+    [21, -16.461, -30.428, 'GND', 'g510', 6], [22, 13.783, -35.617, 'GND', 'g510', 6],
+    [23, 26.311, -30.428, 'GND', 'g510', 6], [24, 31.986, -17.9, 'GND', 'g510', 6],
+    [25, 26.311, -5.373, 'GND', 'g510', 6], [26, 13.783, -0.183, 'GND', 'g510', 6],
+    [27, 29.477, -27.156, 'GND', 'g1013', 4.5], [28, 21.603, -32.877, 'GND', 'g1011', 4.5],
+    [29, 11.871, -32.877, 'GND', 'g1011', 4.5], [30, -19.625, -27.156, 'GND', 'g1013', 4.5],
+    [31, -11.751, -32.877, 'GND', 'g1011', 4.5], [32, -2.019, -32.877, 'GND', 'g1011', 4.5],
+    [33, 4.926, -28.156, 'GND', 'g1011', 4.5], [34, -22.633, -17.9, 'GND', 'g1013', 4.5],
+    [35, -19.625, -8.644, 'GND', 'g1013', 4.5], [36, 29.476, -8.644, 'GND', 'g1013', 4.5],
+    [37, 21.602, -2.923, 'GND', 'g1013', 4.5], [38, 11.87, -2.923, 'GND', 'g1013', 4.5],
+    [39, -11.752, -2.923, 'GND', 'g1013', 4.5], [40, -2.02, -2.923, 'GND', 'g1013', 4.5],
+    [41, 4.925, -7.644, 'GND', 'g1013', 4.5], [42, 32.484, -17.9, 'GND', 'g1013', 4.5],
+    [43, 0, 0, '34_N', 'top', 0], [44, -6.886, -17.9, '34_N', 's1012', 4.5],
+    [45, -3.932, -17.9, '34_N', 's510', 6], [46, -6.886, -17.9, '34_N', 's15', 4.5],
+    [47, 9.85, 0, '34_P', 'top', 0], [48, 16.736, -17.9, '34_P', 's1012', 4.5],
+    [49, 13.783, -17.9, '34_P', 's510', 6], [50, 16.736, -17.9, '34_P', 's15', 4.5]
+  ];
+  const schemeVias = schemeRows.map(row => ({
+    id: row[0], x: row[1], y: row[2], net: row[3], padstack: pads[row[4]], drill: row[5]
+  }));
+  // 实板孔群相对方案做 X 镜像后旋转 270°，平移到用户给出的 34_N 顶层 Pin。
+  const boardOrigin = { x: 30039.4939, y: 28847.9865 };
+  const boardRows = schemeVias.map(via => ({
+    ...via,
+    x: Number((boardOrigin.x + via.y).toFixed(4)),
+    y: Number((boardOrigin.y + via.x).toFixed(4))
+  }));
+  const toBlock = (via, forceShapeOnly = false) => {
+    const isTopPin = via.padstack === pads.top;
+    const hasTrace = !forceShapeOnly && (via.id === 44 || via.id === 48);
+    const connection = hasTrace ? 'Trace: 1 (12IS02)' : `Shape: 1 (${isTopPin ? 'Top' : '05G02P'})`;
+    const usage = isTopPin ? 'SMD Pin' : (via.padstack === pads.s510 ? 'Thru Pin' : 'BBVia');
+    return `Item ${via.id} < Via >\n  Origin-xy: [${via.x}, ${via.y}]\n  Net: ${via.net}\n  Padstack Name: ${via.padstack}\n  Usage: ${usage}\n  Circle Drill: ${via.drill}\n  Connections:\n    ${connection}\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`;
+  };
+  const library = new FanoutChecker.FanoutLibrary();
+  library.addScheme(new FanoutChecker.FanoutScheme({
+    id: 'user_34_top_l12_50', name: 'BGA_4对_P0.25/0.52mm_Top-L12_GND轴对称', vias: schemeVias
+  }));
+  const input = boardRows.map(via => toBlock(via)).join('\n');
+  const result = FanoutChecker.runFanoutInspection(input, library, {
+    distanceTolerance: 0.1, allowRotation: true, allowMirror: true
+  });
+  assert.strictEqual(result.vias.length, 50);
+  assert.strictEqual(result.summary.totalSignalVias, 2, '六个堆叠孔段应折叠为 34_N/34_P 两个逻辑信号孔');
+  assert.strictEqual(result.summary.totalEligibleSignalViaItems, 8, '六个物理孔段与两个顶层 Pin 均应参与完整方案匹配');
+  assert.strictEqual(result.summary.totalClusters, 1);
+  assert.strictEqual(result.summary.passCount, 1);
+  const cluster = result.clusters[0];
+  assert.strictEqual(cluster.viaCount, 50);
+  assert.strictEqual(cluster.matchResult.status, 'MATCH_PASS');
+  assert.strictEqual(cluster.matchResult.schemeName, 'BGA_4对_P0.25/0.52mm_Top-L12_GND轴对称');
+  assert.strictEqual(cluster.matchResult.matchedViaCount, 50);
+  assert.strictEqual(cluster.matchResult.viaAudit.length, 42, '42 个伴随 GND 物理孔段必须全部一对一匹配');
+  assert.strictEqual(cluster.matchResult.missingVias.length, 0);
+  assert.strictEqual(cluster.matchResult.padMismatchList.length, 0);
+  assert.deepStrictEqual(cluster.matchingSignalVias.map(via => via.id).sort((a, b) => a - b),
+    [43, 44, 45, 46, 47, 48, 49, 50]);
+  assert.deepStrictEqual(boardRows.filter(via => via.id === 44 || via.id === 48).map(via => [via.x, via.y]),
+    [[30021.5939, 28841.1005], [30021.5939, 28864.7225]], '回归坐标必须对应用户给出的差分信号中心');
+
+  // Route Keepout 版数据在同一区域只有 11 个 L1-L5 GND、两个 L1-L5 信号孔和两个顶层 Pin，
+  // 且全部只有 Shape Connections；这类 15 对象片段不是“匹配失败”，而是缺少 Trace 锚点所以不建立检查组。
+  const partialRows = boardRows.filter(via =>
+    (via.net === 'GND' && via.padstack === pads.g15) ||
+    (via.net !== 'GND' && (via.padstack === pads.s15 || via.padstack === pads.top)));
+  const partial = FanoutChecker.runFanoutInspection(partialRows.map(via => toBlock(via, true)).join('\n'), library);
+  assert.strictEqual(partial.vias.length, 15);
+  assert.strictEqual(partial.summary.totalParsedSignalVias, 4);
+  assert.strictEqual(partial.summary.totalEligibleSignalViaItems, 0);
+  assert.strictEqual(partial.summary.totalClusters, 0,
+    '缺少 L5-L10/L10-L12 孔段和 Trace Connections 的 Route Keepout 片段不得伪装成完整 50 孔方案');
+  console.log('  PASS  用户 34_N/34_P 50 对象孔群命中 0.52 mm Top-L12 方案，15 对象不完整导出保持未检查');
+}
+
 // 9. 导入 Trace (走线) 数据解析与孔群关联测试
 {
   const fs = require('fs');
