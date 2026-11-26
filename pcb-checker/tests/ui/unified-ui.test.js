@@ -127,6 +127,44 @@ async function test(name, fn) {
     if (n !== 16) throw new Error('走线阶段应产出 16 项，实际 ' + n);
   });
 
+  await test('综合走线检查按物理层号复用规则，02IS01 使用 02G01P 而非首条其他层规则', () => {
+    const oldRules = w.State.rules.traceLayers;
+    const oldResult = w.State.results.trace;
+    const oldLayerDiff = $('cfgCheckLayerDiff').checked;
+    const oldTotalDiff = $('cfgCheckTotalDiff').checked;
+    const oldGlobalLayerTol = $('cfgDiffLayerTol').value;
+    try {
+      const l3Rule = { layer: '03G02P', combos: '7.7', diffLayerTol: 9 };
+      const l2Rule = { layer: '02G01P', combos: '5.6', diffLayerTol: 0.25 };
+      w.State.rules.traceLayers = [l3Rule, l2Rule];
+      $('cfgCheckLayerDiff').checked = true;
+      $('cfgCheckTotalDiff').checked = false;
+      $('cfgDiffLayerTol').value = '0.5';
+      if (w.unifiedTraceLayerAlias('02IS01') !== 'L2' || w.findUnifiedTraceLayerRule('02IS01', w.State.rules.traceLayers) !== l2Rule) {
+        throw new Error('02IS01 未按物理层号命中 02G01P');
+      }
+      const traces = [
+        { id: 1, net: 'ALIAS_P', layer: '02IS01', length: 100, segments: [{ width: 5.6 }] },
+        { id: 2, net: 'ALIAS_N', layer: '02IS01', length: 100.4, segments: [{ width: 5.6 }] }
+      ];
+      const checks = w.runTraceEngine({ tTrace: 'alias-layer-data', parsedTrace: { traces } });
+      const widthChecks = checks.filter(check => check.item === '出线层线宽组合顺序');
+      if (widthChecks.length !== 2 || widthChecks.some(check => !check.pass || check.rule !== '5.6')) {
+        throw new Error('线宽检查未使用 L2 规则：' + JSON.stringify(widthChecks));
+      }
+      const layerDiff = checks.find(check => check.item === '差分逐层线长差');
+      if (!layerDiff || layerDiff.pass || layerDiff.layer !== '02IS01' || layerDiff.rule !== '≤ 0.3 mil') {
+        throw new Error('差分逐层容差未使用 L2 规则：' + JSON.stringify(layerDiff));
+      }
+    } finally {
+      w.State.rules.traceLayers = oldRules;
+      w.State.results.trace = oldResult;
+      $('cfgCheckLayerDiff').checked = oldLayerDiff;
+      $('cfgCheckTotalDiff').checked = oldTotalDiff;
+      $('cfgDiffLayerTol').value = oldGlobalLayerTol;
+    }
+  });
+
   await test('综合检查产品板流程启用 Set=Shape 非功能焊盘并禁用 Padstack 检查', () => {
     const oldSets = w.State.rules.constraintSets;
     const oldResult = w.State.results.copper;

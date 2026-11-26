@@ -134,6 +134,11 @@ t('结果按出线层分表, 表头包含「应满足的线长」「线宽组合
   if (dom.window.TraceApp.formatExpectedWidthCombo(fakeRec) !== '4.5 → 6.8') {
     throw new Error('应满足的线宽组合变化计算错误: ' + dom.window.TraceApp.formatExpectedWidthCombo(fakeRec));
   }
+  const physicalAliasRec = { ...fakeRec, layer: '02IS01' };
+  if (dom.window.TraceApp.formatExpectedLength(physicalAliasRec) !== '1050mil' ||
+      dom.window.TraceApp.formatExpectedWidthCombo(physicalAliasRec) !== '4.5 → 6.8') {
+    throw new Error('02IS01 应按物理 L2 使用 02G01P 规则');
+  }
   click('btnRunCheck');
 });
 t('02G01P 表中 106_P 整行标红, 线宽组合「5.6 → 6」标红高亮并给出原因提示', () => {

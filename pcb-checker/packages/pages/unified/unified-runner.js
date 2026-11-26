@@ -100,7 +100,7 @@ function runTraceEngine(ctx) {
   });
 
   netLayerTraces.forEach(group => {
-    const layerRule = State.rules.traceLayers.find(r => r.layer.toUpperCase() === group.layer.toUpperCase()) ||
+    const layerRule = findUnifiedTraceLayerRule(group.layer, State.rules.traceLayers) ||
                       State.rules.traceLayers[0] || { combos: '6.9-6-3.94, 6.9-5.7-6.9, 5.6-6', diffLayerTol: 0.5 };
     const compWidths = compressWidthSequence(group.allWidths);
     const seqStr = compWidths.length > 0 ? compWidths.map(fmt).join('-') : '无走线';
@@ -156,7 +156,7 @@ function runTraceEngine(ctx) {
         totalP += pLen;
         totalN += nLen;
 
-        const lRule = State.rules.traceLayers.find(r => r.layer.toUpperCase() === l.toUpperCase());
+        const lRule = findUnifiedTraceLayerRule(l, State.rules.traceLayers);
         const layerTol = (lRule && lRule.diffLayerTol != null) ? lRule.diffLayerTol : globalDiffLayerTol;
         const diff = Math.abs(pLen - nLen);
         const isLayerPass = !checkLayerDiff || (diff <= layerTol);
