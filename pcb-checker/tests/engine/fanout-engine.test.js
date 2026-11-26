@@ -679,8 +679,9 @@ Item 3 < Via >
   const res = FanoutChecker.runFanoutInspection(input, library, { distanceTolerance: 2 });
   const pairCluster = res.clusters.find(cluster => cluster.physicalSignalVias.some(v => v.id === 1));
   assert.strictEqual(res.clusters.length, 1, '只有两颗 Trace Connections 孔建立检查组');
-  assert.strictEqual(pairCluster.matchResult.status, 'MATCH_PASS',
-    '同网络 Shape-only 顶层 Pin 与唯一异网顶层 Pin 应补齐完整方案信号拓扑');
+  assert.strictEqual(pairCluster.matchResult.status, 'SIGNAL_NET_MISMATCH',
+    '异网顶层 Pin 可按唯一位置补齐方案拓扑，但必须作为 Net/P/N 错误报错');
+  assert.strictEqual(pairCluster.matchResult.pass, false);
   assert.deepStrictEqual(pairCluster.matchingSignalVias.map(v => v.id).sort((a, b) => a - b), [1, 2, 3, 4, 5, 6, 7, 8],
     '合法多段孔和方案唯一命中的两个顶层 Pin 都应参与信号匹配');
   assert.deepStrictEqual(pairCluster.matchResult.signalNetRecoveries || [], [{
@@ -688,6 +689,8 @@ Item 3 < Via >
   }]);
   assert.strictEqual(res.vias.find(v => v.id === 8).net, 'OTHER_N');
   assert.strictEqual(res.summary.totalCompanionSignalVias, 2);
+  assert.strictEqual(res.summary.signalNetFailCount, 1);
+  assert.strictEqual(res.summary.failCount, 1);
   assert.strictEqual(res.summary.excludedSignalVias, 1, '同网络但未命中方案位置的 Shape-only 顶层 Pin 仍应排除');
   assert.strictEqual(res.vias.find(v => v.id === 9).isFanoutEligible, false);
 
@@ -701,8 +704,9 @@ Item 3 < Via >
   const connectionless = FanoutChecker.runFanoutInspection(
     connectionlessRows.map(row => viaBlock(...row)).join('\n'), library, { distanceTolerance: 2 });
   const connectionlessPair = connectionless.clusters.find(cluster => cluster.physicalSignalVias.some(v => v.id === 1));
-  assert.strictEqual(connectionlessPair.matchResult.status, 'MATCH_PASS',
-    '无 Connections 的零钻 SMD Pin 应按唯一方案位置补入，而不是让完整孔群无法匹配');
+  assert.strictEqual(connectionlessPair.matchResult.status, 'SIGNAL_NET_MISMATCH',
+    '无 Connections 的零钻 SMD Pin 应按唯一方案位置补入，但 P/N 极性错标必须报错');
+  assert.strictEqual(connectionlessPair.matchResult.pass, false);
   assert.strictEqual(connectionlessPair.matchResult.schemeName, '八信号对象顶层Pin方案');
   assert.deepStrictEqual(connectionlessPair.matchingSignalVias.map(v => v.id).sort((a, b) => a - b),
     [1, 2, 3, 4, 5, 6, 7, 8]);
@@ -712,6 +716,8 @@ Item 3 < Via >
     viaId: 3, sourceNet: 'PAIR_P', expectedNet: 'PAIR_N', x: 0, y: 0, padstack: 'TOP_PIN'
   }], '顶层 Pin 的 P/N 极性错标应保留审计提示');
   assert.strictEqual(connectionless.summary.totalCompanionSignalVias, 2);
+  assert.strictEqual(connectionless.summary.signalNetFailCount, 1);
+  assert.strictEqual(connectionless.summary.failCount, 1);
   assert.strictEqual(connectionless.summary.excludedSignalVias, 1);
 
   const ambiguousInput = input + '\n' + viaBlock(10, 9.846, 0, 'ANOTHER_P', 'TOP_PIN', 'Shape: 1 (Top)');
@@ -721,7 +727,7 @@ Item 3 < Via >
     '同一缺失位置存在多个异网候选时不得猜测归属');
   assert.deepStrictEqual(ambiguousPair.matchingSignalVias.map(v => v.id).sort((a, b) => a - b), [1, 2, 4, 5, 6, 7],
     '合法多段孔保留；完整方案因异网候选歧义失败时，同网络顶层 Pin 也不得单独激活');
-  console.log('  PASS  Shape-only/无 Connections 顶层 Pin 按完整方案位置补入，并拒绝歧义异网候选');
+  console.log('  PASS  顶层 Pin 按完整方案位置补入，Net/P/N 错标报错并拒绝歧义候选');
 }
 
 // 8g. 用户 18 对象回归：Item 15/17 作为同网络 Shape-only 顶层 Pin 补入 Top-L4 方案

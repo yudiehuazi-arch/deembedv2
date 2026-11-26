@@ -294,6 +294,7 @@
     if (pnlDefect) {
       pnlDefect.innerHTML =
         '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9"><span>Padstack 不符</span><span class="badge-tag bad">' + (s.padstackFailCount || 0) + ' 处</span></div>' +
+        '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9"><span>信号 Pin 网络极性不符</span><span class="badge-tag bad">' + (s.signalNetFailCount || 0) + ' 处</span></div>' +
         '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9"><span>中心距超差 / 伴随地孔缺失</span><span class="badge-tag warn">' + (s.distFailCount || 0) + ' 处</span></div>' +
         '<div style="display:flex;justify-content:space-between;padding:6px 0"><span>未匹配方案库</span><span class="badge-tag bad">' + (s.noMatchCount || 0) + ' 处</span></div>';
     }

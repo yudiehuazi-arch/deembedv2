@@ -406,6 +406,20 @@
       sigStr: sigStr, companionStr: companionStr, gndCount: cluster.vias.length - physicalSigVias.length - companionSignals.length };
   }
 
+  function fanoutResultBadge(res) {
+    if (res.pass) return '<span class="badge-tag ok">匹配通过 · ' + escapeHtml(res.schemeName) + '</span>';
+    var labels = {
+      PADSTACK_MISMATCH: 'Padstack 不符',
+      SIGNAL_NET_MISMATCH: '信号 Pin 网络极性不符',
+      DISTANCE_MISMATCH: '孔距/伴随孔偏差',
+      GND_QUANTITY_MISMATCH: '伴随 GND 数量不符'
+    };
+    var label = labels[res.status];
+    if (!label) return '<span class="badge-tag bad">未匹配预设方案</span>';
+    return '<span class="badge-tag ' + (res.status === 'SIGNAL_NET_MISMATCH' ? 'bad' : 'warn') + '">' +
+      label + ' · ' + escapeHtml(res.schemeName) + '</span>';
+  }
+
   function renderResultsTable() {
     var tbody = document.getElementById('tblResultsBody');
     if (!tbody) return;
@@ -440,14 +454,7 @@
       var res = c.matchResult || {};
       var isReviewed = State.reviewedClusters.has(c.id);
       var rowClass = isReviewed ? 'reviewed' : (res.pass ? 'row-pass' : 'row-fail');
-      var badgeHtml = res.pass
-        ? ('<span class="badge-tag ok">匹配通过 · ' + escapeHtml(res.schemeName) + '</span>')
-        : (res.status === 'PADSTACK_MISMATCH'
-          ? ('<span class="badge-tag warn">Padstack 不符 · ' + escapeHtml(res.schemeName) + '</span>')
-          : (res.status === 'DISTANCE_MISMATCH'
-            ? ('<span class="badge-tag warn">孔距/伴随孔偏差 · ' + escapeHtml(res.schemeName) + '</span>')
-            : (res.status === 'GND_QUANTITY_MISMATCH' ? ('<span class="badge-tag warn">伴随 GND 数量不符 · ' + escapeHtml(res.schemeName) + '</span>')
-              : '<span class="badge-tag bad">未匹配预设方案</span>')));
+      var badgeHtml = fanoutResultBadge(res);
 
       var signalView = summarizeClusterSignals(c);
       var sigVias = signalView.sigVias, physicalSigVias = signalView.physicalSigVias, companionSignals = signalView.companionSignals;

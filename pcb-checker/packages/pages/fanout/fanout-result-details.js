@@ -139,9 +139,9 @@
 
   function addSignalNetRecoveryIssues(result, issues, seen) {
     (result.signalNetRecoveries || []).forEach(function (item) {
-      pushUnique(issues, seen, 'net', 'Net 字段归属已恢复',
+      pushUnique(issues, seen, 'net', '信号 Pin 网络极性不符',
         '顶层 Pin #' + item.viaId + ' 位于 ' + point(item.x, item.y) + '，Padstack 为「' + (item.padstack || '-') +
-        '」；原始导出 Net 为「' + (item.sourceNet || '-') + '」，但其唯一方案位置属于「' + (item.expectedNet || '-') + '」。物理匹配按方案几何恢复，原始字段仍保留供核对。');
+        '」；当前 Net 为「' + (item.sourceNet || '-') + '」，但其唯一方案位置要求「' + (item.expectedNet || '-') + '」。必须修正 Net/P/N 极性后重新检查。');
     });
   }
 

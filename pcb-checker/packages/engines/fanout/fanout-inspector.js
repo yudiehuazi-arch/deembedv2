@@ -208,6 +208,7 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
           passRate: 0,
           padstackFailCount: 0,
           distFailCount: 0,
+          signalNetFailCount: 0,
           noMatchCount: 0,
           schemeCoverage: {},
           elapsedMs,
@@ -237,6 +238,7 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
     let exactPassCount = 0;
     let padstackFailCount = 0;
     let topologyFailCount = 0;
+    let signalNetFailCount = 0;
     let noMatchCount = 0;
     const schemeCoverage = {};
     const clusterUnits = [];
@@ -413,7 +415,8 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
       candidateVias = [...physicalSignalVias, ...matchingSignalVias.slice(physicalSignalVias.length), ...nearbyGnd];
       updateCandidateBounds();
       const s = bestEval.scheme;
-      const isPass = bestEval.pass;
+      const signalNetMismatch = (bestEval.signalNetRecoveries || []).length > 0;
+      const isPass = bestEval.pass && !signalNetMismatch;
       if (isPass) {
         passCount++;
         exactPassCount++;
@@ -422,7 +425,7 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
         const mirStr = bestEval.mirror ? ` [镜像翻转]` : '';
         const recoveryCount = (bestEval.signalNetRecoveries || []).length;
         const companionCount = (bestEval.recoveredSignalVias || []).length - recoveryCount;
-        const recoveryStr = `${companionCount > 0 ? `；${companionCount} 个同网络 Shape-only 顶层 Pin 作为伴随信号对象` : ''}${recoveryCount > 0 ? `；${recoveryCount} 个顶层信号 Pin 按完整方案几何恢复归属` : ''}`;
+        const recoveryStr = `${companionCount > 0 ? `；${companionCount} 个同网络顶层 Pin 作为伴随信号对象` : ''}${recoveryCount > 0 ? `；${recoveryCount} 个顶层信号 Pin 按完整方案几何恢复归属` : ''}`;
         const matchRes = {
           status: 'MATCH_PASS',
           statusText: '完全匹配通过',
@@ -463,7 +466,15 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
         let statusText = '伴随地孔存在异常';
         const padMismatchList = bestEval.padMismatchList;
         const missingVias = bestEval.missingVias;
-        if (bestEval.redundantGndCount > 0) {
+        if (signalNetMismatch) {
+          signalNetFailCount++;
+          status = 'SIGNAL_NET_MISMATCH';
+          statusText = '信号Pin网络极性不符';
+          const netAdv = bestEval.signalNetRecoveries.map(item =>
+            `将顶层 Pin #${item.viaId} Net 由「${item.sourceNet || '-'}」修正为「${item.expectedNet || '-'}」`).join('；');
+          reasonText = `孔群几何已命中方案【${s.name}】，但存在 ${bestEval.signalNetRecoveries.length} 个顶层信号 Pin 的 Net/P/N 极性不符`;
+          adviceText = `【信号网络修正建议】: ${netAdv}。`;
+        } else if (bestEval.redundantGndCount > 0) {
           topologyFailCount++;
           status = 'GND_QUANTITY_MISMATCH';
           statusText = '伴随地孔数量不符';
@@ -523,7 +534,7 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
     }
     associateTracesWithClusters(vias, clusterUnits, traces, 18.0);
     const elapsedMs = Date.now() - startTime;
-    const failCount = padstackFailCount + topologyFailCount + noMatchCount;
+    const failCount = padstackFailCount + topologyFailCount + signalNetFailCount + noMatchCount;
     const passRate = clusterUnits.length > 0 ? (passCount / clusterUnits.length) * 100 : 0;
     const summary = {
       totalVias: vias.length,
@@ -546,6 +557,7 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
       passRate: roundN(passRate, 1),
       padstackFailCount,
       distFailCount: topologyFailCount,
+      signalNetFailCount,
       noMatchCount,
       schemeCoverage,
       elapsedMs,

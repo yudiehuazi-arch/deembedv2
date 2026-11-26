@@ -188,12 +188,15 @@
   function resolveSignalNetAlias(matchingVias, aliasCandidates, relativeSchemeVias, originVia, distanceTolerance, allowRecovery, missingCount) {
     const usedSignalIndices = new Set(), usedAliasIndices = new Set(), recoveries = [];
     const normalizedPadstack = via => String(via && via.padstack || '').trim().toLowerCase();
+    const polarity = via => ((String(via && via.net || '').trim().match(/_([PN])$/i) || [])[1] || '').toUpperCase();
     for (const item of relativeSchemeVias) {
       const expectedX = originVia.x + item.relX, expectedY = originVia.y + item.relY;
       let foundSignalIndex = -1;
       for (let index = 0; index < matchingVias.length; index++) {
         const via = matchingVias[index];
+        const actualPolarity = polarity(via), expectedPolarity = polarity(item.sv);
         if (!usedSignalIndices.has(index) && normalizedPadstack(via) === normalizedPadstack(item.sv) &&
+          (!actualPolarity || !expectedPolarity || actualPolarity === expectedPolarity) &&
           Math.hypot(via.x - expectedX, via.y - expectedY) <= distanceTolerance) {
           foundSignalIndex = index; break;
         }

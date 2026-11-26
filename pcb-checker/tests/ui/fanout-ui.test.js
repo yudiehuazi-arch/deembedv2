@@ -282,6 +282,21 @@ test('检查结果逐孔说明 Padstack、位置、缺孔和多孔问题及目�
   assert.ok(mismatchText.includes('孔 #11') && mismatchText.includes('当前「WRONG_P」') && mismatchText.includes('应改为「EXPECTED_P」'));
   assert.ok(mismatchText.includes('[120, 100]') && mismatchText.includes('EXPECTED_N'), '缺孔应写清目标坐标与 Padstack');
 
+  const netMismatchText = window.FanoutResultDetails.toText({
+    vias: [], signalVias: [],
+    matchResult: {
+      pass: false,
+      status: 'SIGNAL_NET_MISMATCH',
+      message: '孔群几何已命中方案，但信号 Pin 网络极性不符',
+      advice: '将顶层 Pin #42 Net 由 33_P 修正为 33_N。',
+      signalNetRecoveries: [{ viaId: 42, x: 13506.0566, y: 8222.8231,
+        padstack: 'via2_8-top', sourceNet: '33_P', expectedNet: '33_N' }]
+    }
+  }, library, 2);
+  assert.ok(netMismatchText.includes('信号 Pin 网络极性不符') && netMismatchText.includes('顶层 Pin #42'));
+  assert.ok(netMismatchText.includes('当前 Net 为「33_P」') && netMismatchText.includes('要求「33_N」'));
+  assert.ok(netMismatchText.includes('必须修正 Net/P/N 极性后重新检查'), '极性错标必须作为错误给出修改要求');
+
   const missingWithRedundant = {
     vias: [
       { id: 31, x: 140, y: 100, padstack: 'GND_NEARBY', net: 'GND' },
