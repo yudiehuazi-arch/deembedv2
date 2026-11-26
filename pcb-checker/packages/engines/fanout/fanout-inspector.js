@@ -60,6 +60,10 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
     }
     return { findGndNear };
   }
+  function differentialPolarity(net) {
+    const match = String(net || '').trim().match(/_([PN])$/i);
+    return match ? match[1].toUpperCase() : '';
+  }
   function groupSignalUnits(activeSignalVias, maxDiffDistMil = 35.0) {
     const diffGroups = new Map();
     const singleVias = [];
@@ -217,13 +221,14 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
     const allowMirror = options.allowMirror !== false;
     const gndVias = vias.filter(v => v.net && v.net.toUpperCase().includes('GND'));
     const allSignalVias = vias.filter(v => !v.net || !v.net.toUpperCase().includes('GND'));
-    // Trace Connections 孔触发检查；合规多段孔直接参与，Shape-only 顶层 Pin 仅作为方案信号伴随对象补入。
+    // Trace Connections 孔触发检查；合规多段孔直接参与，顶层 Pin 仅作为方案信号伴随对象补入。
     allSignalVias.forEach(via => { via.isFanoutCompanion = false; via.isFanoutNetRecovered = false; });
     const activePhysicalSignalVias = selectConnectedSignalVias(allSignalVias);
     const activeSignalVias = collapseSignalStacks(activePhysicalSignalVias);
     const activeSignalIds = new Set(activePhysicalSignalVias.map(via => String(via.id)));
     const availableCompanionSignals = allSignalVias.filter(via => !activeSignalIds.has(String(via.id)) &&
-      via.hasShapeConnections && via.hasTopShapeConnection && /^SMD\s+Pin$/i.test(String(via.usage || '').trim()) &&
+      ((via.hasShapeConnections && via.hasTopShapeConnection) || (!via.hasConnections && via.isTopOnlyPadstack)) &&
+      /^SMD\s+Pin$/i.test(String(via.usage || '').trim()) &&
       !via.hasTraceConnections && !(via.connectedViaIds || []).length && Number(via.drill || 0) === 0);
     const gndIndex = buildGndSpatialIndex(gndVias, 35);
     const companionIndex = buildGndSpatialIndex(availableCompanionSignals, 35);
@@ -243,7 +248,7 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
       if (physicalSignalVias.every(via => usedCompanionSignalIds.has(String(via.id)))) continue;
       const stackAudit = signalStackAudit(unitSigVias);
       const unitNets = new Set(unitSigVias.map(via => String(via.net || '').toUpperCase()));
-      // Shape-only 零钻顶层 Pin 不独立触发检查，也不因同网络直接激活；仅作为局部候选，
+      // Shape-only 或无 Connections 的零钻顶层 Pin 不独立触发检查，也不因同网络直接激活；仅作为局部候选，
       // 在 Padstack 与变换后的方案信号位置唯一对应时补入。异网候选仍只允许恢复一个对象。
       const nearbyCompanionSignals = companionIndex.findGndNear(unit.centroid.x, unit.centroid.y, 80.0)
         .map(item => item.via).filter(via => !usedCompanionSignalIds.has(String(via.id)));
@@ -302,12 +307,14 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
               if ((u0.padstack || '').trim().toLowerCase() !== (s0.padstack || '').trim().toLowerCase()) {
                 continue;
               }
-              // 同网络 Shape-only Pin 按方案位置补入；跨 Net 恢复最多允许一个，位置不唯一时保持不匹配。
+              // 顶层 Pin 按方案位置补入；异网或 P/N 极性错标最多允许恢复一个，位置不唯一时保持不匹配。
               const signalResolution = resolveSignalNetAlias(matchingSignalVias, supplementalCandidates, relSig, u0,
                 distTol, missingSignalCount > 0, missingSignalCount);
               if (signalResolution) {
                 signalResolution.signalNetRecoveries = (signalResolution.signalNetRecoveries || [])
-                  .filter(item => netAliasCandidateIds.has(String(item.viaId)));
+                  .filter(item => netAliasCandidateIds.has(String(item.viaId)) ||
+                    (differentialPolarity(item.sourceNet) && differentialPolarity(item.expectedNet) &&
+                      differentialPolarity(item.sourceNet) !== differentialPolarity(item.expectedNet)));
                 if (signalResolution.signalNetRecoveries.length > 1) continue;
                 const footprintGndIndices = selectGndWithinSchemeFootprint(
                   scheme.vias, nearbyGnd, u0, s0, cosA, sinA, mirror, distTol);

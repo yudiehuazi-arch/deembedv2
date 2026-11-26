@@ -110,6 +110,7 @@ var api = factory();
       const rotation = rotM ? parseFloat(rotM[1]) : 0;
       const mirM = block.match(RE_MIRROR);
       const mirror = mirM ? mirM[1].trim() : 'N';
+      const isTopOnlyPadstack = /Padstack\s+Defined\s+only\s+on\s+Top\b/i.test(block);
       const connections = parseConnectionsSection(block);
       const hasConnections = connections.entries.length > 0;
       const connectedTraceLayers = [];
@@ -146,6 +147,7 @@ var api = factory();
         drill,
         rotation,
         mirror,
+        isTopOnlyPadstack,
         hasConnections,
         hasTraceConnections,
         hasShapeConnections: explicitShapeCount > 0,

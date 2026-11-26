@@ -647,7 +647,7 @@ Item 3 < Via >
 
 // 8f. Shape-only 顶层 Pin 不触发建组，仅按完整方案位置补入并保留唯一异网恢复
 {
-  const viaBlock = (id, x, y, net, padstack, connection) => `Item ${id} < Via >\n  Origin-xy: [${x}, ${y}]\n  Net: ${net}\n  Padstack Name: ${padstack}\n  Usage: ${/^Shape:.*\(Top\)/.test(connection) ? 'SMD Pin' : 'BBVia'}\n  Connections:\n    ${connection}\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`;
+  const viaBlock = (id, x, y, net, padstack, connection) => `Item ${id} < Via >\n  Origin-xy: [${x}, ${y}]\n  Net: ${net}\n  Padstack Name: ${padstack}\n  Usage: ${padstack === 'TOP_PIN' ? 'SMD Pin' : 'BBVia'}${padstack === 'TOP_PIN' ? '\n  Padstack Defined only on Top' : ''}${connection ? `\n  Connections:\n    ${connection}` : ''}\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`;
   const signalRows = [
     [1, -4.920, -17.900, 'PAIR_N', 'HDI_L10_L12', 'Trace: 1 (L12)'],
     [2, 14.766, -17.900, 'PAIR_P', 'HDI_L10_L12', 'Trace: 1 (L12)'],
@@ -691,6 +691,29 @@ Item 3 < Via >
   assert.strictEqual(res.summary.excludedSignalVias, 1, '同网络但未命中方案位置的 Shape-only 顶层 Pin 仍应排除');
   assert.strictEqual(res.vias.find(v => v.id === 9).isFanoutEligible, false);
 
+  // 用户 33_N/33_P 数据中 N 侧顶层 Pin 被导出成 33_P，且整段没有 Connections；
+  // 它不能触发检查，但 Padstack 与方案位置唯一命中时仍应作为伴随对象补齐。
+  const connectionlessRows = signalRows.map(row => {
+    if (row[0] === 3) return [3, 0, 0, 'PAIR_P', 'TOP_PIN', ''];
+    if (row[0] === 8) return [8, 9.846, 0, 'PAIR_P', 'TOP_PIN', 'Shape: 1 (Top)'];
+    return row;
+  });
+  const connectionless = FanoutChecker.runFanoutInspection(
+    connectionlessRows.map(row => viaBlock(...row)).join('\n'), library, { distanceTolerance: 2 });
+  const connectionlessPair = connectionless.clusters.find(cluster => cluster.physicalSignalVias.some(v => v.id === 1));
+  assert.strictEqual(connectionlessPair.matchResult.status, 'MATCH_PASS',
+    '无 Connections 的零钻 SMD Pin 应按唯一方案位置补入，而不是让完整孔群无法匹配');
+  assert.strictEqual(connectionlessPair.matchResult.schemeName, '八信号对象顶层Pin方案');
+  assert.deepStrictEqual(connectionlessPair.matchingSignalVias.map(v => v.id).sort((a, b) => a - b),
+    [1, 2, 3, 4, 5, 6, 7, 8]);
+  assert.ok(connectionless.vias.find(v => v.id === 3).isFanoutCompanion,
+    '无 Connections 顶层 Pin 只能作为伴随对象，不能成为建组锚点');
+  assert.deepStrictEqual(connectionlessPair.matchResult.signalNetRecoveries || [], [{
+    viaId: 3, sourceNet: 'PAIR_P', expectedNet: 'PAIR_N', x: 0, y: 0, padstack: 'TOP_PIN'
+  }], '顶层 Pin 的 P/N 极性错标应保留审计提示');
+  assert.strictEqual(connectionless.summary.totalCompanionSignalVias, 2);
+  assert.strictEqual(connectionless.summary.excludedSignalVias, 1);
+
   const ambiguousInput = input + '\n' + viaBlock(10, 9.846, 0, 'ANOTHER_P', 'TOP_PIN', 'Shape: 1 (Top)');
   const ambiguous = FanoutChecker.runFanoutInspection(ambiguousInput, library, { distanceTolerance: 2 });
   const ambiguousPair = ambiguous.clusters.find(cluster => cluster.physicalSignalVias.some(v => v.id === 1));
@@ -698,7 +721,7 @@ Item 3 < Via >
     '同一缺失位置存在多个异网候选时不得猜测归属');
   assert.deepStrictEqual(ambiguousPair.matchingSignalVias.map(v => v.id).sort((a, b) => a - b), [1, 2, 4, 5, 6, 7],
     '合法多段孔保留；完整方案因异网候选歧义失败时，同网络顶层 Pin 也不得单独激活');
-  console.log('  PASS  Shape-only 顶层 Pin 按完整方案位置补入，并拒绝歧义异网候选');
+  console.log('  PASS  Shape-only/无 Connections 顶层 Pin 按完整方案位置补入，并拒绝歧义异网候选');
 }
 
 // 8g. 用户 18 对象回归：Item 15/17 作为同网络 Shape-only 顶层 Pin 补入 Top-L4 方案
