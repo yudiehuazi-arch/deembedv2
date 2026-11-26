@@ -4,11 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PCB 铜皮检查工具</title>
-<link rel="stylesheet" href="assets/styles/tokens.css?v=36">
-<link rel="stylesheet" href="assets/styles/eda-shell.css?v=36">
-<link rel="stylesheet" href="assets/styles/eda-dock.css?v=36">
-<link rel="stylesheet" href="assets/styles/components.css?v=36">
-<link rel="stylesheet" href="assets/styles/pages/pour.css?v=36">
+<link rel="stylesheet" href="assets/styles/tokens.css?v=95">
+<link rel="stylesheet" href="assets/styles/eda-shell.css?v=95">
+<link rel="stylesheet" href="assets/styles/eda-dock.css?v=95">
+<link rel="stylesheet" href="assets/styles/components.css?v=95">
+<link rel="stylesheet" href="assets/styles/pages/pour.css?v=95">
+<link rel="stylesheet" href="assets/styles/check-guide.css?v=95">
 </head>
 <body class="eda-workbench">
 
@@ -19,7 +20,7 @@
       <a href="portal.html" class="eda-portal-link" data-tip="返回统一入口启动台">启动台</a>
     </div>
     <h1>PCB 铜皮检查工具 <span class="tag">POUR</span></h1>
-    <span class="sub">孔层铺铜 · 异型模板 · 参考层超宽 · 孤立小铜皮 · 最小弧半径</span>
+    <span class="sub">孔层铺铜 · 异型模板 · 参考层投影与邻近铜 · 孤立小铜皮 · 最小弧半径</span>
   </header>
 
   <div class="eda-rail-section">
@@ -29,19 +30,20 @@
       <a href="copper.html" data-code="CON" data-tip="叠层约束表解析、过孔配对与反焊盘逐层尺寸核对">约束检查</a>
       <a href="dfm.html" data-code="DFM" data-tip="孔-孔、线-孔及异网孔盘 Airgap 几何间距测量与分层判定">加工能力检查</a>
       <a href="fanout.html" data-code="FAN" data-tip="过孔连通聚类、刚体变换方案匹配与孔心距分色预览">扇出方案检查</a>
-      <a href="pour.html" class="active" data-code="POR" data-tip="孔经过层铺铜、异型铜皮比对、参考层超宽、碎铜与圆弧半径核对">铜皮检查</a>
+      <a href="pour.html" class="active" data-code="POR" data-tip="孔经过层铺铜、异型铜皮比对、参考层走线投影与两侧邻近铜、碎铜与圆弧半径核对">铜皮检查</a>
       <a href="unified.html" data-code="UNI" data-tip="四槽位数据输入与五大检查引擎联动汇总工作台">综合一体化检查</a>
     </div>
   </div>
 
   <div class="eda-rail-section">
-    <div class="eda-rail-label">工序流程 <span data-tip="支持快捷键 Alt+1..5 快速切换工序">Alt+1..5</span></div>
+    <div class="eda-rail-label">工序流程 <span data-tip="支持快捷键 Alt+1..6 快速切换工序">Alt+1..6</span></div>
     <nav id="tabs">
       <button type="button" data-tab="tabRules" class="active" data-tip="配置五大铜皮检查规则、异型铜皮模板与本地 JSON 规则快照">① 规则约束配置</button>
       <button type="button" data-tab="tabImport" data-tip="导入包含 Shape、Via、Trace 的 EDA TXT 坐标报告并执行检查">② 检查数据导入</button>
       <button type="button" data-tab="tabResults" data-tip="按目标对象聚合或逐层平铺检视异常明细并同步复核状态">③ 检查结果明细 <span class="badge" id="badgeDefectCount">0</span></button>
       <button type="button" data-tab="tabCanvas" data-tip="2D 几何画布渲染铜皮轮廓、过孔、走线、缺陷信标与两点标尺">④ 空间几何视口</button>
       <button type="button" data-tab="tabAnalysis" data-tip="按规则与层别归纳缺陷成因、目标网络映射与工程整改措施">⑤ 缺陷规律分析</button>
+      <button type="button" data-tab="tabGuide" data-tip="查看本模块完整操作流程、检查方案与符合/不符合验证标准">⑥ 检查说明</button>
     </nav>
   </div>
 
@@ -63,6 +65,11 @@
   </div>
 
   <main>
+    <!-- 检查说明：模块流程、检查方案与验证标准 -->
+    <section class="tab" id="tabGuide">
+      <div data-check-guide-module="pour"></div>
+    </section>
+
     <div class="summary-grid">
       <div class="stat-box copper">
         <div class="lbl">导入铜皮总数</div>
@@ -113,7 +120,7 @@
               <tr>
                 <th style="width:52px">序号</th>
                 <th data-tip="按子串匹配过孔 Padstack Name，填 * 匹配全部过孔">过孔类型</th>
-                <th data-tip="支持 L1-L5 或逗号分隔层名列表">要求铺铜层范围</th>
+                <th data-tip="支持混合填写，如 L1, L3-L5 会展开为 L1、L3、L4、L5">要求铺铜层范围</th>
                 <th>距孔心最大判定距离</th>
                 <th style="width:124px">操作</th>
               </tr>
@@ -126,7 +133,8 @@
       <div class="card">
         <div class="row" style="justify-content:space-between;margin-bottom:6px">
           <div>
-            <h2>2. 特定异型铜皮模板比对规则 <span class="badge-tag copper" id="lblR2Count">2 条规则</span> <span class="eda-tip" tabindex="0" data-tip="先匹配过孔 Padstack，再计算差分对过孔中心距，据此选择目标层铜皮模板并核对面积偏差">?</span></h2>
+            <h2>2. 特定异型铜皮模板比对规则 <span class="badge-tag copper" id="lblR2Count">2 条规则</span> <span class="eda-tip" tabindex="0" data-tip="同一过孔类型可配置多条异型铜皮要求；所有关联条件命中的模板都必须逐层通过">?</span></h2>
+            <div class="hint">同一 Padstack 在不同层有不同要求时使用“复制加层”；实测面积从目标孔附近起始铜皮出发，合计同层、同 Set、同网络且边界相接的全部 Shape Item。</div>
           </div>
           <button type="button" class="btn pri small" onclick="openAddRule2Modal()" data-tip="粘贴 EDA Shape Item 文本自动提取边界与基准面积">+ 导入异型铜皮模板</button>
         </div>
@@ -138,11 +146,12 @@
                 <th style="width:68px">缩略图</th>
                 <th>模板名称</th>
                 <th data-tip="目标过孔 Padstack 匹配关键字">过孔类型</th>
-                <th data-tip="查找默认 0.175 mm（可修改）内最近的同网络 HDI 孔，以目标 Via 到该 HDI Via 的中心距匹配模板；模板值单位 mil，匹配容差 0.01 mil">差分孔中心距</th>
-                <th data-tip="每个目标过孔仅关联该距离内同网络且 Padstack 含 HDI 的孔">HDI 搜索距离 mm</th>
-                <th data-tip="支持同时填写多个目标层，使用逗号、分号或斜杠分隔">目标层别</th>
+                <th data-tip="可选；搜索范围内任一同 Net，或通过同一 Set=Shape 铜皮实际接触且层跨兼容、Padstack 名带 HDI 的孔可作为候选；接触铜皮 Net 与 HDI Net 不一致仍判为异常。候选只要与对应差分网络 HDI 的中心距命中该值即可，单位 mil，容差 0.01 mil">差分孔中心距</th>
+                <th data-tip="可选；目标过孔到同 Net，或通过同一 Set=Shape 铜皮实际接触且层跨兼容、Padstack 名含 HDI 的候选孔的最大关联距离；接触铜皮 Net 与 HDI Net 不一致仍判为异常，留空不限制距离">HDI 搜索距离 mm</th>
+                <th data-tip="匹配 TXT Shape 的 Subset；Board Geometry 可填写 Soldermask Top、Silkscreen Top 或 Outline；多个值使用逗号、分号或斜杠分隔">目标层别</th>
+                <th data-tip="只匹配 Shape Item 中 Set 字段相同的对象">异型铜皮 Set 类别</th>
                 <th>基准面积与容差</th>
-                <th style="width:124px">操作</th>
+                <th style="width:190px">操作</th>
               </tr>
             </thead>
             <tbody id="tblRule2Body"></tbody>
@@ -153,7 +162,7 @@
       <div class="card">
         <div class="row" style="justify-content:space-between;margin-bottom:6px">
           <div>
-            <h2>3. 走线上下参考层铺铜与单侧超宽规则 <span class="badge-tag copper" id="lblR3Count">2 条规则</span> <span class="eda-tip" tabindex="0" data-tip="核对信号走线在上下参考平面投影区是否存在连续铺铜，且铜皮单侧边缘超出走线边缘不少于设定距离">?</span></h2>
+            <h2>3. 走线上下参考层投影覆盖与两侧邻近铜规则 <span class="badge-tag copper" id="lblR3Count">2 条规则</span> <span class="eda-tip" tabindex="0" data-tip="走线首尾端在所有被检查参考层上的反焊盘均豁免；豁免区外必须覆盖整条走线的完整线宽投影，且整条走线左右两侧必须各有任意铜皮位于设定距离内">?</span></h2>
           </div>
           <button type="button" class="btn pri small" onclick="openAddRule3Modal()">+ 新增走线参考层规则</button>
         </div>
@@ -165,7 +174,7 @@
                 <th>走线信号层</th>
                 <th>上参考层</th>
                 <th>下参考层</th>
-                <th>单侧最小超宽 mil</th>
+                <th>两侧邻近铜搜索距离 mil</th>
                 <th style="width:124px">操作</th>
               </tr>
             </thead>
@@ -176,9 +185,9 @@
 
       <div class="form-grid">
         <div class="card" style="margin-bottom:0">
-          <h2>4. 孤立小铜皮面积阈值规则 <span class="eda-tip" tabindex="0" data-tip="面积小于阈值且轮廓内无同层有效过孔连接的铜皮判为孤立浮空碎铜">?</span></h2>
-          <div class="form-item" style="margin-top:8px">
-            <label for="rule4InpArea" data-tip="单位 sq mil，小于该面积且无过孔连接的铜皮判为异常">小铜皮最大面积阈值 sq mil</label>
+          <h2>4. 孤立小铜皮面积阈值规则 <span class="eda-tip" tabindex="0" data-tip="面积小于阈值的铜皮进入异常清单，并记录同层过孔是否落在实铜轮廓内供复核">?</span></h2>
+            <div class="form-item" style="margin-top:8px">
+            <label for="rule4InpArea" data-tip="单位 sq mil，小于该面积的 Shape 进入异常清单；轮廓内同层过孔作为复核证据单独记录">小铜皮最大面积阈值 sq mil</label>
             <input type="number" id="rule4InpArea" value="500.0" step="50.0" min="10.0" max="50000.0" onchange="recordHistory('r4_area', this.value)">
             <div class="chip-bar" id="chipsRule4Area"></div>
           </div>
@@ -186,7 +195,7 @@
 
         <div class="card" style="margin-bottom:0">
           <h2>5. 铜皮最小圆弧半径规则 <span class="eda-tip" tabindex="0" data-tip="核查铜皮边界所有 Arc seg 半径，防范过小内凹圆弧造成湿法蚀刻药水滞留侧蚀">?</span></h2>
-          <div class="form-item" style="margin-top:8px">
+            <div class="form-item" style="margin-top:8px">
             <label for="rule5InpRadius" data-tip="单位 mil，轮廓圆弧半径低于该值判为尖角超标">铜皮最小圆弧半径 mil</label>
             <input type="number" id="rule5InpRadius" value="10.0" step="1.0" min="1.0" max="100.0" onchange="recordHistory('r5_radius', this.value)">
             <div class="chip-bar" id="chipsRule5Radius"></div>
@@ -207,10 +216,10 @@
     <section id="tabImport" class="tab">
       <div class="card">
         <h2>导入铜皮、过孔与走线坐标数据 <span class="eda-tip" tabindex="0" data-tip="支持包含 Shape、Via、Trace 块的 EDA 报告 TXT，自动兼容 UTF-8 与 GB18030 编码">?</span></h2>
-        <div class="dropzone" id="dropzoneData" onclick="document.getElementById('fileDataInput').click()" data-tip="点击选择或拖拽 .txt / .csv / .dat 报告文件">
+        <div class="dropzone" id="dropzoneData" onclick="document.getElementById('fileDataInput').click()" data-tip="点击选择或拖拽 .txt / .csv / .dat 报告文件，大文件使用后台线程检查">
           <input type="file" id="fileDataInput" accept=".txt,.csv,.dat" style="display:none" onchange="handleFileUpload(event)">
           <div class="t1">点击选择或拖拽 EDA 铜皮 / 过孔 / 走线 TXT 文件至此处</div>
-          <div class="t2">自动解析 Shape 外轮廓直线/圆弧、Via 坐标及 Trace 线段</div>
+          <div class="t2">大文件仅显示截断预览，Shape / Via / Trace 完整内容在后台解析</div>
         </div>
 
         <div class="form-item" style="margin-top:12px">
@@ -243,14 +252,22 @@
         </div>
 
         <div class="row" style="justify-content:space-between;margin:10px 0">
-          <div class="row" style="gap:4px">
-            <button type="button" class="btn small pri" id="btnFilterAll" onclick="setCategoryFilter('all')">全部对象 · <span id="cntFilterAll">0</span></button>
-            <button type="button" class="btn small sec" id="btnFilterDefects" onclick="setCategoryFilter('defects')">不符合项 · <span id="cntFilterDefects">0</span></button>
-            <button type="button" class="btn small sec" id="btnFilterCov" onclick="setCategoryFilter('via_coverage')">① 孔层铺铜</button>
-            <button type="button" class="btn small sec" id="btnFilterSpecial" onclick="setCategoryFilter('special_shape')">② 异型铜皮</button>
-            <button type="button" class="btn small sec" id="btnFilterMargin" onclick="setCategoryFilter('trace_ref_margin')">③ 参考层超宽</button>
-            <button type="button" class="btn small sec" id="btnFilterSmall" onclick="setCategoryFilter('isolated_copper')">④ 孤立小铜皮</button>
-            <button type="button" class="btn small sec" id="btnFilterArc" onclick="setCategoryFilter('arc_radius')">⑤ 圆弧半径</button>
+          <div class="row" style="gap:8px;flex-wrap:wrap">
+            <div class="row" style="gap:4px" data-tip="先选择全部、符合或不符合，再与右侧检查分类组合筛选">
+              <span class="hint" style="font-weight:600">判定：</span>
+              <button type="button" class="btn small pri" id="btnFilterAll" onclick="setResultStatusFilter('all')">全部项 · <span id="cntFilterAll">0</span></button>
+              <button type="button" class="btn small sec" id="btnFilterDefects" onclick="setResultStatusFilter('defects')">不符合项 · <span id="cntFilterDefects">0</span></button>
+              <button type="button" class="btn small sec" id="btnFilterPass" onclick="setResultStatusFilter('pass')">符合项 · <span id="cntFilterPass">0</span></button>
+            </div>
+            <div class="row" style="gap:4px">
+              <span class="hint" style="font-weight:600">检查分类：</span>
+              <button type="button" class="btn small pri" id="btnFilterCategoryAll" onclick="setCategoryFilter('all')">全部检查</button>
+              <button type="button" class="btn small sec" id="btnFilterCov" onclick="setCategoryFilter('via_coverage')">① 孔层铺铜</button>
+              <button type="button" class="btn small sec" id="btnFilterSpecial" onclick="setCategoryFilter('special_shape')">② 异型铜皮</button>
+              <button type="button" class="btn small sec" id="btnFilterMargin" onclick="setCategoryFilter('trace_ref_margin')">③ 参考层投影与邻近铜</button>
+              <button type="button" class="btn small sec" id="btnFilterSmall" onclick="setCategoryFilter('isolated_copper')">④ 孤立小铜皮</button>
+              <button type="button" class="btn small sec" id="btnFilterArc" onclick="setCategoryFilter('arc_radius')">⑤ 圆弧半径</button>
+            </div>
           </div>
           <div>
             <input type="text" id="inpSearch" placeholder="搜索孔号 / 网络 / 层名 / Shape..." style="width:220px" oninput="applyFilters()" data-no-persist>
@@ -262,19 +279,18 @@
             <thead>
               <tr>
                 <th style="width:38px"><input type="checkbox" id="chkSelectAll" onclick="toggleSelectAll(this)" data-no-persist data-tip="全选或取消当前筛选列表复核状态"></th>
-                <th>检查分类</th>
-                <th>目标对象 / 网络</th>
-                <th>涉及层别</th>
-                <th>实测值与规则阈值</th>
-                <th>判定</th>
-                <th>比对说明与异常归因</th>
-                <th style="width:76px">复核</th>
+                <th><span class="result-filter-heading"><span class="result-filter-label">检查分类</span><button type="button" class="result-column-filter-btn" data-result-column-filter="category" onclick="toggleResultColumnFilter('category', this)" aria-label="筛选检查分类">筛选</button></span></th>
+                <th><span class="result-filter-heading"><span class="result-filter-label" id="lblResultTargetHeader">Padstack / 网络 / 目标对象</span><button type="button" class="result-column-filter-btn" data-result-column-filter="target" onclick="toggleResultColumnFilter('target', this)" aria-label="筛选目标对象">筛选</button></span></th>
+                <th><span class="result-filter-heading"><span class="result-filter-label">涉及层别</span><button type="button" class="result-column-filter-btn" data-result-column-filter="layer" onclick="toggleResultColumnFilter('layer', this)" aria-label="筛选涉及层别">筛选</button></span></th>
+                <th><span class="result-filter-heading"><span class="result-filter-label">判定</span><button type="button" class="result-column-filter-btn" data-result-column-filter="status" onclick="toggleResultColumnFilter('status', this)" aria-label="筛选判定">筛选</button></span></th>
+                <th><span class="result-filter-heading"><span class="result-filter-label">问题点</span><button type="button" class="result-column-filter-btn" data-result-column-filter="problem" onclick="toggleResultColumnFilter('problem', this)" aria-label="筛选问题点">筛选</button></span></th>
+                <th style="width:112px"><span class="result-filter-heading"><span class="result-filter-label">复核</span><button type="button" class="result-column-filter-btn" data-result-column-filter="review" onclick="toggleResultColumnFilter('review', this)" aria-label="筛选复核状态">筛选</button></span></th>
                 <th style="width:128px">操作</th>
               </tr>
             </thead>
             <tbody id="tblResultsBody">
               <tr>
-                <td colspan="9" style="text-align:center;padding:28px;color:var(--sub)">请先在工序 ② 导入数据并执行检查</td>
+                <td colspan="8" style="text-align:center;padding:28px;color:var(--sub)">请先在工序 ② 导入数据并执行检查</td>
               </tr>
             </tbody>
           </table>
@@ -300,11 +316,24 @@
             <button type="button" onclick="zoomCanvas(1.2)">放大</button>
             <button type="button" onclick="zoomCanvas(0.8)">缩小</button>
             <button type="button" id="btnToggleShapes" class="active" onclick="toggleCanvasLayer('shapes')" data-tip="显示或隐藏 Shape 铜皮轮廓">铜皮</button>
-            <button type="button" id="btnToggleVias" class="active" onclick="toggleCanvasLayer('vias')" data-tip="显示或隐藏信号过孔与 GND 接地孔">过孔</button>
-            <button type="button" id="btnToggleTraces" class="active" onclick="toggleCanvasLayer('traces')" data-tip="显示或隐藏直线与圆弧走线段">走线</button>
-            <button type="button" id="btnTogglePorts" class="active" onclick="toggleCanvasLayer('ports')" data-tip="显示或隐藏外围 P1–P4 端口标记">端口</button>
-            <button type="button" id="btnToggleDefects" class="active" onclick="toggleCanvasLayer('defects')" data-tip="显示或隐藏超标位置红色虚线信标">缺陷信标</button>
+            <button type="button" id="btnToggleNetLabels" class="active" onclick="toggleCanvasLayer('netLabels')" data-tip="显示或隐藏 GND 与走线网络名称">网络名</button>
+            <button type="button" id="btnToggleObjectIds" class="active" onclick="toggleCanvasLayer('objectIds')" data-tip="显示或隐藏 Shape、Via 等目标对象编号">对象编号</button>
+            <select id="selCanvasShapeLayer" data-no-persist onchange="setCanvasShapeLayer(this.value)" data-tip="选择全部层、当前定位的问题层或某一层，仅控制铜皮轮廓显示">
+              <option value="__ALL__">铜皮层：全部层</option>
+            </select>
+            <span class="canvas-defect-filters" data-tip="按五类检查筛选画布上的异常位置标记；再次点击已选按钮可取消显示">
+              <button type="button" id="btnCanvasDefectAll" class="active" onclick="setCanvasDefectFilter('all')">全部异常</button>
+              <span class="canvas-defect-filter-group">
+                <button type="button" id="btnCanvasDefectCov" onclick="setCanvasDefectFilter('via_coverage')" aria-haspopup="true" aria-expanded="false">① 孔层铺铜</button>
+                <span id="canvasViaCoverageSubfilters" class="canvas-defect-subfilters" hidden></span>
+              </span>
+              <button type="button" id="btnCanvasDefectSpecial" onclick="setCanvasDefectFilter('special_shape')">② 异型铜皮</button>
+              <button type="button" id="btnCanvasDefectMargin" onclick="setCanvasDefectFilter('trace_ref_margin')">③ 参考层投影与邻近铜</button>
+              <button type="button" id="btnCanvasDefectSmall" onclick="setCanvasDefectFilter('isolated_copper')">④ 孤立小铜皮</button>
+              <button type="button" id="btnCanvasDefectArc" onclick="setCanvasDefectFilter('arc_radius')">⑤ 圆弧半径</button>
+            </span>
             <button type="button" id="btnMeasureMode" onclick="toggleMeasureMode()" data-tip="激活后依次点击画布任意两点测量欧氏距离">测距标尺</button>
+            <button type="button" id="btnReturnPourResults" onclick="returnToPourResults()" style="display:none" data-tip="返回检查结果明细，并恢复定位前的条目位置">返回结果明细</button>
           </div>
 
           <canvas id="mainCanvas"></canvas>
@@ -339,8 +368,12 @@
               <span>26_P</span>
             </div>
             <div class="legend-item">
-              <div class="legend-color" style="background:#ef4444"></div>
-              <span>缺陷信标</span>
+              <div class="legend-color" style="background:linear-gradient(135deg,#ef4444 0 20%,#a855f7 20% 40%,#f59e0b 40% 60%,#06b6d4 60% 80%,#ec4899 80%)"></div>
+              <span>五类异常位置</span>
+            </div>
+            <div class="legend-item">
+              <div class="legend-color" style="background:rgba(239,68,68,0.45);border:2px solid #f87171"></div>
+              <span>当前问题铜皮</span>
             </div>
           </div>
 
@@ -362,9 +395,23 @@
       <div class="card">
         <div class="row" style="justify-content:space-between">
           <div>
-            <h2 style="margin:0">铜皮五项检查缺陷规律与工程整改分析 <span class="eda-tip" tabindex="0" data-tip="按规则与层别聚合超标项，列出全部关联网络及对应 SI / DFM 整改措施">?</span></h2>
+            <h2 style="margin:0">铜皮五项检查缺陷规律与工程整改分析 <span class="eda-tip" tabindex="0" data-tip="主数量按异常目标对象统计，与检查明细的按目标对象汇总一致；失败模板和层别记录作为原因明细单独显示">?</span></h2>
           </div>
           <button type="button" class="btn sec small" onclick="exportAnalysisReport()">导出 Markdown 分析报告</button>
+        </div>
+
+        <div class="pour-analysis-filter" aria-label="缺陷类型筛选">
+          <div class="pour-analysis-filter-head">
+            <div><strong>按缺陷类型查看</strong><span>按钮数量按异常目标对象统计；下方另列同一对象的全部失败模板与层别明细。</span></div>
+            <span id="lblAnalysisFilterStatus">当前显示：孔经过层铺铜覆盖检查</span>
+          </div>
+          <div class="pour-analysis-filter-buttons">
+            <button type="button" id="btnAnalysisCov" class="pour-analysis-filter-btn active" data-analysis-category="via_coverage" aria-pressed="true" onclick="setAnalysisCategoryFilter('via_coverage')">① 孔经过层铺铜覆盖检查 <b id="cntAnalysisCov">0</b></button>
+            <button type="button" id="btnAnalysisSpecial" class="pour-analysis-filter-btn" data-analysis-category="special_shape" aria-pressed="false" onclick="setAnalysisCategoryFilter('special_shape')">② 特定异型铜皮比对检查 <b id="cntAnalysisSpecial">0</b></button>
+            <button type="button" id="btnAnalysisMargin" class="pour-analysis-filter-btn" data-analysis-category="trace_ref_margin" aria-pressed="false" onclick="setAnalysisCategoryFilter('trace_ref_margin')">③ 走线参考层投影覆盖与两侧邻近铜 <b id="cntAnalysisMargin">0</b></button>
+            <button type="button" id="btnAnalysisSmall" class="pour-analysis-filter-btn" data-analysis-category="isolated_copper" aria-pressed="false" onclick="setAnalysisCategoryFilter('isolated_copper')">④ 孤立小铜皮检查 <b id="cntAnalysisSmall">0</b></button>
+            <button type="button" id="btnAnalysisArc" class="pour-analysis-filter-btn" data-analysis-category="arc_radius" aria-pressed="false" onclick="setAnalysisCategoryFilter('arc_radius')">⑤ 铜皮最小圆弧半径检查 <b id="cntAnalysisArc">0</b></button>
+          </div>
         </div>
 
         <div id="pnlAnalysisContainer" style="margin-top:14px">
@@ -423,8 +470,8 @@
         <div class="chip-bar" id="chipsModalR1Padstack"></div>
       </div>
       <div class="form-item">
-        <label for="modalR1InpLayers" data-tip="支持层区间 L1-L5 或逗号分隔层名列表">要求铺铜层范围 *</label>
-        <input type="text" id="modalR1InpLayers" placeholder="如 L1-L5 或 Top, 02G01P, 19IS08" data-no-persist>
+        <label for="modalR1InpLayers" data-tip="支持层区间与列表混合填写；L1, L3-L5 会展开为 L1、L3、L4、L5">要求铺铜层范围 *</label>
+        <input type="text" id="modalR1InpLayers" placeholder="如 L1, L3-L5 或 Top, 02G01P" data-no-persist>
         <div class="chip-bar" id="chipsModalR1Layers"></div>
       </div>
       <div class="form-item">
@@ -459,19 +506,27 @@
         <div class="chip-bar" id="chipsModalR2Padstack"></div>
       </div>
       <div class="form-item">
-        <label for="modalR2InpDiffDist" data-tip="查找默认 0.175 mm（可修改）内最近的同网络 HDI 孔，以目标 Via 到该 HDI Via 的中心距匹配模板；模板值单位 mil，匹配容差 0.01 mil">差分孔中心距 *</label>
-        <input type="number" id="modalR2InpDiffDist" value="10.0" step="0.01" min="0.01" data-no-persist>
+        <label for="modalR2InpDiffDist" data-tip="可选；搜索范围内任一同 Net，或通过同一 Set=Shape 铜皮实际接触且层跨兼容、Padstack 名带 HDI 的孔可作为候选；接触铜皮 Net 与 HDI Net 不一致仍判为异常。候选只要与对应差分网络 HDI 的中心距命中该值即可，单位 mil，容差 0.01 mil">差分孔中心距</label>
+        <input type="number" id="modalR2InpDiffDist" value="" placeholder="留空则不检查中心距" step="0.01" min="0.01" data-no-persist>
         <div class="chip-bar" id="chipsModalR2DiffDist"></div>
       </div>
       <div class="form-item">
-        <label for="modalR2InpHdiRadius" data-tip="目标过孔仅关联该距离内同网络且 Padstack 名称含 HDI 的激光孔">HDI 搜索距离 mm *</label>
-        <input type="number" id="modalR2InpHdiRadius" value="0.175" step="0.001" min="0.001" data-no-persist>
+        <label for="modalR2InpHdiRadius" data-tip="可选；目标过孔到同 Net，或通过同一 Set=Shape 铜皮实际接触且层跨兼容、Padstack 名含 HDI 的候选孔的最大关联距离；接触铜皮 Net 与 HDI Net 不一致仍判为异常，留空不限制距离">HDI 搜索距离 mm</label>
+        <input type="number" id="modalR2InpHdiRadius" value="" placeholder="留空则不限制搜索距离" step="0.001" min="0.001" data-no-persist>
         <div class="chip-bar" id="chipsModalR2HdiRadius"></div>
       </div>
       <div class="form-item">
-        <label for="modalR2InpLayer" data-tip="支持同时填写多个 EDA Subset 层名，使用逗号、分号或斜杠分隔">目标层别 *</label>
-        <input type="text" id="modalR2InpLayer" placeholder="如 L5, L10" data-no-persist>
+        <label for="modalR2InpLayer" data-tip="匹配 TXT Shape 的 Subset；Board Geometry 可填写 Soldermask Top、Silkscreen Top 或 Outline；多个值使用逗号、分号或斜杠分隔">目标层别 *</label>
+        <input type="text" id="modalR2InpLayer" placeholder="如 L5, L10 或 Soldermask Top" data-no-persist>
         <div class="chip-bar" id="chipsModalR2Layer"></div>
+      </div>
+      <div class="form-item">
+        <label for="modalR2InpSet" data-tip="检查时只关联层别与 Set 类别都匹配的 Shape Item">异型铜皮 Set 类别 *</label>
+        <select id="modalR2InpSet" data-no-persist>
+          <option value="Shape">Shape</option>
+          <option value="Route Keepout">Route Keepout</option>
+          <option value="Board Geometry">Board Geometry</option>
+        </select>
       </div>
       <div class="form-item">
         <label for="modalR2InpTol" data-tip="实测铜皮面积相对模板面积的正负容差，单位 sq mil">面积允许容差 ± sq mil</label>
@@ -506,7 +561,7 @@
 <div class="modal-mask" id="modalRule3">
   <div class="modal-box">
     <div class="modal-header">
-      <h3 id="modalR3Title">配置走线参考层超宽规则</h3>
+      <h3 id="modalR3Title">配置走线参考层投影与邻近铜规则</h3>
       <button type="button" class="btn sec small" onclick="closeModal('modalRule3')">×</button>
     </div>
     <div class="form-grid">
@@ -526,7 +581,7 @@
         <div class="chip-bar" id="chipsModalR3LowerRef"></div>
       </div>
       <div class="form-item">
-        <label for="modalR3InpMargin" data-tip="参考层铜皮单侧边缘超出走线边缘的最小距离，单位 mil">铜皮单侧最小超宽 mil *</label>
+        <label for="modalR3InpMargin" data-tip="从实际走线边缘向外计算；整条走线左右两侧各有任意铜皮落在此距离内即可，不要求范围连续铺满，单位 mil">两侧邻近铜搜索距离 mil *</label>
         <input type="number" id="modalR3InpMargin" value="50.0" step="1.0" data-no-persist>
         <div class="chip-bar" id="chipsModalR3Margin"></div>
       </div>
@@ -558,17 +613,27 @@
   </div>
 </div>
 
-<script src="packages/shared/dom-utils.js?v=36"></script>
-<script src="packages/shared/shape-preview-canvas.js?v=36"></script>
-<script src="packages/engines/pour/pour-geom.js?v=36"></script>
-<script src="packages/engines/pour/pour-parser.js?v=36"></script>
-<script src="packages/engines/pour/pour-engine.js?v=36"></script>
-<script src="packages/pages/pour/pour-state.js?v=36"></script>
-<script src="packages/pages/pour/pour-rules-ui.js?v=36"></script>
-<script src="packages/pages/pour/pour-results-ui.js?v=36"></script>
-<script src="packages/pages/pour/pour-canvas-viewer.js?v=36"></script>
-<script src="packages/shared/eda-tooltip.js?v=36"></script>
-<script src="packages/shared/eda-shell.js?v=36"></script>
-<script src="packages/shared/ui-prefs.js?v=36"></script>
+<script src="packages/shared/check-guide.js?v=95"></script>
+<script src="packages/shared/dom-utils.js?v=95"></script>
+<script src="packages/shared/shape-preview-canvas.js?v=95"></script>
+<script src="packages/engines/pour/pour-geom.js?v=95"></script>
+<script src="packages/engines/pour/pour-parser.js?v=95"></script>
+<script src="packages/engines/pour/pour-trace-margin.js?v=95"></script>
+<script src="packages/engines/pour/pour-hdi-association.js?v=95"></script>
+<script src="packages/engines/pour/pour-engine.js?v=95"></script>
+<script src="packages/pages/pour/pour-state.js?v=95"></script><script src="packages/pages/pour/pour-check-runner.js?v=95"></script>
+<script src="packages/pages/pour/pour-rules-ui.js?v=95"></script>
+<script src="packages/pages/pour/pour-result-problem.js?v=95"></script>
+<script src="packages/pages/pour/pour-results-ui.js?v=95"></script>
+<script src="packages/pages/pour/pour-results-filters.js?v=95"></script>
+<script src="packages/pages/pour/pour-analysis-export.js?v=95"></script>
+<script src="packages/pages/pour/pour-results-column-filters.js?v=95"></script>
+<script src="packages/pages/pour/pour-canvas-viewer.js?v=95"></script>
+<script src="packages/pages/pour/pour-canvas-defects.js?v=95"></script>
+<script src="packages/pages/pour/pour-canvas-navigation.js?v=95"></script>
+<script src="packages/pages/pour/pour-defect-summary.js?v=95"></script>
+<script src="packages/shared/eda-tooltip.js?v=95"></script>
+<script src="packages/shared/eda-shell.js?v=95"></script>
+<script src="packages/shared/ui-prefs.js?v=95"></script>
 </body>
 </html>

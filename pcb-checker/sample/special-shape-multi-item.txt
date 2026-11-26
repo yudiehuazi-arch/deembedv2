@@ -1,0 +1,39 @@
+Total 2 Items
+
+Item 1                < Shape >
+
+  Set:                Shape
+  Subset:             02G01P
+
+  Type:               Shape(Static)
+
+  Net:                9_N
+
+  Shape is Solid Filled
+  Area:               28.27433  (sq mil)
+
+Exterior Boundary:
+  Arc seg: xy [17877.0000, 35965.0001]  xy [17877.0000, 35965.0001] Width (0.0000)
+    Center-xy:  [17880.0000, 35965.0001] Radius (3.0000) CCW
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Item 2                < Shape >
+
+  Set:                Shape
+  Subset:             02G01P
+
+  Type:               Shape(Static)
+
+  Net:                9_N
+
+  Shape is Solid Filled
+  Area:               90.00000  (sq mil)
+
+Exterior Boundary:
+  Seg: xy [17877.0000, 35950.0001]  xy [17883.0000, 35950.0001] Width (0.0000)
+  Seg: xy [17883.0000, 35950.0001]  xy [17883.0000, 35965.0001] Width (0.0000)
+  Seg: xy [17883.0000, 35965.0001]  xy [17877.0000, 35965.0001] Width (0.0000)
+  Seg: xy [17877.0000, 35965.0001]  xy [17877.0000, 35950.0001] Width (0.0000)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+~ ~ ~ ~ ~ ~ ~ ~ ~ ~End~ ~ ~ ~ ~ ~ ~ ~ ~ ~

@@ -138,8 +138,8 @@
             endLayerNum: spanInfo.endLayerNum,
             minLayerNum: spanInfo.minLayerNum,
             maxLayerNum: spanInfo.maxLayerNum,
-            viaSpanType: spanInfo.viaSpanType,       // 'thru' | 'blind' | 'buried'
-            viaTypeLabel: spanInfo.viaTypeLabel,     // '通孔' | '盲孔' | '埋孔'
+            viaSpanType: spanInfo.viaSpanType,       // 'thru' | 'blind' | 'buried' | 'surface'
+            viaTypeLabel: spanInfo.viaTypeLabel,     // '通孔' | '盲孔' | '埋孔' | '单层焊盘'
             spanShort: spanInfo.spanShort,           // e.g. 'L10-L13' / 'Top~Bottom'
             spanLabel: spanInfo.spanLabel,           // e.g. '埋孔 L10-L13 (10G07P~13G09P)'
             drill: finishDrill,             // 完成孔径 Finished Hole Diameter (仅作展示记录)

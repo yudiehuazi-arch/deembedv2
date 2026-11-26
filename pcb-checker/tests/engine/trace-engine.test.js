@@ -129,6 +129,32 @@ const rules = [
   { enabled: true, layer: '02G03P', widthsText: '4.0', widthCombos: [{ raw: '4.0', seq: [4.0] }], lenMode: 'off', lengths: [], lenMin: NaN, lenMax: NaN },
 ];
 const def = { enabled: false };
+t('层规则按物理层号匹配：02IS01/L2/02 均使用 02G01P，精确层名仍优先', () => {
+  const ruleL2 = { enabled: true, layer: '02G01P', marker: 'physical-L2' };
+  const exactAlias = { enabled: true, layer: '02IS01', marker: 'exact-name' };
+  assert.strictEqual(L.physicalLayerAlias('02G01P'), 'L2');
+  assert.strictEqual(L.physicalLayerAlias('02IS99'), 'L2', '层名后续数字不是物理层号');
+  assert.strictEqual(L.physicalLayerAlias('L02'), 'L2');
+  assert.strictEqual(L.physicalLayerAlias('02'), 'L2');
+  assert.strictEqual(L.physicalLayerAlias('Top'), 'L1');
+  [
+    ['02IS01', '02G01P'], ['03IS02', '03IS01'], ['04IS03', '04G01P'],
+    ['11IS10', '11G08P'], ['12IS11', '12IS02'], ['13IS12', '13G09P']
+  ].forEach(([dataLayer, ruleLayer]) => assert.strictEqual(L.samePhysicalLayer(dataLayer, ruleLayer), true,
+    `${dataLayer} 与 ${ruleLayer} 应按相同物理层号匹配`));
+  assert.strictEqual(L.findRule('02IS01', [ruleL2], def), ruleL2);
+  assert.strictEqual(L.findRule('L2', [ruleL2], def), ruleL2);
+  assert.strictEqual(L.findRule('02IS01', [ruleL2, exactAlias], def), exactAlias,
+    '同一物理层存在多个名称时，应先使用字符完全相同的规则');
+  assert.strictEqual(L.findRule('02G02P', [ruleL2, { enabled: true, layer: '02G03P' }], def), null,
+    '同一物理层存在多条不同规则且无精确名称时，应保持未检查而不是任意选一条');
+  assert.strictEqual(L.findRule('03IS02', [ruleL2], def), null, '不同物理层不得借用规则');
+
+  const aliasRecord = { ...recs[0], layer: '02IS01' };
+  const checked = L.runChecks([aliasRecord], [rules[0]], def, { tol: 0.001, checkWidth: true, checkLen: true });
+  assert.strictEqual(checked.netAgg.get(aliasRecord.net).checked, true);
+  assert.strictEqual(checked.stats.none, 0);
+});
 const res = L.runChecks(recs, rules, def, { tol: 0.001, checkWidth: true, checkLen: true });
 t('网络统计: 8 网络, 通过3 / 不符合4 / 未检查1', () => {
   assert.strictEqual(res.stats.nets, 8);
@@ -484,7 +510,8 @@ t('generateUnifiedReportData: 汇总第④页走线检查与第⑤页差分分�
   assert.ok(rep.headers.includes('问题原因'), '含「问题原因」列');
   assert.ok(rep.headers.includes('如何修改'), '含「如何修改」列');
   assert.ok(rep.headers.includes('复验状态'), '含「复验状态」列');
-  assert.strictEqual(rep.problemCount, 7, '汇总 4个走线问题 + 3个差分问题 = 共7项');
+  assert.strictEqual(rep.problemCount, 13,
+    '02G01P 单条规则按物理 L2 覆盖 02G02P/02G03P 后，汇总 10 个走线问题 + 3 个差分问题');
 
   // 106_P width mismatch row
   const row106 = rep.rows.find(r => r[1] === '106_P (02G01P)');

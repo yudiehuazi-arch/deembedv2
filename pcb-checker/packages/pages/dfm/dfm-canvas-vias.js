@@ -43,7 +43,7 @@
 
   function drawFullVia(ctx, v, p, st, o) {
     var vp = o.vp;
-    var isBlindOrBuried = v.viaSpanType === 'blind' || v.viaSpanType === 'buried';
+    var isLayerLimited = v.viaSpanType === 'blind' || v.viaSpanType === 'buried' || v.viaSpanType === 'surface';
     var colors = viaColors(v, st.isSelected);
     var finishDrillR = Math.max(1.5, (v.drill / 2.0) * vp.zoom);
     var firstDrillR = Math.max(2.0, v.firstDrillRadius * vp.zoom);
@@ -51,7 +51,7 @@
     if (!st.spansActiveLayer) ctx.globalAlpha = 0.22;
 
     ctx.strokeStyle = colors.dash;
-    ctx.lineWidth = st.isSelected ? 2 : (isBlindOrBuried ? 1.4 : 1);
+    ctx.lineWidth = st.isSelected ? 2 : (isLayerLimited ? 1.4 : 1);
     ctx.setLineDash([2, 2]);
     ctx.beginPath(); ctx.arc(p[0], p[1], st.padR, 0, 2 * Math.PI); ctx.stroke();
     ctx.setLineDash([]);
@@ -66,9 +66,9 @@
     ctx.stroke();
 
     if (o.showLabels && vp.zoom > 1.2) {
-      ctx.fillStyle = isBlindOrBuried ? '#e9d5ff' : '#cbd5e1';
+      ctx.fillStyle = isLayerLimited ? '#e9d5ff' : '#cbd5e1';
       ctx.font = '10px ui-monospace, sans-serif';
-      ctx.fillText('V' + v.id + (isBlindOrBuried && v.spanShort ? '[' + v.spanShort + ']' : ''), p[0] + st.padR + 2, p[1] - 2);
+      ctx.fillText('V' + v.id + (isLayerLimited && v.spanShort ? '[' + v.spanShort + ']' : ''), p[0] + st.padR + 2, p[1] - 2);
     }
     if (st.located) drawLocateMark(ctx, p, st.padR + 7, st.padR + 10, -6, v.id);
     ctx.restore();

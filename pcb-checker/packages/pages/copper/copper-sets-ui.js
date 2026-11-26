@@ -12,6 +12,16 @@
   var $ = App.$;
   var esc = App.esc;
 
+  function renderSchemeSelection() {
+    var select = $('selConstraintScheme'), hint = $('constraintSchemeHint');
+    if (select) select.value = S.scheme;
+    if (hint) hint.textContent = S.scheme === 'product'
+      ? '产品板检查：按 Connections Trace 双层精确匹配命名约束，并检查 Set=Shape 非功能焊盘；当前可用 ' + App.activeSets().length + ' 条。'
+      : 'PCB/HDI/SLP预研板检查：按完整孔层跨、类型和差分孔距匹配；当前可用 ' + App.activeSets().length + ' 条。';
+    if ($('ckNfp')) $('ckNfp').disabled = S.scheme !== 'product';
+    if ($('ckPadstack')) $('ckPadstack').disabled = S.scheme === 'product';
+  }
+
   function renderFiles() {
     var box = $('fileList');
     if (!box) return;
@@ -36,8 +46,8 @@
       return kind || '其他';
     };
 
-    var items = S.sets.map(function (set, si) {
-      var title = String(set.title || '');
+    var items = App.activeSetEntries().map(function (entry) {
+      var set = entry.set, si = entry.index, title = String(set.title || '');
       var m = CP.chipMeta(title);
       return { set: set, si: si, group: byKind(set), layer: m.layer, d2m: m.d2m, title: title, kind: set.kind || '其他' };
     });
@@ -65,7 +75,7 @@
   function renderJump() {
     var nav = $('jumpNav');
     if (!nav) return;
-    if (!S.sets.length) {
+    if (!App.activeSets().length) {
       nav.hidden = true;
       nav.innerHTML = '';
       return;
@@ -96,23 +106,28 @@
   function cellHtml(si, ci, key, c) {
     var v = (c.values && c.values[key] != null) ? String(c.values[key]).trim() : '';
     var src = (c.sources && c.sources[key]) || '';
-    if (!v || v === '无') {
-      return '<td class="nosrc"><input class="cCell none" data-no-persist data-si="' + si + '" data-ci="' + ci + '" data-key="' + esc(key) + '" value="无"></td>';
+    var attrs = ' class="cCell" data-no-persist data-si="' + si + '" data-ci="' + ci + '" data-key="' + esc(key) + '"';
+    if (/反焊盘形状/.test((c.cat || '') + ' ' + (c.name || ''))) {
+      return '<td><select' + attrs + '><option value="无"' + (!v || v === '无' ? ' selected' : '') + '>无</option><option value="圆形"' + (v === '圆形' ? ' selected' : '') + '>圆形</option><option value="长圆形"' + (v === '长圆形' ? ' selected' : '') + '>长圆形</option></select>' +
+        (v && v !== '无' && src !== '默认圆形' ? '<div class="srcnote">来源：' + esc(src || '手工填写') + '</div>' : '') + '</td>';
     }
-    return '<td><input class="cCell" data-no-persist data-si="' + si + '" data-ci="' + ci + '" data-key="' + esc(key) + '" value="' + esc(v) + '">' +
-      '<div class="srcnote">来源：' + esc(src || '手工填写') + '</div></td>';
+    if (!v || v === '无') return '<td class="nosrc"><input' + attrs + ' value="无"></td>';
+    return '<td><input' + attrs + ' value="' + esc(v) + '"><div class="srcnote">来源：' + esc(src || '手工填写') + '</div></td>';
   }
 
   function render() {
     var n = App.layerCount();
-    var hi = n;
-    S.sets.forEach(function (set) {
+    App.ensureCoreColumns(S.sets, n);
+    var hi = n, entries = App.activeSetEntries();
+    entries.forEach(function (entry) {
+      var set = entry.set;
       var fan = CP.fanLayerOf(set);
       (set.constraints || []).forEach(function (c) {
         hi = Math.max(hi, CP.maxLayer(c.scopes || [], n, fan));
       });
     });
     App.updateStackHints();
+    renderSchemeSelection();
     if (hi > n && $('stackHint')) {
       $('stackHint').textContent += ' · TXT 写到 L' + hi + '，高于当前总层数';
     }
@@ -120,14 +135,15 @@
     renderJump();
     var setsBox = $('sets');
     if (!setsBox) return;
-    if (!S.sets.length) {
-      setsBox.innerHTML = '<div class="hint">尚未生成约束，请在 ① 规则约束 导入 TXT 文件。</div>';
+    if (!entries.length) {
+      setsBox.innerHTML = '<div class="hint">当前“' + esc(App.schemeName()) + '”没有可用约束，请导入对应格式的 TXT 或切换检查方案。</div>';
       return;
     }
 
     var h = '';
     var lastGroup = '';
-    S.sets.forEach(function (set, si) {
+    entries.forEach(function (entry) {
+      var set = entry.set, si = entry.index;
       var grp = set.group || '';
       if (grp && grp !== lastGroup) {
         h += '<div class="setgroup">' + esc(grp) + '</div>';
@@ -160,11 +176,12 @@
       } else {
         h += '<div class="layerwrap"><table class="layertable"><thead><tr><th class="lname">层</th>';
         cons.forEach(function (c, ci) {
+          var isShape = /反焊盘形状/.test((c.cat || '') + ' ' + (c.name || ''));
           var src = (c.scopes || []).map(function (s) { return (s.scope || '未写层') + ' ' + s.value + (c.unit || ''); }).join('；');
           h += '<th data-tip="' + esc(src) + '">' +
             (c.cat ? '<span class="subh">' + esc(c.cat) + '</span>' : '') +
             '<input class="cName" data-no-persist data-si="' + si + '" data-ci="' + ci + '" value="' + esc(c.name) + '" data-tip="约束参数列名">' +
-            '<div class="subh"><input class="cUnit" data-no-persist data-si="' + si + '" data-ci="' + ci + '" value="' + esc(c.unit || 'mil') + '" style="width:52px"> ' +
+            '<div class="subh">' + (isShape ? '类型 ' : ('<input class="cUnit" data-no-persist data-si="' + si + '" data-ci="' + ci + '" value="' + esc(c.unit || 'mil') + '" style="width:52px"> ')) +
             '<button type="button" class="btn danger small" data-act="delcol" data-si="' + si + '" data-ci="' + ci + '">删除</button></div>' +
             (c.unscoped ? '<div class="srcnote">未标层值：' + esc(c.unscoped) + '</div>' : '') +
             '</th>';
@@ -218,12 +235,22 @@
     document.querySelectorAll('.cCell').forEach(function (el) {
       var s = S.sets[+el.dataset.si];
       if (!(s && s.constraints[+el.dataset.ci])) return;
-      var raw = el.value.trim();
-      s.constraints[+el.dataset.ci].values[el.dataset.key] = (raw === '' || raw === '无') ? '' : raw;
+      var raw = el.value.trim(), constraint = s.constraints[+el.dataset.ci];
+      var isShape = /反焊盘形状/.test((constraint.cat || '') + ' ' + (constraint.name || ''));
+      constraint.values[el.dataset.key] = (raw === '' || (raw === '无' && !isShape)) ? '' : raw;
     });
   }
 
   function bindSetsEvents() {
+    var schemeSelect = $('selConstraintScheme');
+    if (schemeSelect) schemeSelect.onchange = function () {
+      collect();
+      S.scheme = schemeSelect.value === 'product' ? 'product' : 'research';
+      UI.resRule = ''; UI.resFilter = ''; UI.resBadType = ''; UI.result = null;
+      render();
+      if (UI.items.length && root.runCheck) root.runCheck(true);
+      else App.syncTelemetry();
+    };
     var drop = $('drop');
     if (drop) {
       drop.onclick = function () { $('fileInput').click(); };
@@ -264,6 +291,15 @@
         collect();
         App.reexpandAll();
         render();
+      } else if (e.target.classList && (e.target.classList.contains('cCell') || e.target.classList.contains('cName') || e.target.classList.contains('cUnit'))) {
+        collect();
+        if (e.target.classList.contains('cCell')) {
+          App.ensureCoreColumns(S.sets, App.layerCount());
+          render();
+        }
+        UI.viewVer++;
+        if (UI.items.length && root.runCheck) root.runCheck(true);
+        else { UI.result = null; App.syncTelemetry(); }
       }
     });
 
@@ -322,10 +358,11 @@
         collect();
         var data = {
           kind: 'pcb-copper-rules',
-          version: 3,
+          version: 5,
           layerCount: App.layerCount(),
+          scheme: S.scheme,
           sets: S.sets.map(function (s) {
-            return { kind: s.kind, title: s.title, source: s.source, rules: s.rules, constraints: s.constraints };
+            return { kind: s.kind, title: s.title, source: s.source, matchMode: s.matchMode || '', rules: s.rules, constraints: s.constraints };
           })
         };
         if ($('saveHint')) $('saveHint').textContent = '已生成约束 JSON。';
@@ -347,6 +384,7 @@
           try {
             var d = JSON.parse(String(fr.result).replace(/^\uFEFF/, ''));
             if (!d.sets) throw new Error('非本模块导出的约束 JSON 文件');
+            if (d.scheme === 'research' || d.scheme === 'product') S.scheme = d.scheme;
             if (d.layerCount) {
               S.stack = d.layerCount;
               if ($('inpN')) $('inpN').value = String(d.layerCount);

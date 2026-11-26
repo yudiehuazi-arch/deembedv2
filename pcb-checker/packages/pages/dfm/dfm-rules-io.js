@@ -117,6 +117,12 @@
     }
   };
 
+  function fanoutSchemeCount(data) {
+    var list = Array.isArray(data) ? data : (data && (data.schemes || data.fanoutSchemes));
+    if (!Array.isArray(list) || !list.length) return 0;
+    return list.every(function (item) { return item && typeof item === 'object' && typeof item.name === 'string' && Array.isArray(item.vias); }) ? list.length : 0;
+  }
+
   var DfmRuleConfig = {
     kind: 'pcb-dfm-rule-config',
     version: 1,
@@ -131,8 +137,12 @@
       App.RuleExport.open(JSON.stringify(this.snapshot(), null, 2));
     },
     loadFromObject: function (data) {
+      var fanoutCount = fanoutSchemeCount(data);
+      if (fanoutCount) {
+        throw new Error('当前文件是扇出方案库（' + fanoutCount + ' 套），不是加工能力规则。请到“扇出方案检查”页面的方案库使用“导入 JSON”。');
+      }
       if (!data || data.kind !== this.kind || data.version !== this.version || !data.fields || typeof data.fields !== 'object') {
-        throw new Error('文件格式不正确，或不是受支持的加工能力规则文件。');
+        throw new Error('文件格式不正确。请读取从本页“保存规则到本地”导出的加工能力规则 JSON。');
       }
       this.fieldIds.forEach(function (id) {
         if (!Object.prototype.hasOwnProperty.call(data.fields, id)) return;

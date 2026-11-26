@@ -95,16 +95,76 @@
     });
   }
 
+  function normalizeSchemeSearch(value) {
+    return String(value || '').trim().toLocaleLowerCase().replace(/[\s_\-./\\]+/g, '');
+  }
+
+  function filterSchemeLibrary() {
+    var input = document.getElementById('inpSchemeLibrarySearch');
+    var status = document.getElementById('schemeLibrarySearchStatus');
+    var queryText = input ? input.value.trim() : '';
+    var query = normalizeSchemeSearch(queryText);
+    var cards = Array.prototype.slice.call(document.querySelectorAll('#schemeContainer .scheme-card'));
+    var matches = [];
+    cards.forEach(function (card) {
+      var matched = !query || normalizeSchemeSearch(card.getAttribute('data-scheme-name')).indexOf(query) >= 0;
+      card.hidden = !matched;
+      card.classList.toggle('scheme-search-match', Boolean(query && matched));
+      card.classList.remove('scheme-search-target');
+      if (matched) matches.push(card);
+    });
+    if (status) {
+      if (!cards.length) status.textContent = '方案库为空';
+      else if (!query) status.textContent = '共 ' + cards.length + ' 套方案';
+      else if (!matches.length) status.textContent = '未找到名称包含“' + queryText + '”的方案';
+      else status.textContent = '匹配 ' + matches.length + ' / ' + cards.length + ' 套方案';
+    }
+    return matches;
+  }
+
+  function locateSchemeByName() {
+    var input = document.getElementById('inpSchemeLibrarySearch');
+    var query = normalizeSchemeSearch(input && input.value);
+    var matches = filterSchemeLibrary();
+    if (!query || !matches.length) return null;
+    var target = matches.find(function (card) {
+      return normalizeSchemeSearch(card.getAttribute('data-scheme-name')) === query;
+    }) || matches[0];
+    target.classList.add('scheme-search-target');
+    target.setAttribute('tabindex', '-1');
+    if (typeof target.scrollIntoView === 'function') target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (typeof target.focus === 'function') target.focus({ preventScroll: true });
+    return target.getAttribute('data-scheme-id');
+  }
+
+  function clearSchemeLibrarySearch() {
+    var input = document.getElementById('inpSchemeLibrarySearch');
+    if (input) { input.value = ''; input.focus(); }
+    filterSchemeLibrary();
+  }
+
+  function handleSchemeSearchKeydown(event) {
+    if (!event) return;
+    if (event.key === 'Enter') { event.preventDefault(); locateSchemeByName(); }
+    else if (event.key === 'Escape') { event.preventDefault(); clearSchemeLibrarySearch(); }
+  }
+
   function renderSchemeCards() {
     var container = document.getElementById('schemeContainer');
     var countBadge = document.getElementById('badgeSchemeCount');
     var statSchemeCount = document.getElementById('statSchemeCount');
     var selFilter = document.getElementById('selSchemeFilter');
+    var searchOptions = document.getElementById('schemeLibraryNameOptions');
     var schemes = State.library.schemes;
+    var compareButton = document.getElementById('btnCompareSchemes');
 
+    if (compareButton) compareButton.disabled = false;
     if (FC.syncLibraryPadstackColors) FC.syncLibraryPadstackColors(schemes);
     if (countBadge) countBadge.textContent = String(schemes.length);
     if (statSchemeCount) statSchemeCount.textContent = String(schemes.length);
+    if (searchOptions) searchOptions.innerHTML = schemes.map(function (scheme) {
+      return '<option value="' + escapeHtml(scheme.name) + '"></option>';
+    }).join('');
 
     var globalLegendEl = document.getElementById('libraryPadstackLegendBar');
     if (globalLegendEl) {
@@ -136,6 +196,8 @@
     if (!container) return;
     if (!schemes.length) {
       container.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:36px;background:#fff;border:1px dashed var(--line);border-radius:8px;color:var(--sub)">方案库为空，请新建或载入预设方案。</div>';
+      filterSchemeLibrary();
+      if (root.markFanoutResultsStale) root.markFanoutResultsStale();
       return;
     }
 
@@ -149,7 +211,7 @@
       var minD = s.pairwiseDistances.length > 0 ? s.pairwiseDistances[0].dist.toFixed(1) : '-';
       var maxD = s.pairwiseDistances.length > 0 ? s.pairwiseDistances[s.pairwiseDistances.length - 1].dist.toFixed(1) : '-';
 
-      return '<div class="scheme-card" id="card_' + s.id + '">' +
+      return '<div class="scheme-card" id="card_' + s.id + '" data-scheme-id="' + escapeHtml(s.id) + '" data-scheme-name="' + escapeHtml(s.name) + '">' +
         '<div class="scheme-header">' +
           '<div style="min-width:0;flex:1">' +
             '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">' +
@@ -176,6 +238,8 @@
           '<button type="button" class="btn pri small" onclick="viewScheme(\'' + s.id + '\')">查看</button>' +
         '</div></div>';
     }).join('');
+    filterSchemeLibrary();
+    if (root.markFanoutResultsStale) root.markFanoutResultsStale();
 
     var drawThumbs = function () {
       schemes.forEach(function (s) { drawSchemeThumbnail('thumb_' + s.id, s); });
@@ -429,6 +493,10 @@
   root.g_parsedBatchSchemes = g_parsedBatchSchemes;
   root.renderSchemeCards = renderSchemeCards;
   root.drawSchemeThumbnail = drawSchemeThumbnail;
+  root.filterSchemeLibrary = filterSchemeLibrary;
+  root.locateSchemeByName = locateSchemeByName;
+  root.clearSchemeLibrarySearch = clearSchemeLibrarySearch;
+  root.handleSchemeSearchKeydown = handleSchemeSearchKeydown;
   root.loadPresets = loadPresets;
   root.clearLibrary = clearLibrary;
   root.exportLibraryJSON = exportLibraryJSON;

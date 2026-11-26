@@ -42,6 +42,9 @@
     clusters: [],
     filteredClusters: [],
     summary: null,
+    inspectionLibrarySnapshot: null,
+    inspectionLibrarySignature: '',
+    resultsStale: false,
     clusterDist: 2.0,
     clusterDistUnit: 'mm',
     distTolerance: 2.0,
@@ -76,6 +79,7 @@
       showBadges: true,
       measureMode: false,
       measurePoints: [],
+      returnPosition: null,
       hasInitialFit: false
     },
     modalVias: []
@@ -95,7 +99,7 @@
     if (tabId === 'tabCanvas') {
       var run = function () {
         if (root.resizeCanvas) root.resizeCanvas();
-        if (!State.canvas.hasInitialFit && (State.clusters.length > 0 || (State.traces && State.traces.length > 0))) {
+        if (!State.canvas.hasInitialFit && ((State.vias && State.vias.length > 0) || State.clusters.length > 0 || (State.traces && State.traces.length > 0))) {
           if (root.fitCanvasToLayout) root.fitCanvasToLayout();
           State.canvas.hasInitialFit = true;
         } else if (root.renderCanvas) {
@@ -239,7 +243,6 @@
     var mapCnt = {
       cntFilterAll: s.totalClusters,
       cntFilterPass: s.passCount,
-      cntFilterSubset: s.subsetPassCount || 0,
       cntFilterFail: s.failCount,
       cntFilterPadstack: s.padstackFailCount,
       cntFilterDist: s.distFailCount,

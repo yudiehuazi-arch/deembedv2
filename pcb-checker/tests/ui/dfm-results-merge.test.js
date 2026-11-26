@@ -77,7 +77,8 @@ test('筛选：只看满足时孔到孔行为空；GND / 信号筛选下孔到�
   setFilter('btnFilterBad');
 });
 
-test('搜索：可按孔到孔配对的信号孔号、孔盘到孔盘关键字检索', () => {
+test('视图二全文搜索：孔号、状态、行内说明、操作文字及复核状态均可作为关键词', () => {
+  w.State.activeFilter = 'all';
   const sig = w.State.checkResult.padPairDefects[0].sigVia.id;
   $('inpSearch').value = '孔盘到孔盘';
   $('inpSearch').dispatchEvent(new w.Event('input', { bubbles: true }));
@@ -86,8 +87,42 @@ test('搜索：可按孔到孔配对的信号孔号、孔盘到孔盘关键字�
   $('inpSearch').value = 'via ' + sig;
   $('inpSearch').dispatchEvent(new w.Event('input', { bubbles: true }));
   assert(rowsOf('tr.pad-pair-row').some(r => r.textContent.includes('Via ' + sig)), '按孔号应命中');
+
+  $('inpSearch').value = '中心距';
+  $('inpSearch').dispatchEvent(new w.Event('input', { bubbles: true }));
+  assert(rowsOf('tr.pad-pair-row').length === 8 && rowsOf('tr[data-via]').length === 0, '行内“中心距”应只命中孔到孔明细');
+  $('inpSearch').value = '定位图';
+  $('inpSearch').dispatchEvent(new w.Event('input', { bubbles: true }));
+  assert(rowsOf('tr[data-via]').length > 0 && rowsOf('tr.pad-pair-row').length === 0, '操作文字“定位图”应只命中线到孔明细');
+  assert(rowsOf('tr[data-via]').every(r => r.textContent.includes('定位图')), '搜索结果行应实际包含输入关键词');
+
+  const first = w.State.checkResult.pairs[0];
+  w.State.reviewedKeys[first.via.id + '_' + first.trace.id] = true;
+  $('inpSearch').value = '已复核';
+  $('inpSearch').dispatchEvent(new w.Event('input', { bubbles: true }));
+  assert(rowsOf('tr.reviewed').length === 1 && rowsOf('tr').length === 1, '“已复核”应只命中已复核条目');
   $('inpSearch').value = '';
   $('inpSearch').dispatchEvent(new w.Event('input', { bubbles: true }));
+  w.State.reviewedKeys = {};
+});
+
+test('视图一全文搜索：可按状态汇总与行内操作等任意可见关键词过滤聚合条目', () => {
+  w.State.activeFilter = 'all';
+  $('btnViewNetGroup').click();
+  $('inpSearch').value = '画布高亮';
+  $('inpSearch').dispatchEvent(new w.Event('input', { bubbles: true }));
+  let rows = [...d.querySelectorAll('#netGroupTableBody > tr')];
+  assert(rows.length === w.State.checkResult.netLayerAnalysis.length && rows.length > 0, '操作文字应命中全部聚合条目');
+  assert(rows.every(r => r.textContent.includes('画布高亮')), '视图一搜索结果应实际包含输入关键词');
+
+  $('inpSearch').value = '不满足';
+  $('inpSearch').dispatchEvent(new w.Event('input', { bubbles: true }));
+  rows = [...d.querySelectorAll('#netGroupTableBody > tr')];
+  const expected = w.State.checkResult.netLayerAnalysis.filter(item => item.status === '不满足').length;
+  assert(rows.length === expected && rows.every(r => r.classList.contains('fail-row')), '状态关键词应只保留不满足的聚合条目');
+  $('inpSearch').value = '';
+  $('inpSearch').dispatchEvent(new w.Event('input', { bubbles: true }));
+  $('btnViewPairList').click();
 });
 
 test('几何视口不满足位置：不显示、全显示、线到孔子类型与孔到孔搜索均生效', () => {

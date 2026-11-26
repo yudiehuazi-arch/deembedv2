@@ -14,11 +14,30 @@
   var calcSegLen = parser.calcSegLen;
   var extractWidthSeq = parser.extractWidthSeq;
 /* ---------- 规则与检查 ---------- */
+/* Allegro 层名的开头数字才是物理层号；后续 G/IS/P 编码不参与规则归属。 */
+function physicalLayerAlias(layer){
+  const key=String(layer||'').trim().toUpperCase();
+  if(!key)return '';
+  if(key==='TOP')return 'L1';
+  const logical=key.match(/^L\s*0*(\d{1,3})$/);
+  const numeric=key.match(/^0*(\d{1,3})$/);
+  const allegro=key.match(/^0*(\d{1,3})(?=[A-Z])/);
+  const match=logical||numeric||allegro;
+  return match?`L${parseInt(match[1],10)}`:key;
+}
+function samePhysicalLayer(left,right){
+  const a=physicalLayerAlias(left),b=physicalLayerAlias(right);
+  return Boolean(a&&b&&a===b);
+}
 function findRule(layer,rules,defaultRule){
-  const L=(layer||'').toLowerCase();
-  for(const r of rules){
-    if(r.enabled&&(r.layer||'').trim().toLowerCase()===L)return r;
+  const list=Array.isArray(rules)?rules:[];
+  const exact=String(layer||'').trim().toLowerCase();
+  for(const r of list){
+    if(r.enabled&&String(r.layer||'').trim().toLowerCase()===exact)return r;
   }
+  const aliases=list.filter(r=>r.enabled&&samePhysicalLayer(layer,r.layer));
+  if(aliases.length===1)return aliases[0];
+  // 同一物理层配置了多条不同规则且没有字符精确命中时，不能任意挑选其中一条。
   return (defaultRule&&defaultRule.enabled)?defaultRule:null;
 }
 function inList(v,list,tol){return list.some(a=>Math.abs(a-v)<=tol);}
@@ -486,6 +505,8 @@ function toCSV(headers,rows){
     matchWidthCombo: matchWidthCombo,
     checkWidthCombos: checkWidthCombos,
     parseWidthLengthRules: parseWidthLengthRules,
+    physicalLayerAlias: physicalLayerAlias,
+    samePhysicalLayer: samePhysicalLayer,
     findRule: findRule,
     wantWidth: wantWidth,
     wantLen: wantLen,

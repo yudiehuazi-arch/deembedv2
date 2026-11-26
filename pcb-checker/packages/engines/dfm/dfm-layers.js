@@ -14,6 +14,7 @@
   const RE_VIA_DRILL = /Circle Drill:\s*([-\d.]+)/i;
   const RE_VIA_USAGE = /Usage:\s*([^\n\r]+)/i;
   const RE_VIA_PADSTACK_DEF = /Padstack\s+Defined\s*(?:from|:)?\s*([^\s\r\n\-~]+?)\s*(?:\s+to\s+|\s*[\-~]\s*)\s*([^\s\r\n]+)/i;
+  const RE_VIA_PADSTACK_ONLY = /Padstack\s+Defined\s+only\s+on\s+([^\s\r\n]+)/i;
   const RE_VIA_CONN_TRACE = /Connections:[\s\S]*?Trace:\s*\d+\s*\(([^)]+)\)/i;
 
   const BOTTOM_LAYER_INDEX = 9999;
@@ -108,9 +109,30 @@
   }
 
   /**
-   * 解析过孔文本块中的连接起止层信息 (Padstack Defined from <Start> to <End>)
+   * 解析过孔文本块中的连接层信息：跨层 from <Start> to <End> 或单层 only on <Layer>。
    */
   function parseViaLayerSpan(secText) {
+    const mOnly = secText ? secText.match(RE_VIA_PADSTACK_ONLY) : null;
+    if (mOnly) {
+      const onlyLayer = mOnly[1].trim();
+      const onlyLayerNum = parseLayerIndex(onlyLayer);
+      const layerTag = onlyLayerNum == null ? onlyLayer : formatLayerNumTag(onlyLayerNum);
+      return {
+        hasDefinedSpan: true,
+        definedRaw: `only on ${onlyLayer}`,
+        startLayer: onlyLayer,
+        endLayer: onlyLayer,
+        startLayerNum: onlyLayerNum,
+        endLayerNum: onlyLayerNum,
+        minLayerNum: onlyLayerNum,
+        maxLayerNum: onlyLayerNum,
+        viaSpanType: 'surface',
+        viaTypeLabel: '单层焊盘',
+        spanShort: layerTag,
+        spanLabel: `单层焊盘 ${layerTag}`
+      };
+    }
+
     const mDef = secText ? secText.match(RE_VIA_PADSTACK_DEF) : null;
     if (!mDef) {
       return {

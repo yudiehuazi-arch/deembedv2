@@ -4,7 +4,6 @@
 (function (root) {
   'use strict';
   if (typeof document === 'undefined') return;
-
   var esc = root.escHtml || function (str) {
     if (!str) return '';
     return String(str)
@@ -14,11 +13,24 @@
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;');
   };
-
   var cleanMsg = root.PourCleanMsg || function (s) {
     return String(s == null ? '' : s).replace(/^[\s✅❌⚠️]+/u, '').trim();
   };
-
+  function updateResultStatusCounts() {
+    var State = root.State;
+    var source = State.viewMode === 'flat' ? (State.rawResults || []) : (State.groupedResults || []);
+    if (State.categoryFilter && State.categoryFilter !== 'all') {
+      source = source.filter(function (record) { return record.checkCategory === State.categoryFilter; });
+    }
+    var total = source.length;
+    var defects = source.filter(function (record) { return !record.pass; }).length;
+    var elFilterAll = document.getElementById('cntFilterAll');
+    var elFilterDefects = document.getElementById('cntFilterDefects');
+    var elFilterPass = document.getElementById('cntFilterPass');
+    if (elFilterAll) elFilterAll.textContent = String(total);
+    if (elFilterDefects) elFilterDefects.textContent = String(defects);
+    if (elFilterPass) elFilterPass.textContent = String(total - defects);
+  }
   function updateTopKPIs() {
     var State = root.State;
     var s = State.summary;
@@ -27,6 +39,7 @@
     var elDefects = document.getElementById('statTotalDefects');
     var elPass = document.getElementById('statTotalPass');
     var elBadgeDefects = document.getElementById('badgeDefectCount');
+    updateResultStatusCounts();
 
     if (!s) {
       if (elShapes) elShapes.textContent = '0';
@@ -43,15 +56,7 @@
     if (elDefects) elDefects.textContent = defVal;
     if (elPass) elPass.textContent = String(s.passCount);
     if (elBadgeDefects) elBadgeDefects.textContent = defVal;
-
-    var elFilterAll = document.getElementById('cntFilterAll');
-    var elFilterDefects = document.getElementById('cntFilterDefects');
-    var totalObj = State.groupedResults ? State.groupedResults.length : s.totalChecks;
-    var defectObj = State.groupedResults ? State.groupedResults.filter(function (g) { return !g.pass; }).length : s.totalDefects;
-    if (elFilterAll) elFilterAll.textContent = String(totalObj);
-    if (elFilterDefects) elFilterDefects.textContent = String(defectObj);
   }
-
   function setViewMode(mode) {
     var State = root.State;
     State.viewMode = mode;
@@ -61,28 +66,6 @@
     if (btnF) btnF.className = 'btn small ' + (mode === 'flat' ? 'pri' : 'sec');
     applyFilters();
   }
-
-  function setCategoryFilter(catKey) {
-    var State = root.State;
-    State.categoryFilter = catKey;
-    var filterBtns = {
-      all: 'btnFilterAll',
-      defects: 'btnFilterDefects',
-      via_coverage: 'btnFilterCov',
-      special_shape: 'btnFilterSpecial',
-      trace_ref_margin: 'btnFilterMargin',
-      isolated_copper: 'btnFilterSmall',
-      arc_radius: 'btnFilterArc'
-    };
-
-    Object.keys(filterBtns).forEach(function (k) {
-      var btn = document.getElementById(filterBtns[k]);
-      if (btn) btn.className = 'btn small ' + (k === catKey ? 'pri' : 'sec');
-    });
-
-    applyFilters();
-  }
-
   function applyFilters() {
     var State = root.State;
     (State.rawResults || []).forEach(function (r, rawIdx) {
@@ -91,15 +74,16 @@
     var inp = document.getElementById('inpSearch');
     var query = (inp && inp.value ? inp.value : '').trim().toLowerCase();
     var source = State.viewMode === 'grouped' ? (State.groupedResults || []) : (State.rawResults || []);
+    updateResultStatusCounts();
 
     var list = source.filter(function (r) {
-      if (State.categoryFilter === 'defects' && r.pass) return false;
-      if (State.categoryFilter !== 'all' && State.categoryFilter !== 'defects') {
-        if (r.checkCategory !== State.categoryFilter) return false;
-      }
+      if (State.resultStatusFilter === 'defects' && r.pass) return false;
+      if (State.resultStatusFilter === 'pass' && !r.pass) return false;
+      if (State.categoryFilter !== 'all' && r.checkCategory !== State.categoryFilter) return false;
       if (query) {
         var str = [
           r.checkCategoryName || '',
+          r.targetLabel || '',
           r.viaId || '',
           r.viaPadstack || '',
           r.viaNet || '',
@@ -114,6 +98,10 @@
       return true;
     });
 
+    State.resultColumnFilterSource = list.slice();
+    if (typeof root.filterPourResultsByColumns === 'function') {
+      list = root.filterPourResultsByColumns(list);
+    }
     State.filteredResults = list;
     State.page = 1;
     renderResultsTable();
@@ -133,26 +121,63 @@
     return r.groupKey || r._rawKey || (r.checkCategory + '_' + (r.viaId || r.traceId || r.shapeId) + '_' + r.layer + '_' + idx);
   }
 
-  function formatRowMetrics(r) {
-    var PC = root.PourChecker;
-    var rn = PC && PC.roundN ? PC.roundN : function (v, n) { return Number(v || 0).toFixed(n || 1); };
-    if (r.metricsStr) return esc(r.metricsStr);
-    if (r.checkCategory === 'via_coverage') {
-      return '实测距铜皮: <strong>' + esc(r.actualDistStr) + '</strong> / 要求 ≤ ' + esc(r.requiredDist) + ' mil';
+  function formatTargetIdentity(r) {
+    var showPitch = r.checkCategory === 'special_shape' && root.State.categoryFilter === 'special_shape';
+    if (!showPitch && r.targetLabel && String(r.targetLabel).split('/').length >= 3) return String(r.targetLabel);
+    var padstack = r.viaPadstack || '-';
+    var network = r.viaNet || r.traceNet || '-';
+    var target = r.viaId != null
+      ? ('孔 #' + r.viaId)
+      : (r.traceId != null ? ('走线 #' + r.traceId) : (r.shapeId != null ? ('铜皮 Shape #' + r.shapeId) : '-'));
+    if (showPitch) {
+      var detail = r.subRecords && r.subRecords.length ? r.subRecords[0] : r;
+      var pitch = detail.actualDifferentialCenterDistance != null ? detail.actualDifferentialCenterDistance : detail.expectedDifferentialCenterDistance;
+      return padstack + ' / ' + network + ' / ' + (isFinite(pitch) ? Math.round(pitch * 1000) / 1000 + ' mil' : '-') + ' / ' + target;
     }
-    if (r.checkCategory === 'special_shape') {
-      return '差分孔中心距: <strong>' + esc(rn(r.actualDifferentialCenterDistance, 2)) + ' mil</strong> / 规则 ' + esc(r.expectedDifferentialCenterDistance) + ' mil；目标孔 → HDI #' + esc(r.actualHdiViaId) + '；搜索距离 ≤ ' + esc(r.hdiSearchRadiusMm || 0.175) + ' mm；实测面积 ' + esc(rn(r.actualArea, 1)) + ' sq mil / 期望 ' + esc(r.expectedArea);
-    }
+    return padstack + ' / ' + network + ' / ' + target;
+  }
+
+  function formatResultStatus(r) {
+    return r.pass ? '符合' : ('不符合' + (r.failCount ? ' · ' + r.failCount + (r.checkCategory === 'special_shape' ? ' 项未通过' : ' 层未检出') : ''));
+  }
+  function formatTraceReferenceIssue(record) {
+    var issues = [], distance = record.minMargin != null ? record.minMargin + ' mil' : '规则距离';
+    var missingAt = record.missingPoint ? '（首个缺铜点 [' + (Math.round(record.missingPoint.x * 10) / 10) + ', ' + (Math.round(record.missingPoint.y * 10) / 10) + ']）' : '';
+    if (record.footprintCovered === false) issues.push('完整走线投影缺铜' + missingAt + (record.missingReason ? '；原因：' + record.missingReason : ''));
+    if (record.leftSideCopper === false) issues.push('走线左侧 ' + distance + ' 内无铜');
+    if (record.rightSideCopper === false) issues.push('走线右侧 ' + distance + ' 内无铜');
+    return issues.join('、') || '参考铜不符合要求';
+  }
+  function formatComparisonDescription(r) {
+    var records = r.subRecords && r.subRecords.length ? r.subRecords : [r];
+    var failed = records.filter(function (record) { return !record.pass; });
+    var selected = failed.length ? failed : records;
+    var layers = [];
+    selected.forEach(function (record) {
+      var category = record.checkCategory || r.checkCategory;
+      var layer = category === 'trace_ref_margin'
+        ? (record.refLayer || record.layer)
+        : (record.layer || record.layerListStr);
+      if (layer && layers.indexOf(String(layer)) < 0) layers.push(String(layer));
+    });
+    var layerText = layers.length ? layers.join('、') + ' 层' : '目标层';
+    var hasProblem = failed.length > 0;
+    if (r.checkCategory === 'via_coverage') return layerText + (hasProblem ? '缺铜皮' : '铜皮覆盖符合要求');
+    if (r.checkCategory === 'special_shape') return root.formatPourSpecialShapeIssues(selected);
     if (r.checkCategory === 'trace_ref_margin') {
-      return '单侧外延: <strong>' + esc(rn(r.actualMargin, 1)) + ' mil</strong> / 要求 ≥ ' + esc(r.minMargin) + ' mil';
+      if (!hasProblem) {
+        var margin = r.minMargin != null ? r.minMargin : (selected[0] && selected[0].minMargin);
+        var sideText = margin == null ? '规则距离内' : margin + ' mil 内';
+        return layerText + '完整覆盖走线投影，且左右两侧 ' + sideText + '均有铜';
+      }
+      return selected.map(function (record) {
+        var layer = record.refLayer || record.layer || '目标';
+        return layer + ' 层' + formatTraceReferenceIssue(record);
+      }).filter(function (value, index, values) { return values.indexOf(value) === index; }).join('；');
     }
-    if (r.checkCategory === 'isolated_copper') {
-      return '铜皮面积: <strong>' + esc(rn(r.area, 1)) + ' sq mil</strong> / 阈值 &lt; ' + esc(r.areaThreshold);
-    }
-    if (r.checkCategory === 'arc_radius') {
-      return '实测半径: <strong>' + esc(rn(r.actualRadius, 2)) + ' mil</strong> / 要求 ≥ ' + esc(r.requiredRadius) + ' mil';
-    }
-    return '-';
+    if (r.checkCategory === 'isolated_copper') return layerText + (hasProblem ? '存在孤立小铜皮' : '未发现孤立小铜皮');
+    if (r.checkCategory === 'arc_radius') return layerText + (hasProblem ? '铜皮圆弧半径过小' : '铜皮圆弧半径符合要求');
+    return cleanMsg(r.message);
   }
 
   function renderResultsTable() {
@@ -166,7 +191,7 @@
     if (lblTotal) lblTotal.textContent = String(total);
 
     if (total === 0) {
-      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:28px;color:var(--sub)">' +
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:28px;color:var(--sub)">' +
         (State.rawResults.length === 0 ? '请先在工序 ② 导入数据并执行检查' : '无符合当前筛选条件的检查记录') +
         '</td></tr>';
       document.getElementById('lblPageStart').textContent = '0';
@@ -196,26 +221,18 @@
       var rowClass = isReviewed ? 'reviewed' : (r.pass ? 'row-pass' : 'row-fail');
       var isExpanded = State.expandedRows.has(itemKey);
 
-      var targetStr = r.targetLabel;
-      if (!targetStr) {
-        if (r.viaId) targetStr = '孔 #' + r.viaId + ' · ' + (r.viaNet || 'GND');
-        else if (r.traceId) targetStr = '走线 #' + r.traceId + ' · ' + (r.traceNet || '-');
-        else if (r.shapeId) targetStr = '铜皮 Shape #' + r.shapeId;
-        else targetStr = '-';
-      }
-
+      var targetStr = formatTargetIdentity(r);
       var hasSub = r.subRecords && r.subRecords.length > 1;
       var targetId = r.viaId || r.traceId || r.shapeId || '';
-      var statusText = r.pass ? '符合' : ('不符合' + (r.failCount ? ' · ' + r.failCount + ' 层超标' : ''));
+      var statusText = formatResultStatus(r);
 
-      htmlRows += '<tr class="' + rowClass + '">' +
+      htmlRows += '<tr class="' + rowClass + '" data-result-key="' + safeKey + '">' +
         '<td><input type="checkbox" data-no-persist ' + (isReviewed ? 'checked' : '') + ' onchange="toggleReviewItem(\'' + safeKey + '\', this.checked)"></td>' +
         '<td><span class="badge-tag copper">' + esc(r.checkCategoryName) + '</span></td>' +
         '<td><strong>' + esc(targetStr) + '</strong></td>' +
         '<td><span class="badge-tag gray">' + esc(r.layerListStr || r.layer || '-') + '</span></td>' +
-        '<td style="font-size:12px">' + formatRowMetrics(r) + '</td>' +
         '<td><span class="badge-tag ' + (r.pass ? 'ok' : 'bad') + '">' + esc(statusText) + '</span></td>' +
-        '<td style="font-size:12px;line-height:1.45">' + esc(cleanMsg(r.message)) + '</td>' +
+        '<td style="font-size:12px;line-height:1.45">' + esc(formatComparisonDescription(r)) + '</td>' +
         '<td><label style="font-size:12px;display:inline-flex;align-items:center;gap:4px;cursor:pointer">' +
           '<input type="checkbox" data-no-persist ' + (isReviewed ? 'checked' : '') + ' onchange="toggleReviewItem(\'' + safeKey + '\', this.checked)">' +
           '<span>' + (isReviewed ? '已复核' : '待复核') + '</span>' +
@@ -231,23 +248,19 @@
       '</tr>';
 
       if (hasSub && isExpanded) {
-        htmlRows += '<tr class="subrow"><td></td><td colspan="8" style="padding:10px 14px">' +
+        htmlRows += '<tr class="subrow"><td></td><td colspan="7" style="padding:10px 14px">' +
           '<div style="font-weight:700;font-size:12px;margin-bottom:6px;color:var(--pri-d)">' +
             esc(targetStr) + ' · 逐层检查拆解 · 共 ' + r.subRecords.length + ' 项' +
           '</div>' +
           '<div class="tbl-wrap">' +
             '<table style="font-size:12px"><thead><tr>' +
-              '<th>层别 / 参考层</th><th>实测参数</th><th>规则阈值</th><th>结论</th><th>说明</th>' +
+              '<th>层别 / 参考层</th><th>结论</th><th>问题点</th>' +
             '</tr></thead><tbody>' +
             r.subRecords.map(function (sub) {
-              var actual = sub.actualDistStr || (sub.actualMargin != null ? sub.actualMargin + ' mil' : (sub.actualRadius != null ? sub.actualRadius + ' mil' : '-'));
-              var req = sub.requiredDist ? ('≤ ' + sub.requiredDist + ' mil') : (sub.minMargin ? ('≥ ' + sub.minMargin + ' mil') : ('≥ ' + (sub.requiredRadius || 10) + ' mil'));
               return '<tr>' +
                 '<td><span class="badge-tag gray">' + esc(sub.layer || sub.refLayer || '-') + '</span></td>' +
-                '<td><strong>' + esc(actual) + '</strong></td>' +
-                '<td>' + esc(req) + '</td>' +
                 '<td><span class="badge-tag ' + (sub.pass ? 'ok' : 'bad') + '">' + (sub.pass ? '符合' : '不符合') + '</span></td>' +
-                '<td class="hint">' + esc(cleanMsg(sub.message)) + '</td>' +
+                '<td class="hint">' + esc(formatComparisonDescription(sub)) + '</td>' +
               '</tr>';
             }).join('') +
             '</tbody></table>' +
@@ -269,7 +282,9 @@
     var nextVal = reviewed !== undefined ? Boolean(reviewed) : !State.reviewedItems.has(key);
     if (nextVal) State.reviewedItems.add(key);
     else State.reviewedItems.delete(key);
-    renderResultsTable();
+    var reviewFilter = State.resultColumnFilters && State.resultColumnFilters.review;
+    if (reviewFilter && reviewFilter.length) applyFilters();
+    else renderResultsTable();
     if (State.activeReviewKey === key && typeof root.renderPourCanvasReviewBox === 'function') {
       root.renderPourCanvasReviewBox(key);
     }
@@ -285,7 +300,9 @@
       if (masterChk && masterChk.checked) State.reviewedItems.add(key);
       else State.reviewedItems.delete(key);
     });
-    renderResultsTable();
+    var reviewFilter = State.resultColumnFilters && State.resultColumnFilters.review;
+    if (reviewFilter && reviewFilter.length) applyFilters();
+    else renderResultsTable();
   }
 
   function exportResultsCSV() {
@@ -296,19 +313,17 @@
       return;
     }
 
-    var csv = '\uFEFF检查分类,目标对象,涉及层别,实测与规则说明,判定结果,详细文字表述,复核状态\n';
+    var csv = '\uFEFF检查分类,' + (State.categoryFilter === 'special_shape' ? 'Padstack/网络/差分孔中心距/目标对象' : 'Padstack/网络/目标对象') + ',涉及层别,判定结果,问题点,复核状态\n';
     source.forEach(function (r, idx) {
       var key = buildItemKey(r, idx);
       var isRev = State.reviewedItems.has(key) ? '已复核' : '待复核';
-      var target = r.targetLabel || (r.viaId ? ('孔 #' + r.viaId) : (r.traceId ? ('走线 #' + r.traceId) : ('铜皮 #' + r.shapeId)));
-      var metricRaw = String(r.metricsStr || r.actualDistStr || r.actualMargin || r.area || '-');
+      var target = formatTargetIdentity(r);
       csv += [
         '"' + String(r.checkCategoryName || '').replace(/"/g, '""') + '"',
         '"' + String(target).replace(/"/g, '""') + '"',
         '"' + String(r.layerListStr || r.layer || r.traceLayer || '-').replace(/"/g, '""') + '"',
-        '"' + metricRaw.replace(/"/g, '""') + '"',
         '"' + (r.pass ? '符合' : '不符合') + '"',
-        '"' + cleanMsg(r.message).replace(/"/g, '""') + '"',
+        '"' + formatComparisonDescription(r).replace(/"/g, '""') + '"',
         '"' + isRev + '"'
       ].join(',') + '\n';
     });
@@ -334,7 +349,7 @@
           (list.length > 5 ? (' 等' + list.length + '个') : '');
         return '<span style="display:inline-flex;align-items:center;background:#ffffff;border:1px solid var(--line-strong);border-radius:4px;padding:2px 6px;font-size:11px;font-family:var(--mono)">' +
           '<code>' + esc(netName) + '</code>' +
-          '<span style="color:var(--sub);margin-left:4px;font-size:11px">' + list.length + '项: ' + esc(itemStr) + '</span>' +
+          '<span style="color:var(--sub);margin-left:4px;font-size:11px">' + list.length + ' 个对象: ' + esc(itemStr) + '</span>' +
         '</span>';
       }).join('') +
     '</div>';
@@ -343,17 +358,20 @@
   function renderAnalysisTab() {
     var State = root.State;
     var container = document.getElementById('pnlAnalysisContainer');
-    if (!container) return;
+    if (!container) return; if (root.syncAnalysisCategoryButtons) root.syncAnalysisCategoryButtons();
     if (!State.summary || !State.rawResults || !State.rawResults.length) {
       container.innerHTML = '<div style="text-align:center;padding:36px;color:var(--sub)">尚无检查数据，请先在工序 ② 导入数据并执行检查。</div>';
       return;
     }
 
-    var PC = root.PourChecker;
-    var rn = PC && PC.roundN ? PC.roundN : function (v, n) { return Number(v || 0).toFixed(n || 1); };
-    var b = State.summary.breakdown;
-    var defects = State.rawResults.filter(function (r) { return !r.pass; });
-    var badTotal = defects.length;
+    var selectedCategory = State.analysisCategoryFilter || 'via_coverage';
+    var stats = typeof root.getPourAnalysisDefectStats === 'function' ? root.getPourAnalysisDefectStats() : null;
+    var allDefects = stats ? stats.rawDefects : State.rawResults.filter(function (r) { return !r.pass; });
+    var defects = allDefects.filter(function (r) { return r.checkCategory === selectedCategory; });
+    var objectCounts = stats ? stats.objectCounts : {};
+    var rawCounts = stats ? stats.rawCounts : {};
+    var badTotal = stats ? (objectCounts[selectedCategory] || 0) : defects.length;
+    var rawBadTotal = stats ? (rawCounts[selectedCategory] || 0) : defects.length;
 
     var layerBadMap = {};
     defects.forEach(function (r) {
@@ -372,14 +390,14 @@
         ruleTitle = r.templateName || ((r.viaPadstack || '过孔') + '·异型模板');
         padName = r.viaPadstack || 'BGA过孔';
       } else if (r.checkCategory === 'trace_ref_margin') {
-        ruleTitle = (r.traceLayer || '信号层') + '·走线参考层超宽';
+        ruleTitle = (r.traceLayer || '信号层') + '·走线参考层覆盖与邻近铜';
         padName = '走线层: ' + (r.traceLayer || '-');
       } else if (r.checkCategory === 'isolated_copper') {
         ruleTitle = '全板孤立小铜皮 < ' + (r.areaThreshold || 500) + ' sq mil';
-        padName = 'Shape #' + r.shapeId;
+        padName = '铜皮 Shape';
       } else if (r.checkCategory === 'arc_radius') {
         ruleTitle = '全板铜皮圆弧半径 < ' + (r.requiredRadius || 10) + ' mil';
-        padName = 'Shape #' + r.shapeId;
+        padName = '铜皮 Shape';
       }
 
       var bKey = ruleTitle + ' · ' + r.checkCategoryName;
@@ -390,20 +408,20 @@
       badMap[bKey].padstacks[padName] = 1;
 
       var lk = r.layer || r.traceLayer || r.refLayer || '通用层';
-      var netName = r.viaNet || r.traceNet || (r.shapeId ? ('Shape #' + r.shapeId) : 'GND');
+      var netName = r.viaNet || r.traceNet || '无网络';
       var targetId = r.viaId || r.traceId || r.shapeId || 0;
       var reasonHtml = '';
 
       if (r.checkCategory === 'via_coverage') {
-        reasonHtml = '<b style="color:var(--bad)">无铜皮覆盖</b> · 距孔心 &gt; ' + esc(r.requiredDist || 50) + ' mil';
+        reasonHtml = '<b style="color:var(--bad)">搜索范围内未检出铜皮</b> · 孔心 ' + esc(r.requiredDist || 50) + ' mil 范围内无铜皮';
       } else if (r.checkCategory === 'special_shape') {
-        reasonHtml = '<b style="color:var(--bad)">异型面积超差</b> · 实测 ' + esc(rn(r.actualArea, 1)) + ' sq mil vs 期望 ' + esc(r.expectedArea) + ' ± ' + esc(r.areaTolerance);
+        reasonHtml = r.associationFailed ? '<b style="color:var(--bad)">模板关联条件未命中</b> · ' + esc(r.associationSummary) : '<b style="color:var(--bad)">异型面积超差</b> · 期望 ' + esc(r.expectedArea) + ' ± ' + esc(r.areaTolerance) + ' sq mil';
       } else if (r.checkCategory === 'trace_ref_margin') {
-        reasonHtml = '<b style="color:var(--bad)">参考层外延不足</b> · ' + esc(r.refType) + ' ' + esc(r.refLayer) + ' 实测 ' + esc(rn(r.actualMargin, 1)) + ' mil &lt; ' + esc(r.minMargin) + ' mil';
+        reasonHtml = '<b style="color:var(--bad)">参考层铺铜不符合</b> · ' + esc(r.refType) + ' ' + esc(r.refLayer) + '：' + esc(formatTraceReferenceIssue(r));
       } else if (r.checkCategory === 'isolated_copper') {
-        reasonHtml = '<b style="color:var(--bad)">无连接孤立碎铜</b> · 面积 ' + esc(rn(r.area, 1)) + ' sq mil &lt; ' + esc(r.areaThreshold) + ' sq mil';
+        reasonHtml = '<b style="color:var(--bad)">无连接孤立碎铜</b> · 面积低于 ' + esc(r.areaThreshold) + ' sq mil';
       } else if (r.checkCategory === 'arc_radius') {
-        reasonHtml = '<b style="color:var(--bad)">圆弧半径过小</b> · 第 ' + esc(r.arcIndex || 1) + ' 段半径 ' + esc(rn(r.actualRadius, 2)) + ' mil &lt; ' + esc(r.requiredRadius) + ' mil';
+        reasonHtml = '<b style="color:var(--bad)">圆弧半径过小</b> · 半径低于 ' + esc(r.requiredRadius) + ' mil';
       }
 
       var subKey = lk + '|' + reasonHtml;
@@ -418,15 +436,17 @@
       }
     });
 
-    var h = '<div class="card">';
+    var h = root.PourDefectSummary ? root.PourDefectSummary.render(defects, State) : '';
+    h += '<div class="card">';
     h += '<h3 style="margin-top:0;color:var(--heading)">各规则不符合原因与目标网络映射明细' +
-      (badTotal ? (' · 共 <span style="color:var(--bad)">' + badTotal + '</span> 条') : '') + '</h3>';
+      (badTotal ? (' · <span style="color:var(--bad)">' + badTotal + '</span> 个异常目标对象 / ' + rawBadTotal + ' 条失败明细') : '') + '</h3>';
+    h += '<div class="hint" style="margin:-4px 0 10px">异常目标对象与检查明细的“按目标对象汇总”口径一致；同一对象命中的多个模板或层别失败保留为下方原因明细，不重复增加对象数。</div>';
 
     if (!badTotal) {
-      h += '<div class="hint" style="color:var(--ok);font-weight:600">当前检查全部符合规则约束，无超标记录。</div>';
+      h += '<div class="hint" style="color:var(--ok);font-weight:600">当前检查全部符合规则约束，无异常目标对象或失败明细。</div>';
     } else {
       var layerKeys = Object.keys(layerBadMap).sort(function (a, b) { return layerBadMap[b] - layerBadMap[a]; });
-      h += '<div style="margin:8px 0 14px 0"><span class="hint" style="font-weight:600">按层分布：</span>' +
+      h += '<div style="margin:8px 0 14px 0"><span class="hint" style="font-weight:600">失败明细按层分布：</span>' +
         '<div class="row" style="gap:6px;margin-top:4px">' +
         layerKeys.map(function (lk) {
           return '<span style="padding:2px 8px;border-radius:4px;background:var(--surface-subtle);border:1px solid var(--line);font-size:12px">' +
@@ -435,9 +455,9 @@
         '</div></div>';
 
       var badKeys = Object.keys(badMap).sort(function (a, b) { return badMap[b].n - badMap[a].n; });
-      h += '<div class="tbl-wrap"><table><thead><tr>' +
+      h += '<div class="tbl-wrap"><table class="pour-analysis-detail-table"><thead><tr>' +
         '<th style="width:200px">规则 · 检查项</th>' +
-        '<th style="width:72px">条数</th>' +
+        '<th style="width:88px">失败明细数</th>' +
         '<th>具体原因与对应过孔/走线网络</th>' +
         '<th style="width:170px">Padstack / 目标层</th>' +
       '</tr></thead><tbody>';
@@ -477,99 +497,60 @@
       return esc(l) + ' ' + layerBadMap[l] + ' 条';
     }).join('、') || '各内层';
 
-    h += '<div class="pattern-card">' +
+    h += '<div class="pattern-card" data-analysis-category="via_coverage">' +
       '<h3><span>① 孔经过层铺铜覆盖检查 — 缺陷规律与工程分析</span>' +
-      '<span class="badge-tag ' + (b.viaCoverageDefects > 0 ? 'bad' : 'ok') + '">' + b.viaCoverageDefects + ' 处层位不符合</span></h3>' +
+      '<span class="badge-tag ' + ((objectCounts.via_coverage || 0) > 0 ? 'bad' : 'ok') + '">' + (objectCounts.via_coverage || 0) + ' 个异常对象 / ' + (rawCounts.via_coverage || 0) + ' 条失败明细</span></h3>' +
       '<div class="pattern-box">' +
         '<strong>高发分布与 SI 影响：</strong>异常集中在 <strong>' + topLayersText + '</strong>。过孔穿越层缺失参考铜箔或反焊盘避让过大，导致寄生电感上升、特征阻抗突跳与回流路径拉长。' +
       '</div>' +
       '<div class="hint"><strong>整改措施：</strong>在对应内层补充接地铜皮，高速差分过孔周边 30–50 mil 增设 GND 回流伴随孔。</div>' +
     '</div>';
 
-    h += '<div class="pattern-card">' +
+    h += '<div class="pattern-card" data-analysis-category="special_shape">' +
       '<h3><span>② 特定异型铜皮比对检查 — 缺陷规律与工程分析</span>' +
-      '<span class="badge-tag ' + (b.specialShapeDefects > 0 ? 'bad' : 'ok') + '">' + b.specialShapeDefects + ' 处异型铜皮不匹配</span></h3>' +
+      '<span class="badge-tag ' + ((objectCounts.special_shape || 0) > 0 ? 'bad' : 'ok') + '">' + (objectCounts.special_shape || 0) + ' 个异常对象 / ' + (rawCounts.special_shape || 0) + ' 条失败明细</span></h3>' +
       '<div class="pattern-box">' +
         '<strong>偏差成因：</strong>指定层过孔周围未生成异型泪滴铜皮，或铜皮被邻近网络反焊盘切割导致面积超出容差。' +
       '</div>' +
       '<div class="hint"><strong>整改措施：</strong>核查 EDA 泪滴与异型铜皮脚本层映射规则，修复相邻反焊盘侵占区域后重新铺铜。</div>' +
     '</div>';
 
-    h += '<div class="pattern-card">' +
-      '<h3><span>③ 走线参考层铺铜覆盖与单侧超宽 — 缺陷规律与工程分析</span>' +
-      '<span class="badge-tag ' + (b.traceMarginDefects > 0 ? 'bad' : 'ok') + '">' + b.traceMarginDefects + ' 处参考层异常</span></h3>' +
+    h += '<div class="pattern-card" data-analysis-category="trace_ref_margin">' +
+      '<h3><span>③ 走线参考层投影覆盖与两侧邻近铜 — 缺陷规律与工程分析</span>' +
+      '<span class="badge-tag ' + ((objectCounts.trace_ref_margin || 0) > 0 ? 'bad' : 'ok') + '">' + (objectCounts.trace_ref_margin || 0) + ' 个异常对象 / ' + (rawCounts.trace_ref_margin || 0) + ' 条失败明细</span></h3>' +
       '<div class="pattern-box">' +
-        '<strong>外延不足与跨分割机理：</strong>走线靠近参考地平面边缘或跨越平面挖空区，边缘电力线无法闭合于参考平面，造成特征阻抗偏高与边缘辐射。' +
-      '</div>' +
-      '<div class="hint"><strong>整改措施：</strong>外扩上下参考平面边界确保单侧外延 ≥ 设定阈值，禁止高速差分对紧贴分割槽布线。</div>' +
+        '<strong>投影缺铜与回流风险：</strong>除走线首尾端在所有被检查参考层上的反焊盘外，走线完整线宽投影未被参考铜覆盖，或整条走线任一侧在规则距离内完全无铜时，回流路径会被拉长并增加阻抗突变与边缘辐射风险。' +
+        '</div>' +
+      '<div class="hint"><strong>整改措施：</strong>补齐首尾端所有被检查层反焊盘豁免区以外走线完整投影范围的上下参考铜，并确保整条走线左右两侧各有铜皮落在设定搜索距离内，避免跨越平面分割。</div>' +
     '</div>';
 
-    h += '<div class="pattern-card">' +
+    h += '<div class="pattern-card" data-analysis-category="isolated_copper">' +
       '<h3><span>④ 孤立小铜皮检查 — 缺陷规律与工程分析</span>' +
-      '<span class="badge-tag ' + (b.smallCopperDefects > 0 ? 'bad' : 'ok') + '">' + b.smallCopperDefects + ' 处孤立小铜皮 &lt; ' + esc(State.smallCopperAreaThreshold) + ' sq mil</span></h3>' +
+      '<span class="badge-tag ' + ((objectCounts.isolated_copper || 0) > 0 ? 'bad' : 'ok') + '">' + (objectCounts.isolated_copper || 0) + ' 个异常对象 / ' + (rawCounts.isolated_copper || 0) + ' 条失败明细</span></h3>' +
       '<div class="pattern-box">' +
         '<strong>浮空碎铜风险：</strong>密集过孔阵列间隙残留无网络过孔连接的浮空铜岛，高频下形成耦合辐射单元并在回流焊受热时增加起泡风险。' +
       '</div>' +
       '<div class="hint"><strong>整改措施：</strong>在 EDA 铺铜管理器启用孤立铜岛自动清理，删除面积低于阈值的无连接碎铜。</div>' +
     '</div>';
 
-    h += '<div class="pattern-card">' +
+    h += '<div class="pattern-card" data-analysis-category="arc_radius">' +
       '<h3><span>⑤ 铜皮最小圆弧半径检查 — 缺陷规律与工程分析</span>' +
-      '<span class="badge-tag ' + (b.arcRadiusDefects > 0 ? 'bad' : 'ok') + '">' + b.arcRadiusDefects + ' 处圆弧 &lt; ' + esc(State.minArcRadius) + ' mil</span></h3>' +
+      '<span class="badge-tag ' + ((objectCounts.arc_radius || 0) > 0 ? 'bad' : 'ok') + '">' + (objectCounts.arc_radius || 0) + ' 个异常对象 / ' + (rawCounts.arc_radius || 0) + ' 条失败明细</span></h3>' +
       '<div class="pattern-box">' +
         '<strong>制程蚀刻隐患：</strong>铜皮避让密集孔群拐角处圆弧半径过小，湿法蚀刻易滞留药液产生侧蚀酸角。' +
       '</div>' +
       '<div class="hint"><strong>整改措施：</strong>将动态铜皮平滑圆角半径统一设为 ≥ ' + esc(State.minArcRadius) + ' mil。</div>' +
     '</div>';
 
-    container.innerHTML = h;
-  }
-
-  function exportAnalysisReport() {
-    var State = root.State;
-    if (!State.summary) {
-      root.alert('暂无分析数据可导出');
-      return;
-    }
-
-    var b = State.summary.breakdown;
-    var totalObj = State.groupedResults ? State.groupedResults.length : State.summary.totalChecks;
-    var defObj = State.groupedResults ? State.groupedResults.filter(function (g) { return !g.pass; }).length : State.summary.totalDefects;
-
-    var report = [
-      '# PCB 铜皮五项检查缺陷规律与工程分析报告',
-      '生成时间: ' + new Date().toLocaleString(),
-      '',
-      '## 1. 全板检查统计',
-      '- 导入铜皮总数: ' + State.summary.totalShapes + ' 块',
-      '- 导入过孔总数: ' + State.summary.totalVias + ' 个',
-      '- 导入走线总数: ' + State.summary.totalTraces + ' 条',
-      '- 目标对象总数: ' + totalObj + ' 个',
-      '- 检出缺陷对象: ' + defObj + ' 个 / 逐层超标项 ' + State.summary.totalDefects + ' 处',
-      '',
-      '## 2. 分类规律与整改措施',
-      '### ① 孔经过层铺铜覆盖检查: ' + b.viaCoverageDefects + ' 处超标',
-      '- 整改措施: 在相关内层补充参考铜皮，或周边 30–50 mil 增设 GND 回流孔。',
-      '',
-      '### ② 特定异型铜皮比对检查: ' + b.specialShapeDefects + ' 处超标',
-      '- 整改措施: 核查指定层异型铜皮自动生成规则并修复反焊盘切割区域。',
-      '',
-      '### ③ 走线参考层超宽检查: ' + b.traceMarginDefects + ' 处超标',
-      '- 整改措施: 外扩地平面边界确保单侧外延达标，消除跨分割走线。',
-      '',
-      '### ④ 孤立小铜皮检查: ' + b.smallCopperDefects + ' 处超标',
-      '- 整改措施: 开启铺铜孤立死铜自动移除策略。',
-      '',
-      '### ⑤ 铜皮最小圆弧半径检查: ' + b.arcRadiusDefects + ' 处超标',
-      '- 整改措施: 调整铜皮轮廓避让圆弧平滑半径至阈值以上。'
-    ].join('\n');
-
-    root.showExportBox('铜皮检查缺陷规律分析报告.md', report, '已生成 Markdown 分析报告。', 'text/markdown');
+    container.innerHTML = h; if (root.applyAnalysisCategoryVisibility) root.applyAnalysisCategoryVisibility(container); if (root.PourDefectSummary && root.PourDefectSummary.mount) root.PourDefectSummary.mount(container);
   }
 
   root.updateTopKPIs = updateTopKPIs;
+  root.updateResultStatusCounts = updateResultStatusCounts;
+  root.formatPourResultTarget = formatTargetIdentity;
+  root.formatPourResultStatus = formatResultStatus;
+  root.formatPourResultProblem = formatComparisonDescription;
   root.setViewMode = setViewMode;
-  root.setCategoryFilter = setCategoryFilter;
   root.applyFilters = applyFilters;
   root.toggleRowExpand = toggleRowExpand;
   root.renderResultsTable = renderResultsTable;
@@ -578,5 +559,4 @@
   root.toggleSelectAll = toggleSelectAll;
   root.exportResultsCSV = exportResultsCSV;
   root.renderAnalysisTab = renderAnalysisTab;
-  root.exportAnalysisReport = exportAnalysisReport;
 })(typeof window !== 'undefined' ? window : globalThis);

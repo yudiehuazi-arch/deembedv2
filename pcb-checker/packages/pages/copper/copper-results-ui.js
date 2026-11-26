@@ -16,9 +16,9 @@
   function checkEnabled() {
     return {
       '反焊盘尺寸': $('ckAnti') ? $('ckAnti').checked : true,
-      '焊盘尺寸': $('ckPad') ? $('ckPad').checked : true,
-      '非功能焊盘尺寸': $('ckNfp') ? $('ckNfp').checked : true,
-      'Padstack层名': $('ckPadstack') ? $('ckPadstack').checked : true
+      '焊盘尺寸': false,
+      '非功能焊盘尺寸': S.scheme === 'product' && ($('ckNfp') ? $('ckNfp').checked : true),
+      'Padstack层名': S.scheme !== 'product' && ($('ckPadstack') ? $('ckPadstack').checked : true)
     };
   }
 
@@ -59,12 +59,12 @@
       return false;
     }
     var pos = parseFloat($('posTol').value), val = parseFloat($('valTol').value);
-    var t0 = App.nowMs();
-    UI.result = CC.runCopperCheck(UI.items, S.sets, {
+    var t0 = App.nowMs(), selectedSets = App.activeSets();
+    UI.result = CC.runCopperCheck(UI.items, selectedSets, {
       layerCount: App.layerCount(),
       posTol: isNaN(pos) ? 0.05 : pos,
       valTol: isNaN(val) ? 0.01 : val,
-      enabled: checkEnabled()
+      enabled: checkEnabled(), productMode: S.scheme === 'product'
     });
     var r = UI.result;
     UI.viewVer++;
@@ -80,9 +80,9 @@
     var bad = r.groups.reduce(function (n, g) { return n + (g.failCount || 0); }, 0);
     var bigNote = gcount > 800 ? (' 数据量 ' + gcount + ' 个过孔，默认渲染前 ' + UI.resLimit + ' 组。') : '';
     if ($('checkHint')) {
-      $('checkHint').textContent = '过孔段 ' + r.viaCount + '，SIG 完整孔组 ' + (r.signalGroupCount || 0) + '，圆形铜皮 ' + r.circleCount + '，不符合 ' + bad + '。' +
+      $('checkHint').textContent = '方案 ' + App.schemeName() + '，过孔段 ' + r.viaCount + '，信号孔组 ' + (r.signalGroupCount || 0) + '，Route Keepout ' + (r.routeKeepoutCount == null ? r.circleCount : r.routeKeepoutCount) + (r.productMode ? ('，Set=Shape 非功能焊盘 ' + (r.nonFunctionalPadCount || 0)) : '') + '，不符合 ' + bad + '。' +
         '检查耗时 ' + UI.chkMs + ' ms。' + bigNote +
-        (!S.sets.length ? ' 还没有规则，请先在 ① 规则约束 导入约束 TXT。' : '') +
+        (!selectedSets.length ? ' 当前检查方案没有可用规则，请在 ① 规则约束 导入对应 TXT 或切换方案。' : '') +
         (r.maxLayer > App.layerCount() ? (' 数据写到 L' + r.maxLayer + '，当前叠层按 L' + App.layerCount() + ' 比对。') : '');
     }
     renderVisible();
@@ -116,7 +116,7 @@
     var inferred = g.rule ? ('<b>' + esc(g.rule.title) + '</b>')
       : (g.signal !== false ? '<b class="bad">未选中规则</b>' : '<b class="muted">非 SIG · 不推算</b>');
     return '<tr class="' + (fail ? 'fail' : '') + '">' +
-      '<td>' + row.shapeId + '</td><td>L' + row.layer + '</td><td>' + esc(row.subset) + '</td><td>' + esc(row.actual) + '</td>' +
+      '<td>' + (row.mergedShapeIds || [row.shapeId]).join(' + ') + '</td><td>L' + row.layer + '</td><td>' + esc(row.subset) + '</td><td>' + esc(row.actualText || row.actual) + '</td>' +
       '<td>Via ' + g.via.id + '</td><td>' + esc(g.via.net || '无网络') + '</td><td>' + esc(g.via.padstack || '无 Padstack') + '</td>' +
       '<td>' + esc(keyTxt(g)) + (g.note ? '<div class="hint">' + esc(g.note) + '</div>' : '') + '</td>' +
       '<td>' + inferred + cand + '<div class="hint">' + esc(row.checkType) + '</div></td></tr>';
@@ -125,11 +125,11 @@
   function viaNoShapeHtml(g) {
     return '<tr><td class="muted">—</td><td class="muted">—</td><td class="muted">—</td><td class="muted">—</td>' +
       '<td>Via ' + g.via.id + '</td><td>' + esc(g.via.net || '无网络') + '</td><td>' + esc(g.via.padstack || '无 Padstack') + '</td>' +
-      '<td>' + esc(keyTxt(g)) + '</td><td colspan="2" class="muted">' + esc(g.note || '附近没有圆形铜皮') + '</td></tr>';
+      '<td>' + esc(keyTxt(g)) + '</td><td colspan="2" class="muted">' + esc(g.note || (g.matchMode === 'connections-trace-layers' ? '附近没有可检查的 Route Keepout / Set=Shape' : '附近没有可检查的 Route Keepout')) + '</td></tr>';
   }
 
   function circleRowHtml(sh) {
-    return '<tr class="fail"><td>' + sh.id + '</td><td>L' + CC.subsetToLayer(sh.subset, App.layerCount()) + '</td><td>' + esc(sh.subset) + '</td><td>' + esc(sh.radius) + '</td>' +
+    return '<tr class="fail"><td>' + sh.id + '</td><td>L' + CC.subsetToLayer(sh.subset, App.layerCount()) + '</td><td>' + esc(sh.subset) + '</td><td>' + esc((sh.shapeKind || '圆形') + ' · ' + (sh.arcRadii || [sh.radius]).join(' / ') + ' mil') + '</td>' +
       '<td colspan="5" class="muted">没有配对到过孔</td></tr>';
   }
 
@@ -147,15 +147,15 @@
     var tiles = [
       { f: 'via', n: r.viaCount, label: '过孔', tip: '点击筛选全部过孔记录' },
       { f: 'matched', n: matched, label: '已配对过孔', tip: '点击仅看已配对到铜皮的过孔' },
-      { f: 'circle', n: r.circleCount, label: '圆形铜皮', tip: '点击查看全部圆形铜皮记录' },
-      { f: 'unmatched', n: r.unmatchedCircles.length, label: '未配对铜皮', tip: '点击仅看未配对到过孔的铜皮' }
+      { f: 'circle', n: r.circleCount, label: r.productMode ? '可检查圆弧Shape' : '圆弧Route Keepout', tip: r.productMode ? '点击查看 Route Keepout 与 Set=Shape 非功能焊盘' : '点击查看全部圆形与长圆形 Route Keepout' },
+      { f: 'unmatched', n: r.unmatchedCircles.length, label: r.productMode ? '未配对Shape' : '未配对铜皮', tip: '点击仅看未配对到过孔的 Shape' }
     ];
     var h = '<div class="row" style="margin-bottom:8px">' + tiles.map(function (t) {
       return '<div class="stat click' + (f === t.f ? ' on' : '') + '" data-f="' + t.f + '" data-tip="' + esc(t.tip) + '"><b>' + t.n + '</b>' +
         '<span class="hint">' + esc(t.label) + '</span>' + (f === t.f ? '<span class="fnote">筛选中</span>' : '') + '</div>';
     }).join('') + '</div>';
 
-    h += '<div class="tbl-wrap"><table><thead><tr><th>铜皮#</th><th>层</th><th>Subset</th><th>半径 mil</th><th>过孔#</th><th>网络</th><th>Padstack Name</th><th>提取的关键信息</th><th>推算的约束</th></tr></thead><tbody>';
+    h += '<div class="tbl-wrap"><table><thead><tr><th>铜皮#</th><th>层</th><th>Subset</th><th>形状与圆弧半径</th><th>过孔#</th><th>网络</th><th>Padstack Name</th><th>提取的关键信息</th><th>推算的约束</th></tr></thead><tbody>';
     if (!total) h += '<tr><td colspan="9" class="muted">当前分类无记录。</td></tr>';
 
     var shown = 0;
@@ -183,8 +183,8 @@
       }
     }
     h += '</tbody></table></div>';
-    h += '<div class="hint" style="margin-top:8px">显示 ' + shown + ' / ' + total + ' 行 · 未配对圆形铜皮 ' + r.unmatchedCircles.length +
-      ' 个 · 多边形铜皮 ' + r.polygons.length + ' 个不参与过孔配对。</div>';
+    h += '<div class="hint" style="margin-top:8px">显示 ' + shown + ' / ' + total + ' 行 · 未配对' + (r.productMode ? '可检查 Shape ' : ' Route Keepout ') + r.unmatchedCircles.length +
+      ' 个 · 其他 Shape ' + r.polygons.length + ' 个不参与约束配对。</div>';
     if (total > shown) {
       h += '<div class="row" style="margin-top:8px"><button type="button" class="btn gray" id="btnMoreMatch">显示更多 · 剩余 ' + (total - shown) + ' 行</button>' +
         '<button type="button" class="btn gray" id="btnMoreMatchAll">全部展开</button></div>';
@@ -235,7 +235,7 @@
       var row = rows[i];
       if (row.subset && row.subset.toLowerCase().indexOf(q) >= 0) return true;
       if (('l' + row.layer) === q || ('layer' + row.layer) === q) return true;
-      if (String(row.shapeId) === q) return true;
+      if (String(row.shapeId) === q || (row.mergedShapeIds || []).some(function (id) { return String(id) === q; })) return true;
     }
     return false;
   }
@@ -271,7 +271,7 @@
       else if (f === 'norule') { if (!g.rule) out[key].n++; }
       else out[key].n++;
     });
-    (S.sets || []).forEach(function (s) {
+    App.activeSets().forEach(function (s) {
       var key = s.title || '';
       if (key && !out[key]) { out[key] = { n: 0, title: key, via: 0, badVia: 0, badRec: 0 }; order.push(key); }
     });
@@ -395,10 +395,15 @@
     var options = [
       { key: '', label: '全部不符合' },
       { key: 'Padstack信号命名', label: 'Padstack命名不符合' },
-      { key: '反焊盘尺寸', label: '反焊盘尺寸不符合' }
+      { key: '反焊盘尺寸', label: '反焊盘尺寸不符合' },
+      { key: '非功能焊盘尺寸', label: '非功能焊盘尺寸不符合' }
     ];
-    box.innerHTML = '<span class="hint no-rule-net-title">按不符合类型显示</span>' + options.map(function (o) {
-      var count = (UI.result.groups || []).filter(function (g) { return groupHasBadType(g, o.key); }).length;
+    box.innerHTML = '<span class="hint no-rule-net-title">按不符合类型显示，数量跟随约束和搜索条件</span>' + options.map(function (o) {
+      var count = (UI.result.groups || []).filter(function (g) {
+        if (UI.resSearch && !viaGroupMatchSearch(g, UI.resSearch)) return false;
+        var title = g.rule ? g.rule.title : '未推算到约束';
+        return (!UI.resRule || title === UI.resRule) && groupHasBadType(g, o.key);
+      }).length;
       return '<button type="button" class="chip bad-type-chip' + (UI.resBadType === o.key ? ' on' : '') + '" data-bad-type="' + o.key + '"><span class="cl">' + o.label + '</span><span class="cn">' + count + '</span></button>';
     }).join('');
   }
@@ -422,7 +427,7 @@
     })();
     var out = byRule ? (byRule + (f ? ' + ' + base : '')) : base;
     if (f === 'norule' && UI.resNet) out += ' · 网络类别 ' + resultNetLabel(UI.resNet);
-    if (f === 'bad' && UI.resBadType) out += ' · ' + (UI.resBadType === 'Padstack信号命名' ? 'Padstack命名不符合' : '反焊盘尺寸不符合');
+    if (f === 'bad' && UI.resBadType) out += ' · ' + (UI.resBadType === 'Padstack信号命名' ? 'Padstack命名不符合' : (UI.resBadType + '不符合'));
     if (bySearch) out += (out ? ' · ' : '') + bySearch;
     return out;
   }
@@ -451,7 +456,7 @@
     if (tile) tile.querySelector('b').textContent = done + '/' + total;
     if ($('resHint')) {
       $('resHint').textContent = resFilterText() + '。已复核 ' + done + ' / 不符合 ' + total + '。渲染 ' + UI.resMs + ' ms' +
-        '。反焊盘 ' + (checkEnabled()['反焊盘尺寸'] ? '开' : '关') + '，焊盘 ' + (checkEnabled()['焊盘尺寸'] ? '开' : '关') + '，非功能焊盘 ' + (checkEnabled()['非功能焊盘尺寸'] ? '开' : '关') + '。';
+        '。反焊盘 ' + (checkEnabled()['反焊盘尺寸'] ? '开' : '关') + '，Set=Shape 非功能焊盘 ' + (checkEnabled()['非功能焊盘尺寸'] ? '开' : '关') + '。';
     }
   }
 
@@ -484,7 +489,7 @@
         '<div class="stat click' + (rf === 'bad' ? ' on' : '') + '" data-res="bad" data-tip="只看含不符合项的完整孔，孔内仍显示全部层"><b class="' + (bad ? 'bad' : 'ok') + '">' + bad + '</b><span class="hint">不符合</span></div>' +
         '<div class="stat"><b>' + rowsAll + '</b><span class="hint">检查记录</span></div>' +
         '<div class="stat click' + (rf === 'matched' ? ' on' : '') + '" data-res="matched" data-tip="点击切换仅看已配对过孔"><b>' + rc.matched + '</b><span class="hint">已配对过孔</span></div>' +
-        '<div class="stat"><b>' + r.unmatchedCircles.length + '</b><span class="hint">未配对铜皮</span></div>' +
+        '<div class="stat"><b>' + r.unmatchedCircles.length + '</b><span class="hint">' + (r.productMode ? '未配对Shape' : '未配对铜皮') + '</span></div>' +
         '<div class="stat click' + (rf === 'norule' ? ' on' : '') + '" data-res="norule" data-tip="点击切换仅看未推算到约束的过孔"><b>' + noRule + '</b><span class="hint">没推算到约束</span></div>' +
         '<div class="stat" id="rvStat"><b>0/0</b><span class="hint">已复核</span></div>';
     }
@@ -503,36 +508,36 @@
       if (!resultGroupMatch(g, rf)) continue;
       shownGroups++;
       UI.groupKeys[si] = (g.failRows || []).map(function (row) { return reviewKey(g, row); });
-      // “只看不符合”按完整孔筛组，但组内仍展示该信号孔的全部层，
-      // 便于在同一上下文中对照符合、未检查和不符合层。
       var rows = g.rows;
       var failCount = (g.failRows || []).length;
+      var sourceBundle = (g.sourceSegments || []).map(function (part) { return 'Via ' + part.viaId + ' · ' + part.padstack + ' · ' + part.spanText; }).join('；');
       h += '<div class="set ' + esc(g.keys.kind || '其他') + '" id="grp-' + si + '"><div class="hd">' +
-        '<span class="badge">Via ' + g.via.id + '</span><b>' + esc(g.via.net || '无网络') + '</b>' +
-        '<span>' + esc(g.via.padstack || '无 Padstack') + '</span>' +
+        '<span class="badge">整合孔 Via ' + g.via.id + '</span><b>' + esc(g.via.net || '无网络') + '</b>' +
+        '<span class="badge">' + g.vias.length + ' 个孔段打包</span><span>' + esc(g.via.padstack || '无 Padstack') + '</span>' +
         '<span class="badge rev" style="margin-left:auto" id="grv-' + si + '" data-tip="点击整组切换复核状态">复核 0/' + failCount + '</span>' +
         (failCount ? ('<label class="grpRvw" data-tip="将本孔所有不符合项一次标为已复核"><input type="checkbox" class="grpBox" data-no-persist data-si="' + si + '">总复核</label>') : '') +
         '<span>约束 ' + (g.rule ? esc(g.rule.title) : (g.signal !== false ? '未推算到' : '非 SIG · 不检查')) + (g.namingError ? ' · <b class="bad">Padstack命名不符合</b>' : '') + '</span>' +
         '<button type="button" class="btn gray small copper-locate-btn" data-si="' + si + '" data-tip="在空间几何视口定位该完整孔">定位</button></div><div class="body">' +
-        '<div class="srcnote">提取：' + esc(keyTxt(g)) + (g.note ? ' · ' + esc(g.note) : '') + (g.via.connections ? ' · ' + esc(g.via.connections) : '') + '</div>';
+        '<div class="srcnote">孔段打包：' + esc(sourceBundle || '无可识别孔段') + '。共同匹配约束【' + esc(g.rule ? g.rule.title : '未推算到') + '】，以下按当前叠层从 L1 检查到末层，并读取圆心或端部圆弧中心匹配的' + (r.productMode ? ' Route Keepout / Set=Shape' : ' Route Keepout') + '。提取：' + esc(keyTxt(g)) + (g.note ? ' · ' + esc(g.note) : '') + (g.via.connections ? ' · ' + esc(g.via.connections) : '') + '</div>';
       if (!rows.length) {
-        h += '<div class="hint">该过孔附近无圆形铜皮。</div>';
+        h += '<div class="hint">该过孔附近无可检查的' + (r.productMode ? ' Route Keepout / Set=Shape' : ' Route Keepout') + '。</div>';
       } else {
-        h += '<table><thead><tr><th class="rvw">复核</th><th>层</th><th>Subset</th><th>来源 Padstack</th><th>检查项</th><th>实测</th><th>规则值</th><th>结果</th></tr></thead><tbody>';
+        h += '<table><thead><tr><th class="rvw">复核</th><th>层</th><th>Subset</th><th>本层来源 Via</th><th>本层来源 Padstack</th><th>检查项</th><th>实测</th><th>规则值</th><th>结果</th></tr></thead><tbody>';
         rows.forEach(function (row) {
           var fail = row.status === '不符合';
           var rk = reviewKey(g, row);
           var rvd = fail && !!UI.reviewed[rk];
           var layerDisplay = (typeof row.layer === 'number' && row.layer > 0) ? ('L' + row.layer) : (String(row.layer).startsWith('L') ? row.layer : (row.layer === '—' ? '—' : ('L' + row.layer)));
-          var sourceVia = (row.sourceViaIds || []).map(function (id) { return 'Via ' + id; }).join(' / ');
-          var sourcePadstack = row.sourcePadstack || g.via.padstack || '无 Padstack';
+          var sourceVia = row.sourceViaSpans || (row.sourceViaIds || []).map(function (id) { return 'Via ' + id; }).join(' / ') || '无孔段覆盖该层';
+          var sourcePadstack = row.sourcePadstack || '无覆盖 Padstack';
           var reasonTooltip = row.reason ? (' title="' + esc(row.reason) + '" data-tip="' + esc(row.reason) + '"') : '';
           h += '<tr class="' + (fail ? 'fail ' : '') + (rvd ? 'reviewed' : '') + '" data-rk="' + esc(rk) + '">' +
             '<td class="rvw">' + (fail ? ('<input type="checkbox" class="rvwBox" data-no-persist data-rk="' + esc(rk) + '"' + (rvd ? ' checked' : '') + ' data-tip="勾选标记已人工复核">') : '') + '</td>' +
             '<td>' + esc(layerDisplay) + '</td><td>' + esc(row.subset) + '</td>' +
-            '<td class="padstack-source" data-tip="' + esc(sourceVia + ' · ' + sourcePadstack) + '"><span>' + esc(sourcePadstack) + '</span><small>' + esc(sourceVia) + '</small></td>' +
+            '<td class="via-source" data-tip="' + esc(sourceVia) + '">' + esc(sourceVia) + '</td>' +
+            '<td class="padstack-source" data-tip="' + esc(sourcePadstack) + '">' + esc(sourcePadstack) + '</td>' +
             '<td>' + esc(row.checkType) + '</td>' +
-            '<td class="' + (fail ? 'bad' : '') + '"' + reasonTooltip + '>' + esc(row.actual) + '</td><td' + reasonTooltip + '>' + esc(row.expect || '无') + '</td>' +
+            '<td class="' + (fail ? 'bad' : '') + '"' + reasonTooltip + '>' + esc(row.actualText || row.actual) + '</td><td' + reasonTooltip + '>' + esc((row.expect || '无') + (row.expectedShape ? (' · ' + row.expectedShape) : '')) + '</td>' +
             '<td class="' + (fail ? 'bad' : (row.status === '符合' ? 'ok' : 'muted')) + '"' + reasonTooltip + '><span class="resTxt">' + esc(row.status) + '</span>' +
             (fail ? '<span class="rvTag"' + (rvd ? '' : ' style="display:none"') + '>已复核</span>' : '') + '</td></tr>';
         });
@@ -562,7 +567,6 @@
     if ($('btnAllRows')) $('btnAllRows').classList.toggle('on', !rf);
     refreshReview();
   }
-
 
   function renderLegend(force) {
     if (typeof App.renderLegend === "function") return App.renderLegend(force);

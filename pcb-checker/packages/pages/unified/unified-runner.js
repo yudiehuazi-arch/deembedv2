@@ -100,7 +100,7 @@ function runTraceEngine(ctx) {
   });
 
   netLayerTraces.forEach(group => {
-    const layerRule = State.rules.traceLayers.find(r => r.layer.toUpperCase() === group.layer.toUpperCase()) ||
+    const layerRule = findUnifiedTraceLayerRule(group.layer, State.rules.traceLayers) ||
                       State.rules.traceLayers[0] || { combos: '6.9-6-3.94, 6.9-5.7-6.9, 5.6-6', diffLayerTol: 0.5 };
     const compWidths = compressWidthSequence(group.allWidths);
     const seqStr = compWidths.length > 0 ? compWidths.map(fmt).join('-') : '无走线';
@@ -156,7 +156,7 @@ function runTraceEngine(ctx) {
         totalP += pLen;
         totalN += nLen;
 
-        const lRule = State.rules.traceLayers.find(r => r.layer.toUpperCase() === l.toUpperCase());
+        const lRule = findUnifiedTraceLayerRule(l, State.rules.traceLayers);
         const layerTol = (lRule && lRule.diffLayerTol != null) ? lRule.diffLayerTol : globalDiffLayerTol;
         const diff = Math.abs(pLen - nLen);
         const isLayerPass = !checkLayerDiff || (diff <= layerTol);
@@ -208,7 +208,7 @@ function runTraceEngine(ctx) {
   return traceChecks;
 }
 
-/** 约束检查：过孔反焊盘与 Padstack 层名。结果写入 State.results 并返回缺陷条目。 */
+/** 约束检查：过孔反焊盘、产品板非功能焊盘与 Padstack 层名。结果写入 State.results 并返回缺陷条目。 */
 function runCopperEngine(ctx) {
   const { tConstraint, parsedConstraint } = ctx;
   // ==========================================
@@ -216,21 +216,24 @@ function runCopperEngine(ctx) {
   // ==========================================
   const copperChecks = [];
   const chkAnti = $('cfgCheckAntiPad') ? $('cfgCheckAntiPad').checked : true;
+  const chkNfp = $('cfgCheckNfp') ? $('cfgCheckNfp').checked : true;
   const chkPadstack = $('cfgCheckPadstackLayers') ? $('cfgCheckPadstackLayers').checked : true;
   const antiTol = parseFloat($('cfgAntiPadTol')?.value) || 0.5;
   const layerN = unifiedLayerCount();
+  const sets = State.rules.constraintSets || [];
+  const productMode = sets.some(set => set && set.matchMode === 'connections-trace-layers');
 
   if (tConstraint && typeof CopperCheck !== 'undefined' && CopperCheck.runCopperCheck) {
     const boardItems = CopperCheck.parseBoardItems(tConstraint);
-    const sets = State.rules.constraintSets || [];
     const checkRes = CopperCheck.runCopperCheck(boardItems, sets, {
       layerCount: layerN,
       valTol: antiTol,
+      productMode,
       enabled: {
         '反焊盘尺寸': chkAnti,
         '焊盘尺寸': false,
-        '非功能焊盘尺寸': false,
-        'Padstack层名': chkPadstack
+        '非功能焊盘尺寸': productMode && chkNfp,
+        'Padstack层名': !productMode && chkPadstack
       }
     });
 
@@ -242,7 +245,7 @@ function runCopperEngine(ctx) {
         const isPass = r.status === '符合';
         const layerStr = (typeof r.layer === 'number' && r.layer > 0) ? `L${r.layer}` : (String(r.layer).startsWith('L') ? r.layer : `L${r.layer}`);
         
-        let reasonStr = isPass ? '符合设计约束要求' : `实测值 ${r.actual} 与规则设定值 ${r.expect} 偏差超出容差 ${antiTol} mil`;
+        let reasonStr = isPass ? '符合设计约束要求' : (r.reason || `实测值 ${r.actual} 与规则设定值 ${r.expect} 偏差超出容差 ${antiTol} mil`);
         if (r.checkType === 'Padstack层名' && !isPass) {
           reasonStr = `Padstack 命名【${via.padstack}】缺少连接层【${r.expect}】`;
         }
@@ -268,7 +271,7 @@ function runCopperEngine(ctx) {
   }
 
   // Fallback Padstack check if tConstraint was provided but no groups generated
-  if (tConstraint && copperChecks.length === 0) {
+  if (tConstraint && !productMode && chkPadstack && copperChecks.length === 0) {
     parsedConstraint.vias.filter(v => /SIG/i.test(v.padstack || '')).forEach(v => {
       const padName = v.padstack || '';
       const connLayers = v.connectedLayers || [];
@@ -394,7 +397,8 @@ function runFanoutEngine(ctx) {
     const allowSubset = $('cfgAllowSubsetMatch') ? $('cfgAllowSubsetMatch').checked : true;
     const redundantPolicy = $('cfgRedundantPolicy') ? $('cfgRedundantPolicy').value : 'ANY_GND_REDUNDANT';
 
-    const fRes = fanoutEngine.runFanoutInspection(parsedDfmFanout.vias, fanoutLib, {
+    // 保留原始 Item 的 Connections 信息，确保仅有实际出线连接的信号孔参与扇出检查。
+    const fRes = fanoutEngine.runFanoutInspection(tDfmFanout, fanoutLib, {
       clusterThreshold: clusterDistMil,
       distanceTolerance: centerDistTolMil,
       allowRotation: true,
@@ -493,8 +497,13 @@ function runPourEngine(ctx) {
     if (pourRun.results.traceMargin) {
       pourRun.results.traceMargin.forEach(r => {
         if (!r.pass) {
-          const actM = (r.actualMargin != null) ? r.actualMargin : (r.minActualMargin || 0);
           const reqM = (r.minMargin != null) ? r.minMargin : (r.requiredMargin || 50.0);
+          const issues = [];
+          const missingAt = r.missingPoint ? `（首个缺铜点 [${r.missingPoint.x.toFixed(1)}, ${r.missingPoint.y.toFixed(1)}]）` : '';
+          if (r.footprintCovered === false) issues.push(`完整走线投影缺铜${missingAt}`);
+          if (r.leftSideCopper === false) issues.push(`走线左侧 ${reqM.toFixed(1)} mil 内无铜`);
+          if (r.rightSideCopper === false) issues.push(`走线右侧 ${reqM.toFixed(1)} mil 内无铜`);
+          const issueText = issues.join('、') || '参考铜不符合要求';
           pourChecks.push({
             id: `pour_trace_${r.traceId}_${r.refLayer}`,
             category: 'pour',
@@ -502,12 +511,12 @@ function runPourEngine(ctx) {
             target: `Trace #${r.traceId} (${r.traceNet || r.net || '走线'})`,
             targetType: '走线段',
             layer: r.traceLayer,
-            item: `参考层 (${r.refLayer}) 铺铜单侧超宽`,
-            actual: `实测超宽 ${actM.toFixed(1)} mil`,
-            rule: `≥ ${reqM.toFixed(1)} mil`,
+            item: `参考层 (${r.refLayer}) 走线投影覆盖与两侧邻近铜`,
+            actual: issueText,
+            rule: `除走线首尾端在所有被检查层上的反焊盘外完整走线投影有铜，且左右两侧各在 ${reqM.toFixed(1)} mil 内存在铜皮`,
             pass: false,
-            deviation: `不足 -${(reqM - actM).toFixed(1)} mil`,
-            reason: `参考地层 ${r.refLayer} 铺铜边缘距离走线单侧仅 ${actM.toFixed(1)} mil，低于 ${reqM.toFixed(1)} mil 阻抗屏蔽要求`,
+            deviation: issueText,
+            reason: `参考层 ${r.refLayer}：${issueText}`,
             objId: r.traceId
           });
         }

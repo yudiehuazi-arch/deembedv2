@@ -28,7 +28,7 @@ console.log('== DFM 加工能力与空间间距 UI 测试 ==');
 
 test('页面基本元素与双规则阈值/焊盘直径/一钻直径输入框存在', () => {
   const tabs = d.querySelectorAll('nav#tabs button');
-  if (tabs.length !== 5) throw new Error('页签数量应为 5（新增「规律分析」），实际 ' + tabs.length);
+  if (tabs.length !== 6) throw new Error('五个工序与检查说明页签应为 6，实际 ' + tabs.length);
   if (!d.querySelector('nav#tabs button[data-tab="analysis"]')) throw new Error('缺少规律分析页签');
   if (!$('btnPatObjVia') || !$('btnPatObjTrace')) throw new Error('缺少规律分析的对象切换按钮');
   if (!$('inpThresholdGnd')) throw new Error('缺少 GND 孔阈值输入框');

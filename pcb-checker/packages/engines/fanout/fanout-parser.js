@@ -57,6 +57,24 @@ var api = factory();
     const factor = Math.pow(10, n);
     return Math.round(val * factor) / factor;
   }
+  function parseConnectionsSection(block) {
+    const lines = String(block || '').split(/\r?\n/);
+    for (let i = 0; i < lines.length; i++) {
+      const heading = lines[i].match(/^(\s*)Connections\s*:\s*(.*)$/i);
+      if (!heading) continue;
+      const headingIndent = heading[1].replace(/\t/g, '    ').length;
+      const inlineText = heading[2].trim();
+      const entries = inlineText ? [inlineText] : [];
+      for (let j = i + 1; j < lines.length; j++) {
+        if (!lines[j].trim()) continue;
+        const indent = (lines[j].match(/^\s*/) || [''])[0].replace(/\t/g, '    ').length;
+        if (indent <= headingIndent) break;
+        entries.push(lines[j].trim());
+      }
+      return { entries, inlineText };
+    }
+    return { entries: [], inlineText: '' };
+  }
   function parseViaData(text) {
     if (!text || typeof text !== 'string') return [];
     
@@ -64,6 +82,7 @@ var api = factory();
     const RE_ORIGIN = /Origin-xy:\s*\[\s*([\d\.\-]+)\s*,\s*([\d\.\-]+)\s*\]/i;
     const RE_PADSTACK = /Padstack\s+Name:\s*([^\r\n]+)/i;
     const RE_NET = /Net:\s*([^\r\n]+)/i;
+    const RE_USAGE = /Usage:\s*([^\r\n]+)/i;
     const RE_DRILL = /Circle\s+Drill:\s*([\d\.\-]+)/i;
     const RE_ROTATION = /Rotation:\s*([\d\.\-]+)/i;
     const RE_MIRROR = /Mirror\s+Status:\s*([^\r\n]+)/i;
@@ -83,17 +102,39 @@ var api = factory();
       const padstack = padM ? padM[1].trim() : 'UNKNOWN_PADSTACK';
       const netM = block.match(RE_NET);
       const net = netM ? netM[1].trim() : 'UNNAMED_NET';
+      const usageM = block.match(RE_USAGE);
+      const usage = usageM ? usageM[1].trim() : '';
       const drillM = block.match(RE_DRILL);
       const drill = drillM ? parseFloat(drillM[1]) : 0;
       const rotM = block.match(RE_ROTATION);
       const rotation = rotM ? parseFloat(rotM[1]) : 0;
       const mirM = block.match(RE_MIRROR);
       const mirror = mirM ? mirM[1].trim() : 'N';
-      const hasConnections = /Connections:\s*\r?\n\s*\w+/i.test(block);
-      const traceConnM = block.match(/Connections:[\s\S]*?Trace:\s*\d+\s*\(([^)]+)\)/i);
-      const connectedTraceLayers = traceConnM
-        ? traceConnM[1].trim().split(/[\s,]+/).filter(Boolean)
-        : [];
+      const isTopOnlyPadstack = /Padstack\s+Defined\s+only\s+on\s+Top\b/i.test(block);
+      const connections = parseConnectionsSection(block);
+      const hasConnections = connections.entries.length > 0;
+      const connectedTraceLayers = [];
+      const connectedShapeLayers = [];
+      const connectedViaIds = [];
+      let explicitTraceCount = 0;
+      let explicitShapeCount = 0;
+      connections.entries.forEach(entry => {
+        const traceM = entry.match(/Trace:\s*\d+\s*\(([^)]+)\)/i);
+        const shapeM = entry.match(/^Shape\s*:\s*[^\r\n]*?\(([^)]+)\)/i);
+        const viaM = entry.match(/Via:\s*#?(\d+)/i);
+        if (/^Shape\s*:/i.test(entry.trim())) explicitShapeCount++;
+        if (shapeM) connectedShapeLayers.push(...shapeM[1].trim().split(/[\s,]+/).filter(Boolean));
+        if (viaM) connectedViaIds.push(parseInt(viaM[1], 10));
+        if (traceM) {
+          explicitTraceCount++;
+          connectedTraceLayers.push(...traceM[1].trim().split(/[\s,]+/).filter(Boolean));
+        }
+      });
+      const inlineTokens = connections.inlineText.split(/[\s,]+/).filter(Boolean);
+      const inlineTraceLayers = inlineTokens.length && inlineTokens.every(layer =>
+        /^(?:TOP|BOTTOM|BOT|L0*\d+|0*\d{1,3}[A-Z][A-Z0-9_-]*)$/i.test(layer)) ? inlineTokens : [];
+      if (explicitTraceCount === 0 && inlineTraceLayers.length) connectedTraceLayers.push(...inlineTraceLayers);
+      const hasTraceConnections = explicitTraceCount > 0 || inlineTraceLayers.length > 0;
       const isSignal = !net.toUpperCase().includes('GND');
       vias.push({
         id: itemNum,
@@ -102,11 +143,18 @@ var api = factory();
         y,
         padstack,
         net,
+        usage,
         drill,
         rotation,
         mirror,
+        isTopOnlyPadstack,
         hasConnections,
+        hasTraceConnections,
+        hasShapeConnections: explicitShapeCount > 0,
+        hasTopShapeConnection: connectedShapeLayers.some(layer => /^TOP$/i.test(layer)),
         connectedTraceLayers,
+        connectedShapeLayers,
+        connectedViaIds: [...new Set(connectedViaIds)],
         isSignal
       });
     }

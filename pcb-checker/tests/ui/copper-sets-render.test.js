@@ -12,6 +12,12 @@ const { openPage, readPageCss, CHECKER_DIR } = require('../helpers/open-page');
 const ctx = openPage('copper.html');
 const { w, d } = ctx;
 const sampleText = fs.readFileSync(path.join(CHECKER_DIR, 'sample/约束示例_表格型.txt'), 'utf8');
+const changeLayerText = fs.readFileSync(path.join(CHECKER_DIR, 'sample/rule-changelayervia.txt'), 'utf8');
+const obroundText = fs.readFileSync(path.join(CHECKER_DIR, 'sample/约束示例_长圆形.txt'), 'utf8');
+const osfpStyleText = [
+  '约束名称：L42-36', '\t反焊盘半径\t反焊盘形状\t焊盘半径',
+  'L35\t18mil\t圆\t', 'L36\t\t\t', 'L37\t13mil\t长圆形\t8'
+].join('\n');
 
 let passed = 0, failed = 0;
 function t(name, fn) {
@@ -38,7 +44,7 @@ setTimeout(() => {
   t('生成提示给出约束条数与参数列数', () => {
     const hint = d.getElementById('genHint').textContent;
     if (hint.indexOf('22 条约束') < 0) throw new Error(hint);
-    if (hint.indexOf('44 列参数') < 0) throw new Error(hint);
+    if (hint.indexOf('66 列参数') < 0) throw new Error(hint);
   });
 
   t('数值格可编辑，来源注明 TXT 的哪一层', () => {
@@ -86,6 +92,54 @@ setTimeout(() => {
     if (!/flex-wrap:\s*wrap/.test(block)) throw new Error('没有横向换行：' + block);
     if (!/width:\s*100%/.test(block)) throw new Error('没有占满整行：' + block);
     if (/max-width:\s*250px/.test(block)) throw new Error('还是竖列宽度：' + block);
+  });
+
+  w.eval('(function(txt){S.scheme="product";S.queue=[{id:2,name:"rule-changelayervia.txt",text:txt,status:""}];rebuild();})')(changeLayerText);
+
+  t('换层孔 TXT 按用户命名渲染 6 个约束卡和 18 列核心参数', () => {
+    eq([].map.call(d.querySelectorAll('#sets .setTitle'), el => el.value),
+      ['L3-L29', 'L5-L31', 'L7-L33', 'L10-L36', 'L12-L38', 'L14-L40']);
+    eq(d.querySelectorAll('#sets .set').length, 6, '约束卡');
+    eq([].map.call(d.querySelectorAll('#sets .set'), el => el.querySelectorAll('thead th').length), [4, 4, 4, 4, 4, 4], '层列加反焊盘/形状/焊盘三列');
+    const hint = d.getElementById('genHint').textContent;
+    if (!/6 条约束 \/ 18 列参数/.test(hint)) throw new Error(hint);
+  });
+
+  t('换层孔 TXT 自动显示 L1-L44，端点不加、焊盘 8 mil 均落在正确单元格', () => {
+    eq(w.eval('layerCount()'), 44, '自动层数');
+    eq(d.querySelectorAll('#set-0 tbody tr').length, 44, 'L1-L44');
+    if (d.querySelector('#set-0 tbody tr:nth-child(29) .lname').textContent.includes('出线层')) throw new Error('L3-L29 被误当成出线层约束');
+    const value = (si, ci, key) => d.querySelector(`.cCell[data-si="${si}"][data-ci="${ci}"][data-key="${key}"]`).value;
+    eq([value(0, 0, 'L1'), value(0, 0, 'L3'), value(0, 0, 'L21'), value(0, 1, 'L5'), value(0, 2, 'L5')], ['16', '无', '无', '圆形', '8']);
+    eq([value(5, 0, 'L14'), value(5, 0, 'L40'), value(5, 1, 'L38'), value(5, 2, 'L38')], ['无', '无', '圆形', '8']);
+  });
+
+  t('OSFP 空白层表头可识别，并自动切至产品板方案', () => {
+    w.eval('(function(txt){S.scheme="research";S.queue=[{id:4,name:"rule-osfp.txt",text:txt,status:""}];rebuild();})')(osfpStyleText);
+    eq([w.eval('S.scheme'), w.eval('S.sets[0].title'), w.eval('S.sets[0].matchMode')], ['product', 'L36-L42', 'connections-trace-layers']);
+    if (d.getElementById('ckNfp').disabled || !d.getElementById('ckPadstack').disabled) throw new Error('产品板检查开关未同步');
+    const value = key => d.querySelector(`.cCell[data-si="0"][data-ci="1"][data-key="${key}"]`).value;
+    eq([value('L35'), value('L36'), value('L37')], ['圆形', '无', '长圆形'], '有反焊盘的层保留形状，未填写反焊盘和形状的层显示无');
+    let anti = d.querySelector('.cCell[data-si="0"][data-ci="0"][data-key="L36"]');
+    anti.value = '12'; anti.dispatchEvent(new w.Event('change', { bubbles: true }));
+    eq(value('L36'), '圆形', '补写反焊盘尺寸后形状默认圆形');
+    anti = d.querySelector('.cCell[data-si="0"][data-ci="0"][data-key="L36"]');
+    anti.value = '无'; anti.dispatchEvent(new w.Event('change', { bubbles: true }));
+    eq(value('L36'), '无', '清除反焊盘尺寸后自动恢复无形状');
+  });
+
+  t('长圆形约束显示可编辑形状列，L5 选择长圆形并保留 13 mil', () => {
+    w.eval('(function(txt){S.scheme="product";S.queue=[{id:3,name:"约束示例_长圆形.txt",text:txt,status:""}];rebuild();})')(obroundText);
+    eq(d.querySelectorAll('#sets .set').length, 1);
+    eq(d.querySelectorAll('#set-0 thead th').length, 4, '层列加半径/形状/焊盘三列');
+    const radius = d.querySelector('.cCell[data-si="0"][data-ci="0"][data-key="L5"]');
+    const shape = d.querySelector('.cCell[data-si="0"][data-ci="1"][data-key="L5"]');
+    const pad = d.querySelector('.cCell[data-si="0"][data-ci="2"][data-key="L5"]');
+    eq([radius.value, shape.value, shape.tagName, pad.value], ['13', '长圆形', 'SELECT', '无']);
+    const defaultShape = d.querySelector('.cCell[data-si="0"][data-ci="1"][data-key="L4"]');
+    eq(defaultShape.value, '圆形', '未填写层默认圆形');
+    defaultShape.value = '长圆形'; defaultShape.dispatchEvent(new w.Event('change', { bubbles: true }));
+    eq(w.eval('S.sets[0].constraints[1].values.L4'), '长圆形', '手动修改立即写入规则');
   });
 
   t('命名说明不在页头，落在页尾，内容含命名与填法规则', () => {

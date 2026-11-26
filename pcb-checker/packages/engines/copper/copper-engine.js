@@ -4,7 +4,9 @@
 (function (root) {
   'use strict';
   var VI = root && root.CopperViaInference;
+  var KS = root && root.CopperKeepoutShape;
   if (!VI && typeof require === 'function') VI = require('./via-constraint-inference.js');
+  if (!KS && typeof require === 'function') KS = require('./route-keepout-shape.js');
   var FIELD_RE = {};
   function fieldRe(name) {
     if (!FIELD_RE[name]) FIELD_RE[name] = new RegExp('(?:^|\\n)\\s*' + name + '\\s*:\\s*([^\\n]+)', 'i');
@@ -12,7 +14,6 @@
   }
   var HEAD_RE = /Item\s+(\d+)\s*<\s*(Shape|Via|Trace)\s*>/i;
   var XY_RE = /xy\s*\[\s*([+-]?[0-9.]+)\s*,\s*([+-]?[0-9.]+)\s*\]/gi;
-
   function parseBoardItems(text) {
     var raw = String(text || '').replace(/\u0000/g, '');
     var chunks = raw.split(/~{8,}/);
@@ -42,15 +43,9 @@
         pts: null,
         head: body.slice(0, 200)
       };
-      var center = body.match(/Center-xy:\s*\[\s*([+-]?[0-9.]+)\s*,\s*([+-]?[0-9.]+)\s*\]/i);
-      if (center) item.center = [+center[1], +center[2]];
       var origin = body.match(/Origin-xy:\s*\[\s*([+-]?[0-9.]+)\s*,\s*([+-]?[0-9.]+)\s*\]/i);
       if (origin) item.origin = [+origin[1], +origin[2]];
-      var segs = (body.match(/\n\s*Seg:/gi) || []).length;
-      var arcs = (body.match(/Arc seg:/gi) || []).length;
-      var rad = body.match(/Radius\s*\(\s*([0-9.]+)\s*\)/i);
-      if (rad) item.radius = +rad[1];
-      item.circle = item.type === 'shape' && arcs === 1 && segs === 0 && item.center && item.radius != null;
+      if (item.type === 'shape') KS.applyGeometry(item, KS.analyzeBoundary(body));
       if (item.type === 'trace') {
         var pts = [];
         XY_RE.lastIndex = 0;
@@ -58,23 +53,21 @@
         while ((pm = XY_RE.exec(body))) pts.push(+pm[1], +pm[2]);
         item.pts = pts;
       }
-      var traceLayers = [];
-      var traceRe = /Trace:\s*\d+\s*\(([^)]+)\)/gi;
-      var tm;
-      while ((tm = traceRe.exec(body))) {
+      var conn = body.match(/Connections:\s*([\s\S]*?)(?:\n\s*Backdrill:|\n\s*BackDrill|$)/i);
+      if (conn) item.connections = conn[1].replace(/\s+/g, ' ').trim();
+      var traceLayers = [], traceRe = /Trace:\s*\d+\s*\(([^)]+)\)/gi, tm;
+      while ((tm = traceRe.exec(conn ? conn[1] : ''))) {
         var parts = tm[1].trim().split(/\s+/).filter(Boolean);
         parts.forEach(function (p) { if (traceLayers.indexOf(p) < 0) traceLayers.push(p); });
       }
       item.traceLayers = traceLayers;
-      var conn = body.match(/Connections:\s*([\s\S]*?)(?:\n\s*Backdrill:|\n\s*BackDrill|$)/i);
-      if (conn) item.connections = conn[1].replace(/\s+/g, ' ').trim();
+      item.traceConnected = traceLayers.length > 0;
       var defined = body.match(/Padstack\s+Defined\s*(?:from|:)?\s*<?([^>\s\r\n~-]+)>?\s*(?:to|[-~])\s*<?([^>\s\r\n]+)>?/i);
       if (defined) { item.padstackStart = defined[1]; item.padstackEnd = defined[2]; }
       items.push(item);
     });
     return items;
   }
-
   function subsetToLayer(subset, n) {
     var s = String(subset || '').trim();
     if (!s) return 0;
@@ -85,11 +78,9 @@
     var l = s.match(/L\s*(\d+)/i);
     return l ? +l[1] : 0;
   }
-
   function isPadWord(str, from) {
     return /^pad/i.test(String(str).slice(from, from + 3));
   }
-
   function fanCandsOfName(raw) {
     var s = String(raw || '');
     var out = [], seen = {};
@@ -213,7 +204,10 @@
   }
 
   function checkTypeOf(shape) {
+    var set = String(shape.set || '').trim().toLowerCase();
     var blob = ((shape.set || '') + ' ' + (shape.head || '')).toLowerCase();
+    if (set === 'shape') return '非功能焊盘尺寸';
+    if (set === 'route keepout') return '反焊盘尺寸';
     if (/非功能|non-?func|unused|nfp/.test(blob)) return '非功能焊盘尺寸';
     if (/keepout|anti-?pad|反焊盘|antipad/.test(blob)) return '反焊盘尺寸';
     if (/焊盘|etch|regular/.test(blob)) return '焊盘尺寸';
@@ -222,24 +216,20 @@
 
   function constraintCheckType(c) {
     var blob = ((c && c.cat || '') + ' ' + (c && c.name || '')).toLowerCase();
+    if (/反焊盘形状/.test(blob)) return '';
     if (/非功能/.test(blob)) return '非功能焊盘尺寸';
     if (/反焊盘/.test(blob)) return '反焊盘尺寸';
     if (/焊盘/.test(blob)) return '焊盘尺寸';
     return '';
   }
 
-  function dist(a, b) {
-    var dx = a[0] - b[0], dy = a[1] - b[1];
-    return Math.sqrt(dx * dx + dy * dy);
-  }
-
   function ruleValue(set, checkType, layer) {
     var cons = (set && set.constraints) || [];
     var hit = cons.find(function (c) {
       var blob = (c.cat || '') + ' ' + (c.name || '');
-      if (checkType === '非功能焊盘尺寸') return /非功能/.test(blob);
-      if (checkType === '反焊盘尺寸') return /反焊盘/.test(blob) && !/非功能/.test(blob);
-      if (checkType === '焊盘尺寸') return /焊盘/.test(blob) && !/反焊盘/.test(blob) && !/非功能/.test(blob);
+      if (checkType === '非功能焊盘尺寸') return /焊盘/.test(blob) && !/反焊盘|非功能|形状/.test(blob);
+      if (checkType === '反焊盘尺寸') return /反焊盘/.test(blob) && !/非功能|形状/.test(blob);
+      if (checkType === '焊盘尺寸') return /焊盘/.test(blob) && !/反焊盘|非功能|形状/.test(blob);
       return false;
     });
     if (!hit) return { missing: '规则里没有这项' };
@@ -266,16 +256,19 @@
     var posTol = opts.posTol == null ? 0.05 : opts.posTol;
     var valTol = opts.valTol == null ? 0.01 : opts.valTol;
     var enabled = opts.enabled || { '反焊盘尺寸': true, '焊盘尺寸': true, '非功能焊盘尺寸': true, 'Padstack层名': true };
+    var productMode = opts.productMode == null ? (sets || []).some(function (set) { return set && set.matchMode === 'connections-trace-layers'; }) : !!opts.productMode;
     var vias = items.filter(function (it) { return it.type === 'via' && it.origin; });
-    var circles = items.filter(function (it) { return it.circle; });
-    var polygons = items.filter(function (it) { return it.type === 'shape' && !it.circle; });
+    var circles = items.filter(function (it) { return KS.isEligible(it) || (productMode && KS.isNonFunctionalPad(it)); });
+    var polygons = items.filter(function (it) { return it.type === 'shape' && !KS.isEligible(it) && !(productMode && KS.isNonFunctionalPad(it)); });
     var viaUnits = VI.groupVias(vias, n);
     VI.attachDifferentialPitch(viaUnits);
 
     var circleGrid = {}, traceGrid = {};
     circles.forEach(function (sh) {
-      var k = cellKey(sh.center[0], sh.center[1]);
-      (circleGrid[k] || (circleGrid[k] = [])).push(sh);
+      KS.centersOf(sh).forEach(function (center) {
+        var k = cellKey(center[0], center[1]);
+        (circleGrid[k] || (circleGrid[k] = [])).push(sh);
+      });
     });
 
     items.forEach(function (tr) {
@@ -304,8 +297,9 @@
           for (var cy = b.y0; cy <= b.y1; cy++) {
             var list = circleGrid[cx + ',' + cy];
             if (list) list.forEach(function (sh) {
-              if (dist(part.origin, sh.center) > posTol) return;
-              if (!nearSeen[sh.id]) { nearSeen[sh.id] = 1; near.push(sh); used[sh.id] = 1; }
+              var sourceLayer = subsetToLayer(sh.subset, n);
+              if (!sourceLayer || KS.distanceTo(sh, part.origin) > posTol) return;
+              if (!nearSeen[sh.id]) { nearSeen[sh.id] = 1; near.push(sh); }
               var owners = nearOwners[sh.id] || (nearOwners[sh.id] = []);
               if (!owners.some(function (v) { return String(v.id) === String(part.id); })) owners.push(part);
             });
@@ -316,7 +310,6 @@
           }
         }
       });
-
       var keys = padKeys(via.padstack);
       keys.signal = unit.signal;
       keys.kind = unit.kind || keys.kind;
@@ -327,25 +320,34 @@
       keys.pitchMm = unit.pitchMm;
       keys.pitchMode = unit.pitchMode;
       keys.mateNet = unit.mateNet;
-      var sel = unit.signal ? VI.selectConstraint(sets, unit, n) : { rule: null, candidates: [] };
-      var traceList = Object.keys(traceNums).map(function (k) { return +k; });
+      var sel = VI.selectConstraint(sets, unit, n);
+      var groundNet = String(unit.via.net || '').trim().toUpperCase() === 'GND';
+      var traceSignal = sel.mode === 'connections-trace-layers' && unit.traceConnected && !!String(unit.via.net || '').trim() && !groundNet;
+      var effectiveSignal = unit.signal || traceSignal, inspectSignal = effectiveSignal && !sel.excluded; keys.signal = effectiveSignal;
+      var traceList = sel.mode === 'connections-trace-layers' ? sel.traceLayers : Object.keys(traceNums).map(function (k) { return +k; });
       var spanText = unit.startLayer && unit.endLayer ? ('L' + unit.startLayer + '-L' + unit.endLayer) : '层跨未识别';
       var pitchMembers = unit.pitchMode === 'HDI' ? ('，参与 Via ' + unit.pitchViaIds.join('、') + ' ↔ Via ' + unit.matePitchViaIds.join('、')) : '';
-      var namingIssues = VI.padstackNamingIssues(unit.vias);
+      var namingIssues = sel.excluded || sel.mode === 'connections-trace-layers' ? [] : VI.padstackNamingIssues(unit.vias);
       var namingReason = namingIssues.map(function (x) { return 'Via ' + x.via.id + '：' + x.reason; }).join('；');
-      var groundNet = String(unit.via.net || '').trim().toUpperCase() === 'GND';
-      var note = unit.signal
-        ? ('SIG 完整孔组 ' + unit.memberIds.length + ' 段（Via ' + unit.memberIds.join('、') + '），连接 ' + spanText +
-          (unit.pitchMm != null ? ('，' + (unit.pitchMode === 'HDI' ? 'HDI 激光孔中心距 ' : '差分孔中心距 ') + unit.pitchMm.toFixed(3) + ' mm' + pitchMembers + '，匹配最近约束值') : '，未找到差分配对孔'))
-        : (groundNet ? 'GND 网络：仅显示，不推算信号约束，不执行核查' : 'Padstack 不含 SIG：仅显示，不推算约束，不执行核查');
+      var traceNote = sel.rule
+        ? ('Connections Trace 走线层 ' + (sel.traceLayers || []).map(function (l) { return 'L' + l; }).join('、') + '，匹配约束 ' + sel.rule.title + '，按该约束执行检查')
+        : (sel.targetTitle ? ('Connections Trace 走线层对应 ' + sel.targetTitle + '，未找到同名约束，不进行检查') : 'Connections 中未提取到两个不同的 Trace 走线层，不进行检查');
+      var legacyNote = 'SIG 完整孔组 ' + unit.memberIds.length + ' 段（Via ' + unit.memberIds.join('、') + '），连接 ' + spanText +
+        (unit.pitchMm != null ? ('，' + (unit.pitchMode === 'HDI' ? 'HDI 激光孔中心距 ' : '差分孔中心距 ') + unit.pitchMm.toFixed(3) + ' mm' + pitchMembers + '，匹配最近约束值') : '，未找到差分配对孔');
+      var note = effectiveSignal ? (sel.mode === 'connections-trace-layers' ? traceNote : legacyNote)
+        : (groundNet ? 'GND 网络：仅显示，不推算信号约束，不执行核查' : '没有可用的 Connections Trace 或 SIG 完整孔：不执行核查');
       if (namingReason) note += '；Padstack 信号命名不符合：' + namingReason;
-
-      var rows = near.map(function (sh) {
+      var checkedShapes = near.filter(function (sh) { return KS.isEligible(sh) || (sel.mode === 'connections-trace-layers' && KS.isNonFunctionalPad(sh)); });
+      checkedShapes.forEach(function (sh) { used[sh.id] = 1; });
+      var rows = KS.collapseCoincident(checkedShapes, function (sh) { return subsetToLayer(sh.subset, n); }, posTol, checkTypeOf).map(function (bundle) {
+        var sh = bundle.shape, mergedIds = bundle.members.map(function (item) { return item.id; }).sort(function (a, b) { return +a - +b; });
         var ctype = checkTypeOf(sh);
         var layer = subsetToLayer(sh.subset, n);
-        var on = unit.signal && enabled[ctype] !== false;
-        var status = '未检查', expect = '', constraint = '';
-        if (!unit.signal || !on) status = '未检查';
+        var on = inspectSignal && enabled[ctype] !== false;
+        var status = '未检查', expect = '', constraint = '', reason = '';
+        var expectedShape = ctype === '反焊盘尺寸' && sel.rule && layer ? KS.ruleShape(sel.rule, layer) : '';
+        var actualText = (sh.shapeKind || '无法识别') + ' · 圆弧半径 ' + (sh.arcRadii || [sh.radius]).join(' / ') + ' mil';
+        if (!inspectSignal || !on) status = '未检查';
         else if (!sel.rule) status = '未选规则';
         else if (!layer) status = '层未识别';
         else {
@@ -353,13 +355,15 @@
           constraint = rv.constraint || '';
           if (rv.missing) { status = '无约束'; expect = rv.missing; }
           else {
-            expect = rv.text;
-            status = Math.abs(sh.radius - rv.value) <= valTol ? '符合' : '不符合';
+            var shapeEval = KS.evaluate(sh, rv.value, expectedShape || sh.shapeKind, valTol);
+            expect = rv.text; status = shapeEval.status; reason = shapeEval.reason; actualText = shapeEval.actualText;
           }
         }
+        if (mergedIds.length > 1) actualText += '（同层同心合并 ' + mergedIds.length + ' 个 ' + (ctype === '非功能焊盘尺寸' ? 'Set=Shape' : 'Route Keepout') + '，取最大半径）';
         return {
-          shapeId: sh.id, subset: sh.subset, layer: layer, checkType: ctype,
-          actual: sh.radius, expect: expect, status: status, constraint: constraint, enabled: on
+          shapeId: sh.id, mergedShapeIds: mergedIds, subset: sh.subset, layer: layer, checkType: ctype,
+          actual: sh.radius, actualText: actualText, shapeKind: sh.shapeKind, expectedShape: expectedShape,
+          expect: expect, status: status, constraint: constraint, reason: reason, enabled: on
         };
       });
       if (namingIssues.length) rows = namingIssues.map(function (issue) {
@@ -378,12 +382,15 @@
         });
         sel.rule.constraints.forEach(function (c) {
           var ctype = constraintCheckType(c);
-          if (!ctype || enabled[ctype] === false) return;
+          if (ctype === '非功能焊盘尺寸') return;
+          if (ctype === '焊盘尺寸' && sel.mode === 'connections-trace-layers') ctype = '非功能焊盘尺寸';
+          if ((ctype !== '反焊盘尺寸' && ctype !== '非功能焊盘尺寸') || enabled[ctype] === false) return;
           var vals = c.values || {};
           Object.keys(vals).forEach(function (k) {
             var lm = k.match(/^L(\d+)$/i);
             if (!lm) return;
             var ln = +lm[1];
+            if (ln < 1 || ln > n) return;
             var v = vals[k];
             if (v == null || v === '' || v === '无') return;
             var num = parseFloat(v);
@@ -392,18 +399,16 @@
               present[ln + ':' + ctype] = 1;
               rows.push({
                 shapeId: 'none', subset: '—', layer: ln, checkType: ctype,
-                actual: '无铜皮', expect: String(v), status: '不符合',
-                constraint: c.name || '', missing: true, enabled: true
+                actual: ctype === '反焊盘尺寸' ? '无铜皮' : '无非功能焊盘', expect: String(v), expectedShape: ctype === '反焊盘尺寸' ? KS.ruleShape(sel.rule, ln) : '', status: '不符合',
+                constraint: c.name || '', reason: ctype === '反焊盘尺寸' ? '规则要求检查该层，但没有匹配到同心 Route Keepout' : '规则配置了焊盘尺寸，但没有匹配到同层同心的 Set=Shape 非功能焊盘',
+                missing: true, enabled: true
               });
             }
           });
         });
       }
-
-      // 结果表始终覆盖完整孔经过的每一层。规则有数值但没有铜皮数据时
-      // 仍按缺失判定；该层没有规则值时保留一条“未检查”占位行，避免
-      // 稀疏 Shape 数据让 L2-L12 完整孔只显示 L5/L10 等少数层。
-      if (unit.signal && unit.startLayer && unit.endLayer) {
+      // 匹配规则后显示 L1-Ln；同心 Shape 全部读取，来源优先取覆盖层、否则取最近孔段。
+      if (inspectSignal && unit.startLayer && unit.endLayer) {
         var spanTypes = {}, spanPresent = {};
         rows.forEach(function (r) {
           if (r.isPadstackCheck || !r.checkType || typeof r.layer !== 'number' || r.layer <= 0) return;
@@ -413,10 +418,12 @@
         if (sel.rule && sel.rule.constraints) {
           sel.rule.constraints.forEach(function (c) {
             var ctype = constraintCheckType(c);
-            if (ctype && enabled[ctype] !== false) spanTypes[ctype] = 1;
+            if (ctype === '非功能焊盘尺寸') return;
+            if (ctype === '焊盘尺寸' && sel.mode === 'connections-trace-layers') ctype = '非功能焊盘尺寸';
+            if ((ctype === '反焊盘尺寸' || ctype === '非功能焊盘尺寸') && enabled[ctype] !== false) spanTypes[ctype] = 1;
           });
         }
-        for (var spanLayer = unit.startLayer; spanLayer <= unit.endLayer; spanLayer++) {
+        for (var spanLayer = sel.rule ? 1 : unit.startLayer; spanLayer <= (sel.rule ? n : unit.endLayer); spanLayer++) {
           Object.keys(spanTypes).forEach(function (ctype) {
             var spanKey = spanLayer + ':' + ctype;
             if (spanPresent[spanKey]) return;
@@ -427,11 +434,11 @@
               subset: '—',
               layer: spanLayer,
               checkType: ctype,
-              actual: '无铜皮',
+              actual: ctype === '反焊盘尺寸' ? '无铜皮' : '无非功能焊盘',
               expect: checked ? rv.text : rv.missing,
-              status: checked ? '不符合' : '未检查',
+              expectedShape: ctype === '反焊盘尺寸' && sel.rule ? KS.ruleShape(sel.rule, spanLayer) : '', status: checked ? '不符合' : '未检查',
               constraint: rv.constraint || '',
-              reason: checked ? '完整孔经过该层，但没有匹配到铜皮数据' : rv.missing,
+              reason: checked ? (ctype === '反焊盘尺寸' ? '完整孔经过该层，但没有匹配到铜皮数据' : '规则配置了焊盘尺寸，但该层没有匹配到 Set=Shape 非功能焊盘') : rv.missing,
               missing: true,
               spanPlaceholder: true,
               enabled: true
@@ -440,8 +447,7 @@
           });
         }
       }
-
-      if (unit.signal) {
+      if (inspectSignal && sel.mode !== 'connections-trace-layers') {
       var padOn = enabled['Padstack层名'] !== false;
       var connLayerNums = [];
       var connLayerSeen = {};
@@ -505,10 +511,12 @@
       rows.forEach(function (row) {
         var owners = nearOwners[row.shapeId] || unit.vias;
         if (row.namingViaId != null) owners = unit.vias.filter(function (part) { return String(part.id) === String(row.namingViaId); });
-        else if (!row.isPadstackCheck) owners = VI.sourceOwnersForLayer(owners, row.layer, n);
-        row.sourceViaIds = owners.map(function (part) { return part.id; });
-        row.sourcePadstack = owners.map(function (part) { return part.padstack || '无 Padstack'; })
-          .filter(function (name, idx, all) { return all.indexOf(name) === idx; }).join(' + ');
+        else if (!row.isPadstackCheck) owners = nearOwners[row.shapeId] ? VI.sourceOwnersForShape(owners, row.layer, n) : VI.sourceOwnersForLayer(owners, row.layer, n);
+        var sourceSegments = VI.sourceSegments(owners, n);
+        row.sourceViaIds = sourceSegments.map(function (part) { return part.viaId; });
+        row.sourceViaSpans = sourceSegments.map(function (part) { return 'Via ' + part.viaId + ' · ' + part.spanText; }).join(' / ') || '无孔段覆盖该层';
+        row.sourcePadstack = sourceSegments.map(function (part) { return part.padstack; })
+          .filter(function (name, idx, all) { return all.indexOf(name) === idx; }).join(' + ') || '无覆盖 Padstack';
       });
 
       rows.sort(function (a, b) {
@@ -522,8 +530,9 @@
       var failRows = [];
       for (var fi = 0; fi < rows.length; fi++) if (rows[fi].status === '不符合') failRows.push(rows[fi]);
       return {
-        via: via, vias: unit.vias, signal: unit.signal, keys: keys,
+        via: via, vias: unit.vias, sourceSegments: VI.sourceSegments(unit.vias, n), signal: effectiveSignal, keys: keys,
         rule: sel.rule, candidates: sel.candidates, note: note, namingError: namingReason,
+        matchMode: sel.mode || '', matchTraceLayers: sel.traceLayers || [], excludedByConstraint: !!sel.excluded,
         startLayer: unit.startLayer, endLayer: unit.endLayer,
         pitchMm: unit.pitchMm, pitchMode: unit.pitchMode, pitchViaIds: unit.pitchViaIds,
         matePitchViaIds: unit.matePitchViaIds, mateNet: unit.mateNet,
@@ -531,30 +540,12 @@
       };
     });
 
-    var viaGrid = {};
-    vias.forEach(function (v) {
-      var k = cellKey(v.origin[0], v.origin[1]);
-      (viaGrid[k] || (viaGrid[k] = [])).push(v);
-    });
-
-    var NEAR_CAP = 40;
     function nearestVia(sh) {
-      var cx = Math.floor(sh.center[0] / BUCKET), cy = Math.floor(sh.center[1] / BUCKET);
       var best = null;
-      for (var r = 1; r <= NEAR_CAP; r++) {
-        for (var i = cx - r; i <= cx + r; i++) {
-          for (var j = cy - r; j <= cy + r; j++) {
-            if (Math.max(Math.abs(i - cx), Math.abs(j - cy)) < r - 1) continue;
-            var list = viaGrid[i + ',' + j];
-            if (!list) continue;
-            for (var q = 0; q < list.length; q++) {
-              var d = dist(sh.center, list[q].origin);
-              if (!best || d < best.dist) best = { viaId: list[q].id, dist: d, padstack: list[q].padstack || '' };
-            }
-          }
-        }
-        if (best && best.dist <= r * BUCKET) break;
-      }
+      vias.forEach(function (via) {
+        var d = KS.distanceTo(sh, via.origin);
+        if (!best || d < best.dist) best = { viaId: via.id, dist: d, padstack: via.padstack || '' };
+      });
       return best;
     }
 
@@ -579,6 +570,9 @@
       polygons: polygons,
       viaCount: vias.length,
       circleCount: circles.length,
+      routeKeepoutCount: circles.filter(function (sh) { return KS.isEligible(sh); }).length,
+      nonFunctionalPadCount: circles.filter(function (sh) { return KS.isNonFunctionalPad(sh); }).length,
+      productMode: productMode,
       maxLayer: hi
     };
   }

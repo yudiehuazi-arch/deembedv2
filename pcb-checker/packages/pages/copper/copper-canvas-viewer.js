@@ -74,7 +74,8 @@
     }
     (items || []).forEach(function (item) {
       if (item.origin) point(item.origin[0], item.origin[1], 2);
-      if (item.center) point(item.center[0], item.center[1], item.radius || 2);
+      if (item.shapeBounds) { point(item.shapeBounds.minX, item.shapeBounds.minY, 0); point(item.shapeBounds.maxX, item.shapeBounds.maxY, 0); }
+      else if (item.center) point(item.center[0], item.center[1], item.radius || 2);
       for (var i = 0; item.pts && i < item.pts.length - 1; i += 2) point(item.pts[i], item.pts[i + 1], 2);
     });
     if (!isFinite(b.minX)) return { minX: 0, maxX: 100, minY: 0, maxY: 100 };
@@ -178,7 +179,7 @@
     var failures = collectFailureHighlights();
     var items = UI.items.filter(function (item) {
       return (item.type === 'via' && failures.vias[String(item.id)]) ||
-        (item.circle && failures.shapes[String(item.id)]);
+        ((item.arcShape || item.circle) && failures.shapes[String(item.id)]);
     });
     if (items.length) fitBounds(boundsOf(items), 70);
     draw();
@@ -248,21 +249,38 @@
     });
   }
 
+  function shapePath(item, extra) {
+    var radius = Math.max(2, item.radius * view.zoom + (extra || 0));
+    ctx.beginPath();
+    if (!item.obround || !item.matchingCenters || item.matchingCenters.length !== 2) {
+      var p = worldToScreen(item.center[0], item.center[1]);
+      ctx.arc(p[0], p[1], radius, 0, Math.PI * 2); return;
+    }
+    var a = worldToScreen(item.matchingCenters[0][0], item.matchingCenters[0][1]);
+    var b = worldToScreen(item.matchingCenters[1][0], item.matchingCenters[1][1]);
+    var dx = b[0] - a[0], dy = b[1] - a[1], len = Math.sqrt(dx * dx + dy * dy) || 1;
+    var nx = -dy / len, ny = dx / len, angle = Math.atan2(ny, nx);
+    ctx.moveTo(a[0] + nx * radius, a[1] + ny * radius);
+    ctx.lineTo(b[0] + nx * radius, b[1] + ny * radius);
+    ctx.arc(b[0], b[1], radius, angle, angle - Math.PI, true);
+    ctx.lineTo(a[0] - nx * radius, a[1] - ny * radius);
+    ctx.arc(a[0], a[1], radius, angle - Math.PI, angle - Math.PI * 2, true);
+    ctx.closePath();
+  }
+
   function drawShapes(failures) {
     if (!$('ckCopperCanvasShapes') || !$('ckCopperCanvasShapes').checked) return;
     var target = shapeForRow(selectedRow());
     UI.items.forEach(function (item) {
-      if (!item.circle || !item.center || !visibleItem(item)) return;
-      var p = worldToScreen(item.center[0], item.center[1]);
-      var radius = Math.max(2, item.radius * view.zoom);
+      if ((!item.arcShape && !item.circle) || !item.center || !visibleItem(item)) return;
       var isTarget = target && String(target.id) === String(item.id);
       var isFail = !!failures.shapes[String(item.id)];
-      ctx.beginPath(); ctx.arc(p[0], p[1], radius, 0, Math.PI * 2);
+      shapePath(item, 0);
       ctx.strokeStyle = (isTarget || isFail) ? '#ef4444' : '#f59e0b';
       ctx.lineWidth = isTarget ? 4 : (isFail ? 3 : 1.5); ctx.stroke();
       if (isTarget || isFail) { ctx.fillStyle = 'rgba(239,68,68,0.18)'; ctx.fill(); }
       if (isFail) {
-        ctx.beginPath(); ctx.setLineDash([5, 3]); ctx.arc(p[0], p[1], radius + 6, 0, Math.PI * 2);
+        ctx.setLineDash([5, 3]); shapePath(item, 6);
         ctx.strokeStyle = '#fb7185'; ctx.lineWidth = 2; ctx.stroke(); ctx.setLineDash([]);
       }
     });
@@ -337,13 +355,13 @@
     var layer = typeof row.layer === 'number' ? ('L' + row.layer) : String(row.layer || '—');
     var source = (row.sourceViaIds || []).map(function (id) { return 'Via ' + id; }).join('/') + ' · ' + (row.sourcePadstack || '无 Padstack');
     text.textContent = 'Via ' + g.via.id + ' · ' + (g.via.net || '无网络') + ' · L' + g.startLayer + '-L' + g.endLayer +
-      ' · ' + layer + ' ' + row.checkType + ' · 来源 ' + source + ' · 实测 ' + row.actual + ' / 规则 ' + (row.expect || '无') + ' · ' + row.status;
+      ' · ' + layer + ' ' + row.checkType + ' · 来源 ' + source + ' · 实测 ' + (row.actualText || row.actual) + ' / 规则 ' + (row.expect || '无') + (row.expectedShape ? (' · ' + row.expectedShape) : '') + ' · ' + row.status;
   }
 
   function visibilityStats() {
     var totals = { via: 0, shape: 0, trace: 0 }, shown = { via: 0, shape: 0, trace: 0 };
     UI.items.forEach(function (item) {
-      var key = item.type === 'via' ? 'via' : (item.circle ? 'shape' : (item.type === 'trace' ? 'trace' : ''));
+      var key = item.type === 'via' ? 'via' : ((item.arcShape || item.circle) ? 'shape' : (item.type === 'trace' ? 'trace' : ''));
       if (!key) return;
       totals[key]++;
       if (visibleItem(item)) shown[key]++;

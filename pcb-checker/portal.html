@@ -4,11 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PCB 检查与 SI 工作台 | 统一入口主页</title>
-<link rel="stylesheet" href="assets/styles/tokens.css?v=36">
-<link rel="stylesheet" href="assets/styles/eda-shell.css?v=36">
-<link rel="stylesheet" href="assets/styles/eda-dock.css?v=36">
-<link rel="stylesheet" href="assets/styles/components.css?v=36">
-<link rel="stylesheet" href="assets/styles/pages/portal.css?v=36">
+<link rel="stylesheet" href="assets/styles/tokens.css?v=95">
+<link rel="stylesheet" href="assets/styles/eda-shell.css?v=95">
+<link rel="stylesheet" href="assets/styles/eda-dock.css?v=95">
+<link rel="stylesheet" href="assets/styles/components.css?v=95">
+<link rel="stylesheet" href="assets/styles/pages/portal.css?v=95">
 </head>
 <body class="eda-workbench">
 
@@ -29,7 +29,7 @@
       <a href="copper.html" data-code="CON" data-tip="叠层约束表解析、过孔配对与反焊盘逐层尺寸核对">约束检查</a>
       <a href="dfm.html" data-code="DFM" data-tip="孔-孔、线-孔及异网孔盘 Airgap 几何间距测量与分层判定">加工能力检查</a>
       <a href="fanout.html" data-code="FAN" data-tip="过孔连通聚类、刚体变换方案匹配与孔心距分色预览">扇出方案检查</a>
-      <a href="pour.html" data-code="POR" data-tip="孔经过层铺铜、异型铜皮比对、参考层超宽、碎铜与圆弧半径核对">铜皮检查</a>
+      <a href="pour.html" data-code="POR" data-tip="孔经过层铺铜、异型铜皮比对、参考层走线投影与两侧邻近铜、碎铜与圆弧半径核对">铜皮检查</a>
       <a href="unified.html" data-code="UNI" data-tip="四槽位数据输入与五大检查引擎联动汇总工作台">综合一体化检查</a>
     </div>
   </div>
@@ -108,7 +108,7 @@
               <h3>② 约束检查</h3>
               <span class="mod-step">copper.html</span>
             </div>
-            <div class="hint">解析叠层约束 TXT，生成 SMA / BGA 命名规则表，空间配对过孔与圆形铜皮并逐层核对反焊盘与焊盘尺寸。</div>
+            <div class="hint">在预研板与产品板两套方案间筛选约束映射，空间配对信号孔与 Route Keepout，并逐层核对反焊盘尺寸。</div>
           </div>
           <div class="mod-link">进入模块 →</div>
         </a>
@@ -141,7 +141,7 @@
               <h3>⑤ 铜皮检查</h3>
               <span class="mod-step">pour.html</span>
             </div>
-            <div class="hint">孔经过层铺铜覆盖、特定异型铜皮模板比对、走线参考层单侧超宽、孤立碎铜死铜识别及铜皮最小弧半径。</div>
+            <div class="hint">孔经过层铺铜覆盖、特定异型铜皮模板比对、走线参考层投影覆盖与两侧邻近铜、孤立碎铜死铜识别及铜皮最小弧半径。</div>
           </div>
           <div class="mod-link">进入模块 →</div>
         </a>
@@ -235,7 +235,7 @@
   </div>
 </aside>
 
-<script src="packages/shared/eda-tooltip.js?v=36"></script>
-<script src="packages/shared/eda-shell.js?v=36"></script>
+<script src="packages/shared/eda-tooltip.js?v=95"></script>
+<script src="packages/shared/eda-shell.js?v=95"></script>
 </body>
 </html>

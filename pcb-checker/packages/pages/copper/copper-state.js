@@ -8,7 +8,8 @@
   var CP = root.ConstraintParser;
   var CC = root.CopperCheck;
 
-  var S = { sets: [], queue: [], stack: 0 };
+  var S = { sets: [], queue: [], stack: 0, scheme: 'research' };
+  var SCHEME_NAMES = { research: 'PCB/HDI/SLP预研板检查', product: '产品板检查' };
   var UI = {
     items: [],
     result: null,
@@ -51,9 +52,30 @@
     return Math.round(nowMs() - t0);
   }
 
+  function schemeOfSet(set) {
+    return set && set.matchMode === 'connections-trace-layers' ? 'product' : 'research';
+  }
+
+  function activeSetEntries() {
+    var out = [];
+    (S.sets || []).forEach(function (set, index) {
+      if (schemeOfSet(set) === S.scheme) out.push({ set: set, index: index });
+    });
+    return out;
+  }
+
+  function activeSets() {
+    return activeSetEntries().map(function (entry) { return entry.set; });
+  }
+
+  function schemeName() {
+    return SCHEME_NAMES[S.scheme] || SCHEME_NAMES.research;
+  }
+
   function autoLayerCount() {
-    var key = (S.sets || []).length + '#' +
-      (S.sets || []).map(function (s) { return (s.title || '').length + (s.constraints || []).length; }).join(',') + '#' +
+    var selected = activeSets();
+    var key = S.scheme + '#' + selected.length + '#' +
+      selected.map(function (s) { return (s.title || '').length + (s.constraints || []).length; }).join(',') + '#' +
       (S.queue || []).map(function (f) { return (f.text || '').length; }).join(',');
     if (stackCache.key === key && stackCache.n) return stackCache.n;
     var n = S.stack || 0;
@@ -61,7 +83,7 @@
       var m = String(txt || '').match(/L\s*(\d+)/i);
       if (m) n = Math.max(n, +m[1]);
     };
-    (S.sets || []).forEach(function (set) {
+    selected.forEach(function (set) {
       var fan = CP.fanLayerOf(set);
       (set.constraints || []).forEach(function (c) {
         (c.scopes || []).forEach(function (sc) {
@@ -114,8 +136,42 @@
     return eff;
   }
 
+  function coreConstraint(set, type) {
+    return (set.constraints || []).find(function (c) {
+      var blob = (c.cat || '') + ' ' + (c.name || '');
+      if (type === 'anti') return /反焊盘/.test(blob) && !/形状|非功能/.test(blob);
+      if (type === 'shape') return /反焊盘形状/.test(blob);
+      return /焊盘/.test(blob) && !/反焊盘|非功能|形状/.test(blob);
+    });
+  }
+
+  function ensureCoreColumns(sets, n) {
+    (sets || []).forEach(function (set) {
+      var cons = set.constraints || (set.constraints = []);
+      var anti = coreConstraint(set, 'anti') || { name: '反焊盘半径', cat: '反焊盘尺寸', unit: 'mil', scopes: [], values: {}, auto: {}, sources: {}, extras: [], unscoped: '' };
+      var shape = coreConstraint(set, 'shape') || { name: '反焊盘形状', cat: '反焊盘形状', unit: '', scopes: [], values: {}, auto: {}, sources: {}, extras: [], unscoped: '' };
+      var pad = coreConstraint(set, 'pad') || { name: '焊盘半径', cat: '焊盘尺寸', unit: 'mil', scopes: [], values: {}, auto: {}, sources: {}, extras: [], unscoped: '' };
+      var oldAuto = shape.auto || {}, explicit = CP.applyScopes(shape.scopes || [], n, CP.fanLayerOf(set));
+      var values = Object.assign({}, shape.values || {}), auto = {}, sources = {};
+      for (var i = 1; i <= n; i++) {
+        var key = 'L' + i, antiValue = anti.values && anti.values[key], hasAnti = antiValue != null && antiValue !== '' && antiValue !== '无';
+        var next = explicit.values[key] || (hasAnti ? '圆形' : '无');
+        auto[key] = next;
+        if (values[key] == null || values[key] === '' || values[key] === oldAuto[key]) values[key] = next;
+        sources[key] = values[key] === next ? (explicit.sources[key] || (next === '圆形' ? '默认圆形' : '')) : '手工填写';
+      }
+      Object.keys(values).forEach(function (key) { var m = /^L(\d+)$/.exec(key); if (m && +m[1] > n) delete values[key]; });
+      shape.values = values; shape.auto = auto; shape.sources = sources; shape.extras = explicit.extras;
+      var core = [anti, shape, pad];
+      set.constraints = core.concat(cons.filter(function (c) { return core.indexOf(c) < 0; }));
+    });
+    return sets;
+  }
+
   function reexpandAll() {
-    CP.expandConstraintSets(S.sets, layerCount());
+    var n = layerCount();
+    CP.expandConstraintSets(S.sets, n);
+    ensureCoreColumns(S.sets, n);
   }
 
   function syncCopperTelemetry() {
@@ -126,7 +182,7 @@
     var bad = r ? r.groups.reduce(function (n, g) { return n + (g.failCount || 0); }, 0) : 0;
     var cells = [
       { k: '有效叠层', v: eff + ' 层', cls: '' },
-      { k: '约束条数', v: String((S.sets || []).length), cls: (S.sets || []).length ? 'ok' : '' },
+      { k: '当前方案约束', v: String(activeSets().length), cls: activeSets().length ? 'ok' : '' },
       { k: '过孔总数', v: r ? String(r.viaCount) : '—', cls: '' },
       { k: '不符合项', v: r ? String(bad) : '—', cls: r ? (bad > 0 ? 'bad' : 'ok') : '' }
     ];
@@ -192,7 +248,7 @@
   }
 
   function showTab(name) {
-    ['rules', 'sets', 'data', 'result', 'canvas', 'legend'].forEach(function (t) {
+    ['rules', 'sets', 'data', 'result', 'canvas', 'legend', 'guide'].forEach(function (t) {
       var sec = $('tab-' + t);
       if (sec) sec.className = 'tab' + (t === name ? ' active' : '');
     });
@@ -266,19 +322,27 @@
           set.constraints = CP.buildConstraints(set.rules || []);
           sets.push(set);
         });
-        var colCnt = parsed.reduce(function (a, s) { return a + (s.constraints || []).length; }, 0);
+        var colCnt = parsed.reduce(function (a, s) {
+          var count = (s.constraints || []).length;
+          ['anti', 'shape', 'pad'].forEach(function (type) { if (!coreConstraint(s, type)) count++; });
+          return a + count;
+        }, 0);
         item.status = '已生成 ' + parsed.length + ' 条约束 · ' + colCnt + ' 列参数';
       } else {
         item.status = '未识别到参数行或约束表';
       }
     });
     S.sets = sets;
+    if (!activeSets().length && S.sets.length) {
+      var alternate = S.scheme === 'product' ? 'research' : 'product';
+      if (S.sets.some(function (set) { return schemeOfSet(set) === alternate; })) S.scheme = alternate;
+    }
     reexpandAll();
     var n = S.sets.reduce(function (a, s) { return a + (s.constraints || []).length; }, 0);
-    var nSets = S.sets.length;
+    var nSets = S.sets.length, activeCount = activeSets().length;
     if ($('genHint')) {
       $('genHint').textContent = n
-        ? ('已生成 ' + nSets + ' 条约束 / ' + n + ' 列参数，已展开至各层。')
+        ? ('已生成 ' + nSets + ' 条约束 / ' + n + ' 列参数；当前“' + schemeName() + '”可用 ' + activeCount + ' 条。')
         : '未识别到有效约束，请核对 TXT 格式。';
     }
     if (root.render) root.render();
@@ -297,6 +361,8 @@
   root.layerCount = layerCount;
   root.updateStackHints = updateStackHints;
   root.reexpandAll = reexpandAll;
+  root.ensureCoreColumns = ensureCoreColumns;
+  root.activeSets = activeSets;
   root.addFiles = addFiles;
   root.rebuild = rebuild;
   root.showTab = showTab;
@@ -325,6 +391,11 @@
     layerCount: layerCount,
     updateStackHints: updateStackHints,
     reexpandAll: reexpandAll,
+    ensureCoreColumns: ensureCoreColumns,
+    activeSets: activeSets,
+    activeSetEntries: activeSetEntries,
+    schemeOfSet: schemeOfSet,
+    schemeName: schemeName,
     syncPin: syncPin,
     syncTelemetry: syncCopperTelemetry,
     showBox: showBox,

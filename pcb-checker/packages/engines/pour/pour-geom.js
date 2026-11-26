@@ -91,11 +91,14 @@
    * 把铜皮轮廓（直线 + 圆弧）离散成闭合多边形环。
    * 圆弧按弦高误差 tol(mil) 自适应分段，默认 0.05 mil。
    */
-  function flattenBoundary(shape, tol) {
-    if (!shape || !shape.boundary || !shape.boundary.length) return [];
+  function flattenBoundary(shapeOrBoundary, tol) {
+    const boundary = Array.isArray(shapeOrBoundary)
+      ? shapeOrBoundary
+      : (shapeOrBoundary && shapeOrBoundary.boundary);
+    if (!boundary || !boundary.length) return [];
     const maxErr = tol || 0.05;
     const ring = [];
-    for (const seg of shape.boundary) {
+    for (const seg of boundary) {
       if (seg.type === 'line') {
         ring.push([seg.x1, seg.y1]);
       } else {
@@ -153,13 +156,48 @@
     return { x: cx / (6 * a), y: cy / (6 * a) };
   }
 
-  /** 射线法：点是否在多边形内（含边界近似） */
+  const polygonRayIndexCache = new WeakMap();
+
+  function buildPolygonRayIndex(ring) {
+    let minY = Infinity, maxY = -Infinity;
+    ring.forEach(point => { minY = Math.min(minY, point[1]); maxY = Math.max(maxY, point[1]); });
+    const cellSize = Math.max(10, (maxY - minY) / 512 || 10);
+    const cells = new Map(), longEdges = [];
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const startCell = Math.floor(Math.min(ring[i][1], ring[j][1]) / cellSize);
+      const endCell = Math.floor(Math.max(ring[i][1], ring[j][1]) / cellSize);
+      if (endCell - startCell > 512) { longEdges.push([i, j]); continue; }
+      for (let cell = startCell; cell <= endCell; cell++) {
+        if (!cells.has(cell)) cells.set(cell, []);
+        cells.get(cell).push([i, j]);
+      }
+    }
+    return { cellSize, cells, longEdges };
+  }
+
+  /** 射线法：长轮廓按 Y 区间索引候选边，避免每个查询点遍历整块铜皮的全部边。 */
   function pointInPolygon(px, py, ring) {
     if (!ring || ring.length < 3) return false;
+    let edges = null;
+    if (ring.length >= 32) {
+      let index = polygonRayIndexCache.get(ring);
+      if (!index) { index = buildPolygonRayIndex(ring); polygonRayIndexCache.set(ring, index); }
+      edges = (index.cells.get(Math.floor(py / index.cellSize)) || []).concat(index.longEdges);
+    }
     let inside = false;
-    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-      const xi = ring[i][0], yi = ring[i][1];
-      const xj = ring[j][0], yj = ring[j][1];
+    if (!edges) {
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
+        if ((yi > py) !== (yj > py)) {
+          const xCross = xi + (py - yi) * (xj - xi) / (yj - yi);
+          if (px < xCross) inside = !inside;
+        }
+      }
+      return inside;
+    }
+    for (const edge of edges) {
+      const current = ring[edge[0]], previous = ring[edge[1]];
+      const xi = current[0], yi = current[1], xj = previous[0], yj = previous[1];
       if ((yi > py) !== (yj > py)) {
         const xCross = xi + (py - yi) * (xj - xi) / (yj - yi);
         if (px < xCross) inside = !inside;
@@ -168,13 +206,141 @@
     return inside;
   }
 
-  /** 铜皮多边形环（带缓存），没有几何数据时返回空 */
+  function setGeometryCache(target, key, value) {
+    Object.defineProperty(target, key, { value, writable: true, configurable: true });
+    return value;
+  }
+
+  /** 铜皮外轮廓多边形环（非枚举缓存），避免 Worker 回传时复制派生点列。 */
   function shapeRing(shape) {
     if (!shape) return [];
-    if (shape._ring) return shape._ring;
+    if (Array.isArray(shape._ring)) return shape._ring;
     if (!shape.boundary || !shape.boundary.length) return [];
-    shape._ring = flattenBoundary(shape);
-    return shape._ring;
+    return setGeometryCache(shape, '_ring', flattenBoundary(shape.boundary));
+  }
+
+  /** 铜皮全部轮廓：第一个是 exterior，其余是按报告顺序排列的 Void。 */
+  function shapeRings(shape) {
+    const exterior = shapeRing(shape);
+    if (!exterior.length) return [];
+    if (Array.isArray(shape._voidRings)) return [exterior].concat(shape._voidRings);
+    const voidRings = (shape.voids || []).map(voidContour => {
+      if (Array.isArray(voidContour._ring)) return voidContour._ring;
+      const ring = flattenBoundary(voidContour.boundary || voidContour);
+      if (voidContour && !Array.isArray(voidContour)) setGeometryCache(voidContour, '_ring', ring);
+      return ring;
+    }).filter(ring => ring.length >= 3);
+    setGeometryCache(shape, '_voidRings', voidRings);
+    return [exterior].concat(voidRings);
+  }
+
+  const shapeVoidIndexCache = new WeakMap();
+
+  function ringBBox(ring) {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    ring.forEach(point => {
+      minX = Math.min(minX, point[0]); minY = Math.min(minY, point[1]);
+      maxX = Math.max(maxX, point[0]); maxY = Math.max(maxY, point[1]);
+    });
+    return { minX, minY, maxX, maxY };
+  }
+
+  function buildVoidRingIndex(rings) {
+    const cellSize = 25, cells = new Map(), large = [];
+    for (let i = 1; i < rings.length; i++) {
+      const bbox = ringBBox(rings[i]);
+      const minGX = Math.floor(bbox.minX / cellSize), maxGX = Math.floor(bbox.maxX / cellSize);
+      const minGY = Math.floor(bbox.minY / cellSize), maxGY = Math.floor(bbox.maxY / cellSize);
+      const entry = { ring: rings[i], bbox };
+      if ((maxGX - minGX + 1) * (maxGY - minGY + 1) > 256) { large.push(entry); continue; }
+      for (let gx = minGX; gx <= maxGX; gx++) {
+        for (let gy = minGY; gy <= maxGY; gy++) {
+          const key = gx + ',' + gy;
+          if (!cells.has(key)) cells.set(key, []);
+          cells.get(key).push(entry);
+        }
+      }
+    }
+    return { cellSize, cells, large };
+  }
+
+  function voidRingEntriesAtPoint(px, py, shape) {
+    const rings = shapeRings(shape);
+    if (rings.length <= 1 || !pointInPolygon(px, py, rings[0])) return [];
+    let index = shapeVoidIndexCache.get(shape);
+    if (!index) { index = buildVoidRingIndex(rings); shapeVoidIndexCache.set(shape, index); }
+    const key = Math.floor(px / index.cellSize) + ',' + Math.floor(py / index.cellSize);
+    return index.large.concat(index.cells.get(key) || []).filter(entry => {
+      const b = entry.bbox;
+      return px >= b.minX && px <= b.maxX && py >= b.minY && py <= b.maxY && pointInPolygon(px, py, entry.ring);
+    });
+  }
+
+  /** 返回覆盖指定点的 Void 轮廓，供识别走线端点反焊盘。 */
+  function shapeVoidRingsAtPoint(px, py, shape) {
+    return voidRingEntriesAtPoint(px, py, shape).map(entry => entry.ring);
+  }
+
+  /** 按包围盒查询 Shape 的 Void 轮廓，避免长走线逐一遍历整板反焊盘。 */
+  function shapeVoidRingEntriesInBBox(minX, minY, maxX, maxY, shape) {
+    const rings = shapeRings(shape);
+    if (rings.length <= 1) return [];
+    let index = shapeVoidIndexCache.get(shape);
+    if (!index) { index = buildVoidRingIndex(rings); shapeVoidIndexCache.set(shape, index); }
+    const candidates = new Set(index.large);
+    for (let gx = Math.floor(minX / index.cellSize); gx <= Math.floor(maxX / index.cellSize); gx++) {
+      for (let gy = Math.floor(minY / index.cellSize); gy <= Math.floor(maxY / index.cellSize); gy++) {
+        (index.cells.get(gx + ',' + gy) || []).forEach(entry => candidates.add(entry));
+      }
+    }
+    return Array.from(candidates).filter(entry => {
+      const b = entry.bbox;
+      return b.maxX >= minX && b.minX <= maxX && b.maxY >= minY && b.minY <= maxY;
+    });
+  }
+
+  /** 与 Canvas evenodd 填充一致；Void 按包围盒网格检索，避免逐点扫描整板全部反焊盘。 */
+  function pointInShape(px, py, shape) {
+    const rings = shapeRings(shape);
+    if (!rings.length || !pointInPolygon(px, py, rings[0])) return false;
+    if (rings.length === 1) return true;
+    let index = shapeVoidIndexCache.get(shape);
+    if (!index) { index = buildVoidRingIndex(rings); shapeVoidIndexCache.set(shape, index); }
+    const key = Math.floor(px / index.cellSize) + ',' + Math.floor(py / index.cellSize);
+    let inside = true;
+    for (const entry of index.large) {
+      const b = entry.bbox;
+      if (px >= b.minX && px <= b.maxX && py >= b.minY && py <= b.maxY && pointInPolygon(px, py, entry.ring)) inside = !inside;
+    }
+    for (const entry of index.cells.get(key) || []) {
+      const b = entry.bbox;
+      if (px >= b.minX && px <= b.maxX && py >= b.minY && py <= b.maxY && pointInPolygon(px, py, entry.ring)) inside = !inside;
+    }
+    return inside;
+  }
+
+  function shapeBoundaries(shape) {
+    const boundaries = [];
+    if (shape && shape.boundary && shape.boundary.length) boundaries.push(shape.boundary);
+    (shape && shape.voids || []).forEach(voidContour => {
+      const boundary = voidContour && (voidContour.boundary || voidContour);
+      if (boundary && boundary.length) boundaries.push(boundary);
+    });
+    return boundaries;
+  }
+
+  /** 点到 exterior 或任一 Void 边缘的精确最短距离。 */
+  function pointToShapeBoundaryDistance(px, py, shape) {
+    let minD = Infinity;
+    shapeBoundaries(shape).forEach(boundary => {
+      boundary.forEach(seg => {
+        const d = seg.type === 'line'
+          ? pointToSegmentDist(px, py, seg.x1, seg.y1, seg.x2, seg.y2)
+          : pointToArcDistance(px, py, seg);
+        if (d < minD) minD = d;
+      });
+    });
+    return minD;
   }
 
   /**
@@ -198,26 +364,18 @@
 
     // 圆形铜皮快捷计算：仅当确实是「整圆」时才走这条路径
     // （单段圆弧 + 一段弦（D 形铜皮）不是圆，必须按真实轮廓算）
-    if (shape.arcs && shape.arcs.length === 1 && shape.boundary.length <= 2 &&
+    if ((!shape.voids || shape.voids.length === 0) && shape.arcs && shape.arcs.length === 1 && shape.boundary.length <= 2 &&
         Math.abs(arcSpanOf(shape.arcs[0]) - 2 * Math.PI) < 1e-6) {
       const arc = shape.arcs[0];
       const dCenter = dist2D(px, py, arc.cx, arc.cy);
       return dCenter <= arc.radius ? 0 : dCenter - arc.radius;
     }
 
-    // 真实的内外判定：在多边形环内部才是 0（环形/带孔铜皮的中心不再误判为贴合）
-    const ring = shapeRing(shape);
-    if (ring.length >= 3 && pointInPolygon(px, py, ring)) return 0;
+    // 真实的内外判定：只有 exterior 内且不在 Void 内才是铜。
+    if (pointInShape(px, py, shape)) return 0;
 
-    // 细算点到所有边界段的最短距离（圆弧按扫掠角取精确最近点）
-    let minD = Infinity;
-    for (const seg of shape.boundary) {
-      const d = seg.type === 'line'
-        ? pointToSegmentDist(px, py, seg.x1, seg.y1, seg.x2, seg.y2)
-        : pointToArcDistance(px, py, seg);
-      if (d < minD) minD = d;
-    }
-
+    // 位于 Void 内时，距离应取到 Void 边缘；位于外部时取到 exterior/边缘。
+    const minD = pointToShapeBoundaryDistance(px, py, shape);
     if (minD === Infinity) {
       const dxBox = Math.max(0, b.minX - px, px - b.maxX);
       const dyBox = Math.max(0, b.minY - py, py - b.maxY);
@@ -242,6 +400,88 @@
     const projY = y1 + t * dy;
     return dist2D(px, py, projX, projY);
   }
+
+  function physicalLayerAlias(layer) {
+    const key = String(layer || '').trim().toUpperCase();
+    if (!key) return '';
+    if (key === 'TOP') return 'L1';
+    const logical = key.match(/^L0*(\d+)$/);
+    const allegro = key.match(/^0*(\d{1,2})(?=[A-Z])/);
+    return logical || allegro ? `L${parseInt((logical || allegro)[1], 10)}` : key;
+  }
+
+  function gridKey(gx, gy) { return gx + ',' + gy; }
+
+  /** 点对象空间网格，用于过孔/质心的局部半径查询。 */
+  function buildPointGrid(items, cellSize, pointGetter) {
+    const size = Math.max(1, cellSize || 100);
+    const getter = pointGetter || (item => ({ x: item.x, y: item.y }));
+    const cells = new Map();
+    (items || []).forEach(item => {
+      const point = getter(item);
+      if (!point || !isFinite(point.x) || !isFinite(point.y)) return;
+      const key = gridKey(Math.floor(point.x / size), Math.floor(point.y / size));
+      if (!cells.has(key)) cells.set(key, []);
+      cells.get(key).push(item);
+    });
+    return { cellSize: size, cells, pointGetter: getter };
+  }
+
+  function queryPointGrid(index, minX, minY, maxX, maxY) {
+    if (!index) return [];
+    const size = index.cellSize;
+    const result = [];
+    for (let gx = Math.floor(minX / size); gx <= Math.floor(maxX / size); gx++) {
+      for (let gy = Math.floor(minY / size); gy <= Math.floor(maxY / size); gy++) {
+        const bucket = index.cells.get(gridKey(gx, gy)) || [];
+        bucket.forEach(item => {
+          const point = index.pointGetter(item);
+          if (point.x >= minX && point.x <= maxX && point.y >= minY && point.y <= maxY) result.push(item);
+        });
+      }
+    }
+    return result;
+  }
+
+  /** BBox 空间网格；跨越过多网格的整板大铜皮单独保存，避免索引内存膨胀。 */
+  function buildBBoxGrid(items, cellSize) {
+    const size = Math.max(1, cellSize || 100);
+    const cells = new Map();
+    const largeItems = [];
+    (items || []).forEach(item => {
+      const b = item && item.bbox;
+      if (!b) return;
+      const minGX = Math.floor(b.minX / size), maxGX = Math.floor(b.maxX / size);
+      const minGY = Math.floor(b.minY / size), maxGY = Math.floor(b.maxY / size);
+      if ((maxGX - minGX + 1) * (maxGY - minGY + 1) > 256) {
+        largeItems.push(item);
+        return;
+      }
+      for (let gx = minGX; gx <= maxGX; gx++) {
+        for (let gy = minGY; gy <= maxGY; gy++) {
+          const key = gridKey(gx, gy);
+          if (!cells.has(key)) cells.set(key, []);
+          cells.get(key).push(item);
+        }
+      }
+    });
+    return { cellSize: size, cells, largeItems };
+  }
+
+  function queryBBoxGrid(index, minX, minY, maxX, maxY) {
+    if (!index) return [];
+    const size = index.cellSize;
+    const candidates = new Set(index.largeItems || []);
+    for (let gx = Math.floor(minX / size); gx <= Math.floor(maxX / size); gx++) {
+      for (let gy = Math.floor(minY / size); gy <= Math.floor(maxY / size); gy++) {
+        (index.cells.get(gridKey(gx, gy)) || []).forEach(item => candidates.add(item));
+      }
+    }
+    return Array.from(candidates).filter(item => {
+      const b = item.bbox;
+      return b && b.maxX >= minX && b.minX <= maxX && b.maxY >= minY && b.minY <= maxY;
+    });
+  }
   return {
     MM_PER_MIL: MM_PER_MIL,
     MIL_PER_MM: MIL_PER_MM,
@@ -255,8 +495,18 @@
     polygonCentroid: polygonCentroid,
     pointInPolygon: pointInPolygon,
     shapeRing: shapeRing,
+    shapeRings: shapeRings,
+    shapeVoidRingsAtPoint: shapeVoidRingsAtPoint,
+    shapeVoidRingEntriesInBBox: shapeVoidRingEntriesInBBox,
+    pointInShape: pointInShape,
+    pointToShapeBoundaryDistance: pointToShapeBoundaryDistance,
     pointToShapeDistance: pointToShapeDistance,
     isPointInsideBBox: isPointInsideBBox,
-    pointToSegmentDist: pointToSegmentDist
+    pointToSegmentDist: pointToSegmentDist,
+    physicalLayerAlias: physicalLayerAlias,
+    buildPointGrid: buildPointGrid,
+    queryPointGrid: queryPointGrid,
+    buildBBoxGrid: buildBBoxGrid,
+    queryBBoxGrid: queryBBoxGrid
   };
 });

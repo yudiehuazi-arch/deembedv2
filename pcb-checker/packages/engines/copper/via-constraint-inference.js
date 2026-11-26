@@ -46,7 +46,7 @@
   function layerNum(token, n) {
     var s = String(token || '').replace(/[<>]/g, '').trim();
     if (/^(top|表层|顶层)$/i.test(s)) return 1;
-    if (/^(bot|bottom|底层)$/i.test(s)) return 14;
+    if (/^(bot|bottom|底层)$/i.test(s)) return n || 0;
     var lm = s.match(/^L\s*0*(\d{1,2})$/i);
     if (lm) return +lm[1];
     var sm = s.match(/^0*(\d{1,2})[A-Za-z]/);
@@ -78,6 +78,11 @@
     };
   }
 
+  function viaCoversLayer(via, layer, n) {
+    var span = spanOfVia(via, n);
+    return !!(span.start && span.end && layer >= span.start && layer <= span.end);
+  }
+
   function sourceOwnersForLayer(owners, layer, n) {
     var seen = {}, list = (owners || []).filter(function (via) {
       var key = String(via && via.id);
@@ -85,24 +90,38 @@
       seen[key] = 1;
       return true;
     });
-    if (!(typeof layer === 'number' && layer > 0) || list.length < 2) return list;
+    if (!(typeof layer === 'number' && layer > 0)) return list;
+    return list.filter(function (via) { return viaCoversLayer(via, layer, n); });
+  }
+
+  function sourceOwnersForShape(owners, layer, n) {
+    var list = sourceOwnersForLayer(owners, 0, n);
+    var covering = sourceOwnersForLayer(list, layer, n);
+    if (covering.length || !(typeof layer === 'number' && layer > 0)) return covering.length ? covering : list;
     var ranked = list.map(function (via) {
-      var span = spanOfVia(via, n), d = Infinity;
-      if (span.start && span.end) {
-        d = layer < span.start ? span.start - layer : (layer > span.end ? layer - span.end : 0);
-      }
-      return { via: via, distance: d };
+      var span = spanOfVia(via, n);
+      var distance = span.start && span.end ? (layer < span.start ? span.start - layer : layer - span.end) : Infinity;
+      return { via: via, distance: distance };
     });
-    var min = Math.min.apply(null, ranked.map(function (x) { return x.distance; }));
-    if (!isFinite(min)) return list;
-    return ranked.filter(function (x) { return x.distance === min; }).map(function (x) { return x.via; });
+    var nearest = Math.min.apply(null, ranked.map(function (item) { return item.distance; }));
+    return isFinite(nearest) ? ranked.filter(function (item) { return item.distance === nearest; }).map(function (item) { return item.via; }) : list;
+  }
+
+  function sourceSegments(vias, n) {
+    return sourceOwnersForLayer(vias, 0, n).map(function (via) {
+      var span = spanOfVia(via, n);
+      return {
+        viaId: via.id, padstack: via.padstack || '无 Padstack', startLayer: span.start, endLayer: span.end,
+        spanText: span.start && span.end ? ('L' + span.start + '-L' + span.end) : '层跨未识别'
+      };
+    });
   }
 
   function familyOf(padstacks) {
     var blob = (padstacks || []).join(' ');
     if (/BGA/i.test(blob)) return 'BGA';
     if (/SMA/i.test(blob)) return 'SMA';
-    return '';
+    return '其他';
   }
 
   function distMil(a, b) {
@@ -140,7 +159,7 @@
   }
 
   function buildUnit(members, n, signal, order) {
-    var xs = 0, ys = 0, layers = [], traces = [], conns = [];
+    var xs = 0, ys = 0, layers = [], traces = [], conns = [], traceConnected = false;
     var ids = members.map(function (v) { return v.id; });
     var pads = uniq(members.map(function (v) { return v.padstack || ''; }).filter(Boolean));
     members.forEach(function (v) {
@@ -148,6 +167,7 @@
       var sp = spanOfVia(v, n);
       layers = layers.concat(sp.layers);
       traces = traces.concat(v.traceLayers || []);
+      if (v.traceConnected || /(?:^|\s)Trace\s*:/i.test(v.connections || '')) traceConnected = true;
       if (v.connections) conns.push(v.connections);
     });
     layers = uniq(layers).sort(function (a, b) { return a - b; });
@@ -172,6 +192,8 @@
       startLayer: layers.length ? layers[0] : 0,
       endLayer: layers.length ? layers[layers.length - 1] : 0,
       segmentLayers: layers,
+      traceLayers: traces,
+      traceConnected: traceConnected,
       mateNet: '',
       mateGroupId: '',
       pitchMm: null,
@@ -280,32 +302,64 @@
     };
   }
 
+  function traceLayerSelection(sets, unit, n) {
+    var special = (sets || []).filter(function (set) { return set && set.matchMode === 'connections-trace-layers'; });
+    if (!special.length || !unit || !String(unit.via && unit.via.net || '').trim() || isGroundNet(unit.via && unit.via.net)) return null;
+    if (!unit.traceConnected) return special.length === (sets || []).length ? {
+      rule: null, candidates: special.map(function (set) { return set.title; }).slice(0, 6),
+      mode: 'connections-trace-layers', traceLayers: [], targetTitle: '', excluded: true
+    } : null;
+    var seen = {}, layers = [];
+    (unit.traceLayers || []).forEach(function (name) {
+      var layer = layerNum(name, n);
+      if (layer > 0 && !seen[layer]) { seen[layer] = 1; layers.push(layer); }
+    });
+    layers.sort(function (a, b) { return a - b; });
+    var target = layers.length === 2 ? ('L' + layers[0] + '-L' + layers[1]) : '';
+    var rule = null;
+    if (target) rule = special.find(function (set) {
+      return String(set.title || '').replace(/\s+/g, '').toUpperCase() === target.toUpperCase();
+    }) || null;
+    return {
+      rule: rule,
+      candidates: special.map(function (set) { return set.title; }).slice(0, 6),
+      mode: 'connections-trace-layers', traceLayers: layers, targetTitle: target, excluded: !rule
+    };
+  }
+
   function selectConstraint(sets, unit, n) {
-    if (!unit || !unit.signal || !unit.kind || !unit.startLayer || !unit.endLayer) return { rule: null, candidates: [] };
+    if (!unit) return { rule: null, candidates: [] };
+    var traceSelected = traceLayerSelection(sets, unit, n);
+    if (traceSelected) return traceSelected;
+    if (!unit.signal) return { rule: null, candidates: [] };
+    if (!unit.kind || !unit.startLayer || !unit.endLayer) return { rule: null, candidates: [] };
     var sameKind = [], exact = [];
-    (sets || []).forEach(function (set) {
+    (sets || []).filter(function (set) { return !set.matchMode; }).forEach(function (set) {
       var meta = ruleMeta(set, n);
       if (meta.kind !== unit.kind) return;
       var item = { set: set, meta: meta };
       sameKind.push(item);
       if (meta.startLayer === unit.startLayer && meta.endLayer === unit.endLayer) exact.push(item);
     });
+    var matched = exact;
     var picked = null;
     if (unit.pitchMm != null) {
-      var pitched = exact.filter(function (x) { return x.meta.pitchMm != null; });
-      var pool = pitched.length ? pitched : exact.filter(function (x) { return x.meta.pitchMm == null; });
+      var pitched = matched.filter(function (x) { return x.meta.pitchMm != null; });
+      var pool = pitched.length ? pitched : matched.filter(function (x) { return x.meta.pitchMm == null; });
       pool.forEach(function (x) {
         var delta = x.meta.pitchMm == null ? 0 : Math.abs(x.meta.pitchMm - unit.pitchMm);
         if (!picked || delta < picked.delta) picked = { set: x.set, delta: delta };
       });
     } else {
-      var noPitch = exact.filter(function (x) { return x.meta.pitchMm == null; });
+      var noPitch = matched.filter(function (x) { return x.meta.pitchMm == null; });
       if (noPitch.length) picked = { set: noPitch[0].set, delta: 0 };
     }
-    var candPool = exact.length ? exact : sameKind;
+    var candPool = matched.length ? matched : sameKind;
     return {
       rule: picked ? picked.set : null,
       pitchDeltaMm: picked ? picked.delta : null,
+      inferredFromAntiPad: false,
+      observedAntiLayers: [],
       candidates: candPool.slice(0, 5).map(function (x) { return x.set.title; })
     };
   }
@@ -318,7 +372,10 @@
     padstackNamingIssues: padstackNamingIssues,
     layerTokens: layerTokens,
     spanOfVia: spanOfVia,
+    viaCoversLayer: viaCoversLayer,
     sourceOwnersForLayer: sourceOwnersForLayer,
+    sourceOwnersForShape: sourceOwnersForShape,
+    sourceSegments: sourceSegments,
     isSegmentDistance: isSegmentDistance,
     groupVias: groupVias,
     mateName: mateName,

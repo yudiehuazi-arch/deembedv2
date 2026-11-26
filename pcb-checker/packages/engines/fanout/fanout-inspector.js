@@ -5,27 +5,25 @@
 var parser = (typeof module === "object" && module.exports) ? require("./fanout-parser.js") : root.FanoutChecker;
   var schemeMod = (typeof module === "object" && module.exports) ? require("./fanout-scheme.js") : root.FanoutChecker;
   var clusterMod = (typeof module === "object" && module.exports) ? require("./fanout-clustering.js") : root.FanoutChecker;
-  var api = factory(parser, schemeMod, clusterMod);
+  var topologyMod = (typeof module === "object" && module.exports) ? require("./fanout-topology.js") : root.FanoutChecker;
+  var api = factory(parser, schemeMod, clusterMod, topologyMod);
   if (typeof module === "object" && module.exports) module.exports = api;
   root.FanoutChecker = Object.assign(root.FanoutChecker || {}, api);
-})(typeof globalThis !== "undefined" ? globalThis : this, function (parser, schemeMod, clusterMod) {
+})(typeof globalThis !== "undefined" ? globalThis : this, function (parser, schemeMod, clusterMod, topologyMod) {
   "use strict";
   var MM_PER_MIL = parser.MM_PER_MIL;
   var MIL_PER_MM = parser.MIL_PER_MM;
   var dist2D = parser.dist2D;
   var roundN = parser.roundN;
   var candidateRotations = parser.candidateRotations;
-  var parseViaData = parser.parseViaData;
-  var parseTraceData = parser.parseTraceData;
-  var isSignalVia = parser.isSignalVia;
-  var parseFanoutInputData = parser.parseFanoutInputData;
-  var summarizeTraceData = parser.summarizeTraceData;
-  var associateTracesWithClusters = parser.associateTracesWithClusters;
-  var FanoutLibrary = schemeMod.FanoutLibrary;
-  var clusterVias = clusterMod.clusterVias;
-  var matchClusterToLibrary = clusterMod.matchClusterToLibrary;
-  var matchClusterSubsetsIterative = clusterMod.matchClusterSubsetsIterative;
-  var compareClusterWithScheme = clusterMod.compareClusterWithScheme;
+  var parseViaData = parser.parseViaData, parseTraceData = parser.parseTraceData,
+    isSignalVia = parser.isSignalVia;
+  var selectConnectedSignalVias = topologyMod.selectConnectedSignalVias || topologyMod.selectTraceConnectedSignalVias,
+    collapseSignalStacks = topologyMod.collapseSignalStacks, signalStackAudit = topologyMod.signalStackAudit,
+    selectGndWithinSchemeFootprint = topologyMod.selectGndWithinSchemeFootprint,
+    matchCompanionGnd = topologyMod.matchCompanionGnd, resolveSignalNetAlias = topologyMod.resolveSignalNetAlias;
+  var parseFanoutInputData = parser.parseFanoutInputData, summarizeTraceData = parser.summarizeTraceData,
+    associateTracesWithClusters = parser.associateTracesWithClusters;
   function buildGndSpatialIndex(gndVias, cellSize = 35) {
     const grid = new Map();
     for (let i = 0; i < gndVias.length; i++) {
@@ -61,6 +59,10 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
       return results;
     }
     return { findGndNear };
+  }
+  function differentialPolarity(net) {
+    const match = String(net || '').trim().match(/_([PN])$/i);
+    return match ? match[1].toUpperCase() : '';
   }
   function groupSignalUnits(activeSignalVias, maxDiffDistMil = 35.0) {
     const diffGroups = new Map();
@@ -104,9 +106,7 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
       for (let i = 0; i < n; i++) {
         for (let j = i + 1; j < n; j++) {
           const d = Math.hypot(vlist[i].x - vlist[j].x, vlist[i].y - vlist[j].y);
-          if (d <= maxDiffDistMil) {
-            union(i, j);
-          }
+          if (d <= maxDiffDistMil) union(i, j);
         }
       }
       const compMap = new Map();
@@ -190,6 +190,10 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
         summary: {
           totalVias: 0,
           totalSignalVias: 0,
+          totalEligibleSignalViaItems: 0,
+          totalCompanionSignalVias: 0,
+          totalParsedSignalVias: 0,
+          excludedSignalVias: 0,
           totalTraces: traceSummary.totalTraces,
           totalTraceSegments: traceSummary.totalTraceSegments,
           traceLineCount: traceSummary.traceLineCount,
@@ -200,7 +204,6 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
           totalClusters: 0,
           passCount: 0,
           exactPassCount: 0,
-          subsetPassCount: 0,
           failCount: 0,
           passRate: 0,
           padstackFailCount: 0,
@@ -218,51 +221,81 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
     const allowMirror = options.allowMirror !== false;
     const gndVias = vias.filter(v => v.net && v.net.toUpperCase().includes('GND'));
     const allSignalVias = vias.filter(v => !v.net || !v.net.toUpperCase().includes('GND'));
-    let activeSignalVias = allSignalVias.filter(v => v.hasConnections);
-    if (activeSignalVias.length === 0) {
-      activeSignalVias = allSignalVias;
-    }
+    // Trace Connections 孔触发检查；合规多段孔直接参与，顶层 Pin 仅作为方案信号伴随对象补入。
+    allSignalVias.forEach(via => { via.isFanoutCompanion = false; via.isFanoutNetRecovered = false; });
+    const activePhysicalSignalVias = selectConnectedSignalVias(allSignalVias);
+    const activeSignalVias = collapseSignalStacks(activePhysicalSignalVias);
+    const activeSignalIds = new Set(activePhysicalSignalVias.map(via => String(via.id)));
+    const availableCompanionSignals = allSignalVias.filter(via => !activeSignalIds.has(String(via.id)) &&
+      ((via.hasShapeConnections && via.hasTopShapeConnection) || (!via.hasConnections && via.isTopOnlyPadstack)) &&
+      /^SMD\s+Pin$/i.test(String(via.usage || '').trim()) &&
+      !via.hasTraceConnections && !(via.connectedViaIds || []).length && Number(via.drill || 0) === 0);
     const gndIndex = buildGndSpatialIndex(gndVias, 35);
+    const companionIndex = buildGndSpatialIndex(availableCompanionSignals, 35);
     const signalUnits = groupSignalUnits(activeSignalVias, 35.0);
     let passCount = 0;
     let exactPassCount = 0;
-    let subsetPassCount = 0;
     let padstackFailCount = 0;
     let topologyFailCount = 0;
     let noMatchCount = 0;
     const schemeCoverage = {};
     const clusterUnits = [];
+    const usedCompanionSignalIds = new Set();
     for (let uIdx = 0; uIdx < signalUnits.length; uIdx++) {
       const unit = signalUnits[uIdx];
       const unitSigVias = unit.signalVias;
-      const nearbyGndItems = gndIndex.findGndNear(unit.centroid.x, unit.centroid.y, 80.0);
-      const nearbyGnd = nearbyGndItems.map(item => item.via);
-      const candidateVias = [...unit.signalVias, ...nearbyGnd];
+      const physicalSignalVias = unitSigVias.flatMap(via => via.physicalVias || [via]);
+      if (physicalSignalVias.every(via => usedCompanionSignalIds.has(String(via.id)))) continue;
+      const stackAudit = signalStackAudit(unitSigVias);
+      const unitNets = new Set(unitSigVias.map(via => String(via.net || '').toUpperCase()));
+      // Shape-only 或无 Connections 的零钻顶层 Pin 不独立触发检查，也不因同网络直接激活；仅作为局部候选，
+      // 在 Padstack 与变换后的方案信号位置唯一对应时补入。异网候选仍只允许恢复一个对象。
+      const nearbyCompanionSignals = companionIndex.findGndNear(unit.centroid.x, unit.centroid.y, 80.0)
+        .map(item => item.via).filter(via => !usedCompanionSignalIds.has(String(via.id)));
+      const companionSignalCandidates = nearbyCompanionSignals.filter(via => unitNets.has(String(via.net || '').toUpperCase()));
+      const netAliasCandidates = nearbyCompanionSignals.filter(via => !unitNets.has(String(via.net || '').toUpperCase()));
+      const netAliasCandidateIds = new Set(netAliasCandidates.map(via => String(via.id)));
+      let matchingSignalVias = physicalSignalVias.slice();
+      const nearbyGnd = gndIndex.findGndNear(unit.centroid.x, unit.centroid.y, 80.0).map(item => item.via);
+      let candidateVias = [...matchingSignalVias, ...nearbyGnd];
       let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-      candidateVias.forEach(v => {
-        if (v.x < minX) minX = v.x;
-        if (v.x > maxX) maxX = v.x;
-        if (v.y < minY) minY = v.y;
-        if (v.y > maxY) maxY = v.y;
-      });
-      const spanX = maxX - minX;
-      const spanY = maxY - minY;
-      const maxSpan = Math.hypot(spanX, spanY);
+      let spanX = 0, spanY = 0, maxSpan = 0;
+      function updateCandidateBounds() {
+        minX = Infinity; maxX = -Infinity; minY = Infinity; maxY = -Infinity;
+        candidateVias.forEach(v => {
+          if (v.x < minX) minX = v.x;
+          if (v.x > maxX) maxX = v.x;
+          if (v.y < minY) minY = v.y;
+          if (v.y > maxY) maxY = v.y;
+        });
+        spanX = maxX - minX;
+        spanY = maxY - minY;
+        maxSpan = Math.hypot(spanX, spanY);
+      }
+      updateCandidateBounds();
       const candidateEvaluations = [];
       for (const scheme of library.schemes) {
         if (!scheme.vias || scheme.vias.length === 0) continue;
         const schemeSigVias = scheme.vias.filter(v => v.net && !v.net.toUpperCase().includes('GND'));
         const schemeGndVias = scheme.vias.filter(v => !v.net || v.net.toUpperCase().includes('GND') || (v.padstack && v.padstack.toUpperCase().includes('GND')));
-        if (schemeSigVias.length !== unitSigVias.length) continue;
-        const angles = candidateRotations(unitSigVias, schemeSigVias, distTol, allowRotation, allowArbitraryRotation);
+        const missingSignalCount = schemeSigVias.length - matchingSignalVias.length;
+        const allowNetAliasRecovery = missingSignalCount > 0 &&
+          unit.type === 'DIFF_PAIR' && unit.pCount > 0 && unit.nCount > 0;
+        const supplementalCandidates = companionSignalCandidates.concat(allowNetAliasRecovery ? netAliasCandidates : []);
+        if (missingSignalCount < 0 || (missingSignalCount > 0 && supplementalCandidates.length < missingSignalCount)) continue;
+        const anchorIndex = schemeSigVias.findIndex(sv => matchingSignalVias.some(via =>
+          String(via.padstack || '').trim().toLowerCase() === String(sv.padstack || '').trim().toLowerCase()));
+        if (anchorIndex < 0) continue;
+        const orderedSchemeSigVias = [schemeSigVias[anchorIndex], ...schemeSigVias.filter((_, index) => index !== anchorIndex)];
+        const angles = candidateRotations(matchingSignalVias, orderedSchemeSigVias, distTol, allowRotation, allowArbitraryRotation);
         const mirrors = allowMirror ? [false, true] : [false];
-        const s0 = schemeSigVias[0];
+        const s0 = orderedSchemeSigVias[0];
         for (const mirror of mirrors) {
           for (const deg of angles) {
             const rad = (deg * Math.PI) / 180;
             const cosA = Math.cos(rad);
             const sinA = Math.sin(rad);
-            const relSig = schemeSigVias.map(sv => {
+            const relSig = orderedSchemeSigVias.map(sv => {
               let dx = sv.x - s0.x;
               let dy = sv.y - s0.y;
               if (mirror) dx = -dx;
@@ -270,103 +303,29 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
               const ry = dx * sinA + dy * cosA;
               return { sv, relX: rx, relY: ry };
             });
-            for (const u0 of unitSigVias) {
+            for (const u0 of matchingSignalVias) {
               if ((u0.padstack || '').trim().toLowerCase() !== (s0.padstack || '').trim().toLowerCase()) {
                 continue;
               }
-              const usedSigIdx = new Set();
-              let allSigMatched = true;
-              for (const item of relSig) {
-                const expX = u0.x + item.relX;
-                const expY = u0.y + item.relY;
-                let foundIdx = -1;
-                for (let k = 0; k < unitSigVias.length; k++) {
-                  if (usedSigIdx.has(k)) continue;
-                  const uv = unitSigVias[k];
-                  if (Math.hypot(uv.x - expX, uv.y - expY) <= distTol) {
-                    if ((uv.padstack || '').trim().toLowerCase() === (item.sv.padstack || '').trim().toLowerCase()) {
-                      foundIdx = k;
-                      break;
-                    }
-                  }
-                }
-                if (foundIdx !== -1) {
-                  usedSigIdx.add(foundIdx);
-                } else {
-                  allSigMatched = false;
-                  break;
-                }
-              }
-              if (allSigMatched && usedSigIdx.size === unitSigVias.length) {
-                const usedGndIndices = new Set();
-                const padMismatchList = [];
-                const missingVias = [];
-                let matchedGndCount = 0;
-                const audit = [];
-                for (let j = 0; j < schemeGndVias.length; j++) {
-                  const sv = schemeGndVias[j];
-                  let dx = sv.x - s0.x;
-                  let dy = sv.y - s0.y;
-                  if (mirror) dx = -dx;
-                  const rx = dx * cosA - dy * sinA;
-                  const ry = dx * sinA + dy * cosA;
-                  const expX = u0.x + rx;
-                  const expY = u0.y + ry;
-                  let bestGndIdx = -1;
-                  let minDist = distTol;
-                  for (let k = 0; k < nearbyGnd.length; k++) {
-                    if (usedGndIndices.has(k)) continue;
-                    const gv = nearbyGnd[k];
-                    const d = Math.hypot(gv.x - expX, gv.y - expY);
-                    if (d <= minDist) {
-                      if ((gv.padstack || '').trim().toLowerCase() === (sv.padstack || '').trim().toLowerCase()) {
-                        minDist = d;
-                        bestGndIdx = k;
-                        break;
-                      } else if (bestGndIdx === -1 || d < minDist) {
-                        minDist = d;
-                        bestGndIdx = k;
-                      }
-                    }
-                  }
-                  if (bestGndIdx !== -1) {
-                    usedGndIndices.add(bestGndIdx);
-                    const gv = nearbyGnd[bestGndIdx];
-                    matchedGndCount++;
-                    const isPadMatch = (gv.padstack || '').trim().toLowerCase() === (sv.padstack || '').trim().toLowerCase();
-                    if (!isPadMatch) {
-                      padMismatchList.push({
-                        viaId: gv.id,
-                        net: gv.net,
-                        actualPadstack: gv.padstack,
-                        expectedPadstack: sv.padstack,
-                        role: sv.role || (`伴随地孔${sv.id}`)
-                      });
-                    }
-                    audit.push({
-                      viaIndex: j + 1,
-                      viaId: gv.id,
-                      net: gv.net,
-                      x: gv.x,
-                      y: gv.y,
-                      actualPadstack: gv.padstack,
-                      expectedPadstack: sv.padstack,
-                      role: sv.role || (`伴随地孔${sv.id}`),
-                      isMatch: isPadMatch,
-                      deviation: minDist
-                    });
-                  } else {
-                    missingVias.push({
-                      expectedX: expX,
-                      expectedY: expY,
-                      expectedPadstack: sv.padstack,
-                      role: sv.role || (`伴随地孔${sv.id}`),
-                      net: sv.net || 'GND'
-                    });
-                  }
-                }
-                const isPass = (padMismatchList.length === 0 && missingVias.length === 0);
-                const redundantGndCount = nearbyGnd.length - matchedGndCount;
+              // 顶层 Pin 按方案位置补入；异网或 P/N 极性错标最多允许恢复一个，位置不唯一时保持不匹配。
+              const signalResolution = resolveSignalNetAlias(matchingSignalVias, supplementalCandidates, relSig, u0,
+                distTol, missingSignalCount > 0, missingSignalCount);
+              if (signalResolution) {
+                signalResolution.signalNetRecoveries = (signalResolution.signalNetRecoveries || [])
+                  .filter(item => netAliasCandidateIds.has(String(item.viaId)) ||
+                    (differentialPolarity(item.sourceNet) && differentialPolarity(item.expectedNet) &&
+                      differentialPolarity(item.sourceNet) !== differentialPolarity(item.expectedNet)));
+                if (signalResolution.signalNetRecoveries.length > 1) continue;
+                const footprintGndIndices = selectGndWithinSchemeFootprint(
+                  scheme.vias, nearbyGnd, u0, s0, cosA, sinA, mirror, distTol);
+                const gndMatch = matchCompanionGnd(
+                  schemeGndVias, nearbyGnd, footprintGndIndices, s0, u0, cosA, sinA, mirror, distTol);
+                const { usedGndIndices, padMismatchList, missingVias, matchedGndCount, audit } = gndMatch;
+                const unmatchedGndVias = footprintGndIndices.filter(index => !usedGndIndices.has(index)).map(index => nearbyGnd[index]);
+                const gndQuantityDelta = footprintGndIndices.length - schemeGndVias.length;
+                const redundantGndCount = Math.max(0, gndQuantityDelta);
+                const redundantGndVias = redundantGndCount > 0 ? unmatchedGndVias.slice(0, redundantGndCount) : [];
+                const isPass = (padMismatchList.length === 0 && missingVias.length === 0 && gndQuantityDelta === 0);
                 candidateEvaluations.push({
                   scheme,
                   schemeName: scheme.name,
@@ -377,9 +336,15 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
                   matchedGndCount,
                   schemeGndCount: schemeGndVias.length,
                   redundantGndCount,
+                  redundantGndVias,
+                  unmatchedGndVias,
+                  gndQuantityDelta,
                   padMismatchList,
                   missingVias,
-                  audit
+                  audit,
+                  resolvedSignalVias: signalResolution.resolvedSignalVias,
+                  recoveredSignalVias: signalResolution.recoveredSignalVias,
+                  signalNetRecoveries: signalResolution.signalNetRecoveries
                 });
                 if (isPass) break; // 当前方案该姿态完全匹配通过
               }
@@ -404,13 +369,16 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
           advice: '信号孔未匹配方案库模板，无需进行伴随地孔分析。',
           padMismatchList: [],
           missingVias: [],
-          viaAudit: []
+          viaAudit: [],
+          signalStackAudit: stackAudit
         };
         clusterUnits.push({
           id: `sig_unit_${uIdx + 1}`,
           vias: candidateVias,
           viaCount: candidateVias.length,
           signalVias: unit.signalVias,
+          physicalSignalVias,
+          matchingSignalVias,
           signalNet: unit.net,
           centroid: unit.centroid,
           bbox: { minX, maxX, minY, maxY, spanX, spanY, maxSpan },
@@ -418,50 +386,71 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
         });
         continue;
       }
-      let bestEval = candidateEvaluations.find(e => e.pass);
+      const passingEvaluations = candidateEvaluations.filter(e => e.pass).sort((a, b) =>
+        (b.resolvedSignalVias || []).length - (a.resolvedSignalVias || []).length);
+      let bestEval = passingEvaluations[0];
       if (!bestEval) {
         candidateEvaluations.sort((a, b) => {
+          if ((b.resolvedSignalVias || []).length !== (a.resolvedSignalVias || []).length) {
+            return (b.resolvedSignalVias || []).length - (a.resolvedSignalVias || []).length;
+          }
           if (b.matchedGndCount !== a.matchedGndCount) return b.matchedGndCount - a.matchedGndCount;
-          const defectsA = a.padMismatchList.length + a.missingVias.length;
-          const defectsB = b.padMismatchList.length + b.missingVias.length;
+          const defectsA = a.padMismatchList.length + a.missingVias.length + a.redundantGndCount;
+          const defectsB = b.padMismatchList.length + b.missingVias.length + b.redundantGndCount;
           return defectsA - defectsB;
         });
         bestEval = candidateEvaluations[0];
       }
+      matchingSignalVias = bestEval.resolvedSignalVias || matchingSignalVias;
+      (bestEval.recoveredSignalVias || []).forEach(via => {
+        const recovery = (bestEval.signalNetRecoveries || []).find(item => String(item.viaId) === String(via.id));
+        via.isFanoutCompanion = true;
+        via.isFanoutEligible = true;
+        via.isFanoutNetRecovered = Boolean(recovery);
+        if (recovery) { via.fanoutSourceNet = via.net; via.fanoutExpectedNet = recovery.expectedNet; }
+        usedCompanionSignalIds.add(String(via.id));
+      });
+      candidateVias = [...physicalSignalVias, ...matchingSignalVias.slice(physicalSignalVias.length), ...nearbyGnd];
+      updateCandidateBounds();
       const s = bestEval.scheme;
       const isPass = bestEval.pass;
       if (isPass) {
         passCount++;
-        if (bestEval.redundantGndCount > 0) subsetPassCount++;
-        else exactPassCount++;
+        exactPassCount++;
         schemeCoverage[s.name] = (schemeCoverage[s.name] || 0) + 1;
-        const redundantStr = bestEval.redundantGndCount > 0 ? ` (含 ${bestEval.redundantGndCount} 个冗余地孔)` : '';
         const rotStr = bestEval.angle !== 0 ? ` [旋转 ${bestEval.angle}°]` : '';
         const mirStr = bestEval.mirror ? ` [镜像翻转]` : '';
+        const recoveryCount = (bestEval.signalNetRecoveries || []).length;
+        const companionCount = (bestEval.recoveredSignalVias || []).length - recoveryCount;
+        const recoveryStr = `${companionCount > 0 ? `；${companionCount} 个同网络 Shape-only 顶层 Pin 作为伴随信号对象` : ''}${recoveryCount > 0 ? `；${recoveryCount} 个顶层信号 Pin 按完整方案几何恢复归属` : ''}`;
         const matchRes = {
           status: 'MATCH_PASS',
-          statusText: bestEval.redundantGndCount > 0 ? `匹配通过 (含${bestEval.redundantGndCount}冗余孔)` : '完全匹配通过',
+          statusText: '完全匹配通过',
           pass: true,
-          isSubsetMatch: bestEval.redundantGndCount > 0,
+          isSubsetMatch: false,
           schemeName: s.name,
           schemeId: s.id,
-          matchedViaCount: unitSigVias.length + bestEval.matchedGndCount,
-          redundantViaCount: bestEval.redundantGndCount,
+          matchedViaCount: matchingSignalVias.length + bestEval.matchedGndCount,
+          redundantViaCount: 0,
           maxDeviation: 0,
           maxDeviationMm: 0,
           rotationAngle: bestEval.angle,
           isMirrored: bestEval.mirror,
-          message: `✅ 对照方案【${s.name}】匹配通过${rotStr}${mirStr} (信号网络: ${unit.net}${redundantStr}，Padstack 与地孔完全符合)`,
-          advice: '信号孔与伴随地孔完全符合方案规范，无需调整。',
+          message: `✅ 对照方案【${s.name}】完整拓扑匹配通过${rotStr}${mirStr} (信号网络: ${unit.net}，伴随 GND 数量、Padstack 与位置逐一符合${recoveryStr})`,
+          advice: recoveryCount > 0 ? '物理孔群符合方案，无需调整；请核对原始导出中被恢复顶层 Pin 的 Net 字段。' : '信号孔与伴随地孔完全符合方案规范，无需调整。',
           padMismatchList: [],
           missingVias: [],
-          viaAudit: bestEval.audit
+          viaAudit: bestEval.audit,
+          signalNetRecoveries: bestEval.signalNetRecoveries || [],
+          signalStackAudit: stackAudit
         };
         clusterUnits.push({
           id: `sig_unit_${uIdx + 1}`,
           vias: candidateVias,
           viaCount: candidateVias.length,
           signalVias: unit.signalVias,
+          physicalSignalVias,
+          matchingSignalVias,
           signalNet: unit.net,
           centroid: unit.centroid,
           bbox: { minX, maxX, minY, maxY, spanX, spanY, maxSpan },
@@ -474,7 +463,14 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
         let statusText = '伴随地孔存在异常';
         const padMismatchList = bestEval.padMismatchList;
         const missingVias = bestEval.missingVias;
-        if (padMismatchList.length > 0 && missingVias.length === 0) {
+        if (bestEval.redundantGndCount > 0) {
+          topologyFailCount++;
+          status = 'GND_QUANTITY_MISMATCH';
+          statusText = '伴随地孔数量不符';
+          const redundantIds = (bestEval.redundantGndVias || []).map(via => `#${via.id}`).join('、');
+          reasonText = `信号孔已锁定方案【${s.name}】，但周围伴随地孔比方案多 ${bestEval.redundantGndCount} 个`;
+          adviceText = `完整拓扑不允许子集或冗余孔匹配；请核对多余地孔 ${redundantIds || '的位置与归属'}。`;
+        } else if (padMismatchList.length > 0 && missingVias.length === 0) {
           padstackFailCount++;
           status = 'PADSTACK_MISMATCH';
           statusText = '地孔Padstack不符';
@@ -505,13 +501,19 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
           advice: adviceText,
           padMismatchList,
           missingVias,
-          viaAudit: bestEval.audit
+          redundantViaCount: bestEval.redundantGndCount,
+          redundantViaIds: (bestEval.redundantGndVias || []).map(via => via.id),
+          viaAudit: bestEval.audit,
+          signalNetRecoveries: bestEval.signalNetRecoveries || [],
+          signalStackAudit: stackAudit
         };
         clusterUnits.push({
           id: `sig_unit_${uIdx + 1}`,
           vias: candidateVias,
           viaCount: candidateVias.length,
           signalVias: unit.signalVias,
+          physicalSignalVias,
+          matchingSignalVias,
           signalNet: unit.net,
           centroid: unit.centroid,
           bbox: { minX, maxX, minY, maxY, spanX, spanY, maxSpan },
@@ -522,10 +524,14 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
     associateTracesWithClusters(vias, clusterUnits, traces, 18.0);
     const elapsedMs = Date.now() - startTime;
     const failCount = padstackFailCount + topologyFailCount + noMatchCount;
-    const passRate = signalUnits.length > 0 ? (passCount / signalUnits.length) * 100 : 0;
+    const passRate = clusterUnits.length > 0 ? (passCount / clusterUnits.length) * 100 : 0;
     const summary = {
       totalVias: vias.length,
       totalSignalVias: activeSignalVias.length,
+      totalEligibleSignalViaItems: activePhysicalSignalVias.length + usedCompanionSignalIds.size,
+      totalCompanionSignalVias: usedCompanionSignalIds.size,
+      totalParsedSignalVias: allSignalVias.length,
+      excludedSignalVias: allSignalVias.length - activePhysicalSignalVias.length - usedCompanionSignalIds.size,
       totalTraces: traceSummary.totalTraces,
       totalTraceSegments: traceSummary.totalTraceSegments,
       traceLineCount: traceSummary.traceLineCount,
@@ -533,10 +539,9 @@ var parser = (typeof module === "object" && module.exports) ? require("./fanout-
       totalTraceLength: traceSummary.totalTraceLength,
       traceLayers: traceSummary.layers.map(l => l.layer),
       traceNets: traceSummary.nets.map(n => n.net),
-      totalClusters: signalUnits.length,
+      totalClusters: clusterUnits.length,
       passCount,
       exactPassCount,
-      subsetPassCount,
       failCount,
       passRate: roundN(passRate, 1),
       padstackFailCount,

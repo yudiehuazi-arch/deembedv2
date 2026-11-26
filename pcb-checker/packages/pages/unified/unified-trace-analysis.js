@@ -8,6 +8,27 @@ function fmt(num) {
   return Number.isInteger(num) ? String(num) : String(Math.round(num * 100) / 100);
 }
 
+// 走线规则按物理层号归属：02G01P、02IS01、L2、02 都表示 L2。
+function unifiedTraceLayerAlias(layer) {
+  const key = String(layer || '').trim().toUpperCase();
+  if (!key) return '';
+  if (key === 'TOP') return 'L1';
+  const logical = key.match(/^L\s*0*(\d{1,3})$/);
+  const numeric = key.match(/^0*(\d{1,3})$/);
+  const allegro = key.match(/^0*(\d{1,3})(?=[A-Z])/);
+  const match = logical || numeric || allegro;
+  return match ? `L${parseInt(match[1], 10)}` : key;
+}
+
+function findUnifiedTraceLayerRule(layer, rules) {
+  const list = Array.isArray(rules) ? rules : [];
+  const exact = String(layer || '').trim().toUpperCase();
+  const exactRule = list.find(rule => String(rule.layer || '').trim().toUpperCase() === exact);
+  if (exactRule) return exactRule;
+  const alias = unifiedTraceLayerAlias(layer);
+  return list.find(rule => alias && unifiedTraceLayerAlias(rule.layer) === alias) || null;
+}
+
 function compressWidthSequence(widths) {
   if (!widths || widths.length === 0) return [];
   const res = [];
